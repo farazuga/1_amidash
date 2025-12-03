@@ -1,6 +1,7 @@
 export type UserRole = 'viewer' | 'editor' | 'admin';
 
 export type ContractType =
+  | 'None'
   | 'South Carolina Purchasing'
   | 'TIPs Contract'
   | 'State of Georgia Purchasing Agreement';
@@ -10,6 +11,7 @@ export interface Profile {
   email: string;
   full_name: string | null;
   role: UserRole;
+  is_salesperson: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -42,6 +44,7 @@ export interface Project {
   contract_type: ContractType | null;
   goal_completion_date: string | null;
   current_status_id: string | null;
+  salesperson_id: string | null;
   poc_name: string | null;
   poc_email: string | null;
   poc_phone: string | null;
@@ -56,6 +59,7 @@ export interface Project {
   current_status?: Status;
   tags?: Tag[];
   created_by_profile?: Profile;
+  salesperson?: Profile;
 }
 
 export interface ProjectTag {

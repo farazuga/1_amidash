@@ -31,7 +31,8 @@ async function getProject(id: string) {
       *,
       current_status:statuses(*),
       tags:project_tags(tag:tags(*)),
-      created_by_profile:profiles!projects_created_by_fkey(*)
+      created_by_profile:profiles!projects_created_by_fkey(*),
+      salesperson:profiles!projects_salesperson_id_fkey(*)
     `)
     .eq('id', id)
     .single();
@@ -69,17 +70,28 @@ async function getStatusHistory(projectId: string) {
   return data || [];
 }
 
+async function getSalespeople() {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('is_salesperson', true)
+    .order('full_name');
+  return data || [];
+}
+
 export default async function ProjectDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [project, statuses, tags, statusHistory] = await Promise.all([
+  const [project, statuses, tags, statusHistory, salespeople] = await Promise.all([
     getProject(id),
     getStatuses(),
     getTags(),
     getStatusHistory(id),
+    getSalespeople(),
   ]);
 
   if (!project) {
@@ -145,6 +157,7 @@ export default async function ProjectDetailPage({
                 statuses={statuses}
                 tags={tags}
                 projectTags={project.tags?.map((t: { tag: { id: string } }) => t.tag.id) || []}
+                salespeople={salespeople}
               />
             </CardContent>
           </Card>
@@ -188,6 +201,18 @@ export default async function ProjectDetailPage({
                   <div>
                     <p className="text-sm text-muted-foreground">Contract Type</p>
                     <p className="font-medium">{project.contract_type}</p>
+                  </div>
+                </div>
+              )}
+
+              {project.salesperson && (
+                <div className="flex items-center gap-3">
+                  <FileText className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Salesperson</p>
+                    <p className="font-medium">
+                      {project.salesperson.full_name || project.salesperson.email}
+                    </p>
                   </div>
                 </div>
               )}

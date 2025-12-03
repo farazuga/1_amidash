@@ -21,8 +21,22 @@ async function getTags() {
   return data || [];
 }
 
+async function getSalespeople() {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('is_salesperson', true)
+    .order('full_name');
+  return data || [];
+}
+
 export default async function NewProjectPage() {
-  const [statuses, tags] = await Promise.all([getStatuses(), getTags()]);
+  const [statuses, tags, salespeople] = await Promise.all([
+    getStatuses(),
+    getTags(),
+    getSalespeople(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -48,7 +62,7 @@ export default async function NewProjectPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ProjectForm statuses={statuses} tags={tags} />
+          <ProjectForm statuses={statuses} tags={tags} salespeople={salespeople} />
         </CardContent>
       </Card>
     </div>

@@ -22,6 +22,7 @@ export const BRAND_COLORS = {
 } as const;
 
 export const CONTRACT_TYPES = [
+  'None',
   'South Carolina Purchasing',
   'TIPs Contract',
   'State of Georgia Purchasing Agreement',

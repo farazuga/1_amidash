@@ -13,9 +13,10 @@ interface SearchParams {
   overdue?: string;
   sort_by?: string;
   sort_order?: string;
+  view?: 'active' | 'archived';
 }
 
-async function getProjects(searchParams: SearchParams) {
+async function getProjects(searchParams: SearchParams, invoicedStatusId: string | null) {
   const supabase = await createClient();
 
   let query = supabase
@@ -23,8 +24,21 @@ async function getProjects(searchParams: SearchParams) {
     .select(`
       *,
       current_status:statuses(*),
-      tags:project_tags(tag:tags(*))
+      tags:project_tags(tag:tags(*)),
+      salesperson:profiles!projects_salesperson_id_fkey(id, full_name, email)
     `);
+
+  // Apply active/archived filter (default to active)
+  const view = searchParams.view || 'active';
+  if (invoicedStatusId) {
+    if (view === 'active') {
+      // Active = NOT invoiced
+      query = query.neq('current_status_id', invoicedStatusId);
+    } else {
+      // Archived = invoiced
+      query = query.eq('current_status_id', invoicedStatusId);
+    }
+  }
 
   // Apply search
   if (searchParams.search) {
@@ -83,10 +97,13 @@ export default async function ProjectsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
-  const [projects, statuses] = await Promise.all([
-    getProjects(params),
-    getStatuses(),
-  ]);
+  const statuses = await getStatuses();
+
+  // Find the "Invoiced" status to filter active vs archived
+  const invoicedStatus = statuses.find(s => s.name === 'Invoiced');
+  const invoicedStatusId = invoicedStatus?.id || null;
+
+  const projects = await getProjects(params, invoicedStatusId);
 
   return (
     <div className="space-y-6">
@@ -105,7 +122,7 @@ export default async function ProjectsPage({
         </Button>
       </div>
 
-      <FilterBar statuses={statuses} />
+      <FilterBar statuses={statuses} currentView={params.view || 'active'} />
 
       <Suspense fallback={<div>Loading projects...</div>}>
         <ProjectsTable projects={projects} statuses={statuses} />

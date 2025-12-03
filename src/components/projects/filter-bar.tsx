@@ -17,9 +17,10 @@ import { useCallback, useState, useTransition } from 'react';
 
 interface FilterBarProps {
   statuses: Status[];
+  currentView: 'active' | 'archived';
 }
 
-export function FilterBar({ statuses }: FilterBarProps) {
+export function FilterBar({ statuses, currentView }: FilterBarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -69,8 +70,51 @@ export function FilterBar({ statuses }: FilterBarProps) {
     searchParams.has('contract_type') ||
     searchParams.has('overdue');
 
+  const handleViewChange = (view: 'active' | 'archived') => {
+    startTransition(() => {
+      const newParams = new URLSearchParams(searchParams.toString());
+      if (view === 'active') {
+        newParams.delete('view');
+      } else {
+        newParams.set('view', view);
+      }
+      // Clear status filter when switching views to avoid confusion
+      newParams.delete('status');
+      router.push(`${pathname}?${newParams.toString()}`);
+    });
+  };
+
   return (
     <div className="flex flex-col gap-4 rounded-lg border bg-card p-4">
+      {/* Active/Archived Toggle */}
+      <div className="flex items-center gap-2">
+        <div className="inline-flex rounded-lg border bg-muted p-1">
+          <button
+            onClick={() => handleViewChange('active')}
+            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              currentView === 'active'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Active
+          </button>
+          <button
+            onClick={() => handleViewChange('archived')}
+            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              currentView === 'archived'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Archived
+          </button>
+        </div>
+        <span className="text-sm text-muted-foreground">
+          {currentView === 'active' ? 'Showing active projects' : 'Showing invoiced/archived projects'}
+        </span>
+      </div>
+
       <div className="flex flex-wrap items-center gap-4">
         {/* Search */}
         <div className="flex flex-1 items-center gap-2">

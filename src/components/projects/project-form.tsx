@@ -16,13 +16,14 @@ import {
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { CONTRACT_TYPES } from '@/lib/constants';
-import type { Project, Status, Tag } from '@/types';
+import type { Project, Status, Tag, Profile } from '@/types';
 
 interface ProjectFormProps {
   project?: Project;
   statuses: Status[];
   tags: Tag[];
   projectTags?: string[];
+  salespeople: Profile[];
 }
 
 export function ProjectForm({
@@ -30,17 +31,27 @@ export function ProjectForm({
   statuses,
   tags,
   projectTags = [],
+  salespeople,
 }: ProjectFormProps) {
   const router = useRouter();
   const supabase = createClient();
   const [isPending, startTransition] = useTransition();
   const [selectedTags, setSelectedTags] = useState<string[]>(projectTags);
+  const [selectedSalesperson, setSelectedSalesperson] = useState<string>(
+    project?.salesperson_id || ''
+  );
 
   const isEditing = !!project;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+
+    // Validate salesperson is selected
+    if (!selectedSalesperson) {
+      toast.error('Please select a salesperson');
+      return;
+    }
 
     const data = {
       client_name: formData.get('client_name') as string,
@@ -50,8 +61,9 @@ export function ProjectForm({
       sales_amount: formData.get('sales_amount')
         ? parseFloat(formData.get('sales_amount') as string)
         : null,
-      contract_type: formData.get('contract_type') as string || null,
+      contract_type: formData.get('contract_type') as string || 'None',
       goal_completion_date: formData.get('goal_completion_date') as string || null,
+      salesperson_id: selectedSalesperson,
       poc_name: formData.get('poc_name') as string || null,
       poc_email: formData.get('poc_email') as string || null,
       poc_phone: formData.get('poc_phone') as string || null,
@@ -221,7 +233,7 @@ export function ProjectForm({
         {/* Contract Type */}
         <div className="space-y-2">
           <Label htmlFor="contract_type">Contract Type</Label>
-          <Select name="contract_type" defaultValue={project?.contract_type || ''}>
+          <Select name="contract_type" defaultValue={project?.contract_type || 'None'}>
             <SelectTrigger>
               <SelectValue placeholder="Select contract type" />
             </SelectTrigger>
@@ -229,6 +241,26 @@ export function ProjectForm({
               {CONTRACT_TYPES.map((type) => (
                 <SelectItem key={type} value={type}>
                   {type}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Salesperson */}
+        <div className="space-y-2">
+          <Label htmlFor="salesperson">Salesperson *</Label>
+          <Select
+            value={selectedSalesperson}
+            onValueChange={setSelectedSalesperson}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select salesperson" />
+            </SelectTrigger>
+            <SelectContent>
+              {salespeople.map((person) => (
+                <SelectItem key={person.id} value={person.id}>
+                  {person.full_name || person.email}
                 </SelectItem>
               ))}
             </SelectContent>

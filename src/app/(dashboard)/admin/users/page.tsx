@@ -23,6 +23,8 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import type { Profile, UserRole } from '@/types';
@@ -69,6 +71,23 @@ export default function UsersAdminPage() {
     });
   };
 
+  const handleSalespersonChange = async (userId: string, isSalesperson: boolean) => {
+    startTransition(async () => {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_salesperson: isSalesperson })
+        .eq('id', userId);
+
+      if (error) {
+        toast.error('Failed to update salesperson status');
+        return;
+      }
+
+      toast.success(isSalesperson ? 'Marked as salesperson' : 'Removed salesperson status');
+      loadUsers();
+    });
+  };
+
   const getInitials = (user: Profile) => {
     if (user.full_name) {
       return user.full_name
@@ -107,6 +126,7 @@ export default function UsersAdminPage() {
                 <TableHead>User</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead>Salesperson</TableHead>
                 <TableHead>Joined</TableHead>
               </TableRow>
             </TableHeader>
@@ -153,6 +173,24 @@ export default function UsersAdminPage() {
                         </SelectItem>
                       </SelectContent>
                     </Select>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id={`salesperson-${user.id}`}
+                        checked={user.is_salesperson || false}
+                        onCheckedChange={(checked) =>
+                          handleSalespersonChange(user.id, checked)
+                        }
+                        disabled={isPending}
+                      />
+                      <Label
+                        htmlFor={`salesperson-${user.id}`}
+                        className="text-sm text-muted-foreground"
+                      >
+                        {user.is_salesperson ? 'Yes' : 'No'}
+                      </Label>
+                    </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {format(new Date(user.created_at), 'MMM d, yyyy')}

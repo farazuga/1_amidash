@@ -18,11 +18,24 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ExternalLink, MoreHorizontal, ArrowUpDown, Copy, Eye } from 'lucide-react';
+import { ExternalLink, MoreHorizontal, ArrowUpDown, Copy, Eye, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { Status } from '@/types';
 import { StatusBadge } from './status-badge';
 import { toast } from 'sonner';
+import { useUser } from '@/hooks/use-user';
+import { createClient } from '@/lib/supabase/client';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { useState } from 'react';
 
 interface ProjectWithTags {
   id: string;
@@ -51,6 +64,11 @@ export function ProjectsTable({ projects, statuses }: ProjectsTableProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { isAdmin } = useUser();
+  const supabase = createClient();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<ProjectWithTags | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleSort = (column: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -76,6 +94,45 @@ export function ProjectsTable({ projects, statuses }: ProjectsTableProps) {
   const isOverdue = (goalDate: string | null) => {
     if (!goalDate) return false;
     return new Date(goalDate) < new Date();
+  };
+
+  const handleDeleteProject = async () => {
+    if (!projectToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      // Log deletion to audit before deleting
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from('audit_logs').insert({
+        project_id: projectToDelete.id,
+        user_id: user?.id,
+        action: 'delete',
+        field_name: 'project',
+        old_value: projectToDelete.client_name,
+      });
+
+      // Delete the project (cascades to project_tags, status_history)
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectToDelete.id);
+
+      if (error) {
+        toast.error('Failed to delete project');
+        console.error('Delete error:', error);
+        return;
+      }
+
+      toast.success('Project deleted successfully');
+      router.refresh();
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      toast.error('An unexpected error occurred');
+    } finally {
+      setIsDeleting(false);
+      setDeleteDialogOpen(false);
+      setProjectToDelete(null);
+    }
   };
 
   if (projects.length === 0) {
@@ -263,6 +320,19 @@ export function ProjectsTable({ projects, statuses }: ProjectsTableProps) {
                         View Scope
                       </DropdownMenuItem>
                     )}
+                    {isAdmin && (
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setProjectToDelete(project);
+                          setDeleteDialogOpen(true);
+                        }}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete Project
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </TableCell>
@@ -270,6 +340,29 @@ export function ProjectsTable({ projects, statuses }: ProjectsTableProps) {
           ))}
         </TableBody>
       </Table>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Project</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete &quot;{projectToDelete?.client_name}&quot;? This action cannot be undone.
+              The project and all related data (status history, tags) will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteProject}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
