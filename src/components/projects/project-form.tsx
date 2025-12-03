@@ -59,113 +59,139 @@ export function ProjectForm({
     };
 
     startTransition(async () => {
-      if (isEditing) {
-        // Get old values for audit
-        const oldProject = project;
+      try {
+        if (isEditing) {
+          // Get old values for audit
+          const oldProject = project;
 
-        // Update project
-        const { error } = await supabase
-          .from('projects')
-          .update(data)
-          .eq('id', project.id);
+          // Update project
+          const { error } = await supabase
+            .from('projects')
+            .update(data)
+            .eq('id', project.id);
 
-        if (error) {
-          toast.error('Failed to update project');
-          console.error(error);
-          return;
-        }
-
-        // Log changes to audit
-        const { data: { user } } = await supabase.auth.getUser();
-        const changes: { field: string; oldVal: unknown; newVal: unknown }[] = [];
-
-        Object.entries(data).forEach(([key, newVal]) => {
-          const oldVal = oldProject[key as keyof typeof oldProject];
-          if (String(oldVal || '') !== String(newVal || '')) {
-            changes.push({ field: key, oldVal, newVal });
+          if (error) {
+            toast.error('Failed to update project');
+            console.error(error);
+            return;
           }
-        });
 
-        for (const change of changes) {
-          await supabase.from('audit_logs').insert({
-            project_id: project.id,
-            user_id: user?.id,
-            action: 'update',
-            field_name: change.field,
-            old_value: String(change.oldVal || ''),
-            new_value: String(change.newVal || ''),
+          // Log changes to audit
+          const { data: { user } } = await supabase.auth.getUser();
+          const changes: { field: string; oldVal: unknown; newVal: unknown }[] = [];
+
+          Object.entries(data).forEach(([key, newVal]) => {
+            const oldVal = oldProject[key as keyof typeof oldProject];
+            if (String(oldVal || '') !== String(newVal || '')) {
+              changes.push({ field: key, oldVal, newVal });
+            }
           });
-        }
 
-        // Update tags
-        await supabase
-          .from('project_tags')
-          .delete()
-          .eq('project_id', project.id);
-
-        if (selectedTags.length > 0) {
-          await supabase.from('project_tags').insert(
-            selectedTags.map((tagId) => ({
+          for (const change of changes) {
+            await supabase.from('audit_logs').insert({
               project_id: project.id,
-              tag_id: tagId,
-            }))
-          );
-        }
+              user_id: user?.id,
+              action: 'update',
+              field_name: change.field,
+              old_value: String(change.oldVal || ''),
+              new_value: String(change.newVal || ''),
+            });
+          }
 
-        toast.success('Project updated successfully');
-        router.refresh();
-      } else {
-        // Get first status for new projects
-        const firstStatus = statuses.find((s) => s.display_order === 1);
+          // Update tags
+          await supabase
+            .from('project_tags')
+            .delete()
+            .eq('project_id', project.id);
 
-        const { data: { user } } = await supabase.auth.getUser();
+          if (selectedTags.length > 0) {
+            await supabase.from('project_tags').insert(
+              selectedTags.map((tagId) => ({
+                project_id: project.id,
+                tag_id: tagId,
+              }))
+            );
+          }
 
-        const { data: newProject, error } = await supabase
-          .from('projects')
-          .insert({
-            ...data,
-            current_status_id: firstStatus?.id,
-            created_by: user?.id,
-          })
-          .select()
-          .single();
+          toast.success('Project updated successfully');
+          router.refresh();
+        } else {
+          // Get first status for new projects
+          const firstStatus = statuses.find((s) => s.display_order === 1);
 
-        if (error) {
-          toast.error('Failed to create project');
-          console.error(error);
-          return;
-        }
+          if (!firstStatus) {
+            toast.error('No status configured. Please add statuses first.');
+            return;
+          }
 
-        // Add initial status history
-        if (firstStatus) {
-          await supabase.from('status_history').insert({
+          const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+          if (userError || !user) {
+            toast.error('Session expired. Please log in again.');
+            console.error('Auth error:', userError);
+            return;
+          }
+
+          const { data: newProject, error } = await supabase
+            .from('projects')
+            .insert({
+              ...data,
+              current_status_id: firstStatus.id,
+              created_by: user.id,
+            })
+            .select()
+            .single();
+
+          if (error) {
+            toast.error('Failed to create project');
+            console.error('Project insert error:', error);
+            return;
+          }
+
+          // Add initial status history
+          const { error: historyError } = await supabase.from('status_history').insert({
             project_id: newProject.id,
             status_id: firstStatus.id,
-            changed_by: user?.id,
+            changed_by: user.id,
           });
+
+          if (historyError) {
+            console.error('Status history error:', historyError);
+            // Continue anyway - project was created
+          }
+
+          // Add tags
+          if (selectedTags.length > 0) {
+            const { error: tagsError } = await supabase.from('project_tags').insert(
+              selectedTags.map((tagId) => ({
+                project_id: newProject.id,
+                tag_id: tagId,
+              }))
+            );
+            if (tagsError) {
+              console.error('Tags error:', tagsError);
+            }
+          }
+
+          // Log creation
+          const { error: auditError } = await supabase.from('audit_logs').insert({
+            project_id: newProject.id,
+            user_id: user.id,
+            action: 'create',
+            field_name: 'project',
+            new_value: data.client_name,
+          });
+
+          if (auditError) {
+            console.error('Audit log error:', auditError);
+          }
+
+          toast.success('Project created successfully');
+          router.push(`/projects/${newProject.id}`);
         }
-
-        // Add tags
-        if (selectedTags.length > 0) {
-          await supabase.from('project_tags').insert(
-            selectedTags.map((tagId) => ({
-              project_id: newProject.id,
-              tag_id: tagId,
-            }))
-          );
-        }
-
-        // Log creation
-        await supabase.from('audit_logs').insert({
-          project_id: newProject.id,
-          user_id: user?.id,
-          action: 'create',
-          field_name: 'project',
-          new_value: data.client_name,
-        });
-
-        toast.success('Project created successfully');
-        router.push(`/projects/${newProject.id}`);
+      } catch (err) {
+        console.error('Unexpected error:', err);
+        toast.error('An unexpected error occurred');
       }
     });
   };
