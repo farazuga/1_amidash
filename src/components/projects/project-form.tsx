@@ -133,7 +133,7 @@ export function ProjectForm({
             return;
           }
 
-          // Log changes to audit
+          // Log changes to audit and update tags in parallel (fire-and-forget for non-critical ops)
           const { data: { user } } = await supabase.auth.getUser();
           const changes: { field: string; oldVal: unknown; newVal: unknown }[] = [];
 
@@ -144,31 +144,41 @@ export function ProjectForm({
             }
           });
 
-          for (const change of changes) {
-            await supabase.from('audit_logs').insert({
-              project_id: project.id,
-              user_id: user?.id,
-              action: 'update',
-              field_name: change.field,
-              old_value: String(change.oldVal || ''),
-              new_value: String(change.newVal || ''),
-            });
-          }
+          // Run audit logs and tag updates in background (don't block the UI)
+          (async () => {
+            try {
+              // Batch all audit log inserts
+              if (changes.length > 0) {
+                await supabase.from('audit_logs').insert(
+                  changes.map(change => ({
+                    project_id: project.id,
+                    user_id: user?.id,
+                    action: 'update',
+                    field_name: change.field,
+                    old_value: String(change.oldVal || ''),
+                    new_value: String(change.newVal || ''),
+                  }))
+                );
+              }
 
-          // Update tags
-          await supabase
-            .from('project_tags')
-            .delete()
-            .eq('project_id', project.id);
+              // Update tags - delete then insert
+              await supabase
+                .from('project_tags')
+                .delete()
+                .eq('project_id', project.id);
 
-          if (selectedTags.length > 0) {
-            await supabase.from('project_tags').insert(
-              selectedTags.map((tagId) => ({
-                project_id: project.id,
-                tag_id: tagId,
-              }))
-            );
-          }
+              if (selectedTags.length > 0) {
+                await supabase.from('project_tags').insert(
+                  selectedTags.map((tagId) => ({
+                    project_id: project.id,
+                    tag_id: tagId,
+                  }))
+                );
+              }
+            } catch (err) {
+              console.error('Background save error:', err);
+            }
+          })();
 
           toast.success('Project updated successfully');
           router.refresh();
@@ -207,43 +217,35 @@ export function ProjectForm({
             return;
           }
 
-          // Add initial status history
-          const { error: historyError } = await supabase.from('status_history').insert({
-            project_id: newProject.id,
-            status_id: firstStatus.id,
-            changed_by: user.id,
-          });
-
-          if (historyError) {
-            console.error('Status history error:', historyError);
-            // Continue anyway - project was created
-          }
-
-          // Add tags
-          if (selectedTags.length > 0) {
-            const { error: tagsError } = await supabase.from('project_tags').insert(
-              selectedTags.map((tagId) => ({
+          // Run status history, tags, and audit log in background (fire-and-forget)
+          (async () => {
+            try {
+              await supabase.from('status_history').insert({
                 project_id: newProject.id,
-                tag_id: tagId,
-              }))
-            );
-            if (tagsError) {
-              console.error('Tags error:', tagsError);
+                status_id: firstStatus.id,
+                changed_by: user.id,
+              });
+
+              await supabase.from('audit_logs').insert({
+                project_id: newProject.id,
+                user_id: user.id,
+                action: 'create',
+                field_name: 'project',
+                new_value: data.client_name,
+              });
+
+              if (selectedTags.length > 0) {
+                await supabase.from('project_tags').insert(
+                  selectedTags.map((tagId) => ({
+                    project_id: newProject.id,
+                    tag_id: tagId,
+                  }))
+                );
+              }
+            } catch (err) {
+              console.error('Background create tasks error:', err);
             }
-          }
-
-          // Log creation
-          const { error: auditError } = await supabase.from('audit_logs').insert({
-            project_id: newProject.id,
-            user_id: user.id,
-            action: 'create',
-            field_name: 'project',
-            new_value: data.client_name,
-          });
-
-          if (auditError) {
-            console.error('Audit log error:', auditError);
-          }
+          })();
 
           // Send welcome email to POC (fire-and-forget with timeout)
           if (data.poc_email && newProject.client_token) {
