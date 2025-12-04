@@ -16,7 +16,7 @@ import {
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { CONTRACT_TYPES } from '@/lib/constants';
-import type { Project, Status, Tag, Profile } from '@/types';
+import type { Project, Status, Tag, Profile, ProjectType } from '@/types';
 
 interface ProjectFormProps {
   project?: Project;
@@ -24,6 +24,8 @@ interface ProjectFormProps {
   tags: Tag[];
   projectTags?: string[];
   salespeople: Profile[];
+  projectTypes: ProjectType[];
+  projectTypeStatuses: { project_type_id: string; status_id: string }[];
 }
 
 export function ProjectForm({
@@ -32,6 +34,8 @@ export function ProjectForm({
   tags,
   projectTags = [],
   salespeople,
+  projectTypes,
+  projectTypeStatuses,
 }: ProjectFormProps) {
   const router = useRouter();
   const supabase = createClient();
@@ -40,8 +44,23 @@ export function ProjectForm({
   const [selectedSalesperson, setSelectedSalesperson] = useState<string>(
     project?.salesperson_id || ''
   );
+  const [selectedProjectType, setSelectedProjectType] = useState<string>(
+    project?.project_type_id || ''
+  );
+  const [salesOrderNumber, setSalesOrderNumber] = useState<string>(
+    project?.sales_order_number || (project ? '' : 'S12')
+  );
+  const [salesOrderError, setSalesOrderError] = useState<string | null>(null);
 
   const isEditing = !!project;
+
+  // Get statuses available for the selected project type
+  const getAvailableStatuses = (projectTypeId: string) => {
+    const statusIds = projectTypeStatuses
+      .filter(pts => pts.project_type_id === projectTypeId)
+      .map(pts => pts.status_id);
+    return statuses.filter(s => statusIds.includes(s.id) && s.is_active);
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -53,9 +72,35 @@ export function ProjectForm({
       return;
     }
 
+    // Validate project type is selected for new projects
+    if (!isEditing && !selectedProjectType) {
+      toast.error('Please select a project type');
+      return;
+    }
+
+    // Validate Sales Order Number format (must start with S12 and be 6 characters)
+    if (salesOrderNumber && salesOrderNumber.trim()) {
+      const trimmedSalesOrder = salesOrderNumber.trim();
+      if (!trimmedSalesOrder.startsWith('S12') || trimmedSalesOrder.length !== 6) {
+        toast.error('Sales Order # must start with "S12" and be exactly 6 characters (e.g., S12345)');
+        setSalesOrderError('Must start with "S12" and be exactly 6 characters');
+        return;
+      }
+    }
+
+    // Validate Point of Contact fields are all filled
+    const pocName = formData.get('poc_name') as string;
+    const pocEmail = formData.get('poc_email') as string;
+    const pocPhone = formData.get('poc_phone') as string;
+
+    if (!pocName?.trim() || !pocEmail?.trim() || !pocPhone?.trim()) {
+      toast.error('All Point of Contact fields are required');
+      return;
+    }
+
     const data = {
       client_name: formData.get('client_name') as string,
-      sales_order_number: formData.get('sales_order_number') as string || null,
+      sales_order_number: salesOrderNumber?.trim() || null,
       sales_order_url: formData.get('sales_order_url') as string || null,
       po_number: formData.get('po_number') as string || null,
       sales_amount: formData.get('sales_amount')
@@ -128,11 +173,12 @@ export function ProjectForm({
           toast.success('Project updated successfully');
           router.refresh();
         } else {
-          // Get first status for new projects
-          const firstStatus = statuses.find((s) => s.display_order === 1);
+          // Get first status for the selected project type
+          const availableStatuses = getAvailableStatuses(selectedProjectType);
+          const firstStatus = availableStatuses.sort((a, b) => a.display_order - b.display_order)[0];
 
           if (!firstStatus) {
-            toast.error('No status configured. Please add statuses first.');
+            toast.error('No statuses configured for this project type. Please configure statuses first.');
             return;
           }
 
@@ -148,6 +194,7 @@ export function ProjectForm({
             .from('projects')
             .insert({
               ...data,
+              project_type_id: selectedProjectType,
               current_status_id: firstStatus.id,
               created_by: user.id,
             })
@@ -230,6 +277,32 @@ export function ProjectForm({
           />
         </div>
 
+        {/* Project Type */}
+        <div className="space-y-2">
+          <Label htmlFor="project_type">Project Type *</Label>
+          <Select
+            value={selectedProjectType}
+            onValueChange={setSelectedProjectType}
+            disabled={isEditing}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select project type" />
+            </SelectTrigger>
+            <SelectContent>
+              {projectTypes.filter(t => t.is_active).map((type) => (
+                <SelectItem key={type.id} value={type.id}>
+                  {type.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {isEditing && (
+            <p className="text-xs text-muted-foreground">
+              Project type cannot be changed after creation
+            </p>
+          )}
+        </div>
+
         {/* Contract Type */}
         <div className="space-y-2">
           <Label htmlFor="contract_type">Contract Type</Label>
@@ -279,7 +352,7 @@ export function ProjectForm({
 
         {/* Sales Amount */}
         <div className="space-y-2">
-          <Label htmlFor="sales_amount">Sales Amount ($)</Label>
+          <Label htmlFor="sales_amount">Sales Amount w/o Tax ($)</Label>
           <Input
             id="sales_amount"
             name="sales_amount"
@@ -292,12 +365,25 @@ export function ProjectForm({
 
         {/* Sales Order Number */}
         <div className="space-y-2">
-          <Label htmlFor="sales_order_number">Sales Order #</Label>
+          <Label htmlFor="sales_order_number">Sales Order # *</Label>
           <Input
             id="sales_order_number"
             name="sales_order_number"
-            defaultValue={project?.sales_order_number || ''}
+            value={salesOrderNumber}
+            onChange={(e) => {
+              setSalesOrderNumber(e.target.value.toUpperCase());
+              setSalesOrderError(null);
+            }}
+            placeholder="S12XXX"
+            maxLength={6}
+            className={salesOrderError ? 'border-destructive' : ''}
           />
+          <p className="text-xs text-muted-foreground">
+            Must start with &quot;S12&quot; and be exactly 6 characters (e.g., S12345)
+          </p>
+          {salesOrderError && (
+            <p className="text-xs text-destructive">{salesOrderError}</p>
+          )}
         </div>
 
         {/* Sales Order URL (Odoo) */}
@@ -337,32 +423,35 @@ export function ProjectForm({
       </div>
 
       <div className="border-t pt-4">
-        <h3 className="font-medium mb-4">Point of Contact</h3>
+        <h3 className="font-medium mb-4">Point of Contact *</h3>
         <div className="grid gap-4 md:grid-cols-3">
           <div className="space-y-2">
-            <Label htmlFor="poc_name">Name</Label>
+            <Label htmlFor="poc_name">Name *</Label>
             <Input
               id="poc_name"
               name="poc_name"
               defaultValue={project?.poc_name || ''}
+              required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="poc_email">Email</Label>
+            <Label htmlFor="poc_email">Email *</Label>
             <Input
               id="poc_email"
               name="poc_email"
               type="email"
               defaultValue={project?.poc_email || ''}
+              required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="poc_phone">Phone</Label>
+            <Label htmlFor="poc_phone">Phone *</Label>
             <Input
               id="poc_phone"
               name="poc_phone"
               type="tel"
               defaultValue={project?.poc_phone || ''}
+              required
             />
           </div>
         </div>

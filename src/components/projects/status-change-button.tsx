@@ -32,6 +32,8 @@ interface StatusChangeButtonProps {
   statuses: Status[];
   pocEmail: string | null;
   clientName: string;
+  projectTypeId: string | null;
+  projectTypeStatuses: { project_type_id: string; status_id: string }[];
 }
 
 export function StatusChangeButton({
@@ -40,7 +42,20 @@ export function StatusChangeButton({
   statuses,
   pocEmail,
   clientName,
+  projectTypeId,
+  projectTypeStatuses,
 }: StatusChangeButtonProps) {
+  // Filter statuses to only show those available for this project type
+  // If no statuses are mapped for this project type, show all active statuses as fallback
+  const allowedStatusIds = projectTypeId
+    ? projectTypeStatuses
+        .filter(pts => pts.project_type_id === projectTypeId)
+        .map(pts => pts.status_id)
+    : [];
+
+  const availableStatuses = projectTypeId && allowedStatusIds.length > 0
+    ? statuses.filter(s => allowedStatusIds.includes(s.id))
+    : statuses;
   const [open, setOpen] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [note, setNote] = useState('');
@@ -48,8 +63,8 @@ export function StatusChangeButton({
   const router = useRouter();
   const supabase = createClient();
 
-  const currentStatus = statuses.find((s) => s.id === currentStatusId);
-  const newStatus = statuses.find((s) => s.id === selectedStatus);
+  const currentStatus = availableStatuses.find((s) => s.id === currentStatusId);
+  const newStatus = availableStatuses.find((s) => s.id === selectedStatus);
 
   const handleStatusChange = async () => {
     if (!selectedStatus) {
@@ -95,24 +110,29 @@ export function StatusChangeButton({
         new_value: newStatus?.name || null,
       });
 
-      // Send email notification if POC has email
+      // Send email notification if POC has email (fire-and-forget with timeout)
       if (pocEmail && newStatus) {
-        try {
-          await fetch('/api/email/status-change', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              to: pocEmail,
-              clientName,
-              projectId,
-              newStatus: newStatus.name,
-              progressPercent: newStatus.progress_percent,
-            }),
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
+        fetch('/api/email/status-change', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: pocEmail,
+            clientName,
+            projectId,
+            newStatus: newStatus.name,
+          }),
+          signal: controller.signal,
+        })
+          .catch((error) => {
+            console.error('Failed to send email:', error);
+          })
+          .finally(() => {
+            clearTimeout(timeoutId);
           });
-        } catch (error) {
-          console.error('Failed to send email:', error);
-          // Don't fail the whole operation if email fails
-        }
+        // Don't await - email is fire-and-forget
       }
 
       toast.success(`Status changed to "${newStatus?.name}"`);
@@ -145,7 +165,6 @@ export function StatusChangeButton({
             <Label>Current Status</Label>
             <p className="text-sm font-medium">
               {currentStatus?.name || 'No status'}
-              {currentStatus && ` (${currentStatus.progress_percent}%)`}
             </p>
           </div>
 
@@ -156,13 +175,13 @@ export function StatusChangeButton({
                 <SelectValue placeholder="Select new status" />
               </SelectTrigger>
               <SelectContent>
-                {statuses.map((status) => (
+                {availableStatuses.map((status) => (
                   <SelectItem
                     key={status.id}
                     value={status.id}
                     disabled={status.id === currentStatusId}
                   >
-                    {status.name} ({status.progress_percent}%)
+                    {status.name}
                     {status.require_note && ' *'}
                   </SelectItem>
                 ))}
@@ -175,18 +194,36 @@ export function StatusChangeButton({
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="note">
-              Note {newStatus?.require_note ? '*' : '(optional)'}
-            </Label>
-            <Textarea
-              id="note"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Add a note about this status change..."
-              rows={3}
-            />
-          </div>
+          {newStatus?.require_note ? (
+            <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3">
+              <Label htmlFor="note" className="text-amber-900 font-semibold flex items-center gap-2">
+                <span className="text-amber-600">*</span>
+                Note Required for &quot;{newStatus.name}&quot;
+              </Label>
+              <Textarea
+                id="note"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Please provide a note explaining this status change..."
+                rows={3}
+                className="border-amber-300 focus:border-amber-500"
+                required
+              />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="note" className="text-muted-foreground">
+                Note (optional)
+              </Label>
+              <Textarea
+                id="note"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Add a note about this status change..."
+                rows={3}
+              />
+            </div>
+          )}
 
           {pocEmail && (
             <p className="text-sm text-muted-foreground">

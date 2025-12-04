@@ -17,10 +17,14 @@ export function ProgressBar({ currentStatus, statuses, isOnHold }: ProgressBarPr
     ? progressStatuses.findIndex(s => s.id === currentStatus.id)
     : -1;
 
-  // If on hold, find the last non-hold status progress
-  const progressPercent = isOnHold
-    ? (currentStatus?.progress_percent || 0)
-    : (currentStatus?.progress_percent || 0);
+  // Calculate progress based on status position
+  // If status is "Invoiced" (final), it's 100%. Otherwise, calculate based on position.
+  const isComplete = currentStatus?.name === 'Invoiced';
+  const progressPercent = isComplete
+    ? 100
+    : currentIndex >= 0
+    ? Math.round(((currentIndex + 1) / progressStatuses.length) * 100)
+    : 0;
 
   return (
     <div className="space-y-4">

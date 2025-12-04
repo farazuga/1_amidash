@@ -5,7 +5,7 @@ export async function POST(request: NextRequest) {
   const resend = new Resend(process.env.RESEND_API_KEY);
   try {
     const body = await request.json();
-    const { to, clientName, projectId, newStatus, progressPercent } = body;
+    const { to, clientName, newStatus } = body;
 
     if (!to || !clientName || !newStatus) {
       return NextResponse.json(
@@ -15,10 +15,6 @@ export async function POST(request: NextRequest) {
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-
-    // Get the project's client token for the portal link
-    // Note: In production, you'd fetch this from the database
-    // For now, we'll use the projectId in the email
 
     const { data, error } = await resend.emails.send({
       from: 'Amitrace <updates@amitrace.com>',
@@ -53,17 +49,6 @@ export async function POST(request: NextRequest) {
                   <span style="display: inline-block; background-color: #023A2D; color: white; padding: 12px 24px; border-radius: 50px; font-size: 18px; font-weight: 600;">
                     ${newStatus}
                   </span>
-                </div>
-
-                <!-- Progress Bar -->
-                <div style="margin: 30px 0;">
-                  <p style="color: #666; font-size: 14px; margin: 0 0 10px 0;">Project Progress</p>
-                  <div style="background-color: #e5e7eb; border-radius: 9999px; height: 12px; overflow: hidden;">
-                    <div style="background-color: #023A2D; height: 100%; width: ${progressPercent}%; border-radius: 9999px;"></div>
-                  </div>
-                  <p style="color: #023A2D; font-size: 14px; font-weight: 600; text-align: right; margin: 5px 0 0 0;">
-                    ${progressPercent}% Complete
-                  </p>
                 </div>
 
                 <!-- CTA Button -->

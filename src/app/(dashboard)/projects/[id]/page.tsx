@@ -80,18 +80,37 @@ async function getSalespeople() {
   return data || [];
 }
 
+async function getProjectTypes() {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('project_types')
+    .select('*')
+    .order('display_order');
+  return data || [];
+}
+
+async function getProjectTypeStatuses() {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('project_type_statuses')
+    .select('*');
+  return data || [];
+}
+
 export default async function ProjectDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [project, statuses, tags, statusHistory, salespeople] = await Promise.all([
+  const [project, statuses, tags, statusHistory, salespeople, projectTypes, projectTypeStatuses] = await Promise.all([
     getProject(id),
     getStatuses(),
     getTags(),
     getStatusHistory(id),
     getSalespeople(),
+    getProjectTypes(),
+    getProjectTypeStatuses(),
   ]);
 
   if (!project) {
@@ -138,6 +157,8 @@ export default async function ProjectDetailPage({
             statuses={statuses}
             pocEmail={project.poc_email}
             clientName={project.client_name}
+            projectTypeId={project.project_type_id}
+            projectTypeStatuses={projectTypeStatuses}
           />
         </div>
       </div>
@@ -158,6 +179,8 @@ export default async function ProjectDetailPage({
                 tags={tags}
                 projectTags={project.tags?.map((t: { tag: { id: string } }) => t.tag.id) || []}
                 salespeople={salespeople}
+                projectTypes={projectTypes}
+                projectTypeStatuses={projectTypeStatuses}
               />
             </CardContent>
           </Card>
