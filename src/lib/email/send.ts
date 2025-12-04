@@ -1,4 +1,4 @@
-import { resend } from '@/lib/resend';
+import { getResend } from '@/lib/resend';
 
 const FROM_EMAIL = 'Amitrace <updates@dash.amitrace.com>';
 
@@ -19,6 +19,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
   const { to, subject, html, replyTo = 'support@amitrace.com' } = options;
 
   try {
+    const resend = getResend();
     const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
       to: Array.isArray(to) ? to : [to],
