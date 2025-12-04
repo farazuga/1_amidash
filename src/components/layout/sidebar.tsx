@@ -14,7 +14,9 @@ import {
   Tags,
   ListChecks,
   FileText,
+  Plus,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 const mainNavItems = [
   {
@@ -75,6 +77,14 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 space-y-1 px-3 py-4">
+          {/* New Project Button */}
+          <Link href="/projects/new" className="block mb-4">
+            <Button className="w-full" size="sm">
+              <Plus className="mr-2 h-4 w-4" />
+              New Project
+            </Button>
+          </Link>
+
           <div className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60">
             Main
           </div>
