@@ -94,23 +94,27 @@ export function StatusChangeButton({
         return;
       }
 
-      // Add to status history
-      await supabase.from('status_history').insert({
-        project_id: projectId,
-        status_id: selectedStatus,
-        note: note.trim() || null,
-        changed_by: user?.id,
-      });
-
-      // Add to audit log
-      await supabase.from('audit_logs').insert({
-        project_id: projectId,
-        user_id: user?.id,
-        action: 'update',
-        field_name: 'status',
-        old_value: currentStatus?.name || null,
-        new_value: newStatus?.name || null,
-      });
+      // Add to status history and audit log in background (fire-and-forget)
+      (async () => {
+        try {
+          await supabase.from('status_history').insert({
+            project_id: projectId,
+            status_id: selectedStatus,
+            note: note.trim() || null,
+            changed_by: user?.id,
+          });
+          await supabase.from('audit_logs').insert({
+            project_id: projectId,
+            user_id: user?.id,
+            action: 'update',
+            field_name: 'status',
+            old_value: currentStatus?.name || null,
+            new_value: newStatus?.name || null,
+          });
+        } catch (err) {
+          console.error('Background save error:', err);
+        }
+      })();
 
       // Send email notification if POC has email (fire-and-forget with timeout)
       if (pocEmail && newStatus) {
