@@ -57,10 +57,9 @@ interface ProjectWithTags {
 
 interface ProjectsTableProps {
   projects: ProjectWithTags[];
-  statuses: Status[];
 }
 
-export function ProjectsTable({ projects, statuses }: ProjectsTableProps) {
+export function ProjectsTable({ projects }: ProjectsTableProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();

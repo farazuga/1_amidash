@@ -125,7 +125,7 @@ export default async function ProjectsPage({
       <FilterBar statuses={statuses} currentView={params.view || 'active'} />
 
       <Suspense fallback={<div>Loading projects...</div>}>
-        <ProjectsTable projects={projects} statuses={statuses} />
+        <ProjectsTable projects={projects} />
       </Suspense>
     </div>
   );

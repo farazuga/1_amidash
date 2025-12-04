@@ -77,22 +77,32 @@ export default function UsersAdminPage() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
-    loadUsers();
-    getCurrentUser();
-  }, []);
+    let cancelled = false;
 
-  const getCurrentUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    setCurrentUserId(user?.id || null);
-  };
+    const fetchData = async () => {
+      const [usersRes, userRes] = await Promise.all([
+        supabase.from('profiles').select('*').order('created_at', { ascending: false }),
+        supabase.auth.getUser(),
+      ]);
 
+      if (!cancelled) {
+        setUsers(usersRes.data || []);
+        setCurrentUserId(userRes.data.user?.id || null);
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+    return () => { cancelled = true; };
+  }, [supabase]);
+
+  // Function to reload users after mutations
   const loadUsers = async () => {
     const { data } = await supabase
       .from('profiles')
       .select('*')
       .order('created_at', { ascending: false });
     setUsers(data || []);
-    setIsLoading(false);
   };
 
   const handleRoleChange = async (userId: string, newRole: UserRole) => {

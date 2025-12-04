@@ -215,9 +215,38 @@ export default function StatusesAdminPage() {
   );
 
   useEffect(() => {
-    loadData();
-  }, []);
+    let cancelled = false;
 
+    const fetchData = async () => {
+      const [statusesRes, typesRes, mapRes] = await Promise.all([
+        supabase.from('statuses').select('*').order('display_order'),
+        supabase.from('project_types').select('*').order('display_order'),
+        supabase.from('project_type_statuses').select('*'),
+      ]);
+
+      if (cancelled) return;
+
+      setStatuses(statusesRes.data || []);
+      setProjectTypes(typesRes.data || []);
+
+      // Build the status map
+      const map: ProjectTypeStatusMap = {};
+      (mapRes.data || []).forEach((row: { project_type_id: string; status_id: string }) => {
+        if (!map[row.project_type_id]) {
+          map[row.project_type_id] = [];
+        }
+        map[row.project_type_id].push(row.status_id);
+      });
+      setStatusMap(map);
+
+      setIsLoading(false);
+    };
+
+    fetchData();
+    return () => { cancelled = true; };
+  }, [supabase]);
+
+  // Function to reload data after mutations
   const loadData = async () => {
     const [statusesRes, typesRes, mapRes] = await Promise.all([
       supabase.from('statuses').select('*').order('display_order'),
@@ -228,7 +257,6 @@ export default function StatusesAdminPage() {
     setStatuses(statusesRes.data || []);
     setProjectTypes(typesRes.data || []);
 
-    // Build the status map
     const map: ProjectTypeStatusMap = {};
     (mapRes.data || []).forEach((row: { project_type_id: string; status_id: string }) => {
       if (!map[row.project_type_id]) {
@@ -237,8 +265,6 @@ export default function StatusesAdminPage() {
       map[row.project_type_id].push(row.status_id);
     });
     setStatusMap(map);
-
-    setIsLoading(false);
   };
 
   // Handle status reorder

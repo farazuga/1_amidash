@@ -9,7 +9,6 @@ import { useUser } from '@/hooks/use-user';
 import {
   LayoutDashboard,
   FolderKanban,
-  Settings,
   Users,
   Tags,
   ListChecks,

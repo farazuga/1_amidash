@@ -8,7 +8,6 @@ import { Separator } from '@/components/ui/separator';
 import {
   ArrowLeft,
   ExternalLink,
-  Copy,
   Mail,
   Phone,
   Calendar,

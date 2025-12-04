@@ -47,28 +47,33 @@ export default function AuditLogPage() {
   const supabase = createClient();
 
   useEffect(() => {
-    loadLogs();
-  }, [filter]);
+    let cancelled = false;
 
-  const loadLogs = async () => {
-    let query = supabase
-      .from('audit_logs')
-      .select(`
-        *,
-        user:profiles(*),
-        project:projects(client_name)
-      `)
-      .order('created_at', { ascending: false })
-      .limit(100);
+    const fetchLogs = async () => {
+      let query = supabase
+        .from('audit_logs')
+        .select(`
+          *,
+          user:profiles(*),
+          project:projects(client_name)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(100);
 
-    if (filter !== 'all') {
-      query = query.eq('action', filter);
-    }
+      if (filter !== 'all') {
+        query = query.eq('action', filter);
+      }
 
-    const { data } = await query;
-    setLogs(data || []);
-    setIsLoading(false);
-  };
+      const { data } = await query;
+      if (!cancelled) {
+        setLogs(data || []);
+        setIsLoading(false);
+      }
+    };
+
+    fetchLogs();
+    return () => { cancelled = true; };
+  }, [supabase, filter]);
 
   const filteredLogs = logs.filter((log) => {
     if (!search) return true;

@@ -31,13 +31,24 @@ export default function TagsAdminPage() {
   const supabase = createClient();
 
   useEffect(() => {
-    loadTags();
-  }, []);
+    let cancelled = false;
 
+    const fetchTags = async () => {
+      const { data } = await supabase.from('tags').select('*').order('name');
+      if (!cancelled) {
+        setTags(data || []);
+        setIsLoading(false);
+      }
+    };
+
+    fetchTags();
+    return () => { cancelled = true; };
+  }, [supabase]);
+
+  // Function to reload tags after mutations
   const loadTags = async () => {
     const { data } = await supabase.from('tags').select('*').order('name');
     setTags(data || []);
-    setIsLoading(false);
   };
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {

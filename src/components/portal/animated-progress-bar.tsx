@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import type { Status } from '@/types';
@@ -86,16 +86,17 @@ function NextStatusArrow() {
   );
 }
 
+// Helper for client-side only rendering
+const emptySubscribe = () => () => {};
+const getSnapshot = () => true;
+const getServerSnapshot = () => false;
+
 export function AnimatedProgressBar({
   currentStatus,
   statuses,
   isOnHold,
 }: AnimatedProgressBarProps) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useSyncExternalStore(emptySubscribe, getSnapshot, getServerSnapshot);
 
   // Filter out Hold status for the progress display
   const progressStatuses = statuses.filter((s) => s.name !== 'Hold');
