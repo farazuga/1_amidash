@@ -32,6 +32,7 @@ interface StatusChangeButtonProps {
   statuses: Status[];
   pocEmail: string | null;
   clientName: string;
+  clientToken: string;
   projectTypeId: string | null;
   projectTypeStatuses: { project_type_id: string; status_id: string }[];
 }
@@ -42,6 +43,7 @@ export function StatusChangeButton({
   statuses,
   pocEmail,
   clientName,
+  clientToken,
   projectTypeId,
   projectTypeStatuses,
 }: StatusChangeButtonProps) {
@@ -121,8 +123,10 @@ export function StatusChangeButton({
           body: JSON.stringify({
             to: pocEmail,
             clientName,
-            projectId,
+            clientToken,
             newStatus: newStatus.name,
+            previousStatus: currentStatus?.name,
+            note: note.trim() || undefined,
           }),
           signal: controller.signal,
         })

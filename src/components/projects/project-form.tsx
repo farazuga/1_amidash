@@ -245,6 +245,33 @@ export function ProjectForm({
             console.error('Audit log error:', auditError);
           }
 
+          // Send welcome email to POC (fire-and-forget with timeout)
+          if (data.poc_email && newProject.client_token) {
+            const selectedProjectTypeName = projectTypes.find(t => t.id === selectedProjectType)?.name || 'Project';
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+            fetch('/api/email/welcome', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                to: data.poc_email,
+                clientName: data.client_name,
+                pocName: data.poc_name,
+                projectType: selectedProjectTypeName,
+                initialStatus: firstStatus.name,
+                clientToken: newProject.client_token,
+              }),
+              signal: controller.signal,
+            })
+              .catch((error) => {
+                console.error('Failed to send welcome email:', error);
+              })
+              .finally(() => {
+                clearTimeout(timeoutId);
+              });
+          }
+
           toast.success('Project created successfully');
           router.push(`/projects/${newProject.id}`);
         }
