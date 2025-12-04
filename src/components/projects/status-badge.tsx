@@ -4,7 +4,6 @@ import type { Status } from '@/types';
 
 interface StatusBadgeProps {
   status: Status | null | undefined;
-  showProgress?: boolean;
 }
 
 const statusColors: Record<string, string> = {
@@ -18,7 +17,7 @@ const statusColors: Record<string, string> = {
   'Invoiced': 'bg-emerald-100 text-emerald-800 border-emerald-200',
 };
 
-export function StatusBadge({ status, showProgress = false }: StatusBadgeProps) {
+export function StatusBadge({ status }: StatusBadgeProps) {
   if (!status) {
     return (
       <Badge variant="outline" className="text-muted-foreground">
@@ -32,7 +31,6 @@ export function StatusBadge({ status, showProgress = false }: StatusBadgeProps) 
   return (
     <Badge className={cn('font-medium', colorClass)} variant="outline">
       {status.name}
-      {showProgress && ` (${status.progress_percent}%)`}
     </Badge>
   );
 }

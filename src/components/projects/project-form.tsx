@@ -16,7 +16,7 @@ import {
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { CONTRACT_TYPES } from '@/lib/constants';
-import type { Project, Status, Tag, Profile } from '@/types';
+import type { Project, Status, Tag, Profile, ProjectType } from '@/types';
 
 interface ProjectFormProps {
   project?: Project;
@@ -24,6 +24,8 @@ interface ProjectFormProps {
   tags: Tag[];
   projectTags?: string[];
   salespeople: Profile[];
+  projectTypes: ProjectType[];
+  projectTypeStatuses: { project_type_id: string; status_id: string }[];
 }
 
 export function ProjectForm({
@@ -32,6 +34,8 @@ export function ProjectForm({
   tags,
   projectTags = [],
   salespeople,
+  projectTypes,
+  projectTypeStatuses,
 }: ProjectFormProps) {
   const router = useRouter();
   const supabase = createClient();
@@ -40,8 +44,19 @@ export function ProjectForm({
   const [selectedSalesperson, setSelectedSalesperson] = useState<string>(
     project?.salesperson_id || ''
   );
+  const [selectedProjectType, setSelectedProjectType] = useState<string>(
+    project?.project_type_id || ''
+  );
 
   const isEditing = !!project;
+
+  // Get statuses available for the selected project type
+  const getAvailableStatuses = (projectTypeId: string) => {
+    const statusIds = projectTypeStatuses
+      .filter(pts => pts.project_type_id === projectTypeId)
+      .map(pts => pts.status_id);
+    return statuses.filter(s => statusIds.includes(s.id) && s.is_active);
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -50,6 +65,12 @@ export function ProjectForm({
     // Validate salesperson is selected
     if (!selectedSalesperson) {
       toast.error('Please select a salesperson');
+      return;
+    }
+
+    // Validate project type is selected for new projects
+    if (!isEditing && !selectedProjectType) {
+      toast.error('Please select a project type');
       return;
     }
 
@@ -128,11 +149,12 @@ export function ProjectForm({
           toast.success('Project updated successfully');
           router.refresh();
         } else {
-          // Get first status for new projects
-          const firstStatus = statuses.find((s) => s.display_order === 1);
+          // Get first status for the selected project type
+          const availableStatuses = getAvailableStatuses(selectedProjectType);
+          const firstStatus = availableStatuses.sort((a, b) => a.display_order - b.display_order)[0];
 
           if (!firstStatus) {
-            toast.error('No status configured. Please add statuses first.');
+            toast.error('No statuses configured for this project type. Please configure statuses first.');
             return;
           }
 
@@ -148,6 +170,7 @@ export function ProjectForm({
             .from('projects')
             .insert({
               ...data,
+              project_type_id: selectedProjectType,
               current_status_id: firstStatus.id,
               created_by: user.id,
             })
@@ -228,6 +251,32 @@ export function ProjectForm({
             defaultValue={project?.client_name}
             required
           />
+        </div>
+
+        {/* Project Type */}
+        <div className="space-y-2">
+          <Label htmlFor="project_type">Project Type *</Label>
+          <Select
+            value={selectedProjectType}
+            onValueChange={setSelectedProjectType}
+            disabled={isEditing}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select project type" />
+            </SelectTrigger>
+            <SelectContent>
+              {projectTypes.filter(t => t.is_active).map((type) => (
+                <SelectItem key={type.id} value={type.id}>
+                  {type.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {isEditing && (
+            <p className="text-xs text-muted-foreground">
+              Project type cannot be changed after creation
+            </p>
+          )}
         </div>
 
         {/* Contract Type */}

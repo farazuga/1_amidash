@@ -32,6 +32,8 @@ interface StatusChangeButtonProps {
   statuses: Status[];
   pocEmail: string | null;
   clientName: string;
+  projectTypeId: string | null;
+  projectTypeStatuses: { project_type_id: string; status_id: string }[];
 }
 
 export function StatusChangeButton({
@@ -40,7 +42,18 @@ export function StatusChangeButton({
   statuses,
   pocEmail,
   clientName,
+  projectTypeId,
+  projectTypeStatuses,
 }: StatusChangeButtonProps) {
+  // Filter statuses to only show those available for this project type
+  const availableStatuses = projectTypeId
+    ? statuses.filter(s => {
+        const allowedStatusIds = projectTypeStatuses
+          .filter(pts => pts.project_type_id === projectTypeId)
+          .map(pts => pts.status_id);
+        return allowedStatusIds.includes(s.id);
+      })
+    : statuses;
   const [open, setOpen] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [note, setNote] = useState('');
@@ -48,8 +61,8 @@ export function StatusChangeButton({
   const router = useRouter();
   const supabase = createClient();
 
-  const currentStatus = statuses.find((s) => s.id === currentStatusId);
-  const newStatus = statuses.find((s) => s.id === selectedStatus);
+  const currentStatus = availableStatuses.find((s) => s.id === currentStatusId);
+  const newStatus = availableStatuses.find((s) => s.id === selectedStatus);
 
   const handleStatusChange = async () => {
     if (!selectedStatus) {
@@ -106,7 +119,6 @@ export function StatusChangeButton({
               clientName,
               projectId,
               newStatus: newStatus.name,
-              progressPercent: newStatus.progress_percent,
             }),
           });
         } catch (error) {
@@ -145,7 +157,6 @@ export function StatusChangeButton({
             <Label>Current Status</Label>
             <p className="text-sm font-medium">
               {currentStatus?.name || 'No status'}
-              {currentStatus && ` (${currentStatus.progress_percent}%)`}
             </p>
           </div>
 
@@ -156,13 +167,13 @@ export function StatusChangeButton({
                 <SelectValue placeholder="Select new status" />
               </SelectTrigger>
               <SelectContent>
-                {statuses.map((status) => (
+                {availableStatuses.map((status) => (
                   <SelectItem
                     key={status.id}
                     value={status.id}
                     disabled={status.id === currentStatusId}
                   >
-                    {status.name} ({status.progress_percent}%)
+                    {status.name}
                     {status.require_note && ' *'}
                   </SelectItem>
                 ))}

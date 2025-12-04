@@ -31,11 +31,31 @@ async function getSalespeople() {
   return data || [];
 }
 
+async function getProjectTypes() {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('project_types')
+    .select('*')
+    .eq('is_active', true)
+    .order('display_order');
+  return data || [];
+}
+
+async function getProjectTypeStatuses() {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('project_type_statuses')
+    .select('*');
+  return data || [];
+}
+
 export default async function NewProjectPage() {
-  const [statuses, tags, salespeople] = await Promise.all([
+  const [statuses, tags, salespeople, projectTypes, projectTypeStatuses] = await Promise.all([
     getStatuses(),
     getTags(),
     getSalespeople(),
+    getProjectTypes(),
+    getProjectTypeStatuses(),
   ]);
 
   return (
@@ -62,7 +82,13 @@ export default async function NewProjectPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ProjectForm statuses={statuses} tags={tags} salespeople={salespeople} />
+          <ProjectForm
+            statuses={statuses}
+            tags={tags}
+            salespeople={salespeople}
+            projectTypes={projectTypes}
+            projectTypeStatuses={projectTypeStatuses}
+          />
         </CardContent>
       </Card>
     </div>

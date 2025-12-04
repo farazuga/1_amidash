@@ -29,14 +29,14 @@ export const CONTRACT_TYPES = [
 ] as const;
 
 export const DEFAULT_STATUSES = [
-  { name: 'PO Received', display_order: 1, progress_percent: 12, require_note: false },
-  { name: 'Engineering Review', display_order: 2, progress_percent: 25, require_note: false },
-  { name: 'In Procurement', display_order: 3, progress_percent: 37, require_note: false },
-  { name: 'Pending Scheduling', display_order: 4, progress_percent: 50, require_note: false },
-  { name: 'Scheduled', display_order: 5, progress_percent: 62, require_note: false },
-  { name: 'IP', display_order: 6, progress_percent: 75, require_note: false },
-  { name: 'Hold', display_order: 7, progress_percent: 75, require_note: true },
-  { name: 'Invoiced', display_order: 8, progress_percent: 100, require_note: false },
+  { name: 'PO Received', display_order: 1, require_note: false },
+  { name: 'Engineering Review', display_order: 2, require_note: false },
+  { name: 'In Procurement', display_order: 3, require_note: false },
+  { name: 'Pending Scheduling', display_order: 4, require_note: false },
+  { name: 'Scheduled', display_order: 5, require_note: false },
+  { name: 'IP', display_order: 6, require_note: false },
+  { name: 'Hold', display_order: 7, require_note: true },
+  { name: 'Invoiced', display_order: 8, require_note: false },
 ] as const;
 
 export const USER_ROLES = ['viewer', 'editor', 'admin'] as const;

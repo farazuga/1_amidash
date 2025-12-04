@@ -20,10 +20,22 @@ export interface Status {
   id: string;
   name: string;
   display_order: number;
-  progress_percent: number;
   require_note: boolean;
   is_active: boolean;
   created_at: string;
+}
+
+export interface ProjectType {
+  id: string;
+  name: string;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface ProjectTypeStatus {
+  project_type_id: string;
+  status_id: string;
 }
 
 export interface Tag {
@@ -44,6 +56,7 @@ export interface Project {
   contract_type: ContractType | null;
   goal_completion_date: string | null;
   current_status_id: string | null;
+  project_type_id: string | null;
   salesperson_id: string | null;
   poc_name: string | null;
   poc_email: string | null;
@@ -57,6 +70,7 @@ export interface Project {
   updated_at: string;
   // Joined relations
   current_status?: Status;
+  project_type?: ProjectType;
   tags?: Tag[];
   created_by_profile?: Profile;
   salesperson?: Profile;
