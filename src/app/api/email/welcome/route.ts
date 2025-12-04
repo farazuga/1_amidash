@@ -1,32 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendEmail, getPortalUrl } from '@/lib/email/send';
-import { statusChangeEmail } from '@/lib/email/templates';
+import { welcomeEmail } from '@/lib/email/templates';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { to, clientName, newStatus, previousStatus, clientToken, note } = body;
+    const { to, clientName, pocName, projectType, initialStatus, clientToken } = body;
 
-    if (!to || !clientName || !newStatus) {
+    if (!to || !clientName || !pocName || !clientToken) {
       return NextResponse.json(
-        { error: 'Missing required fields: to, clientName, newStatus' },
+        { error: 'Missing required fields: to, clientName, pocName, clientToken' },
         { status: 400 }
       );
     }
 
-    const portalUrl = clientToken ? getPortalUrl(clientToken) : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+    const portalUrl = getPortalUrl(clientToken);
 
-    const html = statusChangeEmail({
+    const html = welcomeEmail({
       clientName,
-      newStatus,
-      previousStatus,
+      pocName,
+      projectType: projectType || 'Project',
+      initialStatus: initialStatus || 'Started',
       portalUrl,
-      note,
     });
 
     const result = await sendEmail({
       to,
-      subject: `Project Update: ${clientName} - ${newStatus}`,
+      subject: `Welcome to Amitrace - ${clientName}`,
       html,
     });
 

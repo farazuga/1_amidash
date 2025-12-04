@@ -157,6 +157,7 @@ export default async function ProjectDetailPage({
             statuses={statuses}
             pocEmail={project.poc_email}
             clientName={project.client_name}
+            clientToken={project.client_token}
             projectTypeId={project.project_type_id}
             projectTypeStatuses={projectTypeStatuses}
           />
