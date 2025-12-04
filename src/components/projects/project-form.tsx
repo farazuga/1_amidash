@@ -47,6 +47,10 @@ export function ProjectForm({
   const [selectedProjectType, setSelectedProjectType] = useState<string>(
     project?.project_type_id || ''
   );
+  const [salesOrderNumber, setSalesOrderNumber] = useState<string>(
+    project?.sales_order_number || (project ? '' : 'S12')
+  );
+  const [salesOrderError, setSalesOrderError] = useState<string | null>(null);
 
   const isEditing = !!project;
 
@@ -74,9 +78,29 @@ export function ProjectForm({
       return;
     }
 
+    // Validate Sales Order Number format (must start with S12 and be 6 characters)
+    if (salesOrderNumber && salesOrderNumber.trim()) {
+      const trimmedSalesOrder = salesOrderNumber.trim();
+      if (!trimmedSalesOrder.startsWith('S12') || trimmedSalesOrder.length !== 6) {
+        toast.error('Sales Order # must start with "S12" and be exactly 6 characters (e.g., S12345)');
+        setSalesOrderError('Must start with "S12" and be exactly 6 characters');
+        return;
+      }
+    }
+
+    // Validate Point of Contact fields are all filled
+    const pocName = formData.get('poc_name') as string;
+    const pocEmail = formData.get('poc_email') as string;
+    const pocPhone = formData.get('poc_phone') as string;
+
+    if (!pocName?.trim() || !pocEmail?.trim() || !pocPhone?.trim()) {
+      toast.error('All Point of Contact fields are required');
+      return;
+    }
+
     const data = {
       client_name: formData.get('client_name') as string,
-      sales_order_number: formData.get('sales_order_number') as string || null,
+      sales_order_number: salesOrderNumber?.trim() || null,
       sales_order_url: formData.get('sales_order_url') as string || null,
       po_number: formData.get('po_number') as string || null,
       sales_amount: formData.get('sales_amount')
@@ -341,12 +365,25 @@ export function ProjectForm({
 
         {/* Sales Order Number */}
         <div className="space-y-2">
-          <Label htmlFor="sales_order_number">Sales Order #</Label>
+          <Label htmlFor="sales_order_number">Sales Order # *</Label>
           <Input
             id="sales_order_number"
             name="sales_order_number"
-            defaultValue={project?.sales_order_number || ''}
+            value={salesOrderNumber}
+            onChange={(e) => {
+              setSalesOrderNumber(e.target.value.toUpperCase());
+              setSalesOrderError(null);
+            }}
+            placeholder="S12XXX"
+            maxLength={6}
+            className={salesOrderError ? 'border-destructive' : ''}
           />
+          <p className="text-xs text-muted-foreground">
+            Must start with &quot;S12&quot; and be exactly 6 characters (e.g., S12345)
+          </p>
+          {salesOrderError && (
+            <p className="text-xs text-destructive">{salesOrderError}</p>
+          )}
         </div>
 
         {/* Sales Order URL (Odoo) */}
@@ -386,32 +423,35 @@ export function ProjectForm({
       </div>
 
       <div className="border-t pt-4">
-        <h3 className="font-medium mb-4">Point of Contact</h3>
+        <h3 className="font-medium mb-4">Point of Contact *</h3>
         <div className="grid gap-4 md:grid-cols-3">
           <div className="space-y-2">
-            <Label htmlFor="poc_name">Name</Label>
+            <Label htmlFor="poc_name">Name *</Label>
             <Input
               id="poc_name"
               name="poc_name"
               defaultValue={project?.poc_name || ''}
+              required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="poc_email">Email</Label>
+            <Label htmlFor="poc_email">Email *</Label>
             <Input
               id="poc_email"
               name="poc_email"
               type="email"
               defaultValue={project?.poc_email || ''}
+              required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="poc_phone">Phone</Label>
+            <Label htmlFor="poc_phone">Phone *</Label>
             <Input
               id="poc_phone"
               name="poc_phone"
               type="tel"
               defaultValue={project?.poc_phone || ''}
+              required
             />
           </div>
         </div>
