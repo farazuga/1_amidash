@@ -9,7 +9,7 @@ import { format } from 'date-fns';
 import { LOGO_URL, APP_NAME } from '@/lib/constants';
 import { ProgressBar } from '@/components/portal/progress-bar';
 import { StatusTimeline } from '@/components/portal/status-timeline';
-import { Calendar, Clock } from 'lucide-react';
+import { Calendar, Clock, Mail, Phone, FileText, User } from 'lucide-react';
 
 async function getProjectByToken(token: string) {
   const supabase = await createClient();
@@ -49,23 +49,43 @@ async function getStatusHistory(projectId: string) {
   return data || [];
 }
 
+async function getProjectTypeStatuses() {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('project_type_statuses')
+    .select('*');
+  return data || [];
+}
+
 export default async function ClientPortalPage({
   params,
 }: {
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  const [project, statuses, statusHistory] = await Promise.all([
+  const [project, statuses, statusHistory, projectTypeStatuses] = await Promise.all([
     getProjectByToken(token),
     getStatuses(),
     getProjectByToken(token).then((p) =>
       p ? getStatusHistory(p.id) : []
     ),
+    getProjectTypeStatuses(),
   ]);
 
   if (!project) {
     notFound();
   }
+
+  // Filter statuses by project type (with fallback to all statuses)
+  const allowedStatusIds = project.project_type_id
+    ? projectTypeStatuses
+        .filter((pts: { project_type_id: string }) => pts.project_type_id === project.project_type_id)
+        .map((pts: { status_id: string }) => pts.status_id)
+    : [];
+
+  const filteredStatuses = project.project_type_id && allowedStatusIds.length > 0
+    ? statuses.filter(s => allowedStatusIds.includes(s.id))
+    : statuses;
 
   const currentStatus = project.current_status;
   const isOnHold = currentStatus?.name === 'Hold';
@@ -126,7 +146,7 @@ export default async function ClientPortalPage({
             <div className="mb-8">
               <ProgressBar
                 currentStatus={currentStatus}
-                statuses={statuses}
+                statuses={filteredStatuses}
                 isOnHold={isOnHold}
               />
             </div>
@@ -166,6 +186,101 @@ export default async function ClientPortalPage({
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Project Details */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              {project.sales_order_number && (
+                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                  <FileText className="h-5 w-5 text-[#023A2D]" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      Sales Order #
+                    </p>
+                    <p className="font-medium">{project.sales_order_number}</p>
+                  </div>
+                </div>
+              )}
+
+              {project.po_number && (
+                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                  <FileText className="h-5 w-5 text-[#023A2D]" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      Client PO #
+                    </p>
+                    <p className="font-medium">{project.po_number}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Contact Information */}
+        <Card className="mb-6 border-[#023A2D]/20">
+          <CardHeader>
+            <h2 className="text-lg font-semibold text-[#023A2D]">
+              Contact Information
+            </h2>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Point of Contact */}
+              {project.poc_name && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-muted-foreground">Point of Contact</h3>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4 text-[#023A2D]" />
+                      <span className="font-medium">{project.poc_name}</span>
+                    </div>
+                    {project.poc_email && (
+                      <a
+                        href={`mailto:${project.poc_email}`}
+                        className="flex items-center gap-2 text-sm text-[#023A2D] hover:underline"
+                      >
+                        <Mail className="h-4 w-4" />
+                        {project.poc_email}
+                      </a>
+                    )}
+                    {project.poc_phone && (
+                      <a
+                        href={`tel:${project.poc_phone}`}
+                        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-[#023A2D]"
+                      >
+                        <Phone className="h-4 w-4" />
+                        {project.poc_phone}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Project Manager */}
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium text-muted-foreground">Project Manager</h3>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-[#023A2D]" />
+                    <span className="font-medium">Jason Watson</span>
+                  </div>
+                  <a
+                    href="mailto:jason@amitrace.com"
+                    className="flex items-center gap-2 text-sm text-[#023A2D] hover:underline"
+                  >
+                    <Mail className="h-4 w-4" />
+                    jason@amitrace.com
+                  </a>
+                  <a
+                    href="tel:770-263-9190"
+                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-[#023A2D]"
+                  >
+                    <Phone className="h-4 w-4" />
+                    770-263-9190
+                  </a>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
