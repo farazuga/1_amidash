@@ -186,18 +186,36 @@ export function StatusChangeButton({
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="note">
-              Note {newStatus?.require_note ? '*' : '(optional)'}
-            </Label>
-            <Textarea
-              id="note"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Add a note about this status change..."
-              rows={3}
-            />
-          </div>
+          {newStatus?.require_note ? (
+            <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3">
+              <Label htmlFor="note" className="text-amber-900 font-semibold flex items-center gap-2">
+                <span className="text-amber-600">*</span>
+                Note Required for &quot;{newStatus.name}&quot;
+              </Label>
+              <Textarea
+                id="note"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Please provide a note explaining this status change..."
+                rows={3}
+                className="border-amber-300 focus:border-amber-500"
+                required
+              />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="note" className="text-muted-foreground">
+                Note (optional)
+              </Label>
+              <Textarea
+                id="note"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Add a note about this status change..."
+                rows={3}
+              />
+            </div>
+          )}
 
           {pocEmail && (
             <p className="text-sm text-muted-foreground">
