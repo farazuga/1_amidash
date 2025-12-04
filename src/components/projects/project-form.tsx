@@ -352,7 +352,7 @@ export function ProjectForm({
 
         {/* Sales Amount */}
         <div className="space-y-2">
-          <Label htmlFor="sales_amount">Sales Amount ($)</Label>
+          <Label htmlFor="sales_amount">Sales Amount w/o Tax ($)</Label>
           <Input
             id="sales_amount"
             name="sales_amount"
