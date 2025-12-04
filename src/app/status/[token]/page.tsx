@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { LOGO_URL, APP_NAME } from '@/lib/constants';
-import { ProgressBar } from '@/components/portal/progress-bar';
+import { AnimatedProgressBar } from '@/components/portal/animated-progress-bar';
 import { StatusTimeline } from '@/components/portal/status-timeline';
 import { Calendar, Clock, Mail, Phone, FileText, User } from 'lucide-react';
 
@@ -142,9 +142,9 @@ export default async function ClientPortalPage({
               </div>
             </div>
 
-            {/* Progress Bar */}
+            {/* Animated Progress Bar */}
             <div className="mb-8">
-              <ProgressBar
+              <AnimatedProgressBar
                 currentStatus={currentStatus}
                 statuses={filteredStatuses}
                 isOnHold={isOnHold}
