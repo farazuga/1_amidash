@@ -46,13 +46,15 @@ export function StatusChangeButton({
   projectTypeStatuses,
 }: StatusChangeButtonProps) {
   // Filter statuses to only show those available for this project type
-  const availableStatuses = projectTypeId
-    ? statuses.filter(s => {
-        const allowedStatusIds = projectTypeStatuses
-          .filter(pts => pts.project_type_id === projectTypeId)
-          .map(pts => pts.status_id);
-        return allowedStatusIds.includes(s.id);
-      })
+  // If no statuses are mapped for this project type, show all active statuses as fallback
+  const allowedStatusIds = projectTypeId
+    ? projectTypeStatuses
+        .filter(pts => pts.project_type_id === projectTypeId)
+        .map(pts => pts.status_id)
+    : [];
+
+  const availableStatuses = projectTypeId && allowedStatusIds.length > 0
+    ? statuses.filter(s => allowedStatusIds.includes(s.id))
     : statuses;
   const [open, setOpen] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<string>('');
@@ -108,23 +110,29 @@ export function StatusChangeButton({
         new_value: newStatus?.name || null,
       });
 
-      // Send email notification if POC has email
+      // Send email notification if POC has email (fire-and-forget with timeout)
       if (pocEmail && newStatus) {
-        try {
-          await fetch('/api/email/status-change', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              to: pocEmail,
-              clientName,
-              projectId,
-              newStatus: newStatus.name,
-            }),
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
+        fetch('/api/email/status-change', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: pocEmail,
+            clientName,
+            projectId,
+            newStatus: newStatus.name,
+          }),
+          signal: controller.signal,
+        })
+          .catch((error) => {
+            console.error('Failed to send email:', error);
+          })
+          .finally(() => {
+            clearTimeout(timeoutId);
           });
-        } catch (error) {
-          console.error('Failed to send email:', error);
-          // Don't fail the whole operation if email fails
-        }
+        // Don't await - email is fire-and-forget
       }
 
       toast.success(`Status changed to "${newStatus?.name}"`);
