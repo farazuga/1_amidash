@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -38,7 +38,8 @@ export function ProjectForm({
   projectTypeStatuses,
 }: ProjectFormProps) {
   const router = useRouter();
-  const supabase = createClient();
+  // Memoize supabase client to prevent recreation on every render
+  const supabase = useMemo(() => createClient(), []);
   const [isPending, startTransition] = useTransition();
   const [selectedTags, setSelectedTags] = useState<string[]>(projectTags);
   const [selectedSalesperson, setSelectedSalesperson] = useState<string>(
