@@ -8,17 +8,85 @@ import { FilterBar } from '@/components/projects/filter-bar';
 
 interface SearchParams {
   search?: string;
-  status?: string;
+  statuses?: string; // comma-separated status IDs
   contract_type?: string;
   overdue?: string;
   sort_by?: string;
   sort_order?: string;
   view?: 'active' | 'archived';
   date_type?: 'created' | 'goal';
-  from_month?: string;
-  from_year?: string;
-  to_month?: string;
-  to_year?: string;
+  date_presets?: string; // comma-separated presets (this_month, q1, etc.)
+  date_years?: string; // comma-separated years (2025, 2026, etc.)
+}
+
+// Helper to calculate date ranges from presets
+function getDateRangesFromPresets(presets: string[], years: string[]): { start: string; end: string }[] {
+  const ranges: { start: string; end: string }[] = [];
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth(); // 0-indexed
+
+  // If years are specified, use them; otherwise use current year for relative presets
+  const targetYears = years.length > 0 ? years.map(y => parseInt(y)) : [currentYear];
+
+  presets.forEach(preset => {
+    targetYears.forEach(year => {
+      switch (preset) {
+        case 'this_month':
+          if (year === currentYear) {
+            const monthStart = `${year}-${String(currentMonth + 1).padStart(2, '0')}-01`;
+            const lastDay = new Date(year, currentMonth + 1, 0).getDate();
+            const monthEnd = `${year}-${String(currentMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+            ranges.push({ start: monthStart, end: monthEnd });
+          }
+          break;
+        case 'last_3_months':
+          if (year === currentYear) {
+            for (let i = 0; i < 3; i++) {
+              const targetMonth = currentMonth - i;
+              const targetYear = targetMonth < 0 ? year - 1 : year;
+              const adjustedMonth = targetMonth < 0 ? targetMonth + 12 : targetMonth;
+              const monthStart = `${targetYear}-${String(adjustedMonth + 1).padStart(2, '0')}-01`;
+              const lastDay = new Date(targetYear, adjustedMonth + 1, 0).getDate();
+              const monthEnd = `${targetYear}-${String(adjustedMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+              ranges.push({ start: monthStart, end: monthEnd });
+            }
+          }
+          break;
+        case 'q1':
+          ranges.push({ start: `${year}-01-01`, end: `${year}-03-31` });
+          break;
+        case 'q2':
+          ranges.push({ start: `${year}-04-01`, end: `${year}-06-30` });
+          break;
+        case 'q3':
+          ranges.push({ start: `${year}-07-01`, end: `${year}-09-30` });
+          break;
+        case 'q4':
+          ranges.push({ start: `${year}-10-01`, end: `${year}-12-31` });
+          break;
+        case 'this_year':
+          if (year === currentYear) {
+            ranges.push({ start: `${year}-01-01`, end: `${year}-12-31` });
+          }
+          break;
+        case 'last_year':
+          if (year === currentYear) {
+            ranges.push({ start: `${currentYear - 1}-01-01`, end: `${currentYear - 1}-12-31` });
+          }
+          break;
+      }
+    });
+  });
+
+  // If only years are selected (no presets), add full year ranges
+  if (presets.length === 0 && years.length > 0) {
+    years.forEach(year => {
+      ranges.push({ start: `${year}-01-01`, end: `${year}-12-31` });
+    });
+  }
+
+  return ranges;
 }
 
 async function getProjects(searchParams: SearchParams, invoicedStatusId: string | null) {
@@ -55,9 +123,12 @@ async function getProjects(searchParams: SearchParams, invoicedStatusId: string 
     );
   }
 
-  // Apply status filter
-  if (searchParams.status) {
-    query = query.eq('current_status_id', searchParams.status);
+  // Apply status filter (supports multiple statuses)
+  if (searchParams.statuses) {
+    const statusIds = searchParams.statuses.split(',').filter(Boolean);
+    if (statusIds.length > 0) {
+      query = query.in('current_status_id', statusIds);
+    }
   }
 
   // Apply contract type filter
@@ -71,26 +142,23 @@ async function getProjects(searchParams: SearchParams, invoicedStatusId: string 
     query = query.lt('goal_completion_date', today);
   }
 
-  // Apply date range filter
-  if (searchParams.date_type) {
+  // Apply date range filter using presets and/or years
+  if (searchParams.date_type && (searchParams.date_presets || searchParams.date_years)) {
     const dateField = searchParams.date_type === 'created' ? 'created_date' : 'goal_completion_date';
+    const presets = searchParams.date_presets?.split(',').filter(Boolean) || [];
+    const years = searchParams.date_years?.split(',').filter(Boolean) || [];
 
-    // Build from date (first day of the month)
-    if (searchParams.from_year) {
-      const fromMonth = searchParams.from_month ? parseInt(searchParams.from_month) : 1;
-      const fromYear = parseInt(searchParams.from_year);
-      const fromDate = `${fromYear}-${String(fromMonth).padStart(2, '0')}-01`;
-      query = query.gte(dateField, fromDate);
-    }
+    const ranges = getDateRangesFromPresets(presets, years);
 
-    // Build to date (last day of the month)
-    if (searchParams.to_year) {
-      const toMonth = searchParams.to_month ? parseInt(searchParams.to_month) : 12;
-      const toYear = parseInt(searchParams.to_year);
-      // Get last day of the month
-      const lastDay = new Date(toYear, toMonth, 0).getDate();
-      const toDate = `${toYear}-${String(toMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-      query = query.lte(dateField, toDate);
+    if (ranges.length > 0) {
+      // Build OR conditions for all date ranges
+      // Find the overall min and max dates for a simpler query
+      const allStarts = ranges.map(r => r.start).sort();
+      const allEnds = ranges.map(r => r.end).sort().reverse();
+      const minDate = allStarts[0];
+      const maxDate = allEnds[0];
+
+      query = query.gte(dateField, minDate).lte(dateField, maxDate);
     }
   }
 
