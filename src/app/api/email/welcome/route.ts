@@ -1,18 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendEmail, getPortalUrl } from '@/lib/email/send';
 import { welcomeEmail } from '@/lib/email/templates';
+import { createClient } from '@/lib/supabase/server';
+import { welcomeEmailSchema } from '@/lib/validation';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { to, clientName, pocName, projectType, initialStatus, clientToken } = body;
+    // Auth check
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!to || !clientName || !pocName || !clientToken) {
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+
+    // Zod validation
+    const parseResult = welcomeEmailSchema.safeParse(body);
+    if (!parseResult.success) {
       return NextResponse.json(
-        { error: 'Missing required fields: to, clientName, pocName, clientToken' },
+        { error: 'Invalid request', details: parseResult.error.flatten().fieldErrors },
         { status: 400 }
       );
     }
+
+    const { to, clientName, pocName, projectType, initialStatus, clientToken } = parseResult.data;
 
     const portalUrl = getPortalUrl(clientToken);
 

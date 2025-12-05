@@ -1,9 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign, FolderKanban, AlertTriangle, TrendingUp } from 'lucide-react';
-import { StatusChart } from '@/components/dashboard/status-chart';
-import { RevenueChart } from '@/components/dashboard/revenue-chart';
+import { LazyStatusChart, LazyRevenueChart } from '@/components/dashboard/lazy-charts';
 import { OverdueProjects } from '@/components/dashboard/overdue-projects';
+
+// Revalidate dashboard data every 60 seconds
+export const revalidate = 60;
 
 async function getDashboardStats() {
   const supabase = await createClient();
@@ -141,7 +143,7 @@ export default async function DashboardPage() {
             <CardDescription>Distribution of projects across statuses</CardDescription>
           </CardHeader>
           <CardContent>
-            <StatusChart data={stats.projectsByStatus} />
+            <LazyStatusChart data={stats.projectsByStatus} />
           </CardContent>
         </Card>
 
@@ -151,7 +153,7 @@ export default async function DashboardPage() {
             <CardDescription>Expected revenue by month (based on goal dates)</CardDescription>
           </CardHeader>
           <CardContent>
-            <RevenueChart data={stats.revenueByMonth} />
+            <LazyRevenueChart data={stats.revenueByMonth} />
           </CardContent>
         </Card>
       </div>
