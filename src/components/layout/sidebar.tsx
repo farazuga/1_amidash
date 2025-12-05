@@ -14,6 +14,7 @@ import {
   ListChecks,
   FileText,
   Plus,
+  Target,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -42,6 +43,11 @@ const adminNavItems = [
     title: 'Statuses',
     href: '/admin/statuses',
     icon: ListChecks,
+  },
+  {
+    title: 'Revenue Goals',
+    href: '/admin/goals',
+    icon: Target,
   },
   {
     title: 'Tags',

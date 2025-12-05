@@ -138,3 +138,15 @@ export interface DashboardStats {
   projects_by_status: { status: string; count: number; color: string }[];
   revenue_by_month: { month: string; revenue: number }[];
 }
+
+// Revenue goals types
+export interface RevenueGoal {
+  id: string;
+  year: number;
+  month: number;
+  revenue_goal: number;
+  projects_goal: number;
+  created_by: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
