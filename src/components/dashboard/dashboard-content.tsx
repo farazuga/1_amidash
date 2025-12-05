@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -73,7 +73,9 @@ export function DashboardContent() {
   const [statusHistory, setStatusHistory] = useState<StatusHistoryItem[]>([]);
   const [goals, setGoals] = useState<RevenueGoal[]>([]);
 
-  const supabase = createClient();
+  // Memoize supabase client to prevent infinite loop
+  // (createClient() on every render would break useCallback dependencies)
+  const supabase = useMemo(() => createClient(), []);
 
   // Initialize selected period to current
   useEffect(() => {
@@ -175,24 +177,24 @@ export function DashboardContent() {
     return options;
   };
 
-  // Calculate stats for selected period
-  const dateRange = getDateRange();
-  const invoicedStatus = statuses.find(s => s.name === 'Invoiced');
+  // Calculate stats for selected period - memoize expensive calculations
+  const dateRange = useMemo(() => getDateRange(), [selectedPeriod, periodType]);
+  const invoicedStatus = useMemo(() => statuses.find(s => s.name === 'Invoiced'), [statuses]);
 
   // Get invoiced projects in period (from status history)
-  const invoicedInPeriod = statusHistory.filter(h => {
+  const invoicedInPeriod = useMemo(() => statusHistory.filter(h => {
     if (h.status?.name !== 'Invoiced') return false;
     const changedAt = new Date(h.changed_at);
     return changedAt >= dateRange.start && changedAt <= dateRange.end;
-  });
+  }), [statusHistory, dateRange]);
 
   // Revenue invoiced in period
-  const invoicedRevenue = invoicedInPeriod.reduce((sum, h) => {
+  const invoicedRevenue = useMemo(() => invoicedInPeriod.reduce((sum, h) => {
     return sum + (h.project?.sales_amount || 0);
-  }, 0);
+  }, 0), [invoicedInPeriod]);
 
-  // Get goal for period
-  const getGoalForPeriod = () => {
+  // Get goal for period - memoized
+  const periodGoal = useMemo(() => {
     if (periodType === 'month') {
       const [year, month] = selectedPeriod.split('-').map(Number);
       const goal = goals.find(g => g.year === year && g.month === month);
@@ -219,76 +221,83 @@ export function DashboardContent() {
       }
       return { revenue, projects: projectsGoal };
     }
-  };
-
-  const periodGoal = getGoalForPeriod();
+  }, [periodType, selectedPeriod, goals]);
   const revenueProgress = periodGoal.revenue > 0 ? Math.min((invoicedRevenue / periodGoal.revenue) * 100, 100) : 0;
   const projectsProgress = periodGoal.projects > 0 ? Math.min((invoicedInPeriod.length / periodGoal.projects) * 100, 100) : 0;
 
-  // Overall stats
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Overall stats - memoized calculations
+  const totalRevenue = useMemo(() =>
+    projects.reduce((sum, p) => sum + (p.sales_amount || 0), 0),
+    [projects]
+  );
 
-  const totalProjects = projects.length;
-  const totalRevenue = projects.reduce((sum, p) => sum + (p.sales_amount || 0), 0);
+  const overdueProjects = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return projects.filter(p => {
+      if (!p.goal_completion_date) return false;
+      if (p.current_status_id === invoicedStatus?.id) return false;
+      return new Date(p.goal_completion_date) < today;
+    });
+  }, [projects, invoicedStatus]);
 
-  const overdueProjects = projects.filter(p => {
-    if (!p.goal_completion_date) return false;
-    if (p.current_status_id === invoicedStatus?.id) return false;
-    return new Date(p.goal_completion_date) < today;
-  });
-
-  // Projects by status
-  const projectsByStatus = statuses.map(status => ({
+  // Projects by status - memoized
+  const projectsByStatus = useMemo(() => statuses.map(status => ({
     name: status.name,
     count: projects.filter(p => p.current_status_id === status.id).length,
     color: `hsl(${status.display_order * 40}, 70%, 50%)`,
-  }));
+  })), [statuses, projects]);
 
-  // Revenue by month (next 6 months)
-  const revenueByMonth: { month: string; revenue: number }[] = [];
-  for (let i = 0; i < 6; i++) {
-    const date = new Date();
-    date.setMonth(date.getMonth() + i);
-    const monthStr = date.toLocaleString('default', { month: 'short', year: '2-digit' });
+  // Revenue by month (next 6 months) - memoized
+  const revenueByMonth = useMemo(() => {
+    const result: { month: string; revenue: number }[] = [];
+    for (let i = 0; i < 6; i++) {
+      const date = new Date();
+      date.setMonth(date.getMonth() + i);
+      const monthStr = date.toLocaleString('default', { month: 'short', year: '2-digit' });
 
-    const monthRevenue = projects.filter(p => {
-      if (!p.goal_completion_date) return false;
-      const goalDate = new Date(p.goal_completion_date);
-      return goalDate.getMonth() === date.getMonth() && goalDate.getFullYear() === date.getFullYear();
-    }).reduce((sum, p) => sum + (p.sales_amount || 0), 0);
+      const monthRevenue = projects.filter(p => {
+        if (!p.goal_completion_date) return false;
+        const goalDate = new Date(p.goal_completion_date);
+        return goalDate.getMonth() === date.getMonth() && goalDate.getFullYear() === date.getFullYear();
+      }).reduce((sum, p) => sum + (p.sales_amount || 0), 0);
 
-    revenueByMonth.push({ month: monthStr, revenue: monthRevenue });
-  }
-
-  // Last 3 invoiced projects
-  const lastInvoiced = statusHistory
-    .filter(h => h.status?.name === 'Invoiced' && h.project)
-    .slice(0, 3);
-
-  // Last 3 new projects
-  const lastCreated = [...projects]
-    .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
-    .slice(0, 3);
-
-  // Average days to invoice
-  const invoiceTimesMs: number[] = [];
-  projects.forEach(project => {
-    // Find when project was created and when it was invoiced
-    const createdAt = project.created_at ? new Date(project.created_at) : null;
-    const invoicedEntry = statusHistory.find(
-      h => h.project_id === project.id && h.status?.name === 'Invoiced'
-    );
-
-    if (createdAt && invoicedEntry) {
-      const invoicedAt = new Date(invoicedEntry.changed_at);
-      invoiceTimesMs.push(invoicedAt.getTime() - createdAt.getTime());
+      result.push({ month: monthStr, revenue: monthRevenue });
     }
-  });
+    return result;
+  }, [projects]);
 
-  const avgDaysToInvoice = invoiceTimesMs.length > 0
-    ? Math.round(invoiceTimesMs.reduce((a, b) => a + b, 0) / invoiceTimesMs.length / (1000 * 60 * 60 * 24))
-    : 0;
+  // Last 3 invoiced projects - memoized
+  const lastInvoiced = useMemo(() => statusHistory
+    .filter(h => h.status?.name === 'Invoiced' && h.project)
+    .slice(0, 3), [statusHistory]);
+
+  // Last 3 new projects - memoized
+  const lastCreated = useMemo(() => [...projects]
+    .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+    .slice(0, 3), [projects]);
+
+  // Average days to invoice - memoized
+  const avgDaysToInvoice = useMemo(() => {
+    const invoiceTimesMs: number[] = [];
+    projects.forEach(project => {
+      const createdAt = project.created_at ? new Date(project.created_at) : null;
+      const invoicedEntry = statusHistory.find(
+        h => h.project_id === project.id && h.status?.name === 'Invoiced'
+      );
+
+      if (createdAt && invoicedEntry) {
+        const invoicedAt = new Date(invoicedEntry.changed_at);
+        invoiceTimesMs.push(invoicedAt.getTime() - createdAt.getTime());
+      }
+    });
+
+    return invoiceTimesMs.length > 0
+      ? Math.round(invoiceTimesMs.reduce((a, b) => a + b, 0) / invoiceTimesMs.length / (1000 * 60 * 60 * 24))
+      : 0;
+  }, [projects, statusHistory]);
+
+  const totalProjects = projects.length;
 
   if (isLoading) {
     return (
