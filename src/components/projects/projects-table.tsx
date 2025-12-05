@@ -454,16 +454,16 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
               <TableCell>
                 {project.client_portal_url ? (
                   <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
                     onClick={(e) => {
                       e.stopPropagation();
                       window.open(project.client_portal_url!, '_blank');
                     }}
+                    title="Open Client Portal"
                   >
-                    <Globe className="mr-1 h-3 w-3" />
-                    Open
+                    <ExternalLink className="h-4 w-4" />
                   </Button>
                 ) : (
                   <span className="text-muted-foreground text-sm">-</span>
