@@ -62,20 +62,25 @@ export function ProjectForm({
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    console.log('[DEBUG] handleSubmit called');
     e.preventDefault();
+    console.log('[DEBUG] preventDefault called');
     const formData = new FormData(e.currentTarget);
+    console.log('[DEBUG] FormData created');
 
     // Validate salesperson is selected
     if (!selectedSalesperson) {
       toast.error('Please select a salesperson');
       return;
     }
+    console.log('[DEBUG] Salesperson validated');
 
     // Validate project type is selected for new projects
     if (!isEditing && !selectedProjectType) {
       toast.error('Please select a project type');
       return;
     }
+    console.log('[DEBUG] Project type validated');
 
     // Validate Sales Order Number format (must start with S12 and be 6 characters)
     if (salesOrderNumber && salesOrderNumber.trim()) {
@@ -86,6 +91,7 @@ export function ProjectForm({
         return;
       }
     }
+    console.log('[DEBUG] Sales order validated');
 
     // Validate Point of Contact fields are all filled
     const pocName = formData.get('poc_name') as string;
@@ -96,6 +102,7 @@ export function ProjectForm({
       toast.error('All Point of Contact fields are required');
       return;
     }
+    console.log('[DEBUG] POC validated');
 
     const data = {
       client_name: formData.get('client_name') as string,
@@ -113,10 +120,15 @@ export function ProjectForm({
       poc_phone: formData.get('poc_phone') as string || null,
       scope_link: formData.get('scope_link') as string || null,
     };
+    console.log('[DEBUG] Data object created:', data);
 
+    console.log('[DEBUG] About to setIsPending(true)');
     setIsPending(true);
+    console.log('[DEBUG] setIsPending(true) called');
     try {
+      console.log('[DEBUG] About to createClient()');
       const supabase = createClient();
+      console.log('[DEBUG] Supabase client created');
 
       if (isEditing) {
         // Get old values for audit
@@ -184,16 +196,21 @@ export function ProjectForm({
         toast.success('Project updated successfully');
         router.refresh();
       } else {
+        console.log('[DEBUG] Creating new project...');
         // Get first status for the selected project type
         const availableStatuses = getAvailableStatuses(selectedProjectType);
+        console.log('[DEBUG] Available statuses:', availableStatuses.length);
         const firstStatus = availableStatuses.sort((a, b) => a.display_order - b.display_order)[0];
 
         if (!firstStatus) {
           toast.error('No statuses configured for this project type. Please configure statuses first.');
           return;
         }
+        console.log('[DEBUG] First status:', firstStatus.name);
 
+        console.log('[DEBUG] About to call supabase.auth.getUser()');
         const { data: { user }, error: userError } = await supabase.auth.getUser();
+        console.log('[DEBUG] getUser completed, user:', user?.id, 'error:', userError);
 
         if (userError || !user) {
           toast.error('Session expired. Please log in again.');
