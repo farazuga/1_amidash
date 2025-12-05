@@ -7,7 +7,7 @@ const BRAND_COLORS = {
   muted: '#999',
 };
 
-const LOGO_URL = 'https://www.amitrace.com/wp-content/uploads/2022/04/amitrace-logo.png';
+const LOGO_URL = 'https://www.amitrace.com/Logo_TwoTone.png';
 
 interface BaseTemplateOptions {
   previewText?: string;

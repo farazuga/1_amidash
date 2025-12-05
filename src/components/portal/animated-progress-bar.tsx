@@ -35,29 +35,16 @@ function FlowingParticle({ delay, duration }: { delay: number; duration: number 
 // Pulsing ring animation for current status
 function PulsingRing({ color }: { color: string }) {
   return (
-    <>
-      <motion.div
-        className={cn('absolute inset-0 rounded-full', color)}
-        initial={{ scale: 1, opacity: 0.5 }}
-        animate={{ scale: 1.8, opacity: 0 }}
-        transition={{
-          duration: 1.5,
-          repeat: Infinity,
-          ease: 'easeOut',
-        }}
-      />
-      <motion.div
-        className={cn('absolute inset-0 rounded-full', color)}
-        initial={{ scale: 1, opacity: 0.5 }}
-        animate={{ scale: 1.8, opacity: 0 }}
-        transition={{
-          duration: 1.5,
-          repeat: Infinity,
-          ease: 'easeOut',
-          delay: 0.5,
-        }}
-      />
-    </>
+    <motion.div
+      className={cn('absolute inset-0 rounded-full', color)}
+      initial={{ scale: 1, opacity: 0.4 }}
+      animate={{ scale: 1.6, opacity: 0 }}
+      transition={{
+        duration: 1.5,
+        repeat: Infinity,
+        ease: 'easeOut',
+      }}
+    />
   );
 }
 
@@ -161,15 +148,6 @@ export function AnimatedProgressBar({
           </motion.div>
         </div>
 
-        {/* Progress percentage */}
-        <motion.div
-          className="absolute right-0 top-6 text-sm font-semibold text-[#023A2D]"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-        >
-          {progressPercent}% Complete
-        </motion.div>
       </div>
 
       {/* Status steps */}
