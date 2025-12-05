@@ -86,7 +86,7 @@ export default function UsersAdminPage() {
       ]);
 
       if (!cancelled) {
-        setUsers(usersRes.data || []);
+        setUsers((usersRes.data || []) as Profile[]);
         setCurrentUserId(userRes.data.user?.id || null);
         setIsLoading(false);
       }
@@ -102,7 +102,7 @@ export default function UsersAdminPage() {
       .from('profiles')
       .select('*')
       .order('created_at', { ascending: false });
-    setUsers(data || []);
+    setUsers((data || []) as Profile[]);
   };
 
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
@@ -351,7 +351,7 @@ export default function UsersAdminPage() {
                   <TableCell>{user.email}</TableCell>
                   <TableCell>
                     <Select
-                      value={user.role}
+                      value={user.role ?? 'viewer'}
                       onValueChange={(value) =>
                         handleRoleChange(user.id, value as UserRole)
                       }
@@ -359,8 +359,8 @@ export default function UsersAdminPage() {
                     >
                       <SelectTrigger className="w-[130px]">
                         <SelectValue>
-                          <Badge className={roleColors[user.role]}>
-                            {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                          <Badge className={roleColors[(user.role ?? 'viewer') as UserRole]}>
+                            {(user.role ?? 'viewer').charAt(0).toUpperCase() + (user.role ?? 'viewer').slice(1)}
                           </Badge>
                         </SelectValue>
                       </SelectTrigger>
@@ -396,7 +396,7 @@ export default function UsersAdminPage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {format(new Date(user.created_at), 'MMM d, yyyy')}
+                    {user.created_at ? format(new Date(user.created_at), 'MMM d, yyyy') : '-'}
                   </TableCell>
                   <TableCell>
                     <Button

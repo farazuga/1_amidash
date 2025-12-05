@@ -32,11 +32,17 @@ async function getDashboardStats() {
 
   // Overdue projects (past goal completion date, not invoiced)
   const invoicedStatus = statuses?.find(s => s.name === 'Invoiced');
-  const overdueProjects = projects?.filter(p => {
+  const overdueProjects = (projects?.filter(p => {
     if (!p.goal_completion_date) return false;
     if (p.current_status_id === invoicedStatus?.id) return false;
     return new Date(p.goal_completion_date) < today;
-  }) || [];
+  }) || []) as Array<{
+    id: string;
+    client_name: string;
+    goal_completion_date: string;
+    sales_amount: number | null;
+    current_status: { name: string } | null;
+  }>;
 
   // Projects by status
   const projectsByStatus = statuses?.map(status => ({

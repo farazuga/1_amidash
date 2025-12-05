@@ -10,27 +10,27 @@ export interface Profile {
   id: string;
   email: string;
   full_name: string | null;
-  role: UserRole;
-  is_salesperson: boolean;
-  created_at: string;
-  updated_at: string;
+  role: string | null;
+  is_salesperson: boolean | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 export interface Status {
   id: string;
   name: string;
   display_order: number;
-  require_note: boolean;
-  is_active: boolean;
-  created_at: string;
+  require_note: boolean | null;
+  is_active: boolean | null;
+  created_at: string | null;
 }
 
 export interface ProjectType {
   id: string;
   name: string;
   display_order: number;
-  is_active: boolean;
-  created_at: string;
+  is_active: boolean | null;
+  created_at: string | null;
 }
 
 export interface ProjectTypeStatus {
@@ -41,8 +41,8 @@ export interface ProjectTypeStatus {
 export interface Tag {
   id: string;
   name: string;
-  color: string;
-  created_at: string;
+  color: string | null;
+  created_at: string | null;
 }
 
 export interface Project {
@@ -53,7 +53,7 @@ export interface Project {
   sales_order_url: string | null;
   po_number: string | null;
   sales_amount: number | null;
-  contract_type: ContractType | null;
+  contract_type: string | null;
   goal_completion_date: string | null;
   current_status_id: string | null;
   project_type_id: string | null;
@@ -62,18 +62,18 @@ export interface Project {
   poc_email: string | null;
   poc_phone: string | null;
   scope_link: string | null;
-  client_token: string;
+  client_token: string | null;
   expected_update_date: string | null;
-  expected_update_auto: boolean;
+  expected_update_auto: boolean | null;
   created_by: string | null;
-  created_at: string;
-  updated_at: string;
+  created_at: string | null;
+  updated_at: string | null;
   // Joined relations
-  current_status?: Status;
-  project_type?: ProjectType;
-  tags?: Tag[];
-  created_by_profile?: Profile;
-  salesperson?: Profile;
+  current_status?: Status | null;
+  project_type?: ProjectType | null;
+  tags?: Tag[] | { tag: Tag }[];
+  created_by_profile?: Profile | null;
+  salesperson?: Profile | null;
 }
 
 export interface ProjectTag {

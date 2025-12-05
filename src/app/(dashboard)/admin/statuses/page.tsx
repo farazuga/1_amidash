@@ -108,13 +108,13 @@ function SortableStatusRow({
       </TableCell>
       <TableCell>
         <Switch
-          checked={status.require_note}
+          checked={status.require_note ?? false}
           onCheckedChange={onToggleRequireNote}
         />
       </TableCell>
       <TableCell>
         <Switch
-          checked={status.is_active}
+          checked={status.is_active ?? false}
           onCheckedChange={onToggleActive}
         />
       </TableCell>
@@ -171,7 +171,7 @@ function SortableTypeRow({
       </TableCell>
       <TableCell>
         <Switch
-          checked={type.is_active}
+          checked={type.is_active ?? false}
           onCheckedChange={onToggleActive}
         />
       </TableCell>
@@ -226,8 +226,8 @@ export default function StatusesAdminPage() {
 
       if (cancelled) return;
 
-      setStatuses(statusesRes.data || []);
-      setProjectTypes(typesRes.data || []);
+      setStatuses((statusesRes.data || []) as Status[]);
+      setProjectTypes((typesRes.data || []) as ProjectType[]);
 
       // Build the status map
       const map: ProjectTypeStatusMap = {};
@@ -254,8 +254,8 @@ export default function StatusesAdminPage() {
       supabase.from('project_type_statuses').select('*'),
     ]);
 
-    setStatuses(statusesRes.data || []);
-    setProjectTypes(typesRes.data || []);
+    setStatuses((statusesRes.data || []) as Status[]);
+    setProjectTypes((typesRes.data || []) as ProjectType[]);
 
     const map: ProjectTypeStatusMap = {};
     (mapRes.data || []).forEach((row: { project_type_id: string; status_id: string }) => {

@@ -5,7 +5,7 @@ import type { Status } from '@/types';
 
 interface StatusHistoryItem {
   id: string;
-  changed_at: string;
+  changed_at: string | null;
   status: Status | null;
 }
 
@@ -66,8 +66,10 @@ export function StatusTimeline({ history }: StatusTimelineProps) {
               {item.status?.name || 'Unknown Status'}
             </p>
             <p className="text-sm text-muted-foreground">
-              {format(new Date(item.changed_at), 'MMMM d, yyyy')} at{' '}
-              {format(new Date(item.changed_at), 'h:mm a')}
+              {item.changed_at ? (
+                <>{format(new Date(item.changed_at), 'MMMM d, yyyy')} at{' '}
+                {format(new Date(item.changed_at), 'h:mm a')}</>
+              ) : '-'}
             </p>
           </div>
         </div>

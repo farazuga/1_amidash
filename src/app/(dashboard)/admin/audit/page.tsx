@@ -66,7 +66,7 @@ export default function AuditLogPage() {
 
       const { data } = await query;
       if (!cancelled) {
-        setLogs(data || []);
+        setLogs((data || []) as AuditLogWithRelations[]);
         setIsLoading(false);
       }
     };

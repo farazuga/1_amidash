@@ -66,7 +66,7 @@ export function Header() {
                 </p>
                 {profile?.role && (
                   <Badge
-                    className={`w-fit text-xs ${roleColor[profile.role]}`}
+                    className={`w-fit text-xs ${roleColor[profile.role as keyof typeof roleColor] || roleColor.viewer}`}
                   >
                     {profile.role.charAt(0).toUpperCase() + profile.role.slice(1)}
                   </Badge>

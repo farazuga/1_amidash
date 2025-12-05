@@ -142,7 +142,7 @@ export default async function ProjectDetailPage({
               )}
             </div>
             <p className="text-muted-foreground">
-              Created {format(new Date(project.created_at), 'MMM d, yyyy')}
+              Created {project.created_at ? format(new Date(project.created_at), 'MMM d, yyyy') : '-'}
               {project.created_by_profile &&
                 ` by ${project.created_by_profile.full_name || project.created_by_profile.email}`}
             </p>

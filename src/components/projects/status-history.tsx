@@ -6,7 +6,7 @@ import type { Status, Profile } from '@/types';
 
 interface StatusHistoryItem {
   id: string;
-  changed_at: string;
+  changed_at: string | null;
   note: string | null;
   status: Status | null;
   changed_by_profile: Profile | null;
@@ -43,7 +43,7 @@ export function StatusHistory({ history }: StatusHistoryProps) {
               <StatusBadge status={item.status} />
             </div>
             <p className="text-xs text-muted-foreground">
-              {format(new Date(item.changed_at), 'MMM d, yyyy h:mm a')}
+              {item.changed_at ? format(new Date(item.changed_at), 'MMM d, yyyy h:mm a') : '-'}
               {item.changed_by_profile && (
                 <> by {item.changed_by_profile.full_name || item.changed_by_profile.email}</>
               )}

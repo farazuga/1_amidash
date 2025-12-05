@@ -36,7 +36,7 @@ export default function TagsAdminPage() {
     const fetchTags = async () => {
       const { data } = await supabase.from('tags').select('*').order('name');
       if (!cancelled) {
-        setTags(data || []);
+        setTags((data || []) as Tag[]);
         setIsLoading(false);
       }
     };
@@ -48,7 +48,7 @@ export default function TagsAdminPage() {
   // Function to reload tags after mutations
   const loadTags = async () => {
     const { data } = await supabase.from('tags').select('*').order('name');
-    setTags(data || []);
+    setTags((data || []) as Tag[]);
   };
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -200,7 +200,7 @@ export default function TagsAdminPage() {
                   className="flex items-center gap-2 rounded-lg border p-3"
                 >
                   <Badge
-                    style={{ backgroundColor: tag.color, color: 'white' }}
+                    style={{ backgroundColor: tag.color ?? '#888888', color: 'white' }}
                     className="text-sm"
                   >
                     {tag.name}

@@ -32,7 +32,7 @@ interface StatusChangeButtonProps {
   statuses: Status[];
   pocEmail: string | null;
   clientName: string;
-  clientToken: string;
+  clientToken: string | null;
   projectTypeId: string | null;
   projectTypeStatuses: { project_type_id: string; status_id: string }[];
 }

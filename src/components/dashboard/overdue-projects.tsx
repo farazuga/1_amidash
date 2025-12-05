@@ -14,7 +14,7 @@ interface Project {
   sales_amount: number | null;
   current_status?: {
     name: string;
-  };
+  } | null;
 }
 
 interface OverdueProjectsProps {

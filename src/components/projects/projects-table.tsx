@@ -50,9 +50,9 @@ interface ProjectWithTags {
   poc_name: string | null;
   poc_email: string | null;
   scope_link: string | null;
-  client_token: string;
-  current_status?: Status;
-  tags?: { tag: { id: string; name: string; color: string } }[];
+  client_token: string | null;
+  current_status?: Status | null;
+  tags?: { tag: { id: string; name: string; color: string | null } }[];
 }
 
 interface ProjectsTableProps {
@@ -210,7 +210,7 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
                           key={tag.id}
                           variant="outline"
                           className="text-xs"
-                          style={{ borderColor: tag.color, color: tag.color }}
+                          style={{ borderColor: tag.color ?? '#888888', color: tag.color ?? '#888888' }}
                         >
                           {tag.name}
                         </Badge>
@@ -299,15 +299,17 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
                       <Eye className="mr-2 h-4 w-4" />
                       View Details
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        copyClientPortalLink(project.client_token);
-                      }}
-                    >
-                      <Copy className="mr-2 h-4 w-4" />
-                      Copy Client Link
-                    </DropdownMenuItem>
+                    {project.client_token && (
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyClientPortalLink(project.client_token!);
+                        }}
+                      >
+                        <Copy className="mr-2 h-4 w-4" />
+                        Copy Client Link
+                      </DropdownMenuItem>
+                    )}
                     {project.scope_link && (
                       <DropdownMenuItem
                         onClick={(e) => {

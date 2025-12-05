@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import type { Database } from '@/types/database';
 
 /**
  * Get Supabase environment variables with validation
@@ -32,7 +33,7 @@ export async function createClient() {
   const cookieStore = await cookies();
   const { url, anonKey } = getSupabaseEnv();
 
-  return createServerClient(url, anonKey, {
+  return createServerClient<Database>(url, anonKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -59,7 +60,7 @@ export async function createServiceClient() {
   const { url } = getSupabaseEnv();
   const serviceKey = getServiceRoleKey();
 
-  return createServerClient(url, serviceKey, {
+  return createServerClient<Database>(url, serviceKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
