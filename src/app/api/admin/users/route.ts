@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient, createClient } from '@/lib/supabase/server';
+import { emailSchema, roleSchema } from '@/lib/validation';
 
 // POST - Create a new user
 export async function POST(request: NextRequest) {
@@ -24,11 +25,23 @@ export async function POST(request: NextRequest) {
 
     // Get request body
     const body = await request.json();
-    const { email, full_name, role = 'viewer', is_salesperson = false } = body;
+    const { email, full_name, role: rawRole = 'viewer', is_salesperson = false } = body;
 
-    if (!email) {
-      return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+    // Validate email
+    const emailResult = emailSchema.safeParse(email);
+    if (!emailResult.success) {
+      return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
     }
+
+    // Validate role
+    const roleResult = roleSchema.safeParse(rawRole);
+    if (!roleResult.success) {
+      return NextResponse.json(
+        { error: 'Invalid role. Must be: admin, editor, or viewer' },
+        { status: 400 }
+      );
+    }
+    const role = roleResult.data;
 
     // Use service client to create user
     const serviceClient = await createServiceClient();
@@ -36,7 +49,7 @@ export async function POST(request: NextRequest) {
     // Create the user with Supabase Admin API
     const { data: newUser, error: createError } = await serviceClient.auth.admin.createUser({
       email,
-      email_confirm: true, // Auto-confirm email so they can log in immediately
+      email_confirm: true,
       user_metadata: {
         full_name,
       },
@@ -48,7 +61,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Update the profile with role and salesperson status
-    // (profile is auto-created by trigger, but we need to update it)
     const { error: updateError } = await serviceClient
       .from('profiles')
       .update({
@@ -60,18 +72,6 @@ export async function POST(request: NextRequest) {
 
     if (updateError) {
       console.error('Error updating profile:', updateError);
-      // User was created but profile update failed - not critical
-    }
-
-    // Send password reset email so user can set their password
-    const { error: resetError } = await serviceClient.auth.admin.generateLink({
-      type: 'magiclink',
-      email,
-    });
-
-    if (resetError) {
-      console.error('Error sending reset email:', resetError);
-      // User was created but email failed - they can use forgot password
     }
 
     return NextResponse.json({
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
         id: newUser.user.id,
         email: newUser.user.email,
       },
-      message: 'User created. They can log in using the "Forgot Password" link to set their password.',
+      message: 'User created. They can use "Forgot Password" to set their password.',
     });
   } catch (error) {
     console.error('Unexpected error:', error);
