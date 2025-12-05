@@ -266,6 +266,119 @@ describe('POST /api/admin/users', () => {
   });
 });
 
+describe('POST /api/admin/users - error handling', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 400 when user creation fails', async () => {
+    const mockServiceClient = {
+      auth: {
+        admin: {
+          createUser: vi.fn().mockResolvedValue({
+            data: null,
+            error: { message: 'User already exists' },
+          }),
+        },
+      },
+    };
+
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'admin-123' } } }),
+      },
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { role: 'admin' } }),
+          }),
+        }),
+      }),
+    } as unknown as ReturnType<typeof createClient>);
+
+    vi.mocked(createServiceClient).mockResolvedValue(
+      mockServiceClient as unknown as ReturnType<typeof createServiceClient>
+    );
+
+    const request = createMockRequest({
+      email: 'existing@example.com',
+      full_name: 'Existing User',
+    });
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(data.error).toBe('User already exists');
+  });
+
+  it('returns 500 on unexpected error', async () => {
+    vi.mocked(createClient).mockRejectedValue(new Error('Database connection failed'));
+
+    const request = createMockRequest({
+      email: 'test@example.com',
+      full_name: 'Test User',
+    });
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(data.error).toBe('Internal server error');
+  });
+
+  it('handles profile update error gracefully', async () => {
+    const mockServiceClient = {
+      auth: {
+        admin: {
+          createUser: vi.fn().mockResolvedValue({
+            data: { user: { id: 'new-user-id', email: 'test@example.com' } },
+            error: null,
+          }),
+        },
+      },
+      from: vi.fn().mockReturnValue({
+        update: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ error: { message: 'Profile update failed' } }),
+        }),
+      }),
+    };
+
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'admin-123' } } }),
+      },
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { role: 'admin' } }),
+          }),
+        }),
+      }),
+    } as unknown as ReturnType<typeof createClient>);
+
+    vi.mocked(createServiceClient).mockResolvedValue(
+      mockServiceClient as unknown as ReturnType<typeof createServiceClient>
+    );
+
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const request = createMockRequest({
+      email: 'test@example.com',
+      full_name: 'Test User',
+    });
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    // Should still succeed - profile update error is not critical
+    expect(response.status).toBe(200);
+    expect(data.success).toBe(true);
+
+    consoleSpy.mockRestore();
+  });
+});
+
 describe('GET /api/admin/users', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -343,5 +456,49 @@ describe('GET /api/admin/users', () => {
 
     expect(response.status).toBe(200);
     expect(data.users).toEqual(mockUsers);
+  });
+
+  it('returns 500 when database query fails', async () => {
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'admin-123' } } }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'profiles') {
+          return {
+            select: vi.fn().mockImplementation((fields: string) => {
+              if (fields === 'role') {
+                return {
+                  eq: vi.fn().mockReturnValue({
+                    single: vi.fn().mockResolvedValue({ data: { role: 'admin' } }),
+                  }),
+                };
+              }
+              // For select('*') - return error
+              return {
+                order: vi.fn().mockResolvedValue({ data: null, error: { message: 'Database error' } }),
+              };
+            }),
+          };
+        }
+        return {};
+      }),
+    } as unknown as ReturnType<typeof createClient>);
+
+    const response = await GET();
+    const data = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(data.error).toBe('Database error');
+  });
+
+  it('returns 500 on unexpected error', async () => {
+    vi.mocked(createClient).mockRejectedValue(new Error('Connection timeout'));
+
+    const response = await GET();
+    const data = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(data.error).toBe('Internal server error');
   });
 });

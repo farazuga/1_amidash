@@ -23,10 +23,21 @@ describe('useUser hook', () => {
     vi.clearAllMocks();
   });
 
-  it('returns loading state initially', () => {
+  it('returns loading state initially', async () => {
+    mockSupabase.auth.getUser.mockResolvedValue({
+      data: { user: null },
+      error: null,
+    });
+
     const { result } = renderHook(() => useUser());
 
+    // Initial state is loading
     expect(result.current.isLoading).toBe(true);
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
     expect(result.current.user).toBe(null);
     expect(result.current.profile).toBe(null);
   });
@@ -185,8 +196,17 @@ describe('useUser hook', () => {
   });
 
   describe('auth state changes', () => {
-    it('sets up auth state change listener', () => {
-      renderHook(() => useUser());
+    it('sets up auth state change listener', async () => {
+      mockSupabase.auth.getUser.mockResolvedValue({
+        data: { user: null },
+        error: null,
+      });
+
+      const { result } = renderHook(() => useUser());
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
 
       expect(mockSupabase.auth.onAuthStateChange).toHaveBeenCalled();
     });
