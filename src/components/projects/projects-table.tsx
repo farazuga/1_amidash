@@ -472,14 +472,14 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
                 </div>
               </TableCell>
               <TableCell>
-                {project.client_portal_url ? (
+                {project.client_token ? (
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
                     onClick={(e) => {
                       e.stopPropagation();
-                      window.open(project.client_portal_url!, '_blank');
+                      window.open(`/status/${project.client_token}`, '_blank');
                     }}
                     title="Open Client Portal"
                   >
