@@ -26,6 +26,14 @@ async function getProjectByToken(token: string) {
   return project;
 }
 
+async function incrementPortalViews(projectId: string) {
+  const supabase = await createClient();
+
+  // Increment view count - using type assertion since migration may not be applied yet
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase.rpc as any)('increment_portal_views', { project_id: projectId });
+}
+
 async function getStatuses() {
   const supabase = await createClient();
   const { data } = await supabase
@@ -75,6 +83,9 @@ export default async function ClientPortalPage({
   if (!project) {
     notFound();
   }
+
+  // Increment view count (fire and forget - don't block render)
+  incrementPortalViews(project.id);
 
   // Filter statuses by project type (with fallback to all statuses)
   const allowedStatusIds = project.project_type_id

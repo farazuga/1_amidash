@@ -13,6 +13,7 @@ import {
   Calendar,
   DollarSign,
   FileText,
+  Eye,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { StatusBadge } from '@/components/projects/status-badge';
@@ -150,6 +151,12 @@ export default async function ProjectDetailPage({
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <CopyClientLink token={project.client_token} />
+          {project.client_token && (
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground px-3 py-2 border rounded-md bg-muted/30">
+              <Eye className="h-4 w-4" />
+              <span>{(project as { client_portal_views?: number }).client_portal_views ?? 0} views</span>
+            </div>
+          )}
           <StatusChangeButton
             projectId={project.id}
             currentStatusId={project.current_status_id}

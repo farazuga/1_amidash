@@ -64,6 +64,7 @@ export interface Project {
   scope_link: string | null;
   client_token: string | null;
   client_portal_url?: string | null;
+  client_portal_views?: number;
   expected_update_date: string | null;
   expected_update_auto: boolean | null;
   created_by: string | null;
