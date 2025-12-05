@@ -10,10 +10,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, X, AlertTriangle } from 'lucide-react';
+import { Search, X, AlertTriangle, Calendar } from 'lucide-react';
 import { CONTRACT_TYPES } from '@/lib/constants';
 import type { Status } from '@/types';
-import { useCallback, useState, useTransition } from 'react';
+import { useCallback, useState, useTransition, useEffect, useRef } from 'react';
+
+const MONTHS = [
+  { value: '1', label: 'January' },
+  { value: '2', label: 'February' },
+  { value: '3', label: 'March' },
+  { value: '4', label: 'April' },
+  { value: '5', label: 'May' },
+  { value: '6', label: 'June' },
+  { value: '7', label: 'July' },
+  { value: '8', label: 'August' },
+  { value: '9', label: 'September' },
+  { value: '10', label: 'October' },
+  { value: '11', label: 'November' },
+  { value: '12', label: 'December' },
+];
+
+// Generate years from 2020 to current year + 1
+const currentYear = new Date().getFullYear();
+const YEARS = Array.from({ length: currentYear - 2020 + 2 }, (_, i) => ({
+  value: String(2020 + i),
+  label: String(2020 + i),
+}));
 
 interface FilterBarProps {
   statuses: Status[];
@@ -25,6 +47,7 @@ export function FilterBar({ statuses, currentView }: FilterBarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const [search, setSearch] = useState(searchParams.get('search') || '');
 
@@ -45,15 +68,37 @@ export function FilterBar({ statuses, currentView }: FilterBarProps) {
     [searchParams]
   );
 
-  const handleSearch = () => {
-    startTransition(() => {
-      router.push(`${pathname}?${createQueryString({ search })}`);
-    });
-  };
+  // Debounced search effect
+  useEffect(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+
+    debounceRef.current = setTimeout(() => {
+      const currentSearch = searchParams.get('search') || '';
+      if (search !== currentSearch) {
+        startTransition(() => {
+          router.push(`${pathname}?${createQueryString({ search: search || null })}`);
+        });
+      }
+    }, 300);
+
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, [search, searchParams, pathname, router, createQueryString]);
 
   const handleFilterChange = (key: string, value: string | null) => {
     startTransition(() => {
       router.push(`${pathname}?${createQueryString({ [key]: value })}`);
+    });
+  };
+
+  const handleDateFilterChange = (params: Record<string, string | null>) => {
+    startTransition(() => {
+      router.push(`${pathname}?${createQueryString(params)}`);
     });
   };
 
@@ -68,7 +113,12 @@ export function FilterBar({ statuses, currentView }: FilterBarProps) {
     searchParams.has('search') ||
     searchParams.has('status') ||
     searchParams.has('contract_type') ||
-    searchParams.has('overdue');
+    searchParams.has('overdue') ||
+    searchParams.has('date_type') ||
+    searchParams.has('from_month') ||
+    searchParams.has('from_year') ||
+    searchParams.has('to_month') ||
+    searchParams.has('to_year');
 
   const handleViewChange = (view: 'active' | 'archived') => {
     startTransition(() => {
@@ -116,21 +166,20 @@ export function FilterBar({ statuses, currentView }: FilterBarProps) {
       </div>
 
       <div className="flex flex-col gap-3">
-        {/* Search - Full width on mobile */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search clients, PO#, sales order..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              className="pl-10"
-            />
-          </div>
-          <Button onClick={handleSearch} disabled={isPending} className="w-full sm:w-auto">
-            Search
-          </Button>
+        {/* Search - Full width, updates as you type */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search clients, PO#, sales order..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10"
+          />
+          {isPending && (
+            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+          )}
         </div>
 
         {/* Filters - Stack on mobile, wrap on larger screens */}
@@ -194,6 +243,115 @@ export function FilterBar({ statuses, currentView }: FilterBarProps) {
               <X className="mr-2 h-4 w-4" />
               Clear
             </Button>
+          )}
+        </div>
+
+        {/* Date Range Filter */}
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 pt-2 border-t">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Calendar className="h-4 w-4" />
+            <span>Date Filter:</span>
+          </div>
+
+          {/* Date Type Selector */}
+          <Select
+            value={searchParams.get('date_type') || 'none'}
+            onValueChange={(value) =>
+              handleDateFilterChange({ date_type: value === 'none' ? null : value })
+            }
+          >
+            <SelectTrigger className="w-full sm:w-[140px]">
+              <SelectValue placeholder="Select date" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No filter</SelectItem>
+              <SelectItem value="created">Created Date</SelectItem>
+              <SelectItem value="goal">Goal Date</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {searchParams.get('date_type') && (
+            <>
+              <span className="text-sm text-muted-foreground hidden sm:inline">From:</span>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Select
+                  value={searchParams.get('from_month') || 'any'}
+                  onValueChange={(value) =>
+                    handleFilterChange('from_month', value === 'any' ? null : value)
+                  }
+                >
+                  <SelectTrigger className="w-full sm:w-[120px]">
+                    <SelectValue placeholder="Month" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="any">Any month</SelectItem>
+                    {MONTHS.map((month) => (
+                      <SelectItem key={month.value} value={month.value}>
+                        {month.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={searchParams.get('from_year') || 'any'}
+                  onValueChange={(value) =>
+                    handleFilterChange('from_year', value === 'any' ? null : value)
+                  }
+                >
+                  <SelectTrigger className="w-full sm:w-[100px]">
+                    <SelectValue placeholder="Year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="any">Any year</SelectItem>
+                    {YEARS.map((year) => (
+                      <SelectItem key={year.value} value={year.value}>
+                        {year.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <span className="text-sm text-muted-foreground hidden sm:inline">To:</span>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Select
+                  value={searchParams.get('to_month') || 'any'}
+                  onValueChange={(value) =>
+                    handleFilterChange('to_month', value === 'any' ? null : value)
+                  }
+                >
+                  <SelectTrigger className="w-full sm:w-[120px]">
+                    <SelectValue placeholder="Month" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="any">Any month</SelectItem>
+                    {MONTHS.map((month) => (
+                      <SelectItem key={month.value} value={month.value}>
+                        {month.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={searchParams.get('to_year') || 'any'}
+                  onValueChange={(value) =>
+                    handleFilterChange('to_year', value === 'any' ? null : value)
+                  }
+                >
+                  <SelectTrigger className="w-full sm:w-[100px]">
+                    <SelectValue placeholder="Year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="any">Any year</SelectItem>
+                    {YEARS.map((year) => (
+                      <SelectItem key={year.value} value={year.value}>
+                        {year.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
           )}
         </div>
       </div>

@@ -14,6 +14,11 @@ interface SearchParams {
   sort_by?: string;
   sort_order?: string;
   view?: 'active' | 'archived';
+  date_type?: 'created' | 'goal';
+  from_month?: string;
+  from_year?: string;
+  to_month?: string;
+  to_year?: string;
 }
 
 async function getProjects(searchParams: SearchParams, invoicedStatusId: string | null) {
@@ -64,6 +69,29 @@ async function getProjects(searchParams: SearchParams, invoicedStatusId: string 
   if (searchParams.overdue === 'true') {
     const today = new Date().toISOString().split('T')[0];
     query = query.lt('goal_completion_date', today);
+  }
+
+  // Apply date range filter
+  if (searchParams.date_type) {
+    const dateField = searchParams.date_type === 'created' ? 'created_date' : 'goal_completion_date';
+
+    // Build from date (first day of the month)
+    if (searchParams.from_year) {
+      const fromMonth = searchParams.from_month ? parseInt(searchParams.from_month) : 1;
+      const fromYear = parseInt(searchParams.from_year);
+      const fromDate = `${fromYear}-${String(fromMonth).padStart(2, '0')}-01`;
+      query = query.gte(dateField, fromDate);
+    }
+
+    // Build to date (last day of the month)
+    if (searchParams.to_year) {
+      const toMonth = searchParams.to_month ? parseInt(searchParams.to_month) : 12;
+      const toYear = parseInt(searchParams.to_year);
+      // Get last day of the month
+      const lastDay = new Date(toYear, toMonth, 0).getDate();
+      const toDate = `${toYear}-${String(toMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      query = query.lte(dateField, toDate);
+    }
   }
 
   // Apply sorting

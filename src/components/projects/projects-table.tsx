@@ -40,6 +40,7 @@ import { useState } from 'react';
 interface ProjectWithTags {
   id: string;
   client_name: string;
+  created_date: string;
   sales_order_number: string | null;
   sales_order_url: string | null;
   po_number: string | null;
@@ -249,6 +250,12 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
             {/* Details Grid */}
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
+                <span className="text-muted-foreground text-xs block">Created Date</span>
+                <span className="font-medium">
+                  {format(new Date(project.created_date), 'MMM d, yyyy')}
+                </span>
+              </div>
+              <div>
                 <span className="text-muted-foreground text-xs block">Amount</span>
                 <span className="font-medium">
                   {project.sales_amount ? `$${project.sales_amount.toLocaleString()}` : '-'}
@@ -335,6 +342,16 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
             <TableHead>
               <Button
                 variant="ghost"
+                onClick={() => handleSort('created_date')}
+                className="h-8 px-2"
+              >
+                Created Date
+                <ArrowUpDown className="ml-2 h-4 w-4" />
+              </Button>
+            </TableHead>
+            <TableHead>
+              <Button
+                variant="ghost"
                 onClick={() => handleSort('status')}
                 className="h-8 px-2"
               >
@@ -398,6 +415,9 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
                     </div>
                   )}
                 </div>
+              </TableCell>
+              <TableCell>
+                {format(new Date(project.created_date), 'MMM d, yyyy')}
               </TableCell>
               <TableCell>
                 <StatusBadge status={project.current_status} />
