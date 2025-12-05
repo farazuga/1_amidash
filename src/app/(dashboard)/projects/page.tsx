@@ -69,7 +69,13 @@ async function getProjects(searchParams: SearchParams, invoicedStatusId: string 
   // Apply sorting
   const sortBy = searchParams.sort_by || 'created_date';
   const sortOrder = searchParams.sort_order === 'asc' ? true : false;
-  query = query.order(sortBy, { ascending: sortOrder });
+
+  // Special handling for status sorting - sort by display_order from joined status
+  if (sortBy === 'status') {
+    query = query.order('current_status(display_order)', { ascending: sortOrder });
+  } else {
+    query = query.order(sortBy, { ascending: sortOrder });
+  }
 
   const { data: projects, error } = await query;
 
@@ -106,15 +112,15 @@ export default async function ProjectsPage({
   const projects = await getProjects(params, invoicedStatusId);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Projects</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Projects</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Manage and track all your projects
           </p>
         </div>
-        <Button asChild>
+        <Button asChild className="w-full sm:w-auto">
           <Link href="/projects/new">
             <Plus className="mr-2 h-4 w-4" />
             New Project

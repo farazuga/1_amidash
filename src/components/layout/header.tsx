@@ -13,11 +13,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { LogOut } from 'lucide-react';
+import { LogOut, Menu } from 'lucide-react';
+import { useSidebarStore } from '@/lib/stores/sidebar-store';
 
 export function Header() {
   const { user, profile, signOut } = useUser();
   const router = useRouter();
+  const { toggle } = useSidebarStore();
 
   const handleSignOut = async () => {
     await signOut();
@@ -39,12 +41,22 @@ export function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background px-6">
-      <div>
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background px-4 md:px-6">
+      <div className="flex items-center gap-3">
+        {/* Mobile Menu Button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden h-10 w-10"
+          onClick={toggle}
+          aria-label="Toggle navigation menu"
+        >
+          <Menu className="h-6 w-6" />
+        </Button>
         {/* Placeholder for breadcrumbs or page title */}
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 md:gap-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-10 w-10 rounded-full">
@@ -61,7 +73,7 @@ export function Header() {
                 <p className="text-sm font-medium leading-none">
                   {profile?.full_name || 'User'}
                 </p>
-                <p className="text-xs leading-none text-muted-foreground">
+                <p className="text-xs leading-none text-muted-foreground break-all">
                   {user?.email}
                 </p>
                 {profile?.role && (

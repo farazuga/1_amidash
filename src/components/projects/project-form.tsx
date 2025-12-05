@@ -113,6 +113,7 @@ export function ProjectForm({
       poc_email: formData.get('poc_email') as string || null,
       poc_phone: formData.get('poc_phone') as string || null,
       scope_link: formData.get('scope_link') as string || null,
+      client_portal_url: formData.get('client_portal_url') as string || null,
     };
 
     startTransition(async () => {
@@ -448,6 +449,21 @@ export function ProjectForm({
             placeholder="https://onedrive.com/..."
             defaultValue={project?.scope_link || ''}
           />
+        </div>
+
+        {/* Client Portal URL */}
+        <div className="space-y-2">
+          <Label htmlFor="client_portal_url">Client Portal URL</Label>
+          <Input
+            id="client_portal_url"
+            name="client_portal_url"
+            type="url"
+            placeholder="https://portal.example.com/..."
+            defaultValue={project?.client_portal_url || ''}
+          />
+          <p className="text-xs text-muted-foreground">
+            External URL to the client&apos;s portal (if applicable)
+          </p>
         </div>
       </div>
 

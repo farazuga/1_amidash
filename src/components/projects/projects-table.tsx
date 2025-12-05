@@ -18,7 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ExternalLink, MoreHorizontal, ArrowUpDown, Copy, Eye, Trash2 } from 'lucide-react';
+import { ExternalLink, MoreHorizontal, ArrowUpDown, Copy, Eye, Trash2, Globe } from 'lucide-react';
 import { format } from 'date-fns';
 import type { Status } from '@/types';
 import { StatusBadge } from './status-badge';
@@ -51,6 +51,7 @@ interface ProjectWithTags {
   poc_email: string | null;
   scope_link: string | null;
   client_token: string | null;
+  client_portal_url?: string | null;
   current_status?: Status | null;
   tags?: { tag: { id: string; name: string; color: string | null } }[];
 }
@@ -136,11 +137,11 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
 
   if (projects.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12">
-        <p className="text-lg font-medium text-muted-foreground">
+      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12 px-4">
+        <p className="text-base sm:text-lg font-medium text-muted-foreground">
           No projects found
         </p>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground text-center">
           Try adjusting your filters or create a new project
         </p>
         <Button asChild className="mt-4">
@@ -151,8 +152,174 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
   }
 
   return (
-    <div className="rounded-lg border">
-      <Table>
+    <>
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-4">
+        {projects.map((project) => (
+          <div
+            key={project.id}
+            className="rounded-lg border bg-card p-4 space-y-3 cursor-pointer hover:bg-muted/50 transition-colors"
+            onClick={() => router.push(`/projects/${project.id}`)}
+          >
+            {/* Header with Client and Actions */}
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-base truncate">{project.client_name}</h3>
+                {project.tags && project.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {project.tags.slice(0, 3).map(({ tag }) => (
+                      <Badge
+                        key={tag.id}
+                        variant="outline"
+                        className="text-xs"
+                        style={{ borderColor: tag.color ?? '#888888', color: tag.color ?? '#888888' }}
+                      >
+                        {tag.name}
+                      </Badge>
+                    ))}
+                    {project.tags.length > 3 && (
+                      <Badge variant="outline" className="text-xs">
+                        +{project.tags.length - 3}
+                      </Badge>
+                    )}
+                  </div>
+                )}
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      router.push(`/projects/${project.id}`);
+                    }}
+                  >
+                    <Eye className="mr-2 h-4 w-4" />
+                    View Details
+                  </DropdownMenuItem>
+                  {project.client_token && (
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyClientPortalLink(project.client_token!);
+                      }}
+                    >
+                      <Copy className="mr-2 h-4 w-4" />
+                      Copy Client Link
+                    </DropdownMenuItem>
+                  )}
+                  {project.scope_link && (
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(project.scope_link!, '_blank');
+                      }}
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      View Scope
+                    </DropdownMenuItem>
+                  )}
+                  {isAdmin && (
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setProjectToDelete(project);
+                        setDeleteDialogOpen(true);
+                      }}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete Project
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* Status */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Status:</span>
+              <StatusBadge status={project.current_status} />
+            </div>
+
+            {/* Details Grid */}
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span className="text-muted-foreground text-xs block">Amount</span>
+                <span className="font-medium">
+                  {project.sales_amount ? `$${project.sales_amount.toLocaleString()}` : '-'}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground text-xs block">Goal Date</span>
+                <span
+                  className={
+                    isOverdue(project.goal_completion_date) &&
+                    project.current_status?.name !== 'Invoiced'
+                      ? 'text-destructive font-medium'
+                      : 'font-medium'
+                  }
+                >
+                  {project.goal_completion_date
+                    ? format(new Date(project.goal_completion_date), 'MMM d, yyyy')
+                    : '-'}
+                </span>
+              </div>
+              {project.poc_name && (
+                <div className="col-span-2">
+                  <span className="text-muted-foreground text-xs block">POC</span>
+                  <span className="font-medium">{project.poc_name}</span>
+                  {project.poc_email && (
+                    <span className="text-muted-foreground text-xs block truncate">
+                      {project.poc_email}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Actions Row */}
+            <div className="flex flex-wrap gap-2 pt-2 border-t">
+              {project.sales_order_url && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs flex-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(project.sales_order_url!, '_blank');
+                  }}
+                >
+                  <ExternalLink className="mr-1 h-3 w-3" />
+                  Sales Order
+                </Button>
+              )}
+              {project.client_portal_url && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs flex-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(project.client_portal_url!, '_blank');
+                  }}
+                >
+                  <Globe className="mr-1 h-3 w-3" />
+                  Portal
+                </Button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden md:block rounded-lg border overflow-x-auto">
+        <Table>
         <TableHeader>
           <TableRow>
             <TableHead>
@@ -165,7 +332,16 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
                 <ArrowUpDown className="ml-2 h-4 w-4" />
               </Button>
             </TableHead>
-            <TableHead>Status</TableHead>
+            <TableHead>
+              <Button
+                variant="ghost"
+                onClick={() => handleSort('status')}
+                className="h-8 px-2"
+              >
+                Status
+                <ArrowUpDown className="ml-2 h-4 w-4" />
+              </Button>
+            </TableHead>
             <TableHead>
               <Button
                 variant="ghost"
@@ -176,7 +352,6 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
                 <ArrowUpDown className="ml-2 h-4 w-4" />
               </Button>
             </TableHead>
-            <TableHead>Contract Type</TableHead>
             <TableHead>
               <Button
                 variant="ghost"
@@ -187,9 +362,9 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
                 <ArrowUpDown className="ml-2 h-4 w-4" />
               </Button>
             </TableHead>
-            <TableHead>PO #</TableHead>
             <TableHead>Sales Order</TableHead>
             <TableHead>POC</TableHead>
+            <TableHead>Client Portal</TableHead>
             <TableHead className="w-[50px]"></TableHead>
           </TableRow>
         </TableHeader>
@@ -233,11 +408,6 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
                   : '-'}
               </TableCell>
               <TableCell>
-                <span className="text-sm">
-                  {project.contract_type || '-'}
-                </span>
-              </TableCell>
-              <TableCell>
                 {project.goal_completion_date ? (
                   <span
                     className={
@@ -253,7 +423,6 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
                   '-'
                 )}
               </TableCell>
-              <TableCell>{project.po_number || '-'}</TableCell>
               <TableCell>
                 {project.sales_order_url ? (
                   <Button
@@ -281,6 +450,24 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
                     </p>
                   )}
                 </div>
+              </TableCell>
+              <TableCell>
+                {project.client_portal_url ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(project.client_portal_url!, '_blank');
+                    }}
+                  >
+                    <Globe className="mr-1 h-3 w-3" />
+                    Open
+                  </Button>
+                ) : (
+                  <span className="text-muted-foreground text-sm">-</span>
+                )}
               </TableCell>
               <TableCell>
                 <DropdownMenu>
@@ -341,6 +528,7 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
           ))}
         </TableBody>
       </Table>
+      </div>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -364,6 +552,6 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }

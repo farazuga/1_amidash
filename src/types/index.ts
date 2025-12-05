@@ -63,6 +63,7 @@ export interface Project {
   poc_phone: string | null;
   scope_link: string | null;
   client_token: string | null;
+  client_portal_url?: string | null;
   expected_update_date: string | null;
   expected_update_auto: boolean | null;
   created_by: string | null;

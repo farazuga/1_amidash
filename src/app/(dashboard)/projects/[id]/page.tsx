@@ -122,18 +122,18 @@ export default async function ProjectDetailPage({
     project.current_status?.name !== 'Invoiced';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
+      <div className="flex flex-col gap-4">
+        <div className="flex items-start gap-2 md:gap-4">
+          <Button variant="ghost" size="icon" asChild className="shrink-0 h-10 w-10">
             <Link href="/projects">
               <ArrowLeft className="h-5 w-5" />
             </Link>
           </Button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold tracking-tight">
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight break-words">
                 {project.client_name}
               </h1>
               <StatusBadge status={project.current_status} />
@@ -141,14 +141,14 @@ export default async function ProjectDetailPage({
                 <Badge variant="destructive">Overdue</Badge>
               )}
             </div>
-            <p className="text-muted-foreground">
+            <p className="text-xs sm:text-sm text-muted-foreground">
               Created {project.created_at ? format(new Date(project.created_at), 'MMM d, yyyy') : '-'}
               {project.created_by_profile &&
                 ` by ${project.created_by_profile.full_name || project.created_by_profile.email}`}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <CopyClientLink token={project.client_token} />
           <StatusChangeButton
             projectId={project.id}
@@ -163,9 +163,9 @@ export default async function ProjectDetailPage({
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
         {/* Main Content */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-4 md:space-y-6">
           {/* Project Details Card */}
           <Card>
             <CardHeader>
@@ -187,7 +187,7 @@ export default async function ProjectDetailPage({
         </div>
 
         {/* Sidebar */}
-        <div className="space-y-6">
+        <div className="space-y-4 md:space-y-6">
           {/* Quick Info */}
           <Card>
             <CardHeader>
