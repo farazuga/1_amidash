@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  reactCompiler: true,
+  // reactCompiler: true, // Temporarily disabled to debug production form hang
   images: {
     remotePatterns: [
       {
