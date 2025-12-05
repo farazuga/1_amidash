@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { notFound } from 'next/navigation';
+import { headers } from 'next/headers';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -10,6 +11,61 @@ import { LOGO_URL, APP_NAME } from '@/lib/constants';
 import { AnimatedProgressBar } from '@/components/portal/animated-progress-bar';
 import { StatusTimeline } from '@/components/portal/status-timeline';
 import { Calendar, Clock, Mail, Phone, FileText, User } from 'lucide-react';
+
+// ============================================
+// Rate Limiting (simple in-memory implementation)
+// ============================================
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT = 60; // requests per minute per IP
+const WINDOW_MS = 60 * 1000; // 1 minute window
+
+// Clean up old entries periodically
+function cleanupRateLimitMap() {
+  const now = Date.now();
+  for (const [key, value] of rateLimitMap.entries()) {
+    if (now > value.resetTime) {
+      rateLimitMap.delete(key);
+    }
+  }
+}
+
+function checkRateLimit(ip: string): boolean {
+  // Periodic cleanup (run every ~100 requests to avoid memory leak)
+  if (rateLimitMap.size > 1000) {
+    cleanupRateLimitMap();
+  }
+
+  const now = Date.now();
+  const record = rateLimitMap.get(ip);
+
+  if (!record || now > record.resetTime) {
+    rateLimitMap.set(ip, { count: 1, resetTime: now + WINDOW_MS });
+    return true;
+  }
+
+  if (record.count >= RATE_LIMIT) {
+    return false;
+  }
+
+  record.count++;
+  return true;
+}
+
+// ============================================
+// Data Masking Utilities
+// ============================================
+function maskEmail(email: string): string {
+  const [local, domain] = email.split('@');
+  if (!domain) return '***';
+  if (local.length <= 2) return `${local[0]}***@${domain}`;
+  return `${local[0]}${local[1]}***@${domain}`;
+}
+
+function maskPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length < 4) return '***';
+  return `***-***-${digits.slice(-4)}`;
+}
 
 async function getProjectByToken(token: string) {
   const supabase = await createClient();
@@ -70,6 +126,25 @@ export default async function ClientPortalPage({
 }: {
   params: Promise<{ token: string }>;
 }) {
+  // Rate limiting check
+  const headersList = await headers();
+  const ip = headersList.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+             headersList.get('x-real-ip') ||
+             'unknown';
+
+  if (!checkRateLimit(ip)) {
+    return (
+      <div className="min-h-screen bg-[#f8faf9] flex items-center justify-center">
+        <Card className="max-w-md">
+          <CardContent className="pt-6 text-center">
+            <h1 className="text-xl font-semibold text-[#023A2D] mb-2">Too Many Requests</h1>
+            <p className="text-muted-foreground">Please wait a moment before refreshing.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const { token } = await params;
   const [project, statuses, statusHistory, projectTypeStatuses] = await Promise.all([
     getProjectByToken(token),
@@ -250,18 +325,20 @@ export default async function ClientPortalPage({
                       <a
                         href={`mailto:${project.poc_email}`}
                         className="flex items-center gap-2 text-sm text-[#023A2D] hover:underline"
+                        title="Click to email"
                       >
                         <Mail className="h-4 w-4" />
-                        {project.poc_email}
+                        <span>{maskEmail(project.poc_email)}</span>
                       </a>
                     )}
                     {project.poc_phone && (
                       <a
                         href={`tel:${project.poc_phone}`}
                         className="flex items-center gap-2 text-sm text-muted-foreground hover:text-[#023A2D]"
+                        title="Click to call"
                       >
                         <Phone className="h-4 w-4" />
-                        {project.poc_phone}
+                        <span>{maskPhone(project.poc_phone)}</span>
                       </a>
                     )}
                   </div>

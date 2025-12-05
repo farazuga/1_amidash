@@ -1,5 +1,20 @@
 // Email template utilities for Amitrace Dashboard
 
+/**
+ * Escapes HTML special characters to prevent XSS/injection in email templates.
+ * All user-controlled input should be passed through this function.
+ */
+function escapeHtml(text: string): string {
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;',
+  };
+  return text.replace(/[&<>"']/g, (char) => map[char]);
+}
+
 const BRAND_COLORS = {
   primary: '#023A2D',
   background: '#f8faf9',
@@ -48,8 +63,8 @@ function baseTemplate(content: string, options: BaseTemplateOptions = {}): strin
 function button(text: string, url: string): string {
   return `
     <div style="text-align: center; margin: 30px 0;">
-      <a href="${url}" style="display: inline-block; background-color: ${BRAND_COLORS.primary}; color: white; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-weight: 600;">
-        ${text}
+      <a href="${escapeHtml(url)}" style="display: inline-block; background-color: ${BRAND_COLORS.primary}; color: white; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-weight: 600;">
+        ${escapeHtml(text)}
       </a>
     </div>
   `;
@@ -59,7 +74,7 @@ function statusBadge(status: string): string {
   return `
     <div style="text-align: center; margin: 30px 0;">
       <span style="display: inline-block; background-color: ${BRAND_COLORS.primary}; color: white; padding: 12px 24px; border-radius: 50px; font-size: 18px; font-weight: 600;">
-        ${status}
+        ${escapeHtml(status)}
       </span>
     </div>
   `;
@@ -80,27 +95,33 @@ interface StatusChangeEmailOptions {
 export function statusChangeEmail(options: StatusChangeEmailOptions): string {
   const { clientName, newStatus, previousStatus, portalUrl, note } = options;
 
+  // Escape all user-controlled inputs
+  const safeClientName = escapeHtml(clientName);
+  const safeNewStatus = escapeHtml(newStatus);
+  const safePreviousStatus = previousStatus ? escapeHtml(previousStatus) : undefined;
+  const safeNote = note ? escapeHtml(note) : undefined;
+
   const content = `
     <h1 style="color: ${BRAND_COLORS.primary}; font-size: 24px; margin: 0 0 10px 0;">
       Project Status Update
     </h1>
 
     <p style="color: ${BRAND_COLORS.text}; font-size: 16px; line-height: 1.5; margin: 0 0 20px 0;">
-      Your project <strong>${clientName}</strong> has been updated.
+      Your project <strong>${safeClientName}</strong> has been updated.
     </p>
 
-    ${previousStatus ? `
+    ${safePreviousStatus ? `
       <p style="color: ${BRAND_COLORS.muted}; font-size: 14px; margin: 0 0 10px 0;">
-        Previous status: ${previousStatus}
+        Previous status: ${safePreviousStatus}
       </p>
     ` : ''}
 
-    ${statusBadge(newStatus)}
+    ${statusBadge(safeNewStatus)}
 
-    ${note ? `
+    ${safeNote ? `
       <div style="background-color: #f5f5f5; border-left: 4px solid ${BRAND_COLORS.primary}; padding: 15px; margin: 20px 0; border-radius: 0 4px 4px 0;">
         <p style="color: ${BRAND_COLORS.text}; font-size: 14px; margin: 0; font-style: italic;">
-          "${note}"
+          "${safeNote}"
         </p>
       </div>
     ` : ''}
@@ -113,7 +134,7 @@ export function statusChangeEmail(options: StatusChangeEmailOptions): string {
   `;
 
   return baseTemplate(content, {
-    previewText: `${clientName} status updated to ${newStatus}`,
+    previewText: `${safeClientName} status updated to ${safeNewStatus}`,
   });
 }
 
@@ -128,28 +149,34 @@ interface WelcomeEmailOptions {
 export function welcomeEmail(options: WelcomeEmailOptions): string {
   const { clientName, pocName, projectType, initialStatus, portalUrl } = options;
 
+  // Escape all user-controlled inputs
+  const safeClientName = escapeHtml(clientName);
+  const safePocName = escapeHtml(pocName);
+  const safeProjectType = escapeHtml(projectType);
+  const safeInitialStatus = escapeHtml(initialStatus);
+
   const content = `
     <h1 style="color: ${BRAND_COLORS.primary}; font-size: 24px; margin: 0 0 10px 0;">
       Welcome to Amitrace!
     </h1>
 
     <p style="color: ${BRAND_COLORS.text}; font-size: 16px; line-height: 1.5; margin: 0 0 20px 0;">
-      Hi ${pocName},
+      Hi ${safePocName},
     </p>
 
     <p style="color: ${BRAND_COLORS.text}; font-size: 16px; line-height: 1.5; margin: 0 0 20px 0;">
-      Your project <strong>${clientName}</strong> has been created and is now being tracked in our system.
+      Your project <strong>${safeClientName}</strong> has been created and is now being tracked in our system.
     </p>
 
     <div style="background-color: #f8faf9; border-radius: 8px; padding: 20px; margin: 25px 0;">
       <table style="width: 100%; border-collapse: collapse;">
         <tr>
           <td style="color: ${BRAND_COLORS.muted}; font-size: 14px; padding: 8px 0;">Project Type:</td>
-          <td style="color: ${BRAND_COLORS.text}; font-size: 14px; padding: 8px 0; text-align: right; font-weight: 600;">${projectType}</td>
+          <td style="color: ${BRAND_COLORS.text}; font-size: 14px; padding: 8px 0; text-align: right; font-weight: 600;">${safeProjectType}</td>
         </tr>
         <tr>
           <td style="color: ${BRAND_COLORS.muted}; font-size: 14px; padding: 8px 0;">Current Status:</td>
-          <td style="color: ${BRAND_COLORS.text}; font-size: 14px; padding: 8px 0; text-align: right; font-weight: 600;">${initialStatus}</td>
+          <td style="color: ${BRAND_COLORS.text}; font-size: 14px; padding: 8px 0; text-align: right; font-weight: 600;">${safeInitialStatus}</td>
         </tr>
       </table>
     </div>
@@ -167,6 +194,6 @@ export function welcomeEmail(options: WelcomeEmailOptions): string {
   `;
 
   return baseTemplate(content, {
-    previewText: `Your project ${clientName} is now being tracked`,
+    previewText: `Your project ${safeClientName} is now being tracked`,
   });
 }
