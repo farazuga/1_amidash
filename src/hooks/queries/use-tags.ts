@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/client';
 import type { Tag } from '@/types';
 
 const TAGS_KEY = ['tags'];
+const FIVE_MINUTES = 5 * 60 * 1000;
 
 export function useTags() {
   const supabase = createClient();
@@ -18,6 +19,7 @@ export function useTags() {
       if (error) throw error;
       return data as Tag[];
     },
+    staleTime: FIVE_MINUTES, // Tags rarely change
   });
 }
 

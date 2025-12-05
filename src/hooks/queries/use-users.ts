@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/client';
 import type { Profile, UserRole } from '@/types';
 
 const USERS_KEY = ['users'];
+const TWO_MINUTES = 2 * 60 * 1000;
+const THIRTY_SECONDS = 30 * 1000;
 
 export function useUsers() {
   const supabase = createClient();
@@ -18,6 +20,7 @@ export function useUsers() {
       if (error) throw error;
       return data as Profile[];
     },
+    staleTime: TWO_MINUTES, // User list doesn't change often
   });
 }
 
@@ -39,6 +42,7 @@ export function useCurrentUser() {
       if (error) throw error;
       return data as Profile;
     },
+    staleTime: THIRTY_SECONDS, // Current user can be cached briefly
   });
 }
 

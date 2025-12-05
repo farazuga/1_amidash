@@ -6,6 +6,10 @@ const STATUSES_KEY = ['statuses'];
 const PROJECT_TYPES_KEY = ['projectTypes'];
 const STATUS_MAP_KEY = ['statusMap'];
 
+// Cache durations - these rarely change, so cache aggressively
+const FIVE_MINUTES = 5 * 60 * 1000;
+const TEN_MINUTES = 10 * 60 * 1000;
+
 export interface ProjectTypeStatusMap {
   [projectTypeId: string]: string[];
 }
@@ -24,6 +28,7 @@ export function useStatuses() {
       if (error) throw error;
       return data as Status[];
     },
+    staleTime: FIVE_MINUTES, // Statuses rarely change
   });
 }
 
@@ -102,6 +107,7 @@ export function useProjectTypes() {
       if (error) throw error;
       return data as ProjectType[];
     },
+    staleTime: TEN_MINUTES, // Project types very rarely change
   });
 }
 
@@ -187,6 +193,7 @@ export function useStatusMap() {
       });
       return map;
     },
+    staleTime: FIVE_MINUTES, // Status mappings rarely change
   });
 }
 

@@ -17,6 +17,8 @@ export interface AuditLogWithRelations {
   project: { client_name: string } | null;
 }
 
+const ONE_MINUTE = 60 * 1000;
+
 export function useAuditLogs(filter: AuditActionFilter = 'all') {
   const supabase = createClient();
 
@@ -41,5 +43,6 @@ export function useAuditLogs(filter: AuditActionFilter = 'all') {
       if (error) throw error;
       return (data || []) as AuditLogWithRelations[];
     },
+    staleTime: ONE_MINUTE, // Audit logs can be slightly stale
   });
 }

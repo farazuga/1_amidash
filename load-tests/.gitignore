@@ -1,0 +1,5 @@
+# Results are generated and shouldn't be committed
+results/*.json
+
+# Keep the results directory structure
+!results/.gitkeep
