@@ -6,6 +6,14 @@ import { statusChangeEmailSchema } from '@/lib/validation';
 
 export async function POST(request: NextRequest) {
   try {
+    // CSRF protection - validate request origin
+    const origin = request.headers.get('origin');
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const appOrigin = new URL(appUrl).origin;
+    if (origin && origin !== appOrigin) {
+      return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
+    }
+
     // Auth check
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();

@@ -21,10 +21,14 @@ vi.mock('@/lib/email/templates', () => ({
 import { createClient } from '@/lib/supabase/server';
 import { sendEmail } from '@/lib/email/send';
 
-function createMockRequest(body: Record<string, unknown>): NextRequest {
+function createMockRequest(body: Record<string, unknown>, origin?: string): NextRequest {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (origin) {
+    headers['origin'] = origin;
+  }
   return new NextRequest('http://localhost:3000/api/email/status-change', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(body),
   });
 }
@@ -32,6 +36,23 @@ function createMockRequest(body: Record<string, unknown>): NextRequest {
 describe('POST /api/email/status-change', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('returns 403 for invalid origin (CSRF protection)', async () => {
+    const request = createMockRequest(
+      {
+        to: 'test@example.com',
+        clientName: 'Test Client',
+        newStatus: 'In Progress',
+      },
+      'https://malicious-site.com'
+    );
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(data.error).toBe('Invalid origin');
   });
 
   it('returns 401 when unauthenticated', async () => {

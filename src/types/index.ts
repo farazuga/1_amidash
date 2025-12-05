@@ -63,6 +63,8 @@ export interface Project {
   poc_phone: string | null;
   scope_link: string | null;
   client_token: string | null;
+  client_portal_url?: string | null;
+  client_portal_views?: number;
   expected_update_date: string | null;
   expected_update_auto: boolean | null;
   created_by: string | null;
@@ -135,4 +137,16 @@ export interface DashboardStats {
   overdue_count: number;
   projects_by_status: { status: string; count: number; color: string }[];
   revenue_by_month: { month: string; revenue: number }[];
+}
+
+// Revenue goals types
+export interface RevenueGoal {
+  id: string;
+  year: number;
+  month: number;
+  revenue_goal: number;
+  projects_goal: number;
+  created_by: string | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
