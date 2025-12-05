@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -38,8 +38,6 @@ export function ProjectForm({
   projectTypeStatuses,
 }: ProjectFormProps) {
   const router = useRouter();
-  // Memoize supabase client to prevent recreation on every render
-  const supabase = useMemo(() => createClient(), []);
   const [isPending, setIsPending] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>(projectTags);
   const [selectedSalesperson, setSelectedSalesperson] = useState<string>(
@@ -118,6 +116,8 @@ export function ProjectForm({
 
     setIsPending(true);
     try {
+      const supabase = createClient();
+
       if (isEditing) {
         // Get old values for audit
         const oldProject = project;
