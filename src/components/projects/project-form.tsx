@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -40,7 +40,7 @@ export function ProjectForm({
   const router = useRouter();
   // Memoize supabase client to prevent recreation on every render
   const supabase = useMemo(() => createClient(), []);
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>(projectTags);
   const [selectedSalesperson, setSelectedSalesperson] = useState<string>(
     project?.salesperson_id || ''
@@ -116,173 +116,174 @@ export function ProjectForm({
       scope_link: formData.get('scope_link') as string || null,
     };
 
-    startTransition(async () => {
-      try {
-        if (isEditing) {
-          // Get old values for audit
-          const oldProject = project;
+    setIsPending(true);
+    try {
+      if (isEditing) {
+        // Get old values for audit
+        const oldProject = project;
 
-          // Update project
-          const { error } = await supabase
-            .from('projects')
-            .update(data)
-            .eq('id', project.id);
+        // Update project
+        const { error } = await supabase
+          .from('projects')
+          .update(data)
+          .eq('id', project.id);
 
-          if (error) {
-            toast.error('Failed to update project');
-            console.error(error);
-            return;
-          }
-
-          // Log changes to audit and update tags in parallel (fire-and-forget for non-critical ops)
-          const { data: { user } } = await supabase.auth.getUser();
-          const changes: { field: string; oldVal: unknown; newVal: unknown }[] = [];
-
-          Object.entries(data).forEach(([key, newVal]) => {
-            const oldVal = oldProject[key as keyof typeof oldProject];
-            if (String(oldVal || '') !== String(newVal || '')) {
-              changes.push({ field: key, oldVal, newVal });
-            }
-          });
-
-          // Run audit logs and tag updates in background (don't block the UI)
-          (async () => {
-            try {
-              // Batch all audit log inserts
-              if (changes.length > 0) {
-                await supabase.from('audit_logs').insert(
-                  changes.map(change => ({
-                    project_id: project.id,
-                    user_id: user?.id,
-                    action: 'update',
-                    field_name: change.field,
-                    old_value: String(change.oldVal || ''),
-                    new_value: String(change.newVal || ''),
-                  }))
-                );
-              }
-
-              // Update tags - delete then insert
-              await supabase
-                .from('project_tags')
-                .delete()
-                .eq('project_id', project.id);
-
-              if (selectedTags.length > 0) {
-                await supabase.from('project_tags').insert(
-                  selectedTags.map((tagId) => ({
-                    project_id: project.id,
-                    tag_id: tagId,
-                  }))
-                );
-              }
-            } catch (err) {
-              console.error('Background save error:', err);
-            }
-          })();
-
-          toast.success('Project updated successfully');
-          router.refresh();
-        } else {
-          // Get first status for the selected project type
-          const availableStatuses = getAvailableStatuses(selectedProjectType);
-          const firstStatus = availableStatuses.sort((a, b) => a.display_order - b.display_order)[0];
-
-          if (!firstStatus) {
-            toast.error('No statuses configured for this project type. Please configure statuses first.');
-            return;
-          }
-
-          const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-          if (userError || !user) {
-            toast.error('Session expired. Please log in again.');
-            console.error('Auth error:', userError);
-            return;
-          }
-
-          const { data: newProject, error } = await supabase
-            .from('projects')
-            .insert({
-              ...data,
-              project_type_id: selectedProjectType,
-              current_status_id: firstStatus.id,
-              created_by: user.id,
-            })
-            .select()
-            .single();
-
-          if (error) {
-            toast.error('Failed to create project');
-            console.error('Project insert error:', error);
-            return;
-          }
-
-          // Run status history, tags, and audit log in background (fire-and-forget)
-          (async () => {
-            try {
-              await supabase.from('status_history').insert({
-                project_id: newProject.id,
-                status_id: firstStatus.id,
-                changed_by: user.id,
-              });
-
-              await supabase.from('audit_logs').insert({
-                project_id: newProject.id,
-                user_id: user.id,
-                action: 'create',
-                field_name: 'project',
-                new_value: data.client_name,
-              });
-
-              if (selectedTags.length > 0) {
-                await supabase.from('project_tags').insert(
-                  selectedTags.map((tagId) => ({
-                    project_id: newProject.id,
-                    tag_id: tagId,
-                  }))
-                );
-              }
-            } catch (err) {
-              console.error('Background create tasks error:', err);
-            }
-          })();
-
-          // Send welcome email to POC (fire-and-forget with timeout)
-          if (data.poc_email && newProject.client_token) {
-            const selectedProjectTypeName = projectTypes.find(t => t.id === selectedProjectType)?.name || 'Project';
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-            fetch('/api/email/welcome', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                to: data.poc_email,
-                clientName: data.client_name,
-                pocName: data.poc_name,
-                projectType: selectedProjectTypeName,
-                initialStatus: firstStatus.name,
-                clientToken: newProject.client_token,
-              }),
-              signal: controller.signal,
-            })
-              .catch((error) => {
-                console.error('Failed to send welcome email:', error);
-              })
-              .finally(() => {
-                clearTimeout(timeoutId);
-              });
-          }
-
-          toast.success('Project created successfully');
-          router.push(`/projects/${newProject.id}`);
+        if (error) {
+          toast.error('Failed to update project');
+          console.error(error);
+          return;
         }
-      } catch (err) {
-        console.error('Unexpected error:', err);
-        toast.error('An unexpected error occurred');
+
+        // Log changes to audit and update tags in parallel (fire-and-forget for non-critical ops)
+        const { data: { user } } = await supabase.auth.getUser();
+        const changes: { field: string; oldVal: unknown; newVal: unknown }[] = [];
+
+        Object.entries(data).forEach(([key, newVal]) => {
+          const oldVal = oldProject[key as keyof typeof oldProject];
+          if (String(oldVal || '') !== String(newVal || '')) {
+            changes.push({ field: key, oldVal, newVal });
+          }
+        });
+
+        // Run audit logs and tag updates in background (don't block the UI)
+        (async () => {
+          try {
+            // Batch all audit log inserts
+            if (changes.length > 0) {
+              await supabase.from('audit_logs').insert(
+                changes.map(change => ({
+                  project_id: project.id,
+                  user_id: user?.id,
+                  action: 'update',
+                  field_name: change.field,
+                  old_value: String(change.oldVal || ''),
+                  new_value: String(change.newVal || ''),
+                }))
+              );
+            }
+
+            // Update tags - delete then insert
+            await supabase
+              .from('project_tags')
+              .delete()
+              .eq('project_id', project.id);
+
+            if (selectedTags.length > 0) {
+              await supabase.from('project_tags').insert(
+                selectedTags.map((tagId) => ({
+                  project_id: project.id,
+                  tag_id: tagId,
+                }))
+              );
+            }
+          } catch (err) {
+            console.error('Background save error:', err);
+          }
+        })();
+
+        toast.success('Project updated successfully');
+        router.refresh();
+      } else {
+        // Get first status for the selected project type
+        const availableStatuses = getAvailableStatuses(selectedProjectType);
+        const firstStatus = availableStatuses.sort((a, b) => a.display_order - b.display_order)[0];
+
+        if (!firstStatus) {
+          toast.error('No statuses configured for this project type. Please configure statuses first.');
+          return;
+        }
+
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+          toast.error('Session expired. Please log in again.');
+          console.error('Auth error:', userError);
+          return;
+        }
+
+        const { data: newProject, error } = await supabase
+          .from('projects')
+          .insert({
+            ...data,
+            project_type_id: selectedProjectType,
+            current_status_id: firstStatus.id,
+            created_by: user.id,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          toast.error('Failed to create project');
+          console.error('Project insert error:', error);
+          return;
+        }
+
+        // Run status history, tags, and audit log in background (fire-and-forget)
+        (async () => {
+          try {
+            await supabase.from('status_history').insert({
+              project_id: newProject.id,
+              status_id: firstStatus.id,
+              changed_by: user.id,
+            });
+
+            await supabase.from('audit_logs').insert({
+              project_id: newProject.id,
+              user_id: user.id,
+              action: 'create',
+              field_name: 'project',
+              new_value: data.client_name,
+            });
+
+            if (selectedTags.length > 0) {
+              await supabase.from('project_tags').insert(
+                selectedTags.map((tagId) => ({
+                  project_id: newProject.id,
+                  tag_id: tagId,
+                }))
+              );
+            }
+          } catch (err) {
+            console.error('Background create tasks error:', err);
+          }
+        })();
+
+        // Send welcome email to POC (fire-and-forget with timeout)
+        if (data.poc_email && newProject.client_token) {
+          const selectedProjectTypeName = projectTypes.find(t => t.id === selectedProjectType)?.name || 'Project';
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+          fetch('/api/email/welcome', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: data.poc_email,
+              clientName: data.client_name,
+              pocName: data.poc_name,
+              projectType: selectedProjectTypeName,
+              initialStatus: firstStatus.name,
+              clientToken: newProject.client_token,
+            }),
+            signal: controller.signal,
+          })
+            .catch((error) => {
+              console.error('Failed to send welcome email:', error);
+            })
+            .finally(() => {
+              clearTimeout(timeoutId);
+            });
+        }
+
+        toast.success('Project created successfully');
+        router.push(`/projects/${newProject.id}`);
       }
-    });
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      toast.error('An unexpected error occurred');
+    } finally {
+      setIsPending(false);
+    }
   };
 
   const toggleTag = (tagId: string) => {
