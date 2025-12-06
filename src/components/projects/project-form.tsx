@@ -42,7 +42,6 @@ export function ProjectForm({
 }: ProjectFormProps) {
   const router = useRouter();
   const [isPending, setIsPending] = useState(false);
-  const [debugStep, setDebugStep] = useState<string>('idle'); // DEBUG
   const [selectedTags, setSelectedTags] = useState<string[]>(projectTags);
   const [selectedSalesperson, setSelectedSalesperson] = useState<string>(
     project?.salesperson_id || ''
@@ -66,27 +65,20 @@ export function ProjectForm({
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    setDebugStep('1-handleSubmit');
     e.preventDefault();
-    setDebugStep('2-preventDefault');
     const formData = new FormData(e.currentTarget);
-    setDebugStep('3-formData');
 
     // Validate salesperson is selected
     if (!selectedSalesperson) {
       toast.error('Please select a salesperson');
-      setDebugStep('error-salesperson');
       return;
     }
-    setDebugStep('4-salesperson-ok');
 
     // Validate project type is selected for new projects
     if (!isEditing && !selectedProjectType) {
       toast.error('Please select a project type');
-      setDebugStep('error-projectType');
       return;
     }
-    setDebugStep('5-projectType-ok');
 
     // Validate Sales Order Number format (must start with S12 and be 6 characters)
     if (salesOrderNumber && salesOrderNumber.trim()) {
@@ -94,11 +86,9 @@ export function ProjectForm({
       if (!trimmedSalesOrder.startsWith('S12') || trimmedSalesOrder.length !== 6) {
         toast.error('Sales Order # must start with "S12" and be exactly 6 characters (e.g., S12345)');
         setSalesOrderError('Must start with "S12" and be exactly 6 characters');
-        setDebugStep('error-salesOrder');
         return;
       }
     }
-    setDebugStep('6-salesOrder-ok');
 
     // Validate Point of Contact fields are all filled
     const pocName = formData.get('poc_name') as string;
@@ -107,10 +97,8 @@ export function ProjectForm({
 
     if (!pocName?.trim() || !pocEmail?.trim() || !pocPhone?.trim()) {
       toast.error('All Point of Contact fields are required');
-      setDebugStep('error-poc');
       return;
     }
-    setDebugStep('7-poc-ok');
 
     const data = {
       client_name: formData.get('client_name') as string,
@@ -128,15 +116,10 @@ export function ProjectForm({
       poc_phone: formData.get('poc_phone') as string || null,
       scope_link: formData.get('scope_link') as string || null,
     };
-    setDebugStep('8-data-created');
 
-    setDebugStep('9-setIsPending');
     setIsPending(true);
-    setDebugStep('10-isPending-set');
     try {
-      setDebugStep('11-createClient');
       const supabase = createClient();
-      setDebugStep('12-client-created');
 
       if (isEditing) {
         // Get old values for audit
@@ -204,8 +187,6 @@ export function ProjectForm({
         toast.success('Project updated successfully');
         router.refresh();
       } else {
-        setDebugStep('13-creating-new-via-server-action');
-
         // Use server action for creating project (avoids browser Supabase client issues)
         const result = await createProject({
           client_name: data.client_name,
@@ -223,14 +204,11 @@ export function ProjectForm({
           project_type_id: selectedProjectType,
           tags: selectedTags,
         });
-        setDebugStep('14-server-action-done');
 
         if (!result.success) {
           toast.error(result.error || 'Failed to create project');
-          setDebugStep('error-server-action:' + result.error);
           return;
         }
-        setDebugStep('15-project-created:' + result.projectId);
 
         // Send welcome email to POC (fire-and-forget with timeout)
         if (data.poc_email && result.clientToken) {
@@ -284,10 +262,6 @@ export function ProjectForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* DEBUG DISPLAY */}
-      <div className="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-2 rounded text-sm font-mono">
-        DEBUG: {debugStep}
-      </div>
       <div className="grid gap-4 md:grid-cols-2">
         {/* Client Name */}
         <div className="space-y-2">
