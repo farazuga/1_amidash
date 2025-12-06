@@ -214,9 +214,12 @@ export function ProjectForm({
         }
         setDebugStep('15-firstStatus:' + firstStatus.name);
 
-        setDebugStep('16-getUser-start');
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        setDebugStep('17-getUser-done:' + (user?.id || 'null'));
+        setDebugStep('16-getSession-start');
+        // Use getSession instead of getUser - it's more reliable on the browser
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        setDebugStep('17-getSession-done:' + (sessionData?.session?.user?.id || 'null'));
+        const user = sessionData?.session?.user;
+        const userError = sessionError;
 
         if (userError || !user) {
           toast.error('Session expired. Please log in again.');
