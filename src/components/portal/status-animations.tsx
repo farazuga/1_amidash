@@ -560,20 +560,9 @@ export function InvoicedAnimation() {
         <line x1="42" y1="45" x2="62" y2="45" stroke="#86EFAC" strokeWidth="2" />
         <line x1="42" y1="55" x2="58" y2="55" stroke="#86EFAC" strokeWidth="2" />
 
-        {/* Total */}
+        {/* Total lines */}
         <line x1="42" y1="68" x2="68" y2="68" stroke="#22C55E" strokeWidth="2" />
-        <motion.text
-          x="55"
-          y="78"
-          fontSize="10"
-          fill="#22C55E"
-          textAnchor="middle"
-          fontWeight="bold"
-          animate={{ scale: [1, 1.1, 1] }}
-          transition={{ duration: 1, repeat: Infinity }}
-        >
-          PAID
-        </motion.text>
+        <line x1="42" y1="75" x2="68" y2="75" stroke="#22C55E" strokeWidth="2" />
       </motion.g>
 
       {/* Checkmark */}

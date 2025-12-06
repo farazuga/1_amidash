@@ -11,7 +11,7 @@ import { LOGO_URL, APP_NAME } from '@/lib/constants';
 import { AnimatedProgressBar } from '@/components/portal/animated-progress-bar';
 import { StatusTimeline } from '@/components/portal/status-timeline';
 import { StatusAnimation, statusColors, statusMessages } from '@/components/portal/status-animations';
-import { Calendar, Clock, Mail, Phone, FileText, User } from 'lucide-react';
+import { Calendar, Mail, Phone, FileText, User } from 'lucide-react';
 
 // ============================================
 // Rate Limiting (simple in-memory implementation)
@@ -179,15 +179,15 @@ export default async function ClientPortalPage({
 
   return (
     <div className="min-h-screen bg-[#f8faf9]">
-      {/* Header */}
-      <header className="bg-[#023A2D] text-white py-6">
+      {/* Header with Logo */}
+      <header className="bg-[#023A2D] text-white py-4">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-center">
             <Image
               src={LOGO_URL}
               alt={APP_NAME}
-              width={180}
-              height={50}
+              width={150}
+              height={40}
               className="brightness-0 invert"
               priority
             />
@@ -195,167 +195,118 @@ export default async function ClientPortalPage({
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 max-w-3xl">
-        {/* Project Info Card */}
-        <Card className="mb-6 border-[#023A2D]/20 overflow-hidden">
+      {/* Quick Info Bar */}
+      <div className="bg-white border-b shadow-sm">
+        <div className="container mx-auto px-4 py-2 max-w-3xl">
+          <div className="flex items-center justify-center gap-4 md:gap-6 text-xs md:text-sm flex-wrap">
+            {project.goal_completion_date && (
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5 text-[#023A2D]" />
+                <span className="font-medium">{format(new Date(project.goal_completion_date), 'MMM d, yyyy')}</span>
+              </div>
+            )}
+            {project.sales_order_number && (
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <FileText className="h-3.5 w-3.5 text-[#023A2D]" />
+                <span className="font-medium">{project.sales_order_number}</span>
+              </div>
+            )}
+            {project.po_number && (
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <FileText className="h-3.5 w-3.5 text-[#023A2D]" />
+                <span>PO: <span className="font-medium">{project.po_number}</span></span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <main className="container mx-auto px-4 py-6 max-w-3xl">
+        {/* Main Status Card - Compact Layout */}
+        <Card className="mb-4 border-[#023A2D]/20 overflow-hidden">
           {/* Colorful header based on status */}
           <div
-            className="h-2"
+            className="h-1.5"
             style={{
               backgroundColor: currentStatus?.name
                 ? statusColors[currentStatus.name]?.accent || '#023A2D'
                 : '#023A2D'
             }}
           />
-          <CardHeader className="pb-4">
-            {/* Personalized greeting */}
-            {project.poc_name && (
-              <p className="text-center text-sm text-muted-foreground mb-2">
-                Hi {project.poc_name.split(' ')[0]}! Here&apos;s your project update.
-              </p>
-            )}
-            <div className="text-center space-y-2">
-              <h1 className="text-2xl font-bold text-[#023A2D]">
-                {project.client_name}
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                Project Status
-              </p>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {/* Status Animation */}
-            <div className="mb-4">
-              <StatusAnimation statusName={currentStatus?.name || 'PO Received'} />
-            </div>
-
-            {/* Current Status Badge */}
-            <div className="text-center mb-4">
-              <div className="inline-flex items-center gap-2">
-                <Badge
-                  className="text-lg px-6 py-2 shadow-lg border-2"
-                  style={{
-                    backgroundColor: isOnHold
-                      ? '#FED7AA'
-                      : statusColors[currentStatus?.name || '']?.accent || '#023A2D',
-                    color: 'white',
-                    borderColor: isOnHold
-                      ? '#F97316'
-                      : statusColors[currentStatus?.name || '']?.accent || '#023A2D',
-                  }}
-                >
-                  {currentStatus?.name || 'Pending'}
-                </Badge>
+          <CardContent className="pt-4 pb-4">
+            {/* Animation + Project Name - Side by Side */}
+            <div className="flex items-center gap-4 mb-4">
+              {/* Smaller Animation */}
+              <div className="w-20 h-20 flex-shrink-0">
+                <StatusAnimation statusName={currentStatus?.name || 'PO Received'} />
+              </div>
+              {/* Project Info */}
+              <div className="flex-1 min-w-0">
+                <h1 className="text-xl md:text-2xl font-bold text-[#023A2D] truncate">
+                  {project.client_name}
+                </h1>
+                {project.poc_name && (
+                  <p className="text-sm text-muted-foreground">
+                    Hi {project.poc_name.split(' ')[0]}! Here&apos;s your update.
+                  </p>
+                )}
               </div>
             </div>
 
-            {/* Friendly status message */}
-            <p className="text-center text-muted-foreground mb-6 text-sm italic">
-              {isOnHold
-                ? statusMessages['Hold']
-                : statusMessages[currentStatus?.name || ''] || "We're working on your project!"}
-            </p>
+            {/* Divider */}
+            <div className="border-t mb-4" />
 
-            {/* Animated Progress Bar */}
-            <div className="mb-8">
-              <AnimatedProgressBar
-                currentStatus={currentStatus}
-                statuses={filteredStatuses}
-                isOnHold={isOnHold}
-              />
+            {/* Current Status Badge + Message */}
+            <div className="text-center mb-4">
+              <Badge
+                className="text-base px-5 py-1.5 shadow-md border-2 mb-2"
+                style={{
+                  backgroundColor: isOnHold
+                    ? '#FED7AA'
+                    : statusColors[currentStatus?.name || '']?.accent || '#023A2D',
+                  color: 'white',
+                  borderColor: isOnHold
+                    ? '#F97316'
+                    : statusColors[currentStatus?.name || '']?.accent || '#023A2D',
+                }}
+              >
+                {currentStatus?.name || 'Pending'}
+              </Badge>
+              <p className="text-sm text-muted-foreground italic">
+                {isOnHold
+                  ? statusMessages['Hold']
+                  : statusMessages[currentStatus?.name || ''] || "We're working on your project!"}
+              </p>
             </div>
 
-            {/* Key Dates */}
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              {project.goal_completion_date && (
-                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                  <Calendar className="h-5 w-5 text-[#023A2D]" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">
-                      Expected Completion
-                    </p>
-                    <p className="font-medium">
-                      {format(
-                        new Date(project.goal_completion_date),
-                        'MMMM d, yyyy'
-                      )}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {project.expected_update_date && (
-                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                  <Clock className="h-5 w-5 text-[#023A2D]" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">
-                      Next Update
-                    </p>
-                    <p className="font-medium">
-                      {format(
-                        new Date(project.expected_update_date),
-                        'MMMM d, yyyy'
-                      )}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Project Details */}
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              {project.sales_order_number && (
-                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                  <FileText className="h-5 w-5 text-[#023A2D]" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">
-                      Sales Order #
-                    </p>
-                    <p className="font-medium">{project.sales_order_number}</p>
-                  </div>
-                </div>
-              )}
-
-              {project.po_number && (
-                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                  <FileText className="h-5 w-5 text-[#023A2D]" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">
-                      Client PO #
-                    </p>
-                    <p className="font-medium">{project.po_number}</p>
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* Progress Bar */}
+            <AnimatedProgressBar
+              currentStatus={currentStatus}
+              statuses={filteredStatuses}
+              isOnHold={isOnHold}
+            />
           </CardContent>
         </Card>
 
-        {/* Contact Information */}
-        <Card className="mb-6 border-[#023A2D]/20">
-          <CardHeader>
-            <h2 className="text-lg font-semibold text-[#023A2D]">
-              Contact Information
-            </h2>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-2 gap-6">
+        {/* Contact Information - Compact */}
+        <Card className="mb-4 border-[#023A2D]/20">
+          <CardContent className="py-4">
+            <div className="grid md:grid-cols-2 gap-4">
               {/* Point of Contact */}
               {project.poc_name && (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-medium text-muted-foreground">Point of Contact</h3>
+                <div>
+                  <h3 className="text-xs font-medium text-muted-foreground mb-2">Point of Contact</h3>
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-[#023A2D]" />
+                    <div className="flex items-center gap-2 text-sm">
+                      <User className="h-3.5 w-3.5 text-[#023A2D]" />
                       <span className="font-medium">{project.poc_name}</span>
                     </div>
                     {project.poc_email && (
                       <a
                         href={`mailto:${project.poc_email}`}
                         className="flex items-center gap-2 text-sm text-[#023A2D] hover:underline"
-                        title="Click to email"
                       >
-                        <Mail className="h-4 w-4" />
+                        <Mail className="h-3.5 w-3.5" />
                         <span>{maskEmail(project.poc_email)}</span>
                       </a>
                     )}
@@ -363,9 +314,8 @@ export default async function ClientPortalPage({
                       <a
                         href={`tel:${project.poc_phone}`}
                         className="flex items-center gap-2 text-sm text-muted-foreground hover:text-[#023A2D]"
-                        title="Click to call"
                       >
-                        <Phone className="h-4 w-4" />
+                        <Phone className="h-3.5 w-3.5" />
                         <span>{maskPhone(project.poc_phone)}</span>
                       </a>
                     )}
@@ -374,25 +324,25 @@ export default async function ClientPortalPage({
               )}
 
               {/* Project Manager */}
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium text-muted-foreground">Project Manager</h3>
+              <div>
+                <h3 className="text-xs font-medium text-muted-foreground mb-2">Project Manager</h3>
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4 text-[#023A2D]" />
+                  <div className="flex items-center gap-2 text-sm">
+                    <User className="h-3.5 w-3.5 text-[#023A2D]" />
                     <span className="font-medium">Jason Watson</span>
                   </div>
                   <a
                     href="mailto:jason@amitrace.com"
                     className="flex items-center gap-2 text-sm text-[#023A2D] hover:underline"
                   >
-                    <Mail className="h-4 w-4" />
+                    <Mail className="h-3.5 w-3.5" />
                     jason@amitrace.com
                   </a>
                   <a
                     href="tel:770-263-9190"
                     className="flex items-center gap-2 text-sm text-muted-foreground hover:text-[#023A2D]"
                   >
-                    <Phone className="h-4 w-4" />
+                    <Phone className="h-3.5 w-3.5" />
                     770-263-9190
                   </a>
                 </div>
@@ -403,18 +353,18 @@ export default async function ClientPortalPage({
 
         {/* Status History */}
         <Card className="border-[#023A2D]/20">
-          <CardHeader>
-            <h2 className="text-lg font-semibold text-[#023A2D]">
+          <CardHeader className="py-3">
+            <h2 className="text-sm font-semibold text-[#023A2D]">
               Status History
             </h2>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-0 pb-4">
             <StatusTimeline history={statusHistory} />
           </CardContent>
         </Card>
 
         {/* Footer */}
-        <footer className="mt-8 text-center text-sm text-muted-foreground">
+        <footer className="mt-6 text-center text-xs text-muted-foreground">
           <p>
             Questions? Contact us at{' '}
             <a
@@ -424,7 +374,7 @@ export default async function ClientPortalPage({
               support@amitrace.com
             </a>
           </p>
-          <p className="mt-2">&copy; {new Date().getFullYear()} {APP_NAME}</p>
+          <p className="mt-1">&copy; {new Date().getFullYear()} {APP_NAME}</p>
         </footer>
       </main>
     </div>
