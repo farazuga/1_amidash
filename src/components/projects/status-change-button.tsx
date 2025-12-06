@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -25,6 +24,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Status } from '@/types';
+import { updateProjectStatus } from '@/app/(dashboard)/projects/actions';
 
 interface StatusChangeButtonProps {
   projectId: string;
@@ -63,7 +63,6 @@ export function StatusChangeButton({
   const [note, setNote] = useState('');
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
-  const supabase = createClient();
 
   const currentStatus = availableStatuses.find((s) => s.id === currentStatusId);
   const newStatus = availableStatuses.find((s) => s.id === selectedStatus);
@@ -80,41 +79,19 @@ export function StatusChangeButton({
     }
 
     startTransition(async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      // Use server action for status update (avoids browser Supabase client issues)
+      const result = await updateProjectStatus({
+        projectId,
+        newStatusId: selectedStatus,
+        note: note.trim() || undefined,
+        currentStatusName: currentStatus?.name,
+        newStatusName: newStatus?.name,
+      });
 
-      // Update project status
-      const { error: updateError } = await supabase
-        .from('projects')
-        .update({ current_status_id: selectedStatus })
-        .eq('id', projectId);
-
-      if (updateError) {
-        toast.error('Failed to update status');
-        console.error(updateError);
+      if (!result.success) {
+        toast.error(result.error || 'Failed to update status');
         return;
       }
-
-      // Add to status history and audit log in background (fire-and-forget)
-      (async () => {
-        try {
-          await supabase.from('status_history').insert({
-            project_id: projectId,
-            status_id: selectedStatus,
-            note: note.trim() || null,
-            changed_by: user?.id,
-          });
-          await supabase.from('audit_logs').insert({
-            project_id: projectId,
-            user_id: user?.id,
-            action: 'update',
-            field_name: 'status',
-            old_value: currentStatus?.name || null,
-            new_value: newStatus?.name || null,
-          });
-        } catch (err) {
-          console.error('Background save error:', err);
-        }
-      })();
 
       // Send email notification if POC has email (fire-and-forget with timeout)
       if (pocEmail && newStatus) {

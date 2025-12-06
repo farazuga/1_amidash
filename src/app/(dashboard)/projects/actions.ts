@@ -127,3 +127,65 @@ export async function createProject(data: CreateProjectData): Promise<CreateProj
     clientToken: newProject.client_token ?? undefined,
   };
 }
+
+export interface UpdateStatusData {
+  projectId: string;
+  newStatusId: string;
+  note?: string;
+  currentStatusName?: string;
+  newStatusName?: string;
+}
+
+export interface UpdateStatusResult {
+  success: boolean;
+  error?: string;
+}
+
+export async function updateProjectStatus(data: UpdateStatusData): Promise<UpdateStatusResult> {
+  const supabase = await createClient();
+
+  // Get current user
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    return { success: false, error: 'Authentication required' };
+  }
+
+  // Update project status
+  const { error: updateError } = await supabase
+    .from('projects')
+    .update({ current_status_id: data.newStatusId })
+    .eq('id', data.projectId);
+
+  if (updateError) {
+    console.error('Status update error:', updateError);
+    return { success: false, error: 'Failed to update status' };
+  }
+
+  // Add to status history and audit log
+  try {
+    await Promise.all([
+      supabase.from('status_history').insert({
+        project_id: data.projectId,
+        status_id: data.newStatusId,
+        note: data.note || null,
+        changed_by: user.id,
+      }),
+      supabase.from('audit_logs').insert({
+        project_id: data.projectId,
+        user_id: user.id,
+        action: 'update',
+        field_name: 'status',
+        old_value: data.currentStatusName || null,
+        new_value: data.newStatusName || null,
+      }),
+    ]);
+  } catch (err) {
+    console.error('Background tasks error:', err);
+    // Don't fail the whole operation for background tasks
+  }
+
+  revalidatePath(`/projects/${data.projectId}`);
+  revalidatePath('/projects');
+
+  return { success: true };
+}
