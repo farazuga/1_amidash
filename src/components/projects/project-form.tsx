@@ -17,6 +17,7 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { CONTRACT_TYPES } from '@/lib/constants';
 import type { Project, Status, Tag, Profile, ProjectType } from '@/types';
+import { createProject } from '@/app/(dashboard)/projects/actions';
 
 interface ProjectFormProps {
   project?: Project;
@@ -203,84 +204,41 @@ export function ProjectForm({
         toast.success('Project updated successfully');
         router.refresh();
       } else {
-        setDebugStep('13-creating-new');
-        // Get first status for the selected project type
-        const availableStatuses = getAvailableStatuses(selectedProjectType);
-        setDebugStep('14-statuses:' + availableStatuses.length);
-        const firstStatus = availableStatuses.sort((a, b) => a.display_order - b.display_order)[0];
+        setDebugStep('13-creating-new-via-server-action');
 
-        if (!firstStatus) {
-          toast.error('No statuses configured for this project type. Please configure statuses first.');
-          setDebugStep('error-noStatus');
+        // Use server action for creating project (avoids browser Supabase client issues)
+        const result = await createProject({
+          client_name: data.client_name,
+          sales_order_number: data.sales_order_number,
+          sales_order_url: data.sales_order_url,
+          po_number: data.po_number,
+          sales_amount: data.sales_amount,
+          contract_type: data.contract_type,
+          goal_completion_date: data.goal_completion_date,
+          salesperson_id: data.salesperson_id,
+          poc_name: data.poc_name,
+          poc_email: data.poc_email,
+          poc_phone: data.poc_phone,
+          scope_link: data.scope_link,
+          project_type_id: selectedProjectType,
+          tags: selectedTags,
+        });
+        setDebugStep('14-server-action-done');
+
+        if (!result.success) {
+          toast.error(result.error || 'Failed to create project');
+          setDebugStep('error-server-action:' + result.error);
           return;
         }
-        setDebugStep('15-firstStatus:' + firstStatus.name);
-
-        setDebugStep('16-using-currentUserId');
-        // Use currentUserId passed from server component - avoids client-side auth calls
-        if (!currentUserId) {
-          toast.error('Session expired. Please log in again.');
-          console.error('No currentUserId provided');
-          setDebugStep('error-no-userId');
-          return;
-        }
-        setDebugStep('17-userId-ok:' + currentUserId);
-        const userId = currentUserId;
-
-        setDebugStep('18-inserting-project');
-        const { data: newProject, error } = await supabase
-          .from('projects')
-          .insert({
-            ...data,
-            project_type_id: selectedProjectType,
-            current_status_id: firstStatus.id,
-            created_by: userId,
-          })
-          .select()
-          .single();
-        setDebugStep('19-insert-done');
-
-        if (error) {
-          toast.error('Failed to create project');
-          console.error('Project insert error:', error);
-          setDebugStep('error-insert:' + error.message);
-          return;
-        }
-        setDebugStep('20-project-created:' + newProject.id);
-
-        // Run status history, tags, and audit log in background (fire-and-forget)
-        (async () => {
-          try {
-            await supabase.from('status_history').insert({
-              project_id: newProject.id,
-              status_id: firstStatus.id,
-              changed_by: userId,
-            });
-
-            await supabase.from('audit_logs').insert({
-              project_id: newProject.id,
-              user_id: userId,
-              action: 'create',
-              field_name: 'project',
-              new_value: data.client_name,
-            });
-
-            if (selectedTags.length > 0) {
-              await supabase.from('project_tags').insert(
-                selectedTags.map((tagId) => ({
-                  project_id: newProject.id,
-                  tag_id: tagId,
-                }))
-              );
-            }
-          } catch (err) {
-            console.error('Background create tasks error:', err);
-          }
-        })();
+        setDebugStep('15-project-created:' + result.projectId);
 
         // Send welcome email to POC (fire-and-forget with timeout)
-        if (data.poc_email && newProject.client_token) {
+        if (data.poc_email && result.clientToken) {
           const selectedProjectTypeName = projectTypes.find(t => t.id === selectedProjectType)?.name || 'Project';
+          // Get first status name for the email
+          const availableStatuses = getAvailableStatuses(selectedProjectType);
+          const firstStatus = availableStatuses.sort((a, b) => a.display_order - b.display_order)[0];
+
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 5000);
 
@@ -292,8 +250,8 @@ export function ProjectForm({
               clientName: data.client_name,
               pocName: data.poc_name,
               projectType: selectedProjectTypeName,
-              initialStatus: firstStatus.name,
-              clientToken: newProject.client_token,
+              initialStatus: firstStatus?.name || 'Started',
+              clientToken: result.clientToken,
             }),
             signal: controller.signal,
           })
@@ -306,7 +264,7 @@ export function ProjectForm({
         }
 
         toast.success('Project created successfully');
-        router.push(`/projects/${newProject.id}`);
+        router.push(`/projects/${result.projectId}`);
       }
     } catch (err) {
       console.error('Unexpected error:', err);
