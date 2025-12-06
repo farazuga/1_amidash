@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -17,65 +16,28 @@ import {
   DollarSign,
   FolderKanban,
   AlertTriangle,
-  TrendingUp,
   Clock,
   CheckCircle,
   ArrowRight,
   Calendar,
-  Loader2,
 } from 'lucide-react';
 import { LazyStatusChart, LazyRevenueChart } from '@/components/dashboard/lazy-charts';
 import { OverdueProjects } from '@/components/dashboard/overdue-projects';
-import { format, differenceInDays, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from 'date-fns';
-
-interface Project {
-  id: string;
-  client_name: string;
-  sales_amount: number | null;
-  goal_completion_date: string | null;
-  current_status_id: string | null;
-  created_at: string | null;
-  current_status: { id: string; name: string } | null;
-}
-
-interface Status {
-  id: string;
-  name: string;
-  display_order: number;
-}
-
-interface StatusHistoryItem {
-  id: string;
-  project_id: string;
-  status_id: string;
-  changed_at: string;
-  status: { name: string } | null;
-  project?: { id: string; client_name: string; sales_amount: number | null } | null;
-}
-
-interface RevenueGoal {
-  year: number;
-  month: number;
-  revenue_goal: number;
-  projects_goal: number;
-}
+import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from 'date-fns';
+import type { DashboardData } from '@/app/actions/dashboard';
 
 type PeriodType = 'month' | 'quarter' | 'year';
 
-export function DashboardContent() {
+interface DashboardContentProps {
+  initialData: DashboardData;
+}
+
+export function DashboardContent({ initialData }: DashboardContentProps) {
   const [periodType, setPeriodType] = useState<PeriodType>('month');
   const [selectedPeriod, setSelectedPeriod] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(true);
 
-  // Data states
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [statuses, setStatuses] = useState<Status[]>([]);
-  const [statusHistory, setStatusHistory] = useState<StatusHistoryItem[]>([]);
-  const [goals, setGoals] = useState<RevenueGoal[]>([]);
-
-  // Memoize supabase client to prevent infinite loop
-  // (createClient() on every render would break useCallback dependencies)
-  const supabase = useMemo(() => createClient(), []);
+  // Use data from server
+  const { projects, statuses, statusHistory, goals } = initialData;
 
   // Initialize selected period to current
   useEffect(() => {
@@ -89,29 +51,6 @@ export function DashboardContent() {
       setSelectedPeriod(String(now.getFullYear()));
     }
   }, [periodType]);
-
-  // Fetch all data
-  const fetchData = useCallback(async () => {
-    setIsLoading(true);
-
-    const [projectsRes, statusesRes, historyRes, goalsRes] = await Promise.all([
-      supabase.from('projects').select(`*, current_status:statuses(*)`),
-      supabase.from('statuses').select('*').order('display_order'),
-      supabase.from('status_history').select(`*, status:statuses(*), project:projects(id, client_name, sales_amount)`).order('changed_at', { ascending: false }),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase.from as any)('revenue_goals').select('*'),
-    ]);
-
-    setProjects((projectsRes.data || []) as Project[]);
-    setStatuses((statusesRes.data || []) as Status[]);
-    setStatusHistory((historyRes.data || []) as StatusHistoryItem[]);
-    setGoals((goalsRes.data || []) as RevenueGoal[]);
-    setIsLoading(false);
-  }, [supabase]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
 
   // Get date range for selected period
   const getDateRange = () => {
@@ -298,14 +237,6 @@ export function DashboardContent() {
   }, [projects, statusHistory]);
 
   const totalProjects = projects.length;
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-4 md:space-y-6">

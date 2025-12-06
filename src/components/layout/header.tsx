@@ -1,7 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useUser } from '@/hooks/use-user';
+import { useUser } from '@/contexts/user-context';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -17,14 +16,8 @@ import { LogOut, Menu } from 'lucide-react';
 import { useSidebarStore } from '@/lib/stores/sidebar-store';
 
 export function Header() {
-  const { user, profile, signOut } = useUser();
-  const router = useRouter();
+  const { user, profile, signOut, isSigningOut } = useUser();
   const { toggle } = useSidebarStore();
-
-  const handleSignOut = async () => {
-    await signOut();
-    router.push('/login');
-  };
 
   const initials = profile?.full_name
     ? profile.full_name
@@ -88,10 +81,11 @@ export function Header() {
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="cursor-pointer text-destructive focus:text-destructive"
-              onClick={handleSignOut}
+              onClick={signOut}
+              disabled={isSigningOut}
             >
               <LogOut className="mr-2 h-4 w-4" />
-              Sign out
+              {isSigningOut ? 'Signing out...' : 'Sign out'}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

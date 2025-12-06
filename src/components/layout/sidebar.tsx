@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { LOGO_URL, APP_NAME } from '@/lib/constants';
-import { useUser } from '@/hooks/use-user';
+import { useUser } from '@/contexts/user-context';
 import {
   LayoutDashboard,
   FolderKanban,
