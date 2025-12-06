@@ -10,6 +10,7 @@ import { format } from 'date-fns';
 import { LOGO_URL, APP_NAME } from '@/lib/constants';
 import { AnimatedProgressBar } from '@/components/portal/animated-progress-bar';
 import { StatusTimeline } from '@/components/portal/status-timeline';
+import { StatusAnimation, statusColors, statusMessages } from '@/components/portal/status-animations';
 import { Calendar, Clock, Mail, Phone, FileText, User } from 'lucide-react';
 
 // ============================================
@@ -196,37 +197,64 @@ export default async function ClientPortalPage({
 
       <main className="container mx-auto px-4 py-8 max-w-3xl">
         {/* Project Info Card */}
-        <Card className="mb-6 border-[#023A2D]/20">
+        <Card className="mb-6 border-[#023A2D]/20 overflow-hidden">
+          {/* Colorful header based on status */}
+          <div
+            className="h-2"
+            style={{
+              backgroundColor: currentStatus?.name
+                ? statusColors[currentStatus.name]?.accent || '#023A2D'
+                : '#023A2D'
+            }}
+          />
           <CardHeader className="pb-4">
+            {/* Personalized greeting */}
+            {project.poc_name && (
+              <p className="text-center text-sm text-muted-foreground mb-2">
+                Hi {project.poc_name.split(' ')[0]}! Here&apos;s your project update.
+              </p>
+            )}
             <div className="text-center space-y-2">
               <h1 className="text-2xl font-bold text-[#023A2D]">
-                Project Status
-              </h1>
-              <p className="text-lg text-muted-foreground">
                 {project.client_name}
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Project Status
               </p>
             </div>
           </CardHeader>
           <CardContent>
-            {/* Current Status */}
-            <div className="text-center mb-6">
+            {/* Status Animation */}
+            <div className="mb-4">
+              <StatusAnimation statusName={currentStatus?.name || 'PO Received'} />
+            </div>
+
+            {/* Current Status Badge */}
+            <div className="text-center mb-4">
               <div className="inline-flex items-center gap-2">
                 <Badge
-                  className={`text-lg px-4 py-2 ${
-                    isOnHold
-                      ? 'bg-orange-100 text-orange-800 border-orange-300'
-                      : 'bg-[#023A2D] text-white'
-                  }`}
+                  className="text-lg px-6 py-2 shadow-lg border-2"
+                  style={{
+                    backgroundColor: isOnHold
+                      ? '#FED7AA'
+                      : statusColors[currentStatus?.name || '']?.accent || '#023A2D',
+                    color: 'white',
+                    borderColor: isOnHold
+                      ? '#F97316'
+                      : statusColors[currentStatus?.name || '']?.accent || '#023A2D',
+                  }}
                 >
                   {currentStatus?.name || 'Pending'}
                 </Badge>
-                {isOnHold && (
-                  <Badge variant="outline" className="text-orange-600 border-orange-300">
-                    On Hold
-                  </Badge>
-                )}
               </div>
             </div>
+
+            {/* Friendly status message */}
+            <p className="text-center text-muted-foreground mb-6 text-sm italic">
+              {isOnHold
+                ? statusMessages['Hold']
+                : statusMessages[currentStatus?.name || ''] || "We're working on your project!"}
+            </p>
 
             {/* Animated Progress Bar */}
             <div className="mb-8">

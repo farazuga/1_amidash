@@ -4,6 +4,7 @@ import { useSyncExternalStore } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import type { Status } from '@/types';
+import { statusColors } from './status-animations';
 
 interface AnimatedProgressBarProps {
   currentStatus: Status | null;
@@ -48,24 +49,26 @@ function PulsingRing({ color }: { color: string }) {
   );
 }
 
-// Arrow indicator pointing to next status
-function NextStatusArrow() {
+// Arrow indicator pointing to current status
+function CurrentStatusArrow({ color }: { color: string }) {
   return (
     <motion.div
-      className="absolute -top-6 left-1/2 -translate-x-1/2"
+      className="absolute -top-8 left-1/2 -translate-x-1/2"
       initial={{ y: -5, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
+      animate={{ y: [0, 4, 0], opacity: 1 }}
       transition={{
-        duration: 0.6,
-        repeat: Infinity,
-        repeatType: 'reverse',
-        ease: 'easeInOut',
+        y: {
+          duration: 1,
+          repeat: Infinity,
+          ease: 'easeInOut',
+        },
+        opacity: { duration: 0.3 }
       }}
     >
-      <svg width="20" height="12" viewBox="0 0 20 12" fill="none">
+      <svg width="24" height="16" viewBox="0 0 24 16" fill="none">
         <path
-          d="M10 12L0 0H20L10 12Z"
-          fill="#023A2D"
+          d="M12 16L0 0H24L12 16Z"
+          fill={color}
           className="drop-shadow-lg"
         />
       </svg>
@@ -103,6 +106,11 @@ export function AnimatedProgressBar({
     : currentIndex >= 0
     ? Math.round(((currentIndex + 1) / progressStatuses.length) * 100)
     : 0;
+
+  // Get accent color for current status
+  const currentStatusColor = currentStatus?.name
+    ? statusColors[currentStatus.name]?.accent || '#023A2D'
+    : '#023A2D';
 
   const primaryColor = isOnHold ? 'bg-orange-500' : 'bg-[#023A2D]';
   const primaryColorRing = isOnHold ? 'bg-orange-500/50' : 'bg-[#023A2D]/50';
@@ -175,6 +183,7 @@ export function AnimatedProgressBar({
               : false;
             const isCurrent = status.id === currentStatus?.id;
             const isNext = index === nextIndex;
+            const statusColor = statusColors[status.name]?.accent || '#023A2D';
 
             return (
               <motion.div
@@ -185,9 +194,11 @@ export function AnimatedProgressBar({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1, duration: 0.5 }}
               >
-                {/* Next status arrow indicator */}
+                {/* Current status arrow indicator */}
                 <AnimatePresence>
-                  {isNext && !isOnHold && <NextStatusArrow />}
+                  {isCurrent && !isComplete && (
+                    <CurrentStatusArrow color={isOnHold ? '#F97316' : currentStatusColor} />
+                  )}
                 </AnimatePresence>
 
                 {/* Status dot */}
@@ -215,18 +226,16 @@ export function AnimatedProgressBar({
 
                   <motion.div
                     className={cn(
-                      'w-8 h-8 rounded-full border-3 z-10 flex items-center justify-center relative',
-                      isCompleted
-                        ? 'bg-[#023A2D] border-[#023A2D]'
-                        : isCurrent
-                        ? isOnHold
-                          ? 'bg-orange-500 border-orange-500'
-                          : 'bg-[#023A2D] border-[#023A2D]'
-                        : isNext
-                        ? 'bg-white border-[#023A2D] border-2'
-                        : 'bg-white border-gray-300 border-2'
+                      'w-10 h-10 rounded-full z-10 flex items-center justify-center relative shadow-md',
+                      !isCompleted && !isCurrent && 'border-2',
+                      isNext ? 'border-gray-400' : !isCompleted && !isCurrent && 'border-gray-300'
                     )}
-                    whileHover={{ scale: 1.1 }}
+                    style={{
+                      backgroundColor: isCompleted || isCurrent
+                        ? (isOnHold ? '#F97316' : statusColor)
+                        : 'white',
+                    }}
+                    whileHover={{ scale: 1.15 }}
                     transition={{ type: 'spring', stiffness: 400 }}
                   >
                     {/* Checkmark for completed */}
