@@ -6,12 +6,11 @@ import Image from 'next/image';
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { format } from 'date-fns';
 import { LOGO_URL, APP_NAME } from '@/lib/constants';
 import { AnimatedProgressBar } from '@/components/portal/animated-progress-bar';
 import { StatusTimeline } from '@/components/portal/status-timeline';
 import { StatusAnimation, statusColors, statusMessages } from '@/components/portal/status-animations';
-import { Calendar, Mail, Phone, FileText, User } from 'lucide-react';
+import { Mail, Phone, User } from 'lucide-react';
 
 // ============================================
 // Rate Limiting (simple in-memory implementation)
@@ -180,46 +179,20 @@ export default async function ClientPortalPage({
   return (
     <div className="min-h-screen bg-[#f8faf9]">
       {/* Header with Logo */}
-      <header className="bg-[#023A2D] text-white py-4">
+      <header className="bg-[#023A2D] text-white py-2">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-center">
             <Image
               src={LOGO_URL}
               alt={APP_NAME}
-              width={150}
-              height={40}
+              width={120}
+              height={32}
               className="brightness-0 invert"
               priority
             />
           </div>
         </div>
       </header>
-
-      {/* Quick Info Bar */}
-      <div className="bg-white border-b shadow-sm">
-        <div className="container mx-auto px-4 py-2 max-w-3xl">
-          <div className="flex items-center justify-center gap-4 md:gap-6 text-xs md:text-sm flex-wrap">
-            {project.goal_completion_date && (
-              <div className="flex items-center gap-1.5 text-muted-foreground">
-                <Calendar className="h-3.5 w-3.5 text-[#023A2D]" />
-                <span className="font-medium">{format(new Date(project.goal_completion_date), 'MMM d, yyyy')}</span>
-              </div>
-            )}
-            {project.sales_order_number && (
-              <div className="flex items-center gap-1.5 text-muted-foreground">
-                <FileText className="h-3.5 w-3.5 text-[#023A2D]" />
-                <span className="font-medium">{project.sales_order_number}</span>
-              </div>
-            )}
-            {project.po_number && (
-              <div className="flex items-center gap-1.5 text-muted-foreground">
-                <FileText className="h-3.5 w-3.5 text-[#023A2D]" />
-                <span>PO: <span className="font-medium">{project.po_number}</span></span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
 
       <main className="container mx-auto px-4 py-6 max-w-3xl">
         {/* Main Status Card - Compact Layout */}
@@ -234,22 +207,29 @@ export default async function ClientPortalPage({
             }}
           />
           <CardContent className="pt-4 pb-4">
-            {/* Animation + Project Name - Side by Side */}
-            <div className="flex items-center gap-4 mb-4">
-              {/* Smaller Animation */}
-              <div className="w-20 h-20 flex-shrink-0">
-                <StatusAnimation statusName={currentStatus?.name || 'PO Received'} />
-              </div>
-              {/* Project Info */}
+            {/* Project Name Left, Animation Right */}
+            <div className="flex items-center justify-between gap-4 mb-4">
+              {/* Project Info - Left */}
               <div className="flex-1 min-w-0">
-                <h1 className="text-xl md:text-2xl font-bold text-[#023A2D] truncate">
-                  {project.client_name}
-                </h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl md:text-2xl font-bold text-[#023A2D] truncate">
+                    {project.client_name}
+                  </h1>
+                  {project.sales_order_number && (
+                    <span className="text-sm text-muted-foreground font-medium">
+                      #{project.sales_order_number}
+                    </span>
+                  )}
+                </div>
                 {project.poc_name && (
                   <p className="text-sm text-muted-foreground">
                     Hi {project.poc_name.split(' ')[0]}! Here&apos;s your update.
                   </p>
                 )}
+              </div>
+              {/* Animation - Right */}
+              <div className="w-20 h-20 flex-shrink-0">
+                <StatusAnimation statusName={currentStatus?.name || 'PO Received'} />
               </div>
             </div>
 
