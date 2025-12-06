@@ -26,6 +26,7 @@ interface ProjectFormProps {
   salespeople: Profile[];
   projectTypes: ProjectType[];
   projectTypeStatuses: { project_type_id: string; status_id: string }[];
+  currentUserId?: string;
 }
 
 export function ProjectForm({
@@ -36,6 +37,7 @@ export function ProjectForm({
   salespeople,
   projectTypes,
   projectTypeStatuses,
+  currentUserId,
 }: ProjectFormProps) {
   const router = useRouter();
   const [isPending, setIsPending] = useState(false);
@@ -214,35 +216,37 @@ export function ProjectForm({
         }
         setDebugStep('15-firstStatus:' + firstStatus.name);
 
-        setDebugStep('16-getSession-start');
-        // Use getSession instead of getUser - it's more reliable on the browser
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        setDebugStep('17-getSession-done:' + (sessionData?.session?.user?.id || 'null'));
-        const user = sessionData?.session?.user;
-        const userError = sessionError;
-
-        if (userError || !user) {
+        setDebugStep('16-using-currentUserId');
+        // Use currentUserId passed from server component - avoids client-side auth calls
+        if (!currentUserId) {
           toast.error('Session expired. Please log in again.');
-          console.error('Auth error:', userError);
+          console.error('No currentUserId provided');
+          setDebugStep('error-no-userId');
           return;
         }
+        setDebugStep('17-userId-ok:' + currentUserId);
+        const userId = currentUserId;
 
+        setDebugStep('18-inserting-project');
         const { data: newProject, error } = await supabase
           .from('projects')
           .insert({
             ...data,
             project_type_id: selectedProjectType,
             current_status_id: firstStatus.id,
-            created_by: user.id,
+            created_by: userId,
           })
           .select()
           .single();
+        setDebugStep('19-insert-done');
 
         if (error) {
           toast.error('Failed to create project');
           console.error('Project insert error:', error);
+          setDebugStep('error-insert:' + error.message);
           return;
         }
+        setDebugStep('20-project-created:' + newProject.id);
 
         // Run status history, tags, and audit log in background (fire-and-forget)
         (async () => {
@@ -250,12 +254,12 @@ export function ProjectForm({
             await supabase.from('status_history').insert({
               project_id: newProject.id,
               status_id: firstStatus.id,
-              changed_by: user.id,
+              changed_by: userId,
             });
 
             await supabase.from('audit_logs').insert({
               project_id: newProject.id,
-              user_id: user.id,
+              user_id: userId,
               action: 'create',
               field_name: 'project',
               new_value: data.client_name,
