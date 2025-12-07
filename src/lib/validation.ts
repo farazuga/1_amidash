@@ -14,6 +14,7 @@ export const statusChangeEmailSchema = z.object({
   previousStatus: z.string().optional(),
   clientToken: z.string().optional(),
   note: z.string().optional(),
+  projectId: z.string().optional(), // For checking project email settings
 });
 
 // Welcome email request schema

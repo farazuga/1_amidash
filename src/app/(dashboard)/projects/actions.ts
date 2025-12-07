@@ -18,6 +18,7 @@ export interface CreateProjectData {
   scope_link: string | null;
   project_type_id: string;
   tags: string[];
+  email_notifications_enabled?: boolean;
 }
 
 export interface CreateProjectResult {
@@ -80,6 +81,7 @@ export async function createProject(data: CreateProjectData): Promise<CreateProj
       project_type_id: data.project_type_id,
       current_status_id: firstStatus.id,
       created_by: user.id,
+      email_notifications_enabled: data.email_notifications_enabled ?? true,
     })
     .select()
     .single();

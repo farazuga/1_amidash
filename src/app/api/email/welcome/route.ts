@@ -3,6 +3,7 @@ import { sendEmail, getPortalUrl } from '@/lib/email/send';
 import { welcomeEmail } from '@/lib/email/templates';
 import { createClient } from '@/lib/supabase/server';
 import { welcomeEmailSchema } from '@/lib/validation';
+import { getGlobalEmailEnabled } from '@/lib/email/settings';
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,6 +35,16 @@ export async function POST(request: NextRequest) {
     }
 
     const { to, clientName, pocName, projectType, initialStatus, clientToken } = parseResult.data;
+
+    // Check if emails are enabled globally
+    const globalEnabled = await getGlobalEmailEnabled();
+    if (!globalEnabled) {
+      return NextResponse.json({
+        success: true,
+        skipped: true,
+        reason: 'Client emails are disabled globally',
+      });
+    }
 
     const portalUrl = getPortalUrl(clientToken);
 

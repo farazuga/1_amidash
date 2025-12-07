@@ -108,6 +108,7 @@ export function StatusChangeButton({
             newStatus: newStatus.name,
             previousStatus: currentStatus?.name,
             note: note.trim() || undefined,
+            projectId,
           }),
           signal: controller.signal,
         })

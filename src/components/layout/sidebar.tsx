@@ -15,6 +15,7 @@ import {
   FileText,
   Plus,
   Target,
+  Settings,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -63,6 +64,11 @@ const adminNavItems = [
     title: 'Audit Log',
     href: '/admin/audit',
     icon: FileText,
+  },
+  {
+    title: 'Settings',
+    href: '/admin/settings',
+    icon: Settings,
   },
 ];
 

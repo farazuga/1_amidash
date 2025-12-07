@@ -3,6 +3,7 @@ import { sendEmail, getPortalUrl } from '@/lib/email/send';
 import { statusChangeEmail } from '@/lib/email/templates';
 import { createClient } from '@/lib/supabase/server';
 import { statusChangeEmailSchema } from '@/lib/validation';
+import { checkEmailEnabled } from '@/lib/email/settings';
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,7 +34,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { to, clientName, newStatus, previousStatus, clientToken, note } = parseResult.data;
+    const { to, clientName, newStatus, previousStatus, clientToken, note, projectId } = parseResult.data;
+
+    // Check if emails are enabled (globally and for the project)
+    const emailSettings = await checkEmailEnabled(projectId);
+    if (!emailSettings.canSendEmail) {
+      // Return success but indicate email was skipped
+      return NextResponse.json({
+        success: true,
+        skipped: true,
+        reason: !emailSettings.globalEnabled
+          ? 'Client emails are disabled globally'
+          : 'Email notifications disabled for this project',
+      });
+    }
 
     const portalUrl = clientToken ? getPortalUrl(clientToken) : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
 

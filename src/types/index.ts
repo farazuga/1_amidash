@@ -67,6 +67,7 @@ export interface Project {
   client_portal_views?: number;
   expected_update_date: string | null;
   expected_update_auto: boolean | null;
+  email_notifications_enabled: boolean | null;
   created_by: string | null;
   created_at: string | null;
   updated_at: string | null;

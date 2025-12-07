@@ -21,6 +21,7 @@ import { ProjectForm } from '@/components/projects/project-form';
 import { StatusHistory } from '@/components/projects/status-history';
 import { StatusChangeButton } from '@/components/projects/status-change-button';
 import { CopyClientLink } from '@/components/projects/copy-client-link';
+import type { Project } from '@/types';
 
 async function getProject(id: string) {
   const supabase = await createClient();
@@ -181,7 +182,7 @@ export default async function ProjectDetailPage({
             </CardHeader>
             <CardContent>
               <ProjectForm
-                project={project}
+                project={{ ...project, email_notifications_enabled: (project as { email_notifications_enabled?: boolean | null }).email_notifications_enabled ?? true } as Project}
                 statuses={statuses}
                 tags={tags}
                 projectTags={project.tags?.map((t: { tag: { id: string } }) => t.tag.id) || []}

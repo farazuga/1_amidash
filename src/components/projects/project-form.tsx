@@ -13,7 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Mail } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { CONTRACT_TYPES } from '@/lib/constants';
 import type { Project, Status, Tag, Profile, ProjectType } from '@/types';
@@ -53,6 +54,9 @@ export function ProjectForm({
     project?.sales_order_number || (project ? '' : 'S12')
   );
   const [salesOrderError, setSalesOrderError] = useState<string | null>(null);
+  const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState<boolean>(
+    project?.email_notifications_enabled ?? true
+  );
 
   const isEditing = !!project;
 
@@ -115,6 +119,7 @@ export function ProjectForm({
       poc_email: formData.get('poc_email') as string || null,
       poc_phone: formData.get('poc_phone') as string || null,
       scope_link: formData.get('scope_link') as string || null,
+      email_notifications_enabled: emailNotificationsEnabled,
     };
 
     setIsPending(true);
@@ -203,6 +208,7 @@ export function ProjectForm({
           scope_link: data.scope_link,
           project_type_id: selectedProjectType,
           tags: selectedTags,
+          email_notifications_enabled: emailNotificationsEnabled,
         });
 
         if (!result.success) {
@@ -452,6 +458,28 @@ export function ProjectForm({
               required
             />
           </div>
+        </div>
+      </div>
+
+      {/* Email Notifications */}
+      <div className="border-t pt-4">
+        <div className="flex items-center justify-between rounded-lg border p-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              <Label htmlFor="email-notifications" className="font-medium">
+                Email Notifications
+              </Label>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Send email notifications to the point of contact when the project status changes.
+            </p>
+          </div>
+          <Switch
+            id="email-notifications"
+            checked={emailNotificationsEnabled}
+            onCheckedChange={setEmailNotificationsEnabled}
+          />
         </div>
       </div>
 
