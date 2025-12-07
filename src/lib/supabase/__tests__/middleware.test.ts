@@ -10,16 +10,28 @@ import { createServerClient } from '@supabase/ssr';
 
 describe('updateSession middleware', () => {
   let mockGetUser: ReturnType<typeof vi.fn>;
+  let mockFrom: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
     mockGetUser = vi.fn();
+    mockFrom = vi.fn();
+
+    // Create a chainable query builder mock
+    const mockQueryBuilder = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: null, error: null }),
+    };
+
+    mockFrom.mockReturnValue(mockQueryBuilder);
 
     vi.mocked(createServerClient).mockReturnValue({
       auth: {
         getUser: mockGetUser,
       },
+      from: mockFrom,
     } as never);
   });
 
@@ -83,6 +95,18 @@ describe('updateSession middleware', () => {
         data: { user: { id: 'user-123' } },
         error: null,
       });
+
+      // Mock the profile query to return a staff user
+      const mockQueryBuilder = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({
+          data: { role: 'staff' },
+          error: null
+        }),
+      };
+      mockFrom.mockReturnValue(mockQueryBuilder);
+
       const mockRequest = createMockRequest('/projects');
 
       const response = await updateSession(mockRequest as never);
@@ -97,6 +121,18 @@ describe('updateSession middleware', () => {
         data: { user: { id: 'user-123' } },
         error: null,
       });
+
+      // Mock the profile query to return a staff user
+      const mockQueryBuilder = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({
+          data: { role: 'staff' },
+          error: null
+        }),
+      };
+      mockFrom.mockReturnValue(mockQueryBuilder);
+
       const mockRequest = createMockRequest('/login');
 
       const response = await updateSession(mockRequest as never);

@@ -118,7 +118,7 @@ describe('POST /api/admin/users', () => {
     const data = await response.json();
 
     expect(response.status).toBe(400);
-    expect(data.error).toBe('Invalid role. Must be: admin, editor, or viewer');
+    expect(data.error).toBe('Invalid role. Must be: admin, editor, viewer, or customer');
   });
 
   it('accepts valid roles: admin', async () => {
@@ -263,6 +263,110 @@ describe('POST /api/admin/users', () => {
 
     expect(response.status).toBe(200);
     expect(data.success).toBe(true);
+  });
+
+  it('accepts valid roles: customer', async () => {
+    const mockServiceClient = {
+      auth: {
+        admin: {
+          createUser: vi.fn().mockResolvedValue({
+            data: { user: { id: 'new-user-id', email: 'customer@example.com' } },
+            error: null,
+          }),
+        },
+      },
+      from: vi.fn().mockReturnValue({
+        update: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ error: null }),
+        }),
+      }),
+    };
+
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'admin-123' } } }),
+      },
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { role: 'admin' } }),
+          }),
+        }),
+      }),
+    } as unknown as ReturnType<typeof createClient>);
+
+    vi.mocked(createServiceClient).mockResolvedValue(
+      mockServiceClient as unknown as ReturnType<typeof createServiceClient>
+    );
+
+    const request = createMockRequest({
+      email: 'customer@example.com',
+      full_name: 'New Customer',
+      role: 'customer',
+      password: 'SecurePassword123',
+    });
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.success).toBe(true);
+  });
+
+  it('returns 400 for customer role without password', async () => {
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'admin-123' } } }),
+      },
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { role: 'admin' } }),
+          }),
+        }),
+      }),
+    } as unknown as ReturnType<typeof createClient>);
+
+    const request = createMockRequest({
+      email: 'customer@example.com',
+      full_name: 'New Customer',
+      role: 'customer',
+      // No password provided
+    });
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(data.error).toBe('Password is required for customer accounts (minimum 8 characters)');
+  });
+
+  it('returns 400 for customer role with short password', async () => {
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'admin-123' } } }),
+      },
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { role: 'admin' } }),
+          }),
+        }),
+      }),
+    } as unknown as ReturnType<typeof createClient>);
+
+    const request = createMockRequest({
+      email: 'customer@example.com',
+      full_name: 'New Customer',
+      role: 'customer',
+      password: 'short',
+    });
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(data.error).toBe('Password is required for customer accounts (minimum 8 characters)');
   });
 });
 
