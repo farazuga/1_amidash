@@ -44,7 +44,7 @@ export function setup() {
   };
 }
 
-export default function (data) {
+export default function loadTest(data) {
   const baseUrl = data.baseUrl;
 
   // Scenario 1: Browse login page (40% of traffic)

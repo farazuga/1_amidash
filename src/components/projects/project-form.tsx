@@ -29,7 +29,6 @@ interface ProjectFormProps {
   salespeople: Profile[];
   projectTypes: ProjectType[];
   projectTypeStatuses: { project_type_id: string; status_id: string }[];
-  currentUserId?: string;
 }
 
 export function ProjectForm({
@@ -40,7 +39,6 @@ export function ProjectForm({
   salespeople,
   projectTypes,
   projectTypeStatuses,
-  currentUserId,
 }: ProjectFormProps) {
   const router = useRouter();
   const [isPending, setIsPending] = useState(false);

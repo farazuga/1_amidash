@@ -49,7 +49,6 @@ export function FilterBar({ statuses, currentView }: FilterBarProps) {
   const [isPending, startTransition] = useTransition();
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const [statusPopoverOpen, setStatusPopoverOpen] = useState(false);
-  const [datePopoverOpen, setDatePopoverOpen] = useState(false);
 
   const [search, setSearch] = useState(searchParams.get('search') || '');
 

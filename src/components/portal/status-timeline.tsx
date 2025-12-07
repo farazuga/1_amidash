@@ -2,12 +2,6 @@
 
 import { format } from 'date-fns';
 
-interface StatusHistoryItem {
-  id: string;
-  changed_at: string | null;
-  status: { name: string } | null;
-}
-
 interface StatusTimelineProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   history: any[];

@@ -49,20 +49,13 @@ async function getProjectTypeStatuses() {
   return data || [];
 }
 
-async function getCurrentUser() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
-}
-
 export default async function NewProjectPage() {
-  const [statuses, tags, salespeople, projectTypes, projectTypeStatuses, currentUser] = await Promise.all([
+  const [statuses, tags, salespeople, projectTypes, projectTypeStatuses] = await Promise.all([
     getStatuses(),
     getTags(),
     getSalespeople(),
     getProjectTypes(),
     getProjectTypeStatuses(),
-    getCurrentUser(),
   ]);
 
   return (
@@ -95,7 +88,6 @@ export default async function NewProjectPage() {
             salespeople={salespeople}
             projectTypes={projectTypes}
             projectTypeStatuses={projectTypeStatuses}
-            currentUserId={currentUser?.id}
           />
         </CardContent>
       </Card>

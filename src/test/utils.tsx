@@ -1,10 +1,8 @@
 import React, { ReactElement } from 'react';
 import { render, RenderOptions } from '@testing-library/react';
 
-// Custom render function with providers
-interface CustomRenderOptions extends Omit<RenderOptions, 'wrapper'> {
-  // Add any provider props here if needed
-}
+// Custom render options type
+type CustomRenderOptions = Omit<RenderOptions, 'wrapper'>;
 
 function AllProviders({ children }: { children: React.ReactNode }) {
   return <>{children}</>;

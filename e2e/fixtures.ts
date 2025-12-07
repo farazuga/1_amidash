@@ -182,9 +182,9 @@ export class APIHelpers {
    * Create test user via API
    * TODO: Implement based on your API structure
    */
-  async createTestUser(userData: any) {
+  async createTestUser(userData: { email: string; password?: string; role?: string }) {
     // Implement user creation logic
-    console.log('Create test user - implement based on your API');
+    console.log('Create test user - implement based on your API', userData.email);
   }
 
   /**
@@ -193,6 +193,6 @@ export class APIHelpers {
    */
   async deleteTestUser(userId: string) {
     // Implement user deletion logic
-    console.log('Delete test user - implement based on your API');
+    console.log('Delete test user - implement based on your API', userId);
   }
 }

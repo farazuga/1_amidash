@@ -2,19 +2,12 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Loader2, Mail, AlertTriangle, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-
-interface AppSetting {
-  key: string;
-  value: boolean;
-  updated_at: string | null;
-}
 
 export default function AdminSettingsPage() {
   const [emailsEnabled, setEmailsEnabled] = useState(true);

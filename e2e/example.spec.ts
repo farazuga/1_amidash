@@ -30,7 +30,7 @@ test.describe('Example Tests', () => {
     // TODO: Add assertions
   });
 
-  test.skip('example of a skipped test', async ({ page }) => {
+  test.skip('example of a skipped test', async () => {
     // This test will be skipped
     // Remove .skip when you're ready to enable it
   });
@@ -192,18 +192,18 @@ test.describe('Test Hooks Example', () => {
   });
 
   // Runs before each test
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async () => {
     console.log('Setting up test...');
     // Add per-test setup logic here
   });
 
   // Runs after each test
-  test.afterEach(async ({ page }) => {
+  test.afterEach(async () => {
     console.log('Cleaning up test...');
     // Add per-test cleanup logic here
   });
 
-  test.skip('example test with hooks', async ({ page }) => {
+  test.skip('example test with hooks', async () => {
     // This test will use the hooks defined above
   });
 });

@@ -2,7 +2,6 @@
 
 import { format } from 'date-fns';
 import { StatusBadge } from './status-badge';
-import type { Profile } from '@/types';
 
 interface StatusHistoryProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

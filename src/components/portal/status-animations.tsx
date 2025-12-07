@@ -370,28 +370,39 @@ export function InstallInProgressAnimation() {
         <rect x="87" y="57" width="5" height="6" fill="#FEF3C7" />
       </motion.g>
 
-      {/* Sparks */}
-      {[0, 1, 2, 3, 4].map((i) => (
-        <motion.circle
-          key={i}
-          cx={85}
-          cy={60}
-          r="2"
-          fill="#EAB308"
-          initial={{ x: 0, y: 0, opacity: 1 }}
-          animate={{
-            x: [0, (Math.random() - 0.5) * 40],
-            y: [0, (Math.random() - 0.5) * 40],
-            opacity: [1, 0],
-          }}
-          transition={{
-            duration: 0.6,
-            delay: i * 0.15,
-            repeat: Infinity,
-            repeatDelay: 0.3,
-          }}
-        />
-      ))}
+      {/* Sparks - using deterministic offsets based on index for React purity */}
+      {[0, 1, 2, 3, 4].map((i) => {
+        // Pre-computed spark directions based on index (deterministic, not random)
+        const sparkOffsets = [
+          { x: 15, y: -18 },
+          { x: -12, y: 16 },
+          { x: 8, y: 14 },
+          { x: -16, y: -10 },
+          { x: 18, y: 5 },
+        ];
+        const offset = sparkOffsets[i];
+        return (
+          <motion.circle
+            key={i}
+            cx={85}
+            cy={60}
+            r="2"
+            fill="#EAB308"
+            initial={{ x: 0, y: 0, opacity: 1 }}
+            animate={{
+              x: [0, offset.x],
+              y: [0, offset.y],
+              opacity: [1, 0],
+            }}
+            transition={{
+              duration: 0.6,
+              delay: i * 0.15,
+              repeat: Infinity,
+              repeatDelay: 0.3,
+            }}
+          />
+        );
+      })}
 
       {/* Progress indicator */}
       <rect x="25" y="85" width="70" height="8" rx="4" fill="#FEF3C7" />

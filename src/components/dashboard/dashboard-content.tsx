@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -53,7 +53,7 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
   }, [periodType]);
 
   // Get date range for selected period
-  const getDateRange = () => {
+  const getDateRange = useCallback(() => {
     if (!selectedPeriod) return { start: new Date(), end: new Date() };
 
     if (periodType === 'month') {
@@ -69,7 +69,7 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
       const year = parseInt(selectedPeriod);
       return { start: startOfYear(new Date(year, 0, 1)), end: endOfYear(new Date(year, 0, 1)) };
     }
-  };
+  }, [selectedPeriod, periodType]);
 
   // Generate period options
   const getPeriodOptions = () => {
@@ -117,7 +117,7 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
   };
 
   // Calculate stats for selected period - memoize expensive calculations
-  const dateRange = useMemo(() => getDateRange(), [selectedPeriod, periodType]);
+  const dateRange = useMemo(() => getDateRange(), [getDateRange]);
   const invoicedStatus = useMemo(() => statuses.find(s => s.name === 'Invoiced'), [statuses]);
 
   // Get invoiced projects in period (from status history)

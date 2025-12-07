@@ -46,7 +46,7 @@ export function setup() {
   };
 }
 
-export default function (data) {
+export default function stressTest(data) {
   const baseUrl = data.baseUrl;
 
   // Track current VU count

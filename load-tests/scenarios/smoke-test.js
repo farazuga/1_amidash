@@ -45,7 +45,7 @@ export function setup() {
 }
 
 // Main test function - runs for each VU
-export default function (data) {
+export default function smokeTest(data) {
   const baseUrl = data.baseUrl;
 
   // Test 1: Login page loads
@@ -55,11 +55,12 @@ export default function (data) {
       tags: { name: 'GET /login' },
     });
 
-    check(res, {
+    const loginCheckPassed = check(res, {
       'login page returns 200': (r) => r.status === 200,
       'login page loads fast': (r) => r.timings.duration < 1000,
       'login page has content': (r) => r.body && r.body.length > 0,
-    }) || errorRate.add(1);
+    });
+    if (!loginCheckPassed) errorRate.add(1);
 
     portalLoadTime.add(res.timings.duration);
   }
@@ -76,10 +77,11 @@ export default function (data) {
     });
 
     // Expect 404 for invalid token or 200 for valid one
-    check(res, {
+    const portalCheckPassed = check(res, {
       'portal responds': (r) => r.status === 200 || r.status === 404,
       'portal response time acceptable': (r) => r.timings.duration < 2000,
-    }) || errorRate.add(1);
+    });
+    if (!portalCheckPassed) errorRate.add(1);
 
     portalLoadTime.add(res.timings.duration);
   }
@@ -93,10 +95,11 @@ export default function (data) {
       tags: { name: 'GET /api/admin/users (unauth)' },
     });
 
-    check(res, {
+    const apiCheckPassed = check(res, {
       'API returns 401 for unauthenticated': (r) => r.status === 401,
       'API responds quickly': (r) => r.timings.duration < 500,
-    }) || errorRate.add(1);
+    });
+    if (!apiCheckPassed) errorRate.add(1);
 
     apiResponseTime.add(res.timings.duration);
   }

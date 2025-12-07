@@ -20,9 +20,10 @@ function createWrapper() {
       },
     },
   });
-  return ({ children }: { children: React.ReactNode }) => (
+  const TestWrapper = ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
+  return TestWrapper;
 }
 
 describe('useAuditLogs', () => {

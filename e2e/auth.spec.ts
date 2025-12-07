@@ -13,12 +13,12 @@ import { TestHelpers, AuthHelpers } from './fixtures';
  */
 
 test.describe('Authentication', () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async () => {
     // Setup before each test
     // You can add common setup logic here
   });
 
-  test.afterEach(async ({ page }) => {
+  test.afterEach(async () => {
     // Cleanup after each test
     // You can add common cleanup logic here
   });

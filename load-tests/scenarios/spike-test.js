@@ -49,7 +49,7 @@ export function setup() {
   };
 }
 
-export default function (data) {
+export default function spikeTest(data) {
   const baseUrl = data.baseUrl;
 
   // Determine current phase based on VU count
