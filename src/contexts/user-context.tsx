@@ -11,6 +11,7 @@ interface UserContextType {
   isAdmin: boolean;
   isEditor: boolean;
   isViewer: boolean;
+  isCustomer: boolean;
   signOut: () => void;
   isSigningOut: boolean;
 }
@@ -26,6 +27,7 @@ interface UserProviderProps {
 export function UserProvider({ children, user, profile }: UserProviderProps) {
   const [isSigningOut, startTransition] = useTransition();
 
+  const isCustomer = profile?.role === 'customer';
   const isAdmin = profile?.role === 'admin';
   const isEditor = profile?.role === 'editor' || isAdmin;
   const isViewer = profile?.role === 'viewer' || isEditor;
@@ -44,6 +46,7 @@ export function UserProvider({ children, user, profile }: UserProviderProps) {
         isAdmin,
         isEditor,
         isViewer,
+        isCustomer,
         signOut,
         isSigningOut,
       }}

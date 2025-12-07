@@ -22,7 +22,7 @@ export default function LoginPage() {
     setIsLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -33,7 +33,15 @@ export default function LoginPage() {
       return;
     }
 
-    router.push('/');
+    // Fetch profile to determine redirect based on role
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', data.user.id)
+      .single();
+
+    const redirectPath = profile?.role === 'customer' ? '/customer' : '/';
+    router.push(redirectPath);
     router.refresh();
   };
 

@@ -4,7 +4,7 @@ import { z } from 'zod';
 export const emailSchema = z.string().email('Invalid email address');
 
 // Role enum validation
-export const roleSchema = z.enum(['admin', 'editor', 'viewer']);
+export const roleSchema = z.enum(['admin', 'editor', 'viewer', 'customer']);
 
 // Status change email request schema
 export const statusChangeEmailSchema = z.object({

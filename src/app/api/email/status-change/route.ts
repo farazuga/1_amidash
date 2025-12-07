@@ -36,16 +36,22 @@ export async function POST(request: NextRequest) {
 
     const { to, clientName, newStatus, previousStatus, clientToken, note, projectId } = parseResult.data;
 
-    // Check if emails are enabled (globally and for the project)
-    const emailSettings = await checkEmailEnabled(projectId);
+    // Check if emails are enabled (globally, for the project, and for the recipient)
+    const emailSettings = await checkEmailEnabled(projectId, to);
     if (!emailSettings.canSendEmail) {
       // Return success but indicate email was skipped
+      let reason = 'Email notifications disabled';
+      if (!emailSettings.globalEnabled) {
+        reason = 'Client emails are disabled globally';
+      } else if (!emailSettings.projectEnabled) {
+        reason = 'Email notifications disabled for this project';
+      } else if (!emailSettings.recipientEnabled) {
+        reason = 'Recipient has opted out of email notifications';
+      }
       return NextResponse.json({
         success: true,
         skipped: true,
-        reason: !emailSettings.globalEnabled
-          ? 'Client emails are disabled globally'
-          : 'Email notifications disabled for this project',
+        reason,
       });
     }
 

@@ -1,4 +1,4 @@
-export type UserRole = 'viewer' | 'editor' | 'admin';
+export type UserRole = 'viewer' | 'editor' | 'admin' | 'customer';
 
 export type ContractType =
   | 'None'

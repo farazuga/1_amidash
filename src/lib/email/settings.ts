@@ -3,11 +3,13 @@ import { createClient } from '@/lib/supabase/server';
 /**
  * Check if emails are enabled globally and optionally for a specific project
  * @param projectId Optional project ID to check project-specific setting
- * @returns Object containing global and project email enabled states
+ * @param recipientEmail Optional recipient email to check user-specific preference
+ * @returns Object containing global, project, and user email enabled states
  */
-export async function checkEmailEnabled(projectId?: string): Promise<{
+export async function checkEmailEnabled(projectId?: string, recipientEmail?: string): Promise<{
   globalEnabled: boolean;
   projectEnabled: boolean;
+  recipientEnabled: boolean;
   canSendEmail: boolean;
 }> {
   const supabase = await createClient();
@@ -15,6 +17,7 @@ export async function checkEmailEnabled(projectId?: string): Promise<{
   // Default to enabled if settings don't exist (graceful degradation)
   let globalEnabled = true;
   let projectEnabled = true;
+  let recipientEnabled = true;
 
   // Check global setting
   try {
@@ -51,10 +54,30 @@ export async function checkEmailEnabled(projectId?: string): Promise<{
     }
   }
 
+  // Check recipient's email notification preference
+  if (recipientEmail) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: pref, error } = await (supabase.from as any)('email_notification_preferences')
+        .select('notifications_enabled')
+        .eq('email', recipientEmail.toLowerCase())
+        .single();
+
+      if (!error && pref) {
+        recipientEnabled = pref.notifications_enabled !== false;
+      }
+      // If no preference exists (PGRST116 error), default to enabled
+    } catch {
+      // Table might not exist yet - default to enabled
+      recipientEnabled = true;
+    }
+  }
+
   return {
     globalEnabled,
     projectEnabled,
-    canSendEmail: globalEnabled && projectEnabled,
+    recipientEnabled,
+    canSendEmail: globalEnabled && projectEnabled && recipientEnabled,
   };
 }
 

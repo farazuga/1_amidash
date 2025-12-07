@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     // Get request body
     const body = await request.json();
-    const { email, full_name, role: rawRole = 'viewer', is_salesperson = false } = body;
+    const { email, full_name, role: rawRole = 'viewer', is_salesperson = false, password } = body;
 
     // Validate email
     const emailResult = emailSchema.safeParse(email);
@@ -37,23 +37,41 @@ export async function POST(request: NextRequest) {
     const roleResult = roleSchema.safeParse(rawRole);
     if (!roleResult.success) {
       return NextResponse.json(
-        { error: 'Invalid role. Must be: admin, editor, or viewer' },
+        { error: 'Invalid role. Must be: admin, editor, viewer, or customer' },
         { status: 400 }
       );
     }
     const role = roleResult.data;
 
+    // For customers, password is required
+    const isCustomer = role === 'customer';
+    if (isCustomer && (!password || password.length < 8)) {
+      return NextResponse.json(
+        { error: 'Password is required for customer accounts (minimum 8 characters)' },
+        { status: 400 }
+      );
+    }
+
     // Use service client to create user
     const serviceClient = await createServiceClient();
 
-    // Create the user with Supabase Admin API
-    const { data: newUser, error: createError } = await serviceClient.auth.admin.createUser({
+    // Build user creation options
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const createUserOptions: any = {
       email,
       email_confirm: true, // Auto-confirm email so they can log in immediately
       user_metadata: {
         full_name,
       },
-    });
+    };
+
+    // Add password for customer accounts
+    if (isCustomer && password) {
+      createUserOptions.password = password;
+    }
+
+    // Create the user with Supabase Admin API
+    const { data: newUser, error: createError } = await serviceClient.auth.admin.createUser(createUserOptions);
 
     if (createError) {
       console.error('Error creating user:', createError);
@@ -67,7 +85,7 @@ export async function POST(request: NextRequest) {
       .update({
         full_name,
         role,
-        is_salesperson,
+        is_salesperson: isCustomer ? false : is_salesperson, // Customers are never salespeople
       })
       .eq('id', newUser.user.id);
 
@@ -82,7 +100,9 @@ export async function POST(request: NextRequest) {
         id: newUser.user.id,
         email: newUser.user.email,
       },
-      message: 'User created. They can use "Forgot Password" to set their password.',
+      message: isCustomer
+        ? 'Customer account created with password set.'
+        : 'User created. They can use "Forgot Password" to set their password.',
     });
   } catch (error) {
     console.error('Unexpected error:', error);
