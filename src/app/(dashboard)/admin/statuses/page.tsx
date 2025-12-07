@@ -61,11 +61,13 @@ function SortableStatusRow({
   onEdit,
   onToggleActive,
   onToggleRequireNote,
+  onToggleException,
 }: {
   status: Status;
   onEdit: () => void;
   onToggleActive: () => void;
   onToggleRequireNote: () => void;
+  onToggleException: () => void;
 }) {
   const {
     attributes,
@@ -104,12 +106,23 @@ function SortableStatusRow({
               Note Required
             </Badge>
           )}
+          {status.is_exception && (
+            <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+              Exception
+            </Badge>
+          )}
         </div>
       </TableCell>
       <TableCell>
         <Switch
           checked={status.require_note ?? false}
           onCheckedChange={onToggleRequireNote}
+        />
+      </TableCell>
+      <TableCell>
+        <Switch
+          checked={status.is_exception ?? false}
+          onCheckedChange={onToggleException}
         />
       </TableCell>
       <TableCell>
@@ -394,6 +407,21 @@ export default function StatusesAdminPage() {
     toast.success('Updated require note setting');
   };
 
+  const toggleException = async (status: Status) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.from('statuses') as any)
+      .update({ is_exception: !status.is_exception })
+      .eq('id', status.id);
+
+    if (error) {
+      toast.error('Failed to update status');
+      return;
+    }
+
+    loadData();
+    toast.success('Updated exception setting');
+  };
+
   // Project Type CRUD
   const handleSaveType = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -670,6 +698,7 @@ export default function StatusesAdminPage() {
                       <TableHead className="w-[50px]"></TableHead>
                       <TableHead>Status Name</TableHead>
                       <TableHead>Require Note</TableHead>
+                      <TableHead>Exception</TableHead>
                       <TableHead>Active</TableHead>
                       <TableHead className="w-[100px]"></TableHead>
                     </TableRow>
@@ -689,6 +718,7 @@ export default function StatusesAdminPage() {
                           }}
                           onToggleActive={() => toggleStatusActive(status)}
                           onToggleRequireNote={() => toggleRequireNote(status)}
+                          onToggleException={() => toggleException(status)}
                         />
                       ))}
                     </SortableContext>

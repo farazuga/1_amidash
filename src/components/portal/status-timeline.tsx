@@ -1,16 +1,16 @@
 'use client';
 
 import { format } from 'date-fns';
-import type { Status } from '@/types';
 
 interface StatusHistoryItem {
   id: string;
   changed_at: string | null;
-  status: Status | null;
+  status: { name: string } | null;
 }
 
 interface StatusTimelineProps {
-  history: StatusHistoryItem[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  history: any[];
 }
 
 export function StatusTimeline({ history }: StatusTimelineProps) {

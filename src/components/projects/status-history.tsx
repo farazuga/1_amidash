@@ -2,18 +2,11 @@
 
 import { format } from 'date-fns';
 import { StatusBadge } from './status-badge';
-import type { Status, Profile } from '@/types';
-
-interface StatusHistoryItem {
-  id: string;
-  changed_at: string | null;
-  note: string | null;
-  status: Status | null;
-  changed_by_profile: Profile | null;
-}
+import type { Profile } from '@/types';
 
 interface StatusHistoryProps {
-  history: StatusHistoryItem[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  history: any[];
 }
 
 export function StatusHistory({ history }: StatusHistoryProps) {

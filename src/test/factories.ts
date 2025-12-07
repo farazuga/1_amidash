@@ -21,6 +21,7 @@ export function createStatus(overrides: Partial<Status> = {}): Status {
     name: 'PO Received',
     display_order: 1,
     require_note: false,
+    is_exception: false,
     is_active: true,
     created_at: '2024-01-01T00:00:00Z',
     ...overrides,

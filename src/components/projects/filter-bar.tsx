@@ -19,7 +19,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Search, X, AlertTriangle, Calendar, ChevronDown } from 'lucide-react';
 import { CONTRACT_TYPES } from '@/lib/constants';
-import type { Status } from '@/types';
 import { useCallback, useState, useTransition, useEffect, useRef } from 'react';
 
 // Date preset options
@@ -38,7 +37,8 @@ const DATE_PRESETS = [
 const YEARS = ['2025', '2026', '2027'];
 
 interface FilterBarProps {
-  statuses: Status[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  statuses: any[];
   currentView: 'active' | 'archived';
 }
 

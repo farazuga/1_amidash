@@ -20,7 +20,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { ExternalLink, MoreHorizontal, ArrowUpDown, Copy, Eye, Trash2, Globe } from 'lucide-react';
 import { format } from 'date-fns';
-import type { Status } from '@/types';
 import { StatusBadge } from './status-badge';
 import { toast } from 'sonner';
 import { useUser } from '@/hooks/use-user';
@@ -53,7 +52,8 @@ interface ProjectWithTags {
   scope_link: string | null;
   client_token: string | null;
   client_portal_url?: string | null;
-  current_status?: Status | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  current_status?: any;
   tags?: { tag: { id: string; name: string; color: string | null } }[];
 }
 

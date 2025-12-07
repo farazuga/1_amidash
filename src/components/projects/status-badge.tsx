@@ -1,9 +1,8 @@
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import type { Status } from '@/types';
 
 interface StatusBadgeProps {
-  status: Status | null | undefined;
+  status: { name: string } | null | undefined;
 }
 
 const statusColors: Record<string, string> = {

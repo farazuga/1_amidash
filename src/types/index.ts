@@ -21,6 +21,7 @@ export interface Status {
   name: string;
   display_order: number;
   require_note: boolean | null;
+  is_exception: boolean | null;
   is_active: boolean | null;
   created_at: string | null;
 }
@@ -147,6 +148,7 @@ export interface RevenueGoal {
   month: number;
   revenue_goal: number;
   projects_goal: number;
+  invoiced_revenue_goal: number;
   created_by: string | null;
   created_at: string | null;
   updated_at: string | null;

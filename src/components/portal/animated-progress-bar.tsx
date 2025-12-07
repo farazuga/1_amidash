@@ -3,12 +3,13 @@
 import { useSyncExternalStore } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import type { Status } from '@/types';
 import { statusColors } from './status-animations';
 
 interface AnimatedProgressBarProps {
-  currentStatus: Status | null;
-  statuses: Status[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  currentStatus: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  statuses: any[];
   isOnHold: boolean;
 }
 
@@ -88,8 +89,17 @@ export function AnimatedProgressBar({
 }: AnimatedProgressBarProps) {
   const mounted = useSyncExternalStore(emptySubscribe, getSnapshot, getServerSnapshot);
 
-  // Filter out Hold status for the progress display
-  const progressStatuses = statuses.filter((s) => s.name !== 'Hold');
+  // Filter out Hold status and exception statuses for the progress display
+  // Exception statuses are only shown if the current status IS an exception status
+  const progressStatuses = statuses.filter((s) => {
+    // Always filter out Hold
+    if (s.name === 'Hold') return false;
+    // If this status is an exception, only show it if it's the current status
+    if (s.is_exception) {
+      return currentStatus?.id === s.id;
+    }
+    return true;
+  });
 
   const currentIndex = currentStatus
     ? progressStatuses.findIndex((s) => s.id === currentStatus.id)

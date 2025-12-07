@@ -23,13 +23,19 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Status } from '@/types';
 import { updateProjectStatus } from '@/app/(dashboard)/projects/actions';
+
+// Use a flexible type that works with both old and new Status shapes
+interface StatusItem {
+  id: string;
+  name: string;
+  require_note?: boolean | null;
+}
 
 interface StatusChangeButtonProps {
   projectId: string;
   currentStatusId: string | null;
-  statuses: Status[];
+  statuses: StatusItem[];
   pocEmail: string | null;
   clientName: string;
   clientToken: string | null;

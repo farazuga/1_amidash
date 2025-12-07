@@ -10,6 +10,7 @@ import { AnimatedProgressBar } from '@/components/portal/animated-progress-bar';
 import { StatusTimeline } from '@/components/portal/status-timeline';
 import { StatusAnimation, statusColors, statusMessages } from '@/components/portal/status-animations';
 import { Mail, Phone, User, ArrowLeft } from 'lucide-react';
+import type { Status } from '@/types';
 
 async function getProject(projectId: string) {
   const supabase = await createClient();
@@ -95,11 +96,11 @@ export default async function CustomerProjectDetailPage({
         .map((pts: { status_id: string }) => pts.status_id)
     : [];
 
-  const filteredStatuses = project.project_type_id && allowedStatusIds.length > 0
+  const filteredStatuses = (project.project_type_id && allowedStatusIds.length > 0
     ? statuses.filter(s => allowedStatusIds.includes(s.id))
-    : statuses;
+    : statuses) as Status[];
 
-  const currentStatus = project.current_status;
+  const currentStatus = project.current_status as Status | null;
   const isOnHold = currentStatus?.name === 'Hold';
 
   return (

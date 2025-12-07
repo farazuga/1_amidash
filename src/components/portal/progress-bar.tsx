@@ -1,11 +1,12 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import type { Status } from '@/types';
 
 interface ProgressBarProps {
-  currentStatus: Status | null;
-  statuses: Status[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  currentStatus: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  statuses: any[];
   isOnHold: boolean;
 }
 

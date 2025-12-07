@@ -17,12 +17,13 @@ import { Loader2, Mail } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { CONTRACT_TYPES } from '@/lib/constants';
-import type { Project, Status, Tag, Profile, ProjectType } from '@/types';
+import type { Project, Tag, Profile, ProjectType } from '@/types';
 import { createProject } from '@/app/(dashboard)/projects/actions';
 
 interface ProjectFormProps {
   project?: Project;
-  statuses: Status[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  statuses: any[];
   tags: Tag[];
   projectTags?: string[];
   salespeople: Profile[];
