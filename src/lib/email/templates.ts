@@ -22,7 +22,7 @@ const BRAND_COLORS = {
   muted: '#999',
 };
 
-const LOGO_URL = 'https://dash.amitrace.com/Logo_TwoTone.png';
+const LOGO_URL = 'https://dash.amitrace.com/new_logo.png';
 
 interface BaseTemplateOptions {
   previewText?: string;

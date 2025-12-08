@@ -69,6 +69,7 @@ export function createProject(overrides: Partial<Project> = {}): Project {
     poc_name: 'John Doe',
     poc_email: 'john@acme.com',
     poc_phone: '555-1234',
+    secondary_poc_email: null,
     scope_link: 'https://example.com/scope',
     client_token: 'abc123',
     expected_update_date: null,
