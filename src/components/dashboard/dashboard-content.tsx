@@ -131,6 +131,18 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
     return sum + (h.project?.sales_amount || 0);
   }, 0), [invoicedInPeriod]);
 
+  // Projects created (POs received) in period
+  const projectsCreatedInPeriod = useMemo(() => projects.filter(p => {
+    if (!p.created_at) return false;
+    const createdAt = new Date(p.created_at);
+    return createdAt >= dateRange.start && createdAt <= dateRange.end;
+  }), [projects, dateRange]);
+
+  // Revenue from POs received in period
+  const posReceivedRevenue = useMemo(() => projectsCreatedInPeriod.reduce((sum, p) => {
+    return sum + (p.sales_amount || 0);
+  }, 0), [projectsCreatedInPeriod]);
+
   // Get goal for period - memoized (now includes invoiced_revenue_goal)
   const periodGoal = useMemo(() => {
     if (periodType === 'month') {
@@ -163,7 +175,7 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
       return { revenue, invoicedRevenue: invoicedRevenueGoal };
     }
   }, [periodType, selectedPeriod, goals]);
-  const revenueProgress = periodGoal.revenue > 0 ? Math.min((invoicedRevenue / periodGoal.revenue) * 100, 100) : 0;
+  const posReceivedProgress = periodGoal.revenue > 0 ? Math.min((posReceivedRevenue / periodGoal.revenue) * 100, 100) : 0;
   const invoicedRevenueProgress = periodGoal.invoicedRevenue > 0 ? Math.min((invoicedRevenue / periodGoal.invoicedRevenue) * 100, 100) : 0;
 
   // Overall stats - memoized calculations (only non-invoiced projects)
@@ -282,20 +294,20 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-2 gap-6">
-            {/* Revenue Goal Progress */}
+            {/* POs Received Progress */}
             <div className="space-y-3">
               <div className="flex justify-between items-baseline">
                 <span className="text-3xl font-bold text-[#023A2D]">
-                  ${invoicedRevenue.toLocaleString()}
+                  ${posReceivedRevenue.toLocaleString()}
                 </span>
                 <span className="text-sm text-muted-foreground">
                   of ${periodGoal.revenue.toLocaleString()} goal
                 </span>
               </div>
-              <Progress value={revenueProgress} className="h-3" />
+              <Progress value={posReceivedProgress} className="h-3" />
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Revenue Invoiced</span>
-                <span className="font-medium">{revenueProgress.toFixed(1)}%</span>
+                <span className="text-muted-foreground">POs Received</span>
+                <span className="font-medium">{posReceivedProgress.toFixed(1)}%</span>
               </div>
             </div>
 
