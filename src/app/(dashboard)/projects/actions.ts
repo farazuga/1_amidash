@@ -15,6 +15,7 @@ export interface CreateProjectData {
   poc_name: string | null;
   poc_email: string | null;
   poc_phone: string | null;
+  secondary_poc_email: string | null;
   scope_link: string | null;
   project_type_id: string;
   tags: string[];
@@ -93,6 +94,7 @@ export async function createProject(data: CreateProjectData): Promise<CreateProj
       poc_name: data.poc_name,
       poc_email: data.poc_email,
       poc_phone: data.poc_phone,
+      secondary_poc_email: data.secondary_poc_email,
       scope_link: data.scope_link,
       project_type_id: data.project_type_id,
       current_status_id: firstStatus.id,

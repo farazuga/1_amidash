@@ -20,6 +20,54 @@ import { CONTRACT_TYPES } from '@/lib/constants';
 import type { Project, Tag, Profile, ProjectType } from '@/types';
 import { createProject } from '@/app/(dashboard)/projects/actions';
 
+// Validation helpers
+function cleanSalesAmount(value: string): string {
+  // Remove $ and , characters, return cleaned number string
+  return value.replace(/[$,]/g, '').trim();
+}
+
+function validateEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+function formatPhoneNumber(phone: string): string {
+  // Extract digits only for the first 10 characters
+  const digits = phone.replace(/\D/g, '');
+
+  // If we have at least 10 digits, format the first 10 as xxx-xxx-xxxx
+  if (digits.length >= 10) {
+    const formatted = `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+    // Keep any remaining characters (for extensions like "ext 123" or "x123")
+    const remaining = phone.slice(phone.lastIndexOf(digits.slice(9, 10)) + 1).trim();
+    // Check if there are additional characters after the 10th digit in the original
+    const afterDigits = phone.replace(/^[\d\s\-().]+/, '').trim();
+    if (afterDigits) {
+      return `${formatted} ${afterDigits}`;
+    }
+    // If remaining digits exist beyond 10, add them as extension
+    if (digits.length > 10) {
+      return `${formatted} ext ${digits.slice(10)}`;
+    }
+    return formatted;
+  }
+
+  return phone; // Return as-is if less than 10 digits
+}
+
+function validateDateInRange(dateStr: string): boolean {
+  if (!dateStr) return true; // Empty is valid
+  const date = new Date(dateStr);
+  const year = date.getFullYear();
+  return year >= 2024 && year <= 2030;
+}
+
+function formatDateForInput(dateStr: string | null | undefined): string {
+  if (!dateStr) return '';
+  // Handle ISO date strings - extract just the date part (YYYY-MM-DD)
+  return dateStr.split('T')[0];
+}
+
 interface ProjectFormProps {
   project?: Project;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -57,6 +105,19 @@ export function ProjectForm({
   const [salesOrderError, setSalesOrderError] = useState<string | null>(null);
   const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState<boolean>(
     project?.email_notifications_enabled ?? true
+  );
+  const [pocPhone, setPocPhone] = useState<string>(project?.poc_phone || '');
+  const [salesAmount, setSalesAmount] = useState<string>(
+    project?.sales_amount?.toString() || ''
+  );
+  const [createdDate, setCreatedDate] = useState<string>(
+    formatDateForInput(project?.created_date) || new Date().toISOString().split('T')[0]
+  );
+  const [goalCompletionDate, setGoalCompletionDate] = useState<string>(
+    formatDateForInput(project?.goal_completion_date) || ''
+  );
+  const [secondaryPocEmail, setSecondaryPocEmail] = useState<string>(
+    project?.secondary_poc_email || ''
   );
 
   const isEditing = !!project;
@@ -105,22 +166,65 @@ export function ProjectForm({
       return;
     }
 
+    // Validate email format
+    if (!validateEmail(pocEmail)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    // Validate phone has at least 10 digits
+    const phoneDigits = pocPhone.replace(/\D/g, '');
+    if (phoneDigits.length < 10) {
+      toast.error('Phone number must have at least 10 digits');
+      return;
+    }
+
+    // Validate goal completion date range
+    if (goalCompletionDate && !validateDateInRange(goalCompletionDate)) {
+      toast.error('Goal completion date must be between 2024 and 2030');
+      return;
+    }
+
+    // Validate created date range (for editing)
+    if (createdDate && !validateDateInRange(createdDate)) {
+      toast.error('Created date must be between 2024 and 2030');
+      return;
+    }
+
+    // Format phone number
+    const formattedPhone = formatPhoneNumber(pocPhone);
+
+    // Clean and parse sales amount
+    const cleanedSalesAmount = cleanSalesAmount(salesAmount);
+    const parsedSalesAmount = cleanedSalesAmount ? parseFloat(cleanedSalesAmount) : null;
+
+    if (cleanedSalesAmount && (isNaN(parsedSalesAmount!) || parsedSalesAmount! < 0)) {
+      toast.error('Please enter a valid sales amount');
+      return;
+    }
+
+    // Validate secondary email format if provided
+    if (secondaryPocEmail && secondaryPocEmail.trim() && !validateEmail(secondaryPocEmail.trim())) {
+      toast.error('Please enter a valid secondary email address');
+      return;
+    }
+
     const data = {
       client_name: formData.get('client_name') as string,
       sales_order_number: salesOrderNumber?.trim() || null,
       sales_order_url: formData.get('sales_order_url') as string || null,
       po_number: formData.get('po_number') as string || null,
-      sales_amount: formData.get('sales_amount')
-        ? parseFloat(formData.get('sales_amount') as string)
-        : null,
+      sales_amount: parsedSalesAmount,
       contract_type: formData.get('contract_type') as string || 'None',
-      goal_completion_date: formData.get('goal_completion_date') as string || null,
+      goal_completion_date: goalCompletionDate || null,
       salesperson_id: selectedSalesperson,
       poc_name: formData.get('poc_name') as string || null,
       poc_email: formData.get('poc_email') as string || null,
-      poc_phone: formData.get('poc_phone') as string || null,
+      poc_phone: formattedPhone || null,
+      secondary_poc_email: secondaryPocEmail?.trim() || null,
       scope_link: formData.get('scope_link') as string || null,
       email_notifications_enabled: emailNotificationsEnabled,
+      ...(isEditing && { created_date: createdDate }),
     };
 
     setIsPending(true);
@@ -222,6 +326,7 @@ export function ProjectForm({
           poc_name: data.poc_name,
           poc_email: data.poc_email,
           poc_phone: data.poc_phone,
+          secondary_poc_email: data.secondary_poc_email,
           scope_link: data.scope_link,
           project_type_id: selectedProjectType,
           tags: selectedTags,
@@ -323,6 +428,25 @@ export function ProjectForm({
           )}
         </div>
 
+        {/* Created Date - only show when editing */}
+        {isEditing && (
+          <div className="space-y-2">
+            <Label htmlFor="created_date">Created Date</Label>
+            <Input
+              id="created_date"
+              name="created_date"
+              type="date"
+              min="2024-01-01"
+              max="2030-12-31"
+              value={createdDate}
+              onChange={(e) => setCreatedDate(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Original project creation date (2024-2030)
+            </p>
+          </div>
+        )}
+
         {/* Contract Type */}
         <div className="space-y-2">
           <Label htmlFor="contract_type">Contract Type</Label>
@@ -376,11 +500,26 @@ export function ProjectForm({
           <Input
             id="sales_amount"
             name="sales_amount"
-            type="number"
-            step="0.01"
-            min="0"
-            defaultValue={project?.sales_amount || ''}
+            type="text"
+            inputMode="decimal"
+            placeholder="0.00"
+            value={salesAmount}
+            onChange={(e) => {
+              // Allow digits, commas, dollar signs, and decimal point
+              const value = e.target.value;
+              setSalesAmount(value);
+            }}
+            onBlur={() => {
+              // Auto-clean on blur: remove $ and , and format
+              const cleaned = cleanSalesAmount(salesAmount);
+              if (cleaned && !isNaN(parseFloat(cleaned))) {
+                setSalesAmount(cleaned);
+              }
+            }}
           />
+          <p className="text-xs text-muted-foreground">
+            You can enter values like $1,234.56 - they will be cleaned automatically
+          </p>
         </div>
 
         {/* Sales Order Number */}
@@ -425,8 +564,14 @@ export function ProjectForm({
             id="goal_completion_date"
             name="goal_completion_date"
             type="date"
-            defaultValue={project?.goal_completion_date || ''}
+            min="2024-01-01"
+            max="2030-12-31"
+            value={goalCompletionDate}
+            onChange={(e) => setGoalCompletionDate(e.target.value)}
           />
+          <p className="text-xs text-muted-foreground">
+            Must be between 2024 and 2030
+          </p>
         </div>
 
         {/* Scope Link */}
@@ -471,10 +616,37 @@ export function ProjectForm({
               id="poc_phone"
               name="poc_phone"
               type="tel"
-              defaultValue={project?.poc_phone || ''}
+              placeholder="xxx-xxx-xxxx"
+              value={pocPhone}
+              onChange={(e) => setPocPhone(e.target.value)}
+              onBlur={() => {
+                // Auto-format on blur if we have enough digits
+                const digits = pocPhone.replace(/\D/g, '');
+                if (digits.length >= 10) {
+                  setPocPhone(formatPhoneNumber(pocPhone));
+                }
+              }}
               required
             />
+            <p className="text-xs text-muted-foreground">
+              Format: xxx-xxx-xxxx (extensions allowed, e.g., xxx-xxx-xxxx ext 123)
+            </p>
           </div>
+        </div>
+        {/* Secondary Email */}
+        <div className="mt-4 space-y-2">
+          <Label htmlFor="secondary_poc_email">Secondary Contact Email</Label>
+          <Input
+            id="secondary_poc_email"
+            name="secondary_poc_email"
+            type="email"
+            placeholder="secondary@company.com"
+            value={secondaryPocEmail}
+            onChange={(e) => setSecondaryPocEmail(e.target.value)}
+          />
+          <p className="text-xs text-muted-foreground">
+            Optional. If this email matches a customer account, they will also have access to view this project.
+          </p>
         </div>
       </div>
 

@@ -62,6 +62,7 @@ export interface Project {
   poc_name: string | null;
   poc_email: string | null;
   poc_phone: string | null;
+  secondary_poc_email: string | null;
   scope_link: string | null;
   client_token: string | null;
   client_portal_url?: string | null;
