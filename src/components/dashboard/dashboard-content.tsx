@@ -15,13 +15,12 @@ import {
 import {
   DollarSign,
   FolderKanban,
-  AlertTriangle,
   Clock,
   CheckCircle,
   ArrowRight,
   Calendar,
 } from 'lucide-react';
-import { LazyStatusChart, LazyRevenueChart } from '@/components/dashboard/lazy-charts';
+import { LazyRevenueChart } from '@/components/dashboard/lazy-charts';
 import { OverdueProjects } from '@/components/dashboard/overdue-projects';
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from 'date-fns';
 import type { DashboardData } from '@/app/actions/dashboard';
@@ -132,42 +131,62 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
     return sum + (h.project?.sales_amount || 0);
   }, 0), [invoicedInPeriod]);
 
-  // Get goal for period - memoized
+  // Projects created (POs received) in period
+  const projectsCreatedInPeriod = useMemo(() => projects.filter(p => {
+    if (!p.created_at) return false;
+    const createdAt = new Date(p.created_at);
+    return createdAt >= dateRange.start && createdAt <= dateRange.end;
+  }), [projects, dateRange]);
+
+  // Revenue from POs received in period
+  const posReceivedRevenue = useMemo(() => projectsCreatedInPeriod.reduce((sum, p) => {
+    return sum + (p.sales_amount || 0);
+  }, 0), [projectsCreatedInPeriod]);
+
+  // Get goal for period - memoized (now includes invoiced_revenue_goal)
   const periodGoal = useMemo(() => {
     if (periodType === 'month') {
       const [year, month] = selectedPeriod.split('-').map(Number);
       const goal = goals.find(g => g.year === year && g.month === month);
-      return { revenue: goal?.revenue_goal || 0, projects: goal?.projects_goal || 0 };
+      return {
+        revenue: goal?.revenue_goal || 0,
+        invoicedRevenue: goal?.invoiced_revenue_goal || 0
+      };
     } else if (periodType === 'quarter') {
       const [year, q] = selectedPeriod.split('-Q');
       const startMonth = (parseInt(q) - 1) * 3 + 1;
       let revenue = 0;
-      let projectsGoal = 0;
+      let invoicedRevenueGoal = 0;
       for (let m = startMonth; m < startMonth + 3; m++) {
         const goal = goals.find(g => g.year === parseInt(year) && g.month === m);
         revenue += goal?.revenue_goal || 0;
-        projectsGoal += goal?.projects_goal || 0;
+        invoicedRevenueGoal += goal?.invoiced_revenue_goal || 0;
       }
-      return { revenue, projects: projectsGoal };
+      return { revenue, invoicedRevenue: invoicedRevenueGoal };
     } else {
       const year = parseInt(selectedPeriod);
       let revenue = 0;
-      let projectsGoal = 0;
+      let invoicedRevenueGoal = 0;
       for (let m = 1; m <= 12; m++) {
         const goal = goals.find(g => g.year === year && g.month === m);
         revenue += goal?.revenue_goal || 0;
-        projectsGoal += goal?.projects_goal || 0;
+        invoicedRevenueGoal += goal?.invoiced_revenue_goal || 0;
       }
-      return { revenue, projects: projectsGoal };
+      return { revenue, invoicedRevenue: invoicedRevenueGoal };
     }
   }, [periodType, selectedPeriod, goals]);
-  const revenueProgress = periodGoal.revenue > 0 ? Math.min((invoicedRevenue / periodGoal.revenue) * 100, 100) : 0;
-  const projectsProgress = periodGoal.projects > 0 ? Math.min((invoicedInPeriod.length / periodGoal.projects) * 100, 100) : 0;
+  const posReceivedProgress = periodGoal.revenue > 0 ? Math.min((posReceivedRevenue / periodGoal.revenue) * 100, 100) : 0;
+  const invoicedRevenueProgress = periodGoal.invoicedRevenue > 0 ? Math.min((invoicedRevenue / periodGoal.invoicedRevenue) * 100, 100) : 0;
 
-  // Overall stats - memoized calculations
-  const totalRevenue = useMemo(() =>
-    projects.reduce((sum, p) => sum + (p.sales_amount || 0), 0),
-    [projects]
+  // Overall stats - memoized calculations (only non-invoiced projects)
+  const projectsInProgress = useMemo(() =>
+    projects.filter(p => p.current_status_id !== invoicedStatus?.id),
+    [projects, invoicedStatus]
+  );
+
+  const pipelineRevenue = useMemo(() =>
+    projectsInProgress.reduce((sum, p) => sum + (p.sales_amount || 0), 0),
+    [projectsInProgress]
   );
 
   const overdueProjects = useMemo(() => {
@@ -179,13 +198,6 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
       return new Date(p.goal_completion_date) < today;
     });
   }, [projects, invoicedStatus]);
-
-  // Projects by status - memoized
-  const projectsByStatus = useMemo(() => statuses.map(status => ({
-    name: status.name,
-    count: projects.filter(p => p.current_status_id === status.id).length,
-    color: `hsl(${status.display_order * 40}, 70%, 50%)`,
-  })), [statuses, projects]);
 
   // Revenue by month (next 6 months) - memoized
   const revenueByMonth = useMemo(() => {
@@ -236,8 +248,6 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
       : 0;
   }, [projects, statusHistory]);
 
-  const totalProjects = projects.length;
-
   return (
     <div className="space-y-4 md:space-y-6">
       {/* Header with Period Selector */}
@@ -284,52 +294,65 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-2 gap-6">
-            {/* Revenue Goal Progress */}
+            {/* POs Received Progress */}
+            <div className="space-y-3">
+              <div className="flex justify-between items-baseline">
+                <span className="text-3xl font-bold text-[#023A2D]">
+                  ${posReceivedRevenue.toLocaleString()}
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  of ${periodGoal.revenue.toLocaleString()} goal
+                </span>
+              </div>
+              <Progress value={posReceivedProgress} className="h-3" />
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">POs Received</span>
+                <span className="font-medium">{posReceivedProgress.toFixed(1)}%</span>
+              </div>
+            </div>
+
+            {/* Projects Invoiced Revenue Progress */}
             <div className="space-y-3">
               <div className="flex justify-between items-baseline">
                 <span className="text-3xl font-bold text-[#023A2D]">
                   ${invoicedRevenue.toLocaleString()}
                 </span>
                 <span className="text-sm text-muted-foreground">
-                  of ${periodGoal.revenue.toLocaleString()} goal
+                  of ${periodGoal.invoicedRevenue.toLocaleString()} goal
                 </span>
               </div>
-              <Progress value={revenueProgress} className="h-3" />
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Revenue Invoiced</span>
-                <span className="font-medium">{revenueProgress.toFixed(1)}%</span>
-              </div>
-            </div>
-
-            {/* Projects Goal Progress */}
-            <div className="space-y-3">
-              <div className="flex justify-between items-baseline">
-                <span className="text-3xl font-bold text-[#023A2D]">
-                  {invoicedInPeriod.length}
-                </span>
-                <span className="text-sm text-muted-foreground">
-                  of {periodGoal.projects} projects goal
-                </span>
-              </div>
-              <Progress value={projectsProgress} className="h-3" />
+              <Progress value={invoicedRevenueProgress} className="h-3" />
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Projects Invoiced</span>
-                <span className="font-medium">{projectsProgress.toFixed(1)}%</span>
+                <span className="font-medium">{invoicedRevenueProgress.toFixed(1)}%</span>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
+      {/* Overdue Projects - moved up */}
+      {overdueProjects.length > 0 && (
+        <OverdueProjects
+          projects={overdueProjects.map(p => ({
+            id: p.id,
+            client_name: p.client_name,
+            goal_completion_date: p.goal_completion_date || '',
+            sales_amount: p.sales_amount,
+            current_status: p.current_status,
+          }))}
+        />
+      )}
+
       {/* Stats Cards */}
-      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Projects</CardTitle>
+            <CardTitle className="text-sm font-medium">Projects In Progress</CardTitle>
             <FolderKanban className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalProjects}</div>
+            <div className="text-2xl font-bold">{projectsInProgress.length}</div>
           </CardContent>
         </Card>
 
@@ -340,19 +363,7 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${totalRevenue.toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Overdue</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-destructive" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">
-              {overdueProjects.length}
+              ${pipelineRevenue.toLocaleString()}
             </div>
           </CardContent>
         </Card>
@@ -369,24 +380,6 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
           </CardContent>
         </Card>
       </div>
-
-      {/* Projects by Status */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Projects by Status</CardTitle>
-          <CardDescription>Current status distribution</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-3">
-            {projectsByStatus.filter(s => s.count > 0).map(status => (
-              <div key={status.name} className="flex items-center gap-2 px-3 py-2 bg-muted/50 rounded-lg">
-                <span className="font-medium">{status.name}</span>
-                <Badge variant="secondary">{status.count}</Badge>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Recent Activity */}
       <div className="grid gap-4 md:grid-cols-2">
@@ -469,41 +462,16 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
         </Card>
       </div>
 
-      {/* Charts */}
-      <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Projects by Status</CardTitle>
-            <CardDescription>Distribution of projects across statuses</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <LazyStatusChart data={projectsByStatus} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Revenue Pipeline</CardTitle>
-            <CardDescription>Expected revenue by month (based on goal dates)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <LazyRevenueChart data={revenueByMonth} />
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Overdue Projects */}
-      {overdueProjects.length > 0 && (
-        <OverdueProjects
-          projects={overdueProjects.map(p => ({
-            id: p.id,
-            client_name: p.client_name,
-            goal_completion_date: p.goal_completion_date || '',
-            sales_amount: p.sales_amount,
-            current_status: p.current_status,
-          }))}
-        />
-      )}
+      {/* Revenue Pipeline Chart */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Revenue Pipeline</CardTitle>
+          <CardDescription>Expected revenue by month (based on goal dates)</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <LazyRevenueChart data={revenueByMonth} />
+        </CardContent>
+      </Card>
     </div>
   );
 }

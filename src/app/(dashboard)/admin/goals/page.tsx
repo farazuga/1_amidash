@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, DollarSign, Target, Save, Copy, Receipt } from 'lucide-react';
+import { Loader2, DollarSign, Target, Save, Copy, Receipt, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import type { RevenueGoal } from '@/types';
 
@@ -28,12 +28,17 @@ interface InvoicedRevenueData {
   [month: number]: number;
 }
 
+interface ProjectedRevenueData {
+  [month: number]: number;
+}
+
 export default function RevenueGoalsPage() {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<string>(String(currentYear));
   const [goals, setGoals] = useState<RevenueGoal[]>([]);
   const [formData, setFormData] = useState<GoalFormData>({});
   const [invoicedRevenue, setInvoicedRevenue] = useState<InvoicedRevenueData>({});
+  const [projectedRevenue, setProjectedRevenue] = useState<ProjectedRevenueData>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
   const supabase = createClient();
@@ -44,6 +49,7 @@ export default function RevenueGoalsPage() {
   useEffect(() => {
     loadGoals();
     loadInvoicedRevenue();
+    loadProjectedRevenue();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedYear]);
 
@@ -134,6 +140,33 @@ export default function RevenueGoalsPage() {
     setInvoicedRevenue(monthlyRevenue);
   };
 
+  const loadProjectedRevenue = async () => {
+    // Get all projects with goal_completion_date in the selected year
+    const startDate = `${selectedYear}-01-01`;
+    const endDate = `${selectedYear}-12-31`;
+
+    const { data: projectsData } = await supabase
+      .from('projects')
+      .select('id, sales_amount, goal_completion_date')
+      .gte('goal_completion_date', startDate)
+      .lte('goal_completion_date', endDate);
+
+    // Group by month and calculate total projected revenue
+    const monthlyProjected: ProjectedRevenueData = {};
+
+    if (projectsData) {
+      for (const project of projectsData) {
+        if (!project.goal_completion_date) continue;
+        const date = new Date(project.goal_completion_date);
+        const month = date.getMonth() + 1;
+        const salesAmount = project.sales_amount || 0;
+        monthlyProjected[month] = (monthlyProjected[month] || 0) + salesAmount;
+      }
+    }
+
+    setProjectedRevenue(monthlyProjected);
+  };
+
   const handleInputChange = (month: number, field: 'revenue' | 'invoicedRevenue', value: string) => {
     setFormData(prev => ({
       ...prev,
@@ -218,13 +251,15 @@ export default function RevenueGoalsPage() {
     let revenue = 0;
     let invoicedRevenueTotal = 0;
     let actualInvoiced = 0;
+    let projected = 0;
     for (let i = 0; i < 3; i++) {
       const month = startMonth + i;
       revenue += parseFloat(formData[month]?.revenue || '0') || 0;
       invoicedRevenueTotal += parseFloat(formData[month]?.invoicedRevenue || '0') || 0;
       actualInvoiced += invoicedRevenue[month] || 0;
+      projected += projectedRevenue[month] || 0;
     }
-    return { revenue, invoicedRevenue: invoicedRevenueTotal, actualInvoiced };
+    return { revenue, invoicedRevenue: invoicedRevenueTotal, actualInvoiced, projected };
   };
 
   // Calculate yearly total
@@ -232,12 +267,14 @@ export default function RevenueGoalsPage() {
     let revenue = 0;
     let invoicedRevenueTotal = 0;
     let actualInvoiced = 0;
+    let projected = 0;
     for (let month = 1; month <= 12; month++) {
       revenue += parseFloat(formData[month]?.revenue || '0') || 0;
       invoicedRevenueTotal += parseFloat(formData[month]?.invoicedRevenue || '0') || 0;
       actualInvoiced += invoicedRevenue[month] || 0;
+      projected += projectedRevenue[month] || 0;
     }
-    return { revenue, invoicedRevenue: invoicedRevenueTotal, actualInvoiced };
+    return { revenue, invoicedRevenue: invoicedRevenueTotal, actualInvoiced, projected };
   };
 
   if (isLoading) {
@@ -283,7 +320,7 @@ export default function RevenueGoalsPage() {
             {/* Yearly Summary - Compact */}
             <Card className="border-[#023A2D]/20">
               <CardContent className="py-3">
-                <div className="grid grid-cols-3 md:grid-cols-7 gap-2">
+                <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
                   <div className="p-2 bg-muted/50 rounded-lg">
                     <div className="flex items-center gap-1 text-xs text-muted-foreground mb-0.5">
                       <DollarSign className="h-3 w-3" />
@@ -311,6 +348,15 @@ export default function RevenueGoalsPage() {
                       ${yearlyTotal.actualInvoiced.toLocaleString()}
                     </div>
                   </div>
+                  <div className="p-2 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center gap-1 text-xs text-blue-600 mb-0.5">
+                      <TrendingUp className="h-3 w-3" />
+                      Projected
+                    </div>
+                    <div className="text-lg font-bold text-blue-700">
+                      ${yearlyTotal.projected.toLocaleString()}
+                    </div>
+                  </div>
                   {QUARTERS.map((q, i) => {
                     const total = getQuarterlyTotal(i + 1);
                     return (
@@ -321,6 +367,9 @@ export default function RevenueGoalsPage() {
                         </div>
                         <div className="text-xs text-green-600">
                           ${total.actualInvoiced.toLocaleString()}
+                        </div>
+                        <div className="text-xs text-blue-600">
+                          ${total.projected.toLocaleString()}
                         </div>
                       </div>
                     );
@@ -335,6 +384,7 @@ export default function RevenueGoalsPage() {
                 const month = index + 1;
                 const isCurrentMonth = parseInt(year) === currentYear && month === new Date().getMonth() + 1;
                 const actualInvoicedForMonth = invoicedRevenue[month] || 0;
+                const projectedForMonth = projectedRevenue[month] || 0;
 
                 return (
                   <Card
@@ -382,8 +432,8 @@ export default function RevenueGoalsPage() {
                           onChange={(e) => handleInputChange(month, 'invoicedRevenue', e.target.value)}
                         />
                       </div>
-                      {/* Actual Invoiced Revenue with Copy Button */}
-                      <div className="pt-1 border-t">
+                      {/* Actual Invoiced & Projected Revenue */}
+                      <div className="pt-1 border-t space-y-1">
                         <div className="flex items-center justify-between">
                           <div>
                             <div className="text-[10px] text-muted-foreground">Actual Invoiced</div>
@@ -402,6 +452,12 @@ export default function RevenueGoalsPage() {
                               <Copy className="h-3 w-3" />
                             </Button>
                           )}
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-muted-foreground">Projected (by goal date)</div>
+                          <div className="text-sm font-semibold text-blue-600">
+                            ${projectedForMonth.toLocaleString()}
+                          </div>
                         </div>
                       </div>
                     </CardContent>
