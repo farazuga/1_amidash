@@ -128,6 +128,22 @@ export function ProjectForm({
       const supabase = createClient();
 
       if (isEditing) {
+        // Check if sales order number is already used by another project
+        if (data.sales_order_number && data.sales_order_number !== project.sales_order_number) {
+          const { data: existingProject } = await supabase
+            .from('projects')
+            .select('id, client_name')
+            .eq('sales_order_number', data.sales_order_number)
+            .neq('id', project.id)
+            .maybeSingle();
+
+          if (existingProject) {
+            toast.error(`Sales Order # ${data.sales_order_number} is already used by project "${existingProject.client_name}"`);
+            setIsPending(false);
+            return;
+          }
+        }
+
         // Get old values for audit
         const oldProject = project;
 

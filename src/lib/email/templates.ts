@@ -22,7 +22,7 @@ const BRAND_COLORS = {
   muted: '#999',
 };
 
-const LOGO_URL = 'https://www.amitrace.com/Logo_TwoTone.png';
+const LOGO_URL = 'https://dash.amitrace.com/Logo_TwoTone.png';
 
 interface BaseTemplateOptions {
   previewText?: string;
@@ -36,22 +36,39 @@ function baseTemplate(content: string, options: BaseTemplateOptions = {}): strin
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         ${options.previewText ? `<meta name="x-apple-data-detectors" content="none">` : ''}
+        <!--[if mso]>
+        <style type="text/css">
+          body, table, td { font-family: Arial, sans-serif !important; }
+        </style>
+        <![endif]-->
       </head>
       <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: ${BRAND_COLORS.background};">
         ${options.previewText ? `<div style="display: none; max-height: 0; overflow: hidden;">${options.previewText}</div>` : ''}
-        <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px 10px;">
           <!-- Header -->
-          <div style="background-color: ${BRAND_COLORS.primary}; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-            <img src="${LOGO_URL}" alt="Amitrace" style="height: 40px; filter: brightness(0) invert(1);">
+          <div style="background-color: ${BRAND_COLORS.primary}; padding: 25px 20px; text-align: center; border-radius: 8px 8px 0 0;">
+            <!--[if mso]>
+            <table role="presentation" width="100%"><tr><td style="text-align: center; padding: 10px;">
+              <span style="font-size: 24px; font-weight: bold; color: white;">Amitrace</span>
+            </td></tr></table>
+            <![endif]-->
+            <!--[if !mso]><!-->
+            <img src="${LOGO_URL}" alt="Amitrace" style="height: 40px; max-width: 200px;">
+            <!--<![endif]-->
           </div>
 
           <!-- Content -->
-          <div style="background-color: white; padding: 40px 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <div style="background-color: white; padding: 30px 20px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
             ${content}
           </div>
 
           <!-- Footer -->
-          <div style="text-align: center; padding: 20px; color: ${BRAND_COLORS.muted}; font-size: 12px;">
+          <div style="text-align: center; padding: 20px 10px; color: ${BRAND_COLORS.muted}; font-size: 12px;">
+            <p style="margin: 0 0 15px 0;">
+              <a href="https://www.amitrace.com" style="color: ${BRAND_COLORS.primary}; text-decoration: none; margin: 0 8px;">Website</a>
+              &bull;
+              <a href="https://www.linkedin.com/company/amitrace" style="color: ${BRAND_COLORS.primary}; text-decoration: none; margin: 0 8px;">LinkedIn</a>
+            </p>
             <p style="margin: 0;">&copy; ${new Date().getFullYear()} Amitrace. All rights reserved.</p>
           </div>
         </div>
@@ -129,7 +146,7 @@ export function statusChangeEmail(options: StatusChangeEmailOptions): string {
     ${button('View Project Status', portalUrl)}
 
     <p style="color: ${BRAND_COLORS.muted}; font-size: 14px; text-align: center; margin: 30px 0 0 0;">
-      Questions? Reply to this email or contact us at support@amitrace.com
+      Questions? Please email your project manager <a href="mailto:jason@amitrace.com" style="color: ${BRAND_COLORS.primary};">jason@amitrace.com</a>
     </p>
   `;
 
@@ -189,7 +206,7 @@ export function welcomeEmail(options: WelcomeEmailOptions): string {
 
     <p style="color: ${BRAND_COLORS.muted}; font-size: 14px; text-align: center; margin: 30px 0 0 0;">
       You'll receive email updates whenever your project status changes.<br>
-      Questions? Reply to this email or contact us at support@amitrace.com
+      Questions? Please email your project manager <a href="mailto:jason@amitrace.com" style="color: ${BRAND_COLORS.primary};">jason@amitrace.com</a>
     </p>
   `;
 

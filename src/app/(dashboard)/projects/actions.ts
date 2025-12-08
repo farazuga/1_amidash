@@ -37,6 +37,22 @@ export async function createProject(data: CreateProjectData): Promise<CreateProj
     return { success: false, error: 'Authentication required' };
   }
 
+  // Check if sales order number is already in use
+  if (data.sales_order_number && data.sales_order_number.trim()) {
+    const { data: existingProject } = await supabase
+      .from('projects')
+      .select('id, client_name')
+      .eq('sales_order_number', data.sales_order_number.trim())
+      .maybeSingle();
+
+    if (existingProject) {
+      return {
+        success: false,
+        error: `Sales Order # ${data.sales_order_number} is already used by project "${existingProject.client_name}"`
+      };
+    }
+  }
+
   // Get first status for the selected project type
   const { data: projectTypeStatuses } = await supabase
     .from('project_type_statuses')
