@@ -32,6 +32,7 @@ export interface DashboardRevenueGoal {
   month: number;
   revenue_goal: number;
   projects_goal: number;
+  invoiced_revenue_goal: number;
 }
 
 export interface DashboardData {
