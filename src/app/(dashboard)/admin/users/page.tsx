@@ -485,19 +485,17 @@ export default function UsersAdminPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
-                      {user.role === 'customer' && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setUserToResetPassword(user);
-                            setResetPasswordDialogOpen(true);
-                          }}
-                          title="Reset password"
-                        >
-                          <KeyRound className="h-4 w-4" />
-                        </Button>
-                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setUserToResetPassword(user);
+                          setResetPasswordDialogOpen(true);
+                        }}
+                        title="Set password"
+                      >
+                        <KeyRound className="h-4 w-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
