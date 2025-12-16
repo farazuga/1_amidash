@@ -27,10 +27,12 @@ import {
   sortEventsByStatus,
   convertToCalendarEvents,
 } from '@/lib/calendar/utils';
-import { useCalendarData, useAdminUsers, useCreateAssignment } from '@/hooks/queries/use-assignments';
+import { useCalendarData, useAssignableUsers, useCreateAssignment } from '@/hooks/queries/use-assignments';
 import type { CalendarEvent, BookingStatus } from '@/types/calendar';
 import type { Project } from '@/types';
-import { Loader2 } from 'lucide-react';
+import { Loader2, LayoutGrid, GanttChart } from 'lucide-react';
+import { GanttCalendar } from './gantt-calendar';
+import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
 interface ProjectCalendarProps {
@@ -44,6 +46,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [assignmentDialogOpen, setAssignmentDialogOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [viewMode, setViewMode] = useState<'calendar' | 'gantt'>('calendar');
   const [activeDragData, setActiveDragData] = useState<{
     userId: string;
     userName: string | null;
@@ -56,7 +59,8 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
     projectId: project?.id,
   });
 
-  const { data: adminUsers = [], isLoading: isLoadingUsers } = useAdminUsers();
+  // Use assignable users instead of just admin users
+  const { data: assignableUsers = [], isLoading: isLoadingUsers } = useAssignableUsers();
   const createAssignment = useCreateAssignment();
 
   // Convert assignments to calendar events
@@ -205,19 +209,48 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
     </div>
   );
 
+  // View toggle buttons
+  const viewToggle = enableDragDrop && (
+    <div className="flex items-center gap-1 border rounded-lg p-1">
+      <Button
+        variant={viewMode === 'calendar' ? 'secondary' : 'ghost'}
+        size="sm"
+        className="h-7 gap-1"
+        onClick={() => setViewMode('calendar')}
+      >
+        <LayoutGrid className="h-3.5 w-3.5" />
+        Calendar
+      </Button>
+      <Button
+        variant={viewMode === 'gantt' ? 'secondary' : 'ghost'}
+        size="sm"
+        className="h-7 gap-1"
+        onClick={() => setViewMode('gantt')}
+      >
+        <GanttChart className="h-3.5 w-3.5" />
+        Gantt
+      </Button>
+    </div>
+  );
+
   const calendarContent = (
     <div className="flex-1 space-y-4">
-      <div className="flex items-center justify-between">
-        <CalendarHeader
-          currentDate={currentDate}
-          onPreviousMonth={handlePreviousMonth}
-          onNextMonth={handleNextMonth}
-          onToday={handleToday}
-        />
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <CalendarHeader
+            currentDate={currentDate}
+            onPreviousMonth={handlePreviousMonth}
+            onNextMonth={handleNextMonth}
+            onToday={handleToday}
+          />
+          {viewToggle}
+        </div>
         <CalendarLegend />
       </div>
 
-      {isLoading ? (
+      {viewMode === 'gantt' && project ? (
+        <GanttCalendar projectId={project.id} projectName={project.client_name} />
+      ) : isLoading ? (
         <div className="flex items-center justify-center h-[500px]">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
@@ -249,7 +282,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
       <div className="flex">
         {calendarContent}
         <AssignmentSidebar
-          users={adminUsers}
+          users={assignableUsers}
           isLoading={isLoadingUsers}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}

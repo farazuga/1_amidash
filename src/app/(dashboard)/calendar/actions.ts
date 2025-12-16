@@ -6,6 +6,9 @@ import type {
   BookingStatus,
   ProjectAssignment,
   AssignmentExcludedDate,
+  AssignmentDay,
+  AssignmentBlock,
+  GanttAssignment,
   BookingConflict,
   ConflictCheckResult,
   CalendarAssignmentResult,
@@ -734,4 +737,480 @@ export async function deleteCalendarSubscription(subscriptionId: string): Promis
   }
 
   return { success: true };
+}
+
+// ============================================
+// Assignment Days operations (new model)
+// ============================================
+
+/**
+ * Add days to an assignment with start/end times
+ */
+export async function addAssignmentDays(data: {
+  assignmentId: string;
+  days: { date: string; startTime: string; endTime: string }[];
+}): Promise<ActionResult<AssignmentDay[]>> {
+  const { error: authError, supabase, user } = await requireAdmin();
+  if (authError || !supabase || !user) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  if (data.days.length === 0) {
+    return { success: false, error: 'No days provided' };
+  }
+
+  // Validate time order for each day
+  for (const day of data.days) {
+    if (day.endTime <= day.startTime) {
+      return { success: false, error: `End time must be after start time for ${day.date}` };
+    }
+  }
+
+  const assignmentDays = data.days.map(day => ({
+    assignment_id: data.assignmentId,
+    work_date: day.date,
+    start_time: day.startTime,
+    end_time: day.endTime,
+    created_by: user.id,
+  }));
+
+  // Type assertion needed until migration runs and types are regenerated
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: inserted, error: insertError } = await (supabase as any)
+    .from('assignment_days')
+    .insert(assignmentDays)
+    .select();
+
+  if (insertError) {
+    if (insertError.code === '23505') {
+      return { success: false, error: 'Some days are already scheduled for this assignment' };
+    }
+    console.error('Assignment days insert error:', insertError);
+    return { success: false, error: 'Failed to add assignment days' };
+  }
+
+  revalidatePath('/calendar');
+  revalidatePath('/my-schedule');
+
+  return { success: true, data: inserted as AssignmentDay[] };
+}
+
+/**
+ * Update times for a specific assignment day
+ */
+export async function updateAssignmentDay(data: {
+  dayId: string;
+  startTime: string;
+  endTime: string;
+}): Promise<ActionResult> {
+  const { error: authError, supabase } = await requireAdmin();
+  if (authError || !supabase) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  if (data.endTime <= data.startTime) {
+    return { success: false, error: 'End time must be after start time' };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: updateError } = await (supabase as any)
+    .from('assignment_days')
+    .update({
+      start_time: data.startTime,
+      end_time: data.endTime,
+    })
+    .eq('id', data.dayId);
+
+  if (updateError) {
+    console.error('Assignment day update error:', updateError);
+    return { success: false, error: 'Failed to update assignment day' };
+  }
+
+  revalidatePath('/calendar');
+  revalidatePath('/my-schedule');
+
+  return { success: true };
+}
+
+/**
+ * Remove specific days from an assignment
+ */
+export async function removeAssignmentDays(dayIds: string[]): Promise<ActionResult> {
+  const { error: authError, supabase } = await requireAdmin();
+  if (authError || !supabase) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  if (dayIds.length === 0) {
+    return { success: false, error: 'No day IDs provided' };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: deleteError } = await (supabase as any)
+    .from('assignment_days')
+    .delete()
+    .in('id', dayIds);
+
+  if (deleteError) {
+    console.error('Assignment days delete error:', deleteError);
+    return { success: false, error: 'Failed to remove assignment days' };
+  }
+
+  revalidatePath('/calendar');
+  revalidatePath('/my-schedule');
+
+  return { success: true };
+}
+
+/**
+ * Get all days for an assignment
+ */
+export async function getAssignmentDays(assignmentId: string): Promise<ActionResult<AssignmentDay[]>> {
+  const { error: authError, supabase } = await getAuthenticatedClient();
+  if (authError || !supabase) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from('assignment_days')
+    .select('*')
+    .eq('assignment_id', assignmentId)
+    .order('work_date', { ascending: true });
+
+  if (error) {
+    console.error('Get assignment days error:', error);
+    return { success: false, error: 'Failed to fetch assignment days' };
+  }
+
+  return { success: true, data: data as AssignmentDay[] };
+}
+
+// ============================================
+// Status cycling (click-to-toggle)
+// ============================================
+
+const STATUS_CYCLE: BookingStatus[] = ['pencil', 'pending_confirm', 'confirmed'];
+
+/**
+ * Cycle assignment status: pencil → pending_confirm → confirmed → pencil
+ */
+export async function cycleAssignmentStatus(assignmentId: string): Promise<ActionResult<{ newStatus: BookingStatus }>> {
+  const { error: authError, supabase, user } = await requireAdmin();
+  if (authError || !supabase || !user) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  // Get current assignment
+  const { data: currentAssignment } = await supabase
+    .from('project_assignments')
+    .select('id, booking_status, project_id')
+    .eq('id', assignmentId)
+    .single();
+
+  if (!currentAssignment) {
+    return { success: false, error: 'Assignment not found' };
+  }
+
+  // Calculate next status
+  const currentIndex = STATUS_CYCLE.indexOf(currentAssignment.booking_status as BookingStatus);
+  const nextIndex = (currentIndex + 1) % STATUS_CYCLE.length;
+  const newStatus = STATUS_CYCLE[nextIndex];
+
+  // Update the assignment
+  const { error: updateError } = await supabase
+    .from('project_assignments')
+    .update({ booking_status: newStatus })
+    .eq('id', assignmentId);
+
+  if (updateError) {
+    console.error('Assignment status cycle error:', updateError);
+    return { success: false, error: 'Failed to update assignment status' };
+  }
+
+  // Record in history
+  await supabase.from('booking_status_history').insert({
+    assignment_id: assignmentId,
+    old_status: currentAssignment.booking_status,
+    new_status: newStatus,
+    changed_by: user.id,
+    note: 'Status cycled via click',
+  });
+
+  revalidatePath('/calendar');
+  revalidatePath(`/projects/${currentAssignment.project_id}`);
+  revalidatePath('/my-schedule');
+
+  return { success: true, data: { newStatus } };
+}
+
+// ============================================
+// Assignable users
+// ============================================
+
+/**
+ * Get users who can be assigned to projects (is_assignable = true)
+ */
+export async function getAssignableUsers(): Promise<ActionResult<{ id: string; email: string; full_name: string | null }[]>> {
+  const { error: authError, supabase } = await getAuthenticatedClient();
+  if (authError || !supabase) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, email, full_name')
+    .eq('is_assignable', true)
+    .order('full_name', { ascending: true });
+
+  if (error) {
+    console.error('Get assignable users error:', error);
+    return { success: false, error: 'Failed to fetch assignable users' };
+  }
+
+  return { success: true, data: data || [] };
+}
+
+/**
+ * Update a user's assignable status
+ */
+export async function updateUserAssignable(data: {
+  userId: string;
+  isAssignable: boolean;
+}): Promise<ActionResult> {
+  const { error: authError, supabase } = await requireAdmin();
+  if (authError || !supabase) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: updateError } = await (supabase as any)
+    .from('profiles')
+    .update({ is_assignable: data.isAssignable })
+    .eq('id', data.userId);
+
+  if (updateError) {
+    console.error('Update user assignable error:', updateError);
+    return { success: false, error: 'Failed to update user assignable status' };
+  }
+
+  revalidatePath('/admin/users');
+  revalidatePath('/calendar');
+
+  return { success: true };
+}
+
+// ============================================
+// Gantt data operations
+// ============================================
+
+/**
+ * Helper function to group consecutive days into blocks
+ */
+function groupDaysIntoBlocks(days: AssignmentDay[]): AssignmentBlock[] {
+  if (days.length === 0) return [];
+
+  // Sort days by date
+  const sortedDays = [...days].sort((a, b) =>
+    new Date(a.work_date).getTime() - new Date(b.work_date).getTime()
+  );
+
+  const blocks: AssignmentBlock[] = [];
+  let currentBlock: AssignmentDay[] = [sortedDays[0]];
+
+  for (let i = 1; i < sortedDays.length; i++) {
+    const prevDate = new Date(sortedDays[i - 1].work_date);
+    const currDate = new Date(sortedDays[i].work_date);
+
+    // Check if dates are consecutive (1 day apart)
+    const diffDays = Math.floor((currDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 1) {
+      // Consecutive day, add to current block
+      currentBlock.push(sortedDays[i]);
+    } else {
+      // Gap found, finish current block and start new one
+      blocks.push({
+        startDate: currentBlock[0].work_date,
+        endDate: currentBlock[currentBlock.length - 1].work_date,
+        days: currentBlock,
+      });
+      currentBlock = [sortedDays[i]];
+    }
+  }
+
+  // Add the last block
+  blocks.push({
+    startDate: currentBlock[0].work_date,
+    endDate: currentBlock[currentBlock.length - 1].work_date,
+    days: currentBlock,
+  });
+
+  return blocks;
+}
+
+/**
+ * Get assignment with days grouped into blocks for Gantt display
+ */
+export async function getAssignmentWithDays(assignmentId: string): Promise<ActionResult<ProjectAssignment & { days: AssignmentDay[] }>> {
+  const { error: authError, supabase } = await getAuthenticatedClient();
+  if (authError || !supabase) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from('project_assignments')
+    .select(`
+      *,
+      project:projects(id, client_name, start_date, end_date),
+      user:profiles!user_id(id, email, full_name),
+      days:assignment_days(*)
+    `)
+    .eq('id', assignmentId)
+    .single();
+
+  if (error) {
+    console.error('Get assignment with days error:', error);
+    return { success: false, error: 'Failed to fetch assignment' };
+  }
+
+  return { success: true, data: data as unknown as ProjectAssignment & { days: AssignmentDay[] } };
+}
+
+/**
+ * Get all assignments for a project formatted for Gantt display
+ */
+export async function getProjectAssignmentsForGantt(projectId: string): Promise<ActionResult<GanttAssignment[]>> {
+  const { error: authError, supabase } = await getAuthenticatedClient();
+  if (authError || !supabase) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from('project_assignments')
+    .select(`
+      *,
+      project:projects(id, client_name),
+      user:profiles!user_id(id, email, full_name),
+      days:assignment_days(*)
+    `)
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Get project assignments for Gantt error:', error);
+    return { success: false, error: 'Failed to fetch assignments' };
+  }
+
+  // Transform into GanttAssignment format
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ganttAssignments: GanttAssignment[] = (data || []).map((assignment: any) => {
+    const days = (assignment.days || []) as AssignmentDay[];
+    const blocks = groupDaysIntoBlocks(days);
+    const user = assignment.user as { id: string; email: string; full_name: string | null } | null;
+    const project = assignment.project as { id: string; client_name: string } | null;
+
+    return {
+      id: `gantt-${assignment.id}`,
+      assignmentId: assignment.id,
+      userId: assignment.user_id,
+      userName: user?.full_name || user?.email || 'Unknown',
+      projectId: assignment.project_id,
+      projectName: project?.client_name || 'Unknown Project',
+      bookingStatus: assignment.booking_status as BookingStatus,
+      notes: assignment.notes,
+      blocks,
+    };
+  });
+
+  return { success: true, data: ganttAssignments };
+}
+
+/**
+ * Get Gantt data for a date range (all projects, all users)
+ */
+export async function getGanttDataForRange(params: {
+  startDate: string;
+  endDate: string;
+  userId?: string;
+}): Promise<ActionResult<GanttAssignment[]>> {
+  const { error: authError, supabase } = await getAuthenticatedClient();
+  if (authError || !supabase) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  // First get all assignment days in the range
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const daysQuery = (supabase as any)
+    .from('assignment_days')
+    .select('assignment_id')
+    .gte('work_date', params.startDate)
+    .lte('work_date', params.endDate);
+
+  const { data: daysInRange, error: daysError } = await daysQuery;
+
+  if (daysError) {
+    console.error('Get days in range error:', daysError);
+    return { success: false, error: 'Failed to fetch assignment days' };
+  }
+
+  if (!daysInRange || daysInRange.length === 0) {
+    return { success: true, data: [] };
+  }
+
+  // Get unique assignment IDs
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const assignmentIds = [...new Set(daysInRange.map((d: any) => d.assignment_id))];
+
+  // Fetch full assignments with user filtering if needed
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let assignmentsQuery = (supabase as any)
+    .from('project_assignments')
+    .select(`
+      *,
+      project:projects(id, client_name),
+      user:profiles!user_id(id, email, full_name),
+      days:assignment_days(*)
+    `)
+    .in('id', assignmentIds);
+
+  if (params.userId) {
+    assignmentsQuery = assignmentsQuery.eq('user_id', params.userId);
+  }
+
+  const { data, error } = await assignmentsQuery;
+
+  if (error) {
+    console.error('Get assignments for Gantt range error:', error);
+    return { success: false, error: 'Failed to fetch assignments' };
+  }
+
+  // Transform into GanttAssignment format
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ganttAssignments: GanttAssignment[] = (data || []).map((assignment: any) => {
+    const days = (assignment.days || []) as AssignmentDay[];
+    // Filter days to only include those in the requested range
+    const filteredDays = days.filter(d =>
+      d.work_date >= params.startDate && d.work_date <= params.endDate
+    );
+    const blocks = groupDaysIntoBlocks(filteredDays);
+    const user = assignment.user as { id: string; email: string; full_name: string | null } | null;
+    const project = assignment.project as { id: string; client_name: string } | null;
+
+    return {
+      id: `gantt-${assignment.id}`,
+      assignmentId: assignment.id,
+      userId: assignment.user_id,
+      userName: user?.full_name || user?.email || 'Unknown',
+      projectId: assignment.project_id,
+      projectName: project?.client_name || 'Unknown Project',
+      bookingStatus: assignment.booking_status as BookingStatus,
+      notes: assignment.notes,
+      blocks,
+    };
+  });
+
+  return { success: true, data: ganttAssignments };
 }

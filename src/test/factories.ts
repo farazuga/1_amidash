@@ -8,6 +8,7 @@ export function createProfile(overrides: Partial<Profile> = {}): Profile {
     full_name: 'Test User',
     role: 'viewer',
     is_salesperson: false,
+    is_assignable: false,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,

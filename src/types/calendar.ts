@@ -43,10 +43,11 @@ export interface ProjectAssignment {
   project?: Project;
   user?: Profile;
   excluded_dates?: AssignmentExcludedDate[];
+  days?: AssignmentDay[];  // New: per-day time tracking
   created_by_profile?: Profile;
 }
 
-// Days excluded from an assignment
+// Days excluded from an assignment (legacy - kept for backward compatibility)
 export interface AssignmentExcludedDate {
   id: string;
   assignment_id: string;
@@ -56,6 +57,41 @@ export interface AssignmentExcludedDate {
   created_at: string;
   // Joined relations
   created_by_profile?: Profile;
+}
+
+// Assignment day with start/end times (new model)
+export interface AssignmentDay {
+  id: string;
+  assignment_id: string;
+  work_date: string;  // YYYY-MM-DD
+  start_time: string; // HH:MM:SS
+  end_time: string;   // HH:MM:SS
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined relations
+  created_by_profile?: Profile;
+}
+
+// Block of consecutive days for Gantt display
+export interface AssignmentBlock {
+  startDate: string;
+  endDate: string;
+  days: AssignmentDay[];
+}
+
+// Gantt-style assignment for display
+export interface GanttAssignment {
+  id: string;
+  assignmentId: string;
+  userId: string;
+  userName: string;
+  projectId: string;
+  projectName: string;
+  bookingStatus: BookingStatus;
+  notes: string | null;
+  // Consecutive day blocks
+  blocks: AssignmentBlock[];
 }
 
 // Booking conflict when user is double-booked
@@ -150,11 +186,33 @@ export interface UpdateAssignmentStatusData {
   note?: string;
 }
 
-// Form data for adding excluded dates
+// Form data for adding excluded dates (legacy)
 export interface AddExcludedDatesData {
   assignmentId: string;
   dates: string[];
   reason?: string;
+}
+
+// Form data for adding assignment days
+export interface AddAssignmentDaysData {
+  assignmentId: string;
+  days: {
+    date: string;
+    startTime: string;
+    endTime: string;
+  }[];
+}
+
+// Form data for updating a single assignment day
+export interface UpdateAssignmentDayData {
+  dayId: string;
+  startTime: string;
+  endTime: string;
+}
+
+// Form data for removing assignment days
+export interface RemoveAssignmentDaysData {
+  dayIds: string[];
 }
 
 // Form data for overriding a conflict

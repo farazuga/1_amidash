@@ -5,6 +5,8 @@ import type {
   BookingStatus,
   CalendarAssignmentResult,
   UserScheduleResult,
+  AssignmentDay,
+  GanttAssignment,
 } from '@/types/calendar';
 import {
   createAssignment,
@@ -20,6 +22,16 @@ import {
   createCalendarSubscription,
   getMySubscriptions,
   deleteCalendarSubscription,
+  // New actions for Gantt/day management
+  addAssignmentDays,
+  updateAssignmentDay,
+  removeAssignmentDays,
+  getAssignmentDays,
+  cycleAssignmentStatus,
+  getAssignableUsers,
+  updateUserAssignable,
+  getProjectAssignmentsForGantt,
+  getGanttDataForRange,
 } from '@/app/(dashboard)/calendar/actions';
 
 // Query keys
@@ -28,6 +40,9 @@ export const CALENDAR_KEY = ['calendar'];
 export const USER_SCHEDULE_KEY = ['userSchedule'];
 export const ADMIN_USERS_KEY = ['adminUsers'];
 export const SUBSCRIPTIONS_KEY = ['calendarSubscriptions'];
+export const ASSIGNABLE_USERS_KEY = ['assignableUsers'];
+export const ASSIGNMENT_DAYS_KEY = ['assignmentDays'];
+export const GANTT_KEY = ['gantt'];
 
 const ONE_MINUTE = 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -397,6 +412,203 @@ export function useDeleteCalendarSubscription() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: SUBSCRIPTIONS_KEY });
+    },
+  });
+}
+
+// ============================================
+// Gantt / Assignment Days hooks
+// ============================================
+
+/**
+ * Get users who can be assigned to projects (is_assignable = true)
+ */
+export function useAssignableUsers() {
+  return useQuery({
+    queryKey: ASSIGNABLE_USERS_KEY,
+    queryFn: async () => {
+      const result = await getAssignableUsers();
+      if (!result.success) throw new Error(result.error);
+      return result.data || [];
+    },
+    staleTime: ONE_MINUTE,
+  });
+}
+
+/**
+ * Get days for a specific assignment
+ */
+export function useAssignmentDays(assignmentId: string) {
+  return useQuery({
+    queryKey: [...ASSIGNMENT_DAYS_KEY, assignmentId],
+    queryFn: async () => {
+      const result = await getAssignmentDays(assignmentId);
+      if (!result.success) throw new Error(result.error);
+      return result.data || [];
+    },
+    staleTime: THIRTY_SECONDS,
+    enabled: !!assignmentId,
+  });
+}
+
+/**
+ * Get Gantt-formatted data for a project
+ */
+export function useProjectGanttData(projectId: string) {
+  return useQuery({
+    queryKey: [...GANTT_KEY, 'project', projectId],
+    queryFn: async () => {
+      const result = await getProjectAssignmentsForGantt(projectId);
+      if (!result.success) throw new Error(result.error);
+      return result.data || [];
+    },
+    staleTime: THIRTY_SECONDS,
+    enabled: !!projectId,
+  });
+}
+
+/**
+ * Get Gantt data for a date range
+ */
+export function useGanttDataForRange(
+  startDate: Date,
+  endDate: Date,
+  userId?: string
+) {
+  return useQuery({
+    queryKey: [
+      ...GANTT_KEY,
+      'range',
+      startDate.toISOString().split('T')[0],
+      endDate.toISOString().split('T')[0],
+      userId,
+    ],
+    queryFn: async () => {
+      const result = await getGanttDataForRange({
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0],
+        userId,
+      });
+      if (!result.success) throw new Error(result.error);
+      return result.data || [];
+    },
+    staleTime: THIRTY_SECONDS,
+  });
+}
+
+/**
+ * Add days to an assignment
+ */
+export function useAddAssignmentDays() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      assignmentId: string;
+      days: { date: string; startTime: string; endTime: string }[];
+    }) => {
+      const result = await addAssignmentDays(data);
+      if (!result.success) throw new Error(result.error);
+      return result.data || [];
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
+      queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
+      queryClient.invalidateQueries({ queryKey: USER_SCHEDULE_KEY });
+      queryClient.invalidateQueries({ queryKey: ASSIGNMENT_DAYS_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
+    },
+  });
+}
+
+/**
+ * Update times for a specific day
+ */
+export function useUpdateAssignmentDay() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      dayId: string;
+      startTime: string;
+      endTime: string;
+    }) => {
+      const result = await updateAssignmentDay(data);
+      if (!result.success) throw new Error(result.error);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
+      queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
+      queryClient.invalidateQueries({ queryKey: USER_SCHEDULE_KEY });
+      queryClient.invalidateQueries({ queryKey: ASSIGNMENT_DAYS_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
+    },
+  });
+}
+
+/**
+ * Remove specific days from an assignment
+ */
+export function useRemoveAssignmentDays() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (dayIds: string[]) => {
+      const result = await removeAssignmentDays(dayIds);
+      if (!result.success) throw new Error(result.error);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
+      queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
+      queryClient.invalidateQueries({ queryKey: USER_SCHEDULE_KEY });
+      queryClient.invalidateQueries({ queryKey: ASSIGNMENT_DAYS_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
+    },
+  });
+}
+
+/**
+ * Cycle assignment status (click-to-toggle)
+ * pencil → pending_confirm → confirmed → pencil
+ */
+export function useCycleAssignmentStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (assignmentId: string) => {
+      const result = await cycleAssignmentStatus(assignmentId);
+      if (!result.success) throw new Error(result.error);
+      return result.data!;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
+      queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
+      queryClient.invalidateQueries({ queryKey: USER_SCHEDULE_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
+    },
+  });
+}
+
+/**
+ * Update a user's assignable status
+ */
+export function useUpdateUserAssignable() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      userId: string;
+      isAssignable: boolean;
+    }) => {
+      const result = await updateUserAssignable(data);
+      if (!result.success) throw new Error(result.error);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ASSIGNABLE_USERS_KEY });
+      queryClient.invalidateQueries({ queryKey: ADMIN_USERS_KEY });
     },
   });
 }

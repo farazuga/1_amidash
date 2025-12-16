@@ -71,6 +71,7 @@ export default function UsersAdminPage() {
   const [newUserName, setNewUserName] = useState('');
   const [newUserRole, setNewUserRole] = useState<UserRole>('viewer');
   const [newUserIsSalesperson, setNewUserIsSalesperson] = useState(false);
+  const [newUserIsAssignable, setNewUserIsAssignable] = useState(false);
   const [newUserPassword, setNewUserPassword] = useState('');
 
   // Delete user dialog state
@@ -147,6 +148,24 @@ export default function UsersAdminPage() {
     });
   };
 
+  const handleAssignableChange = async (userId: string, isAssignable: boolean) => {
+    startTransition(async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
+        .from('profiles')
+        .update({ is_assignable: isAssignable })
+        .eq('id', userId);
+
+      if (error) {
+        toast.error('Failed to update assignable status');
+        return;
+      }
+
+      toast.success(isAssignable ? 'User can now be assigned to projects' : 'Removed assignable status');
+      loadUsers();
+    });
+  };
+
   const getInitials = (user: Profile) => {
     if (user.full_name) {
       return user.full_name
@@ -208,6 +227,7 @@ export default function UsersAdminPage() {
     setNewUserName('');
     setNewUserRole('viewer');
     setNewUserIsSalesperson(false);
+    setNewUserIsAssignable(false);
     setNewUserPassword('');
   };
 
@@ -369,14 +389,24 @@ export default function UsersAdminPage() {
                 </div>
               )}
               {newUserRole !== 'customer' && (
-                <div className="flex items-center gap-2">
-                  <Switch
-                    id="salesperson"
-                    checked={newUserIsSalesperson}
-                    onCheckedChange={setNewUserIsSalesperson}
-                  />
-                  <Label htmlFor="salesperson">Salesperson</Label>
-                </div>
+                <>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="salesperson"
+                      checked={newUserIsSalesperson}
+                      onCheckedChange={setNewUserIsSalesperson}
+                    />
+                    <Label htmlFor="salesperson">Salesperson</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="assignable"
+                      checked={newUserIsAssignable}
+                      onCheckedChange={setNewUserIsAssignable}
+                    />
+                    <Label htmlFor="assignable">Can be assigned to projects</Label>
+                  </div>
+                </>
               )}
             </div>
             <DialogFooter>
@@ -407,6 +437,7 @@ export default function UsersAdminPage() {
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Salesperson</TableHead>
+                <TableHead>Assignable</TableHead>
                 <TableHead>Joined</TableHead>
                 <TableHead className="w-[80px]">Actions</TableHead>
               </TableRow>
@@ -474,6 +505,28 @@ export default function UsersAdminPage() {
                           className="text-sm text-muted-foreground"
                         >
                           {user.is_salesperson ? 'Yes' : 'No'}
+                        </Label>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">N/A</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {user.role !== 'customer' ? (
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id={`assignable-${user.id}`}
+                          checked={user.is_assignable || false}
+                          onCheckedChange={(checked) =>
+                            handleAssignableChange(user.id, checked)
+                          }
+                          disabled={isPending}
+                        />
+                        <Label
+                          htmlFor={`assignable-${user.id}`}
+                          className="text-sm text-muted-foreground"
+                        >
+                          {user.is_assignable ? 'Yes' : 'No'}
                         </Label>
                       </div>
                     ) : (

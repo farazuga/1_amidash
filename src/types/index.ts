@@ -12,6 +12,7 @@ export interface Profile {
   full_name: string | null;
   role: string | null;
   is_salesperson: boolean | null;
+  is_assignable?: boolean | null;  // Optional until migration runs
   created_at: string | null;
   updated_at: string | null;
 }
