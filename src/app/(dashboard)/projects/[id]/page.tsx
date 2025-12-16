@@ -168,6 +168,12 @@ export default async function ProjectDetailPage({
             projectTypeId={project.project_type_id}
             projectTypeStatuses={projectTypeStatuses}
           />
+          <Button variant="outline" asChild>
+            <Link href={`/projects/${project.id}/calendar`}>
+              <Calendar className="mr-2 h-4 w-4" />
+              Schedule
+            </Link>
+          </Button>
         </div>
       </div>
 

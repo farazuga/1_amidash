@@ -56,6 +56,9 @@ export interface Project {
   sales_amount: number | null;
   contract_type: string | null;
   goal_completion_date: string | null;
+  // Calendar scheduling fields
+  start_date: string | null;
+  end_date: string | null;
   current_status_id: string | null;
   project_type_id: string | null;
   salesperson_id: string | null;

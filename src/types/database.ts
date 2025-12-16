@@ -185,6 +185,7 @@ export type Database = {
           created_by: string | null
           created_date: string
           current_status_id: string | null
+          end_date: string | null
           expected_update_auto: boolean | null
           expected_update_date: string | null
           goal_completion_date: string | null
@@ -199,6 +200,7 @@ export type Database = {
           sales_order_url: string | null
           salesperson_id: string | null
           scope_link: string | null
+          start_date: string | null
           updated_at: string | null
         }
         Insert: {
@@ -209,6 +211,7 @@ export type Database = {
           created_by?: string | null
           created_date?: string
           current_status_id?: string | null
+          end_date?: string | null
           expected_update_auto?: boolean | null
           expected_update_date?: string | null
           goal_completion_date?: string | null
@@ -223,6 +226,7 @@ export type Database = {
           sales_order_url?: string | null
           salesperson_id?: string | null
           scope_link?: string | null
+          start_date?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -233,6 +237,7 @@ export type Database = {
           created_by?: string | null
           created_date?: string
           current_status_id?: string | null
+          end_date?: string | null
           expected_update_auto?: boolean | null
           expected_update_date?: string | null
           goal_completion_date?: string | null
@@ -247,6 +252,7 @@ export type Database = {
           sales_order_url?: string | null
           salesperson_id?: string | null
           scope_link?: string | null
+          start_date?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -412,12 +418,305 @@ export type Database = {
         }
         Relationships: []
       }
+      project_assignments: {
+        Row: {
+          id: string
+          project_id: string
+          user_id: string
+          booking_status: string
+          notes: string | null
+          created_by: string | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          user_id: string
+          booking_status?: string
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          user_id?: string
+          booking_status?: string
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_assignments_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_assignments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_assignments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assignment_excluded_dates: {
+        Row: {
+          id: string
+          assignment_id: string
+          excluded_date: string
+          reason: string | null
+          created_by: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          assignment_id: string
+          excluded_date: string
+          reason?: string | null
+          created_by?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          assignment_id?: string
+          excluded_date?: string
+          reason?: string | null
+          created_by?: string | null
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assignment_excluded_dates_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "project_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignment_excluded_dates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_conflicts: {
+        Row: {
+          id: string
+          user_id: string
+          assignment_id_1: string
+          assignment_id_2: string
+          conflict_date: string
+          override_reason: string | null
+          overridden_by: string | null
+          overridden_at: string | null
+          is_resolved: boolean
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          assignment_id_1: string
+          assignment_id_2: string
+          conflict_date: string
+          override_reason?: string | null
+          overridden_by?: string | null
+          overridden_at?: string | null
+          is_resolved?: boolean
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          assignment_id_1?: string
+          assignment_id_2?: string
+          conflict_date?: string
+          override_reason?: string | null
+          overridden_by?: string | null
+          overridden_at?: string | null
+          is_resolved?: boolean
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_conflicts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_conflicts_assignment_id_1_fkey"
+            columns: ["assignment_id_1"]
+            isOneToOne: false
+            referencedRelation: "project_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_conflicts_assignment_id_2_fkey"
+            columns: ["assignment_id_2"]
+            isOneToOne: false
+            referencedRelation: "project_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_status_history: {
+        Row: {
+          id: string
+          assignment_id: string
+          old_status: string | null
+          new_status: string
+          changed_by: string | null
+          note: string | null
+          changed_at: string | null
+        }
+        Insert: {
+          id?: string
+          assignment_id: string
+          old_status?: string | null
+          new_status: string
+          changed_by?: string | null
+          note?: string | null
+          changed_at?: string | null
+        }
+        Update: {
+          id?: string
+          assignment_id?: string
+          old_status?: string | null
+          new_status?: string
+          changed_by?: string | null
+          note?: string | null
+          changed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_status_history_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "project_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_status_history_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calendar_subscriptions: {
+        Row: {
+          id: string
+          user_id: string | null
+          feed_type: string
+          project_id: string | null
+          token: string
+          created_at: string | null
+          last_accessed_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id?: string | null
+          feed_type: string
+          project_id?: string | null
+          token?: string
+          created_at?: string | null
+          last_accessed_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string | null
+          feed_type?: string
+          project_id?: string | null
+          token?: string
+          created_at?: string | null
+          last_accessed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_subscriptions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
       get_user_role: { Args: { user_id: string }; Returns: string }
+      check_user_conflicts: {
+        Args: {
+          p_user_id: string
+          p_start_date: string
+          p_end_date: string
+          p_exclude_assignment_id?: string | null
+        }
+        Returns: {
+          conflicting_project_id: string
+          conflicting_project_name: string
+          conflict_date: string
+          conflicting_assignment_id: string
+        }[]
+      }
+      get_user_schedule: {
+        Args: {
+          p_user_id: string
+          p_start_date: string
+          p_end_date: string
+        }
+        Returns: {
+          schedule_date: string
+          project_id: string
+          project_name: string
+          booking_status: string
+          assignment_id: string
+        }[]
+      }
+      get_calendar_assignments: {
+        Args: {
+          p_start_date: string
+          p_end_date: string
+          p_project_id?: string | null
+        }
+        Returns: {
+          assignment_id: string
+          project_id: string
+          project_name: string
+          user_id: string
+          user_name: string
+          booking_status: string
+          project_start_date: string
+          project_end_date: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

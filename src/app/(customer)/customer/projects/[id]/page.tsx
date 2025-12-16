@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { AnimatedProgressBar } from '@/components/portal/animated-progress-bar';
 import { StatusTimeline } from '@/components/portal/status-timeline';
 import { StatusAnimation, statusColors, statusMessages } from '@/components/portal/status-animations';
-import { Mail, Phone, User, ArrowLeft } from 'lucide-react';
+import { CustomerSchedule } from '@/components/portal/customer-schedule';
+import { Mail, Phone, User, ArrowLeft, Calendar } from 'lucide-react';
 import type { Status } from '@/types';
 
 async function getProject(projectId: string) {
@@ -24,7 +25,7 @@ async function getProject(projectId: string) {
     .eq('id', projectId)
     .single();
 
-  return project;
+  return project as typeof project & { start_date: string | null; end_date: string | null };
 }
 
 async function getStatuses() {
@@ -185,6 +186,27 @@ export default async function CustomerProjectDetailPage({
           />
         </CardContent>
       </Card>
+
+      {/* Project Schedule */}
+      {(project.start_date || project.end_date) && (
+        <Card className="border-[#023A2D]/20">
+          <CardHeader className="py-3">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-[#023A2D]" />
+              <h2 className="text-sm font-semibold text-[#023A2D]">
+                Project Schedule
+              </h2>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0 pb-4">
+            <CustomerSchedule
+              startDate={project.start_date}
+              endDate={project.end_date}
+              projectName={project.client_name}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Contact Information */}
       <Card className="border-[#023A2D]/20">
