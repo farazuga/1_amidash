@@ -88,6 +88,8 @@ export interface GanttAssignment {
   userName: string;
   projectId: string;
   projectName: string;
+  projectStartDate: string | null;
+  projectEndDate: string | null;
   bookingStatus: BookingStatus;
   notes: string | null;
   // Consecutive day blocks

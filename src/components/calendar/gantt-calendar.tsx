@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import { format, addDays, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns';
+import { format, addDays, startOfWeek, addWeeks, subWeeks } from 'date-fns';
 import { ChevronLeft, ChevronRight, Users, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { GanttRow } from './gantt-row';
 import { CalendarLegend } from './calendar-legend';
+import { AssignmentDaysDialog } from './assignment-days-dialog';
 import { cn } from '@/lib/utils';
 import { useProjectGanttData, useCycleAssignmentStatus } from '@/hooks/queries/use-assignments';
 import type { GanttAssignment } from '@/types/calendar';
@@ -22,6 +23,10 @@ export function GanttCalendar({ projectId, projectName }: GanttCalendarProps) {
     const today = new Date();
     return startOfWeek(today, { weekStartsOn: 1 }); // Start on Monday
   });
+
+  // Edit dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState<GanttAssignment | null>(null);
 
   const viewEndDate = useMemo(() => {
     return addDays(viewStartDate, 13); // 2 weeks (14 days)
@@ -90,6 +95,12 @@ export function GanttCalendar({ projectId, projectName }: GanttCalendarProps) {
       });
     }
   }, [cycleStatus]);
+
+  // Edit days handler
+  const handleEditClick = useCallback((assignment: GanttAssignment) => {
+    setSelectedAssignment(assignment);
+    setEditDialogOpen(true);
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -206,6 +217,7 @@ export function GanttCalendar({ projectId, projectName }: GanttCalendarProps) {
                         viewEndDate={viewEndDate}
                         totalDays={totalDays}
                         onStatusClick={handleStatusClick}
+                        onEditClick={handleEditClick}
                         isUpdating={cycleStatus.isPending}
                       />
                     ))}
@@ -219,8 +231,21 @@ export function GanttCalendar({ projectId, projectName }: GanttCalendarProps) {
 
       {/* Help text */}
       <p className="text-xs text-muted-foreground">
-        Click on a bar to cycle its status: Pencil → Pending Confirm → Confirmed → Pencil
+        Click bar to cycle status • Hover and click pencil icon to edit days & times
       </p>
+
+      {/* Edit Days Dialog */}
+      {selectedAssignment && (
+        <AssignmentDaysDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          assignmentId={selectedAssignment.assignmentId}
+          userName={selectedAssignment.userName}
+          projectName={selectedAssignment.projectName}
+          projectStartDate={selectedAssignment.projectStartDate || ''}
+          projectEndDate={selectedAssignment.projectEndDate || ''}
+        />
+      )}
     </div>
   );
 }

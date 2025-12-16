@@ -13,6 +13,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { Pencil } from 'lucide-react';
 
 interface GanttBarProps {
   assignmentId: string;
@@ -22,6 +23,7 @@ interface GanttBarProps {
   startColumn: number;
   endColumn: number;
   onClick?: () => void;
+  onEditClick?: () => void;
   isLoading?: boolean;
 }
 
@@ -33,6 +35,7 @@ export function GanttBar({
   startColumn,
   endColumn,
   onClick,
+  onEditClick,
   isLoading,
 }: GanttBarProps) {
   const colors = BOOKING_STATUS_COLORS[bookingStatus];
@@ -48,20 +51,22 @@ export function GanttBar({
     return `${h12}:${minutes} ${ampm}`;
   };
 
+  const handleEditClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onEditClick?.();
+  };
+
   return (
     <TooltipProvider delayDuration={300}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <button
-            onClick={onClick}
-            disabled={isLoading}
+          <div
             className={cn(
               'absolute top-1 bottom-1 rounded-md border-2 px-2 py-0.5',
-              'flex items-center justify-start overflow-hidden',
-              'cursor-pointer transition-all duration-150',
+              'flex items-center justify-between gap-1 overflow-hidden',
+              'cursor-pointer transition-all duration-150 group',
               'hover:brightness-95 hover:shadow-sm',
-              'focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-ring',
-              'disabled:cursor-not-allowed disabled:opacity-50',
+              isLoading && 'opacity-50 cursor-not-allowed',
               colors.bg,
               colors.text,
               colors.border
@@ -72,12 +77,27 @@ export function GanttBar({
               left: '4px',
               right: '4px',
             }}
-            title={`${userName} - ${statusLabel} (click to change status)`}
+            title={`${userName} - ${statusLabel}`}
+            onClick={isLoading ? undefined : onClick}
           >
-            <span className="truncate text-xs font-medium">
+            <span className="truncate text-xs font-medium flex-1">
               {userName}
             </span>
-          </button>
+            {onEditClick && (
+              <button
+                onClick={handleEditClick}
+                disabled={isLoading}
+                className={cn(
+                  'flex-shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100',
+                  'hover:bg-black/10 transition-opacity',
+                  'focus:outline-none focus:opacity-100'
+                )}
+                title="Edit days & times"
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+            )}
+          </div>
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-xs">
           <div className="space-y-1">
@@ -105,7 +125,7 @@ export function GanttBar({
               </div>
             )}
             <div className="text-xs text-muted-foreground pt-1 border-t mt-1">
-              Click to cycle status
+              Click bar to cycle status • Click <Pencil className="h-3 w-3 inline" /> to edit days
             </div>
           </div>
         </TooltipContent>

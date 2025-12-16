@@ -4,9 +4,18 @@ export { CalendarHeader } from './calendar-header';
 export { CalendarDayCell } from './calendar-day-cell';
 export { CalendarLegend } from './calendar-legend';
 
+// Gantt View Components
+export { GanttCalendar } from './gantt-calendar';
+export { GanttRow } from './gantt-row';
+export { GanttBar } from './gantt-bar';
+
 // Assignment Components
 export { AssignmentCard } from './assignment-card';
 export { AssignmentDialog } from './assignment-dialog';
+export { AssignmentDaysDialog } from './assignment-days-dialog';
+
+// Day/Time Editing Components
+export { DayTimeEditor } from './day-time-editor';
 
 // Status Components
 export { BookingStatusBadge, BookingStatusDot } from './booking-status-badge';

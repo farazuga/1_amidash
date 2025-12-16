@@ -11,6 +11,7 @@ interface GanttRowProps {
   viewEndDate: Date;
   totalDays: number;
   onStatusClick?: (assignmentId: string) => void;
+  onEditClick?: (assignment: GanttAssignment) => void;
   isUpdating?: boolean;
 }
 
@@ -20,6 +21,7 @@ export function GanttRow({
   viewEndDate,
   totalDays,
   onStatusClick,
+  onEditClick,
   isUpdating,
 }: GanttRowProps) {
   // Calculate column positions for each block
@@ -84,6 +86,7 @@ export function GanttRow({
           startColumn={pos.startCol}
           endColumn={pos.endCol}
           onClick={() => onStatusClick?.(assignment.assignmentId)}
+          onEditClick={() => onEditClick?.(assignment)}
           isLoading={isUpdating}
         />
       ))}

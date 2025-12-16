@@ -1092,7 +1092,7 @@ export async function getProjectAssignmentsForGantt(projectId: string): Promise<
     .from('project_assignments')
     .select(`
       *,
-      project:projects(id, client_name),
+      project:projects(id, client_name, start_date, end_date),
       user:profiles!user_id(id, email, full_name),
       days:assignment_days(*)
     `)
@@ -1110,7 +1110,7 @@ export async function getProjectAssignmentsForGantt(projectId: string): Promise<
     const days = (assignment.days || []) as AssignmentDay[];
     const blocks = groupDaysIntoBlocks(days);
     const user = assignment.user as { id: string; email: string; full_name: string | null } | null;
-    const project = assignment.project as { id: string; client_name: string } | null;
+    const project = assignment.project as { id: string; client_name: string; start_date: string | null; end_date: string | null } | null;
 
     return {
       id: `gantt-${assignment.id}`,
@@ -1119,6 +1119,8 @@ export async function getProjectAssignmentsForGantt(projectId: string): Promise<
       userName: user?.full_name || user?.email || 'Unknown',
       projectId: assignment.project_id,
       projectName: project?.client_name || 'Unknown Project',
+      projectStartDate: project?.start_date || null,
+      projectEndDate: project?.end_date || null,
       bookingStatus: assignment.booking_status as BookingStatus,
       notes: assignment.notes,
       blocks,
@@ -1170,7 +1172,7 @@ export async function getGanttDataForRange(params: {
     .from('project_assignments')
     .select(`
       *,
-      project:projects(id, client_name),
+      project:projects(id, client_name, start_date, end_date),
       user:profiles!user_id(id, email, full_name),
       days:assignment_days(*)
     `)
@@ -1197,7 +1199,7 @@ export async function getGanttDataForRange(params: {
     );
     const blocks = groupDaysIntoBlocks(filteredDays);
     const user = assignment.user as { id: string; email: string; full_name: string | null } | null;
-    const project = assignment.project as { id: string; client_name: string } | null;
+    const project = assignment.project as { id: string; client_name: string; start_date: string | null; end_date: string | null } | null;
 
     return {
       id: `gantt-${assignment.id}`,
@@ -1206,6 +1208,8 @@ export async function getGanttDataForRange(params: {
       userName: user?.full_name || user?.email || 'Unknown',
       projectId: assignment.project_id,
       projectName: project?.client_name || 'Unknown Project',
+      projectStartDate: project?.start_date || null,
+      projectEndDate: project?.end_date || null,
       bookingStatus: assignment.booking_status as BookingStatus,
       notes: assignment.notes,
       blocks,
