@@ -20,6 +20,9 @@ export interface CreateProjectData {
   project_type_id: string;
   tags: string[];
   email_notifications_enabled?: boolean;
+  activecampaign_account_id?: string | null;
+  activecampaign_contact_id?: string | null;
+  secondary_activecampaign_contact_id?: string | null;
 }
 
 export interface CreateProjectResult {
@@ -100,6 +103,9 @@ export async function createProject(data: CreateProjectData): Promise<CreateProj
       current_status_id: firstStatus.id,
       created_by: user.id,
       email_notifications_enabled: data.email_notifications_enabled ?? true,
+      activecampaign_account_id: data.activecampaign_account_id || null,
+      activecampaign_contact_id: data.activecampaign_contact_id || null,
+      secondary_activecampaign_contact_id: data.secondary_activecampaign_contact_id || null,
     })
     .select()
     .single();

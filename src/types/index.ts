@@ -63,6 +63,9 @@ export interface Project {
   poc_email: string | null;
   poc_phone: string | null;
   secondary_poc_email: string | null;
+  activecampaign_account_id: string | null;
+  activecampaign_contact_id: string | null;
+  secondary_activecampaign_contact_id: string | null;
   scope_link: string | null;
   client_token: string | null;
   client_portal_url?: string | null;
