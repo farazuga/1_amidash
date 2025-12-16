@@ -75,7 +75,7 @@ describe('ActiveCampaign Service', () => {
       const accounts = await client.searchAccounts('Acme');
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://testaccount.api-us1.com/api/3/accounts?filters[name]=Acme&limit=10',
+        'https://testaccount.api-us1.com/api/3/accounts?search=Acme&limit=10',
         expect.objectContaining({
           headers: {
             'Api-Token': 'test-api-key',
@@ -108,7 +108,7 @@ describe('ActiveCampaign Service', () => {
       await client.searchAccounts('Test & Company');
 
       expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('filters[name]=Test%20%26%20Company'),
+        expect.stringContaining('search=Test%20%26%20Company'),
         expect.any(Object)
       );
     });

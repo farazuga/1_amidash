@@ -33,7 +33,7 @@ class ActiveCampaignClient {
   async searchAccounts(searchTerm: string, limit: number = 10): Promise<ACAccount[]> {
     const encoded = encodeURIComponent(searchTerm);
     const data = await this.fetch<ACAccountSearchResponse>(
-      `/accounts?filters[name]=${encoded}&limit=${limit}`
+      `/accounts?search=${encoded}&limit=${limit}`
     );
     return data.accounts || [];
   }
