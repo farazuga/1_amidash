@@ -8,13 +8,18 @@ import { ChevronLeft, ChevronRight, Loader2, User } from 'lucide-react';
 import { useActiveCampaignContacts } from '@/hooks/use-activecampaign';
 import type { ACContact } from '@/types/activecampaign';
 
-// Phone formatting helper
+// Phone formatting helper - strips +1 country code and formats as xxx-xxx-xxxx
 function formatPhoneNumber(phone: string): string {
-  const digits = phone.replace(/\D/g, '');
+  // Remove +1 or 1 prefix if present
+  let cleaned = phone.replace(/^\+1\s*/, '').replace(/^1(?=\d{10})/, '');
+  const digits = cleaned.replace(/\D/g, '');
   if (digits.length >= 10) {
-    const formatted = `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
-    if (digits.length > 10) {
-      return `${formatted} ext ${digits.slice(10)}`;
+    // Take last 10 digits (in case there's still a leading 1)
+    const last10 = digits.slice(-10);
+    const formatted = `${last10.slice(0, 3)}-${last10.slice(3, 6)}-${last10.slice(6, 10)}`;
+    // Check for extension (digits beyond the 10)
+    if (digits.length > 10 && digits.slice(0, -10)) {
+      return formatted;
     }
     return formatted;
   }
@@ -23,6 +28,7 @@ function formatPhoneNumber(phone: string): string {
 
 interface ContactSelectorProps {
   accountId: string | null;
+  accountName?: string;
   pocName: string;
   pocEmail: string;
   pocPhone: string;
@@ -37,6 +43,7 @@ interface ContactSelectorProps {
 
 export function ContactSelector({
   accountId,
+  accountName,
   pocName,
   pocEmail,
   pocPhone,
@@ -48,7 +55,7 @@ export function ContactSelector({
   defaultPocEmail,
   defaultPocPhone,
 }: ContactSelectorProps) {
-  const { contacts, isLoading, error } = useActiveCampaignContacts(accountId);
+  const { contacts, isLoading, error, isFromGlobalSearch } = useActiveCampaignContacts(accountId, accountName);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [hasManualEdit, setHasManualEdit] = useState(false);
   const [initialized, setInitialized] = useState(false);
@@ -165,13 +172,19 @@ export function ContactSelector({
         {accountId && contacts.length === 0 && !isLoading && (
           <span className="text-sm text-muted-foreground flex items-center gap-1">
             <User className="h-4 w-4" />
-            No contacts in AC
+            No contacts found
           </span>
         )}
 
         {accountId && contacts.length === 1 && !isLoading && (
           <span className="text-sm text-muted-foreground">
-            1 contact from AC
+            1 contact {isFromGlobalSearch ? '(global search)' : 'from AC'}
+          </span>
+        )}
+
+        {accountId && contacts.length > 1 && !isLoading && isFromGlobalSearch && (
+          <span className="text-sm text-amber-600">
+            Contacts from global search
           </span>
         )}
       </div>

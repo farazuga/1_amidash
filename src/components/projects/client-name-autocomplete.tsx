@@ -15,14 +15,20 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
-import { Loader2, Building2, ExternalLink } from 'lucide-react';
-import { useActiveCampaignSearch } from '@/hooks/use-activecampaign';
-import type { ACAccount } from '@/types/activecampaign';
+import { Loader2, Building2, ExternalLink, Mail, ArrowRight } from 'lucide-react';
+import { useActiveCampaignSearch, useContactSearch } from '@/hooks/use-activecampaign';
+import type { ACAccount, ACContact } from '@/types/activecampaign';
+
+// Helper to detect if string looks like an email
+function isEmailLike(str: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str.trim());
+}
 
 interface ClientNameAutocompleteProps {
   value: string;
   onChange: (value: string) => void;
   onAccountSelect: (account: ACAccount | null) => void;
+  onContactFromEmail?: (contact: ACContact) => void;
   selectedAccount: ACAccount | null;
   defaultValue?: string;
 }
@@ -31,6 +37,7 @@ export function ClientNameAutocomplete({
   value,
   onChange,
   onAccountSelect,
+  onContactFromEmail,
   selectedAccount,
   defaultValue,
 }: ClientNameAutocompleteProps) {
@@ -39,6 +46,12 @@ export function ClientNameAutocomplete({
   const inputRef = useRef<HTMLInputElement>(null);
   const { accounts, isLoading, error } = useActiveCampaignSearch(inputValue);
 
+  // Check if input looks like an email and search contacts
+  const isEmail = isEmailLike(inputValue);
+  const { contacts: emailContacts, isLoading: emailSearchLoading } = useContactSearch(
+    isEmail ? inputValue : ''
+  );
+
   // Sync external value changes
   useEffect(() => {
     if (value !== inputValue) {
@@ -46,17 +59,29 @@ export function ClientNameAutocomplete({
     }
   }, [value]);
 
-  // Open popover when there are results
+  // Open popover when there are results (accounts or email contacts)
   useEffect(() => {
-    if (accounts.length > 0 && inputValue.length >= 2 && !selectedAccount) {
+    const hasResults = accounts.length > 0 || emailContacts.length > 0;
+    if (hasResults && inputValue.length >= 2 && !selectedAccount) {
       setOpen(true);
     }
-  }, [accounts, inputValue, selectedAccount]);
+  }, [accounts, emailContacts, inputValue, selectedAccount]);
 
   const handleSelect = (account: ACAccount) => {
     setInputValue(account.name);
     onChange(account.name);
     onAccountSelect(account);
+    setOpen(false);
+  };
+
+  const handleContactSelect = (contact: ACContact) => {
+    // Use the contact's org name if available, otherwise keep the email
+    const displayName = contact.orgname || inputValue;
+    setInputValue(displayName);
+    onChange(displayName);
+    if (onContactFromEmail) {
+      onContactFromEmail(contact);
+    }
     setOpen(false);
   };
 
@@ -71,7 +96,8 @@ export function ClientNameAutocomplete({
   };
 
   const handleInputFocus = () => {
-    if (accounts.length > 0 && !selectedAccount) {
+    const hasResults = accounts.length > 0 || emailContacts.length > 0;
+    if (hasResults && !selectedAccount) {
       setOpen(true);
     }
   };
@@ -108,8 +134,11 @@ export function ClientNameAutocomplete({
               required
               autoComplete="off"
             />
-            {isLoading && (
+            {(isLoading || emailSearchLoading) && (
               <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+            )}
+            {isEmail && !emailSearchLoading && emailContacts.length > 0 && (
+              <ArrowRight className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-500" />
             )}
           </div>
         </PopoverTrigger>
@@ -125,27 +154,61 @@ export function ClientNameAutocomplete({
                 <div className="py-6 text-center text-sm text-red-500">
                   {error}
                 </div>
-              ) : accounts.length === 0 && inputValue.length >= 2 && !isLoading ? (
-                <CommandEmpty>No accounts found</CommandEmpty>
               ) : (
-                <CommandGroup heading="Active Campaign Accounts">
-                  {accounts.map((account) => (
-                    <CommandItem
-                      key={account.id}
-                      value={account.id}
-                      onSelect={() => handleSelect(account)}
-                      className="flex items-center gap-2 cursor-pointer"
-                    >
-                      <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate">{account.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {account.contactCount} contact{account.contactCount !== '1' ? 's' : ''}
-                        </div>
-                      </div>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
+                <>
+                  {/* Show email contacts when input looks like an email */}
+                  {isEmail && emailContacts.length > 0 && (
+                    <CommandGroup heading="Contacts matching email">
+                      {emailContacts.map((contact) => (
+                        <CommandItem
+                          key={contact.id}
+                          value={`contact-${contact.id}`}
+                          onSelect={() => handleContactSelect(contact)}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          <Mail className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium truncate">
+                              {contact.firstName} {contact.lastName}
+                            </div>
+                            <div className="text-xs text-muted-foreground truncate">
+                              {contact.email}
+                              {contact.orgname && ` • ${contact.orgname}`}
+                            </div>
+                          </div>
+                          <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  )}
+
+                  {/* Show accounts */}
+                  {accounts.length > 0 && (
+                    <CommandGroup heading="Active Campaign Accounts">
+                      {accounts.map((account) => (
+                        <CommandItem
+                          key={account.id}
+                          value={account.id}
+                          onSelect={() => handleSelect(account)}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium truncate">{account.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {account.contactCount} contact{account.contactCount !== '1' ? 's' : ''}
+                            </div>
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  )}
+
+                  {/* Empty state */}
+                  {accounts.length === 0 && emailContacts.length === 0 && inputValue.length >= 2 && !isLoading && !emailSearchLoading && (
+                    <CommandEmpty>No accounts or contacts found</CommandEmpty>
+                  )}
+                </>
               )}
             </CommandList>
           </Command>

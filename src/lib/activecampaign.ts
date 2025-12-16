@@ -75,6 +75,14 @@ class ActiveCampaignClient {
     return contacts;
   }
 
+  async searchContacts(searchTerm: string, limit: number = 20): Promise<ACContact[]> {
+    const encoded = encodeURIComponent(searchTerm);
+    const data = await this.fetch<{ contacts: ACContact[] }>(
+      `/contacts?search=${encoded}&limit=${limit}`
+    );
+    return data.contacts || [];
+  }
+
   getAccountUrl(accountId: string): string {
     // Extract account name from base URL
     const match = this.baseUrl.match(/https:\/\/([^.]+)\.api-us1\.com/);

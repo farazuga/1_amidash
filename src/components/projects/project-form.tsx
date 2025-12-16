@@ -24,6 +24,7 @@ import { ClientNameAutocomplete } from './client-name-autocomplete';
 import { ContactSelector } from './contact-selector';
 import { SecondaryContactSelector } from './secondary-contact-selector';
 import { useActiveCampaignContacts } from '@/hooks/use-activecampaign';
+import { ProjectDatePicker } from '@/components/calendar/project-date-picker';
 
 // Validation helpers
 function cleanSalesAmount(value: string): string {
@@ -120,6 +121,12 @@ export function ProjectForm({
   );
   const [goalCompletionDate, setGoalCompletionDate] = useState<string>(
     formatDateForInput(project?.goal_completion_date) || ''
+  );
+  const [startDate, setStartDate] = useState<string | null>(
+    project?.start_date || null
+  );
+  const [endDate, setEndDate] = useState<string | null>(
+    project?.end_date || null
   );
   const [secondaryPocEmail, setSecondaryPocEmail] = useState<string>(
     project?.secondary_poc_email || ''
@@ -232,6 +239,8 @@ export function ProjectForm({
       sales_amount: parsedSalesAmount,
       contract_type: formData.get('contract_type') as string || 'None',
       goal_completion_date: goalCompletionDate || null,
+      start_date: startDate || null,
+      end_date: endDate || null,
       salesperson_id: selectedSalesperson,
       poc_name: pocName || null,
       poc_email: pocEmail || null,
@@ -340,6 +349,8 @@ export function ProjectForm({
           sales_amount: data.sales_amount,
           contract_type: data.contract_type,
           goal_completion_date: data.goal_completion_date,
+          start_date: data.start_date,
+          end_date: data.end_date,
           salesperson_id: data.salesperson_id,
           poc_name: data.poc_name,
           poc_email: data.poc_email,
@@ -417,6 +428,17 @@ export function ProjectForm({
           value={clientName}
           onChange={setClientName}
           onAccountSelect={setSelectedAccount}
+          onContactFromEmail={(contact) => {
+            // Auto-fill POC fields from email contact search
+            const fullName = `${contact.firstName || ''} ${contact.lastName || ''}`.trim();
+            if (fullName) setPocName(fullName);
+            if (contact.email) setPocEmail(contact.email);
+            if (contact.phone) {
+              // Strip +1 and format phone
+              const cleanPhone = contact.phone.replace(/^\+1\s*/, '').replace(/^1(?=\d{10})/, '');
+              setPocPhone(formatPhoneNumber(cleanPhone));
+            }
+          }}
           selectedAccount={selectedAccount}
           defaultValue={project?.client_name}
         />
@@ -593,6 +615,18 @@ export function ProjectForm({
           </p>
         </div>
 
+        {/* Project Schedule Dates */}
+        <div className="md:col-span-2">
+          <ProjectDatePicker
+            startDate={startDate}
+            endDate={endDate}
+            onDateChange={(start, end) => {
+              setStartDate(start);
+              setEndDate(end);
+            }}
+          />
+        </div>
+
         {/* Scope Link */}
         <div className="space-y-2">
           <Label htmlFor="scope_link">Scope Link (OneDrive)</Label>
@@ -610,6 +644,7 @@ export function ProjectForm({
       {/* Primary Point of Contact with AC Integration */}
       <ContactSelector
         accountId={selectedAccount?.id || null}
+        accountName={selectedAccount?.name || clientName}
         pocName={pocName}
         pocEmail={pocEmail}
         pocPhone={pocPhone}

@@ -16,6 +16,8 @@ export interface ACContact {
   phone: string;
   firstName: string;
   lastName: string;
+  orgname?: string;
+  orgid?: string;
   cdate?: string;
   udate?: string;
 }
