@@ -121,6 +121,12 @@ export function ProjectForm({
   const [goalCompletionDate, setGoalCompletionDate] = useState<string>(
     formatDateForInput(project?.goal_completion_date) || ''
   );
+  const [startDate, setStartDate] = useState<string>(
+    formatDateForInput(project?.start_date) || ''
+  );
+  const [endDate, setEndDate] = useState<string>(
+    formatDateForInput(project?.end_date) || ''
+  );
   const [secondaryPocEmail, setSecondaryPocEmail] = useState<string>(
     project?.secondary_poc_email || ''
   );
@@ -206,6 +212,20 @@ export function ProjectForm({
       return;
     }
 
+    // Validate project schedule dates
+    if (startDate && !validateDateInRange(startDate)) {
+      toast.error('Start date must be between 2024 and 2030');
+      return;
+    }
+    if (endDate && !validateDateInRange(endDate)) {
+      toast.error('End date must be between 2024 and 2030');
+      return;
+    }
+    if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
+      toast.error('End date must be after start date');
+      return;
+    }
+
     // Format phone number
     const formattedPhone = formatPhoneNumber(pocPhone);
 
@@ -242,6 +262,8 @@ export function ProjectForm({
       activecampaign_account_id: selectedAccount?.id || null,
       activecampaign_contact_id: selectedPrimaryContact?.id || null,
       secondary_activecampaign_contact_id: selectedSecondaryContact?.id || null,
+      start_date: startDate || null,
+      end_date: endDate || null,
       ...(isEditing && { created_date: createdDate }),
     };
 
@@ -352,6 +374,8 @@ export function ProjectForm({
           activecampaign_account_id: data.activecampaign_account_id,
           activecampaign_contact_id: data.activecampaign_contact_id,
           secondary_activecampaign_contact_id: data.secondary_activecampaign_contact_id,
+          start_date: data.start_date,
+          end_date: data.end_date,
         });
 
         if (!result.success) {
@@ -616,6 +640,43 @@ export function ProjectForm({
           />
         </div>
 
+      </div>
+
+      {/* Project Schedule Section */}
+      <div className="border-t pt-4">
+        <h3 className="text-sm font-medium mb-3">Project Schedule</h3>
+        <p className="text-xs text-muted-foreground mb-4">
+          Set the start and end dates for this project. These dates are used for calendar scheduling and customer visibility.
+        </p>
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* Start Date */}
+          <div className="space-y-2">
+            <Label htmlFor="start_date">Start Date</Label>
+            <Input
+              id="start_date"
+              name="start_date"
+              type="date"
+              min="2024-01-01"
+              max="2030-12-31"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+          </div>
+
+          {/* End Date */}
+          <div className="space-y-2">
+            <Label htmlFor="end_date">End Date</Label>
+            <Input
+              id="end_date"
+              name="end_date"
+              type="date"
+              min="2024-01-01"
+              max="2030-12-31"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Primary Point of Contact with AC Integration */}
