@@ -100,7 +100,7 @@ export function ProjectForm({
     project?.project_type_id || ''
   );
   const [salesOrderNumber, setSalesOrderNumber] = useState<string>(
-    project?.sales_order_number || (project ? '' : 'S12')
+    project?.sales_order_number || (project ? '' : 'S1')
   );
   const [salesOrderError, setSalesOrderError] = useState<string | null>(null);
   const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState<boolean>(
@@ -146,12 +146,12 @@ export function ProjectForm({
       return;
     }
 
-    // Validate Sales Order Number format (must start with S12 and be 6 characters)
+    // Validate Sales Order Number format (must start with S1 and be 6 characters)
     if (salesOrderNumber && salesOrderNumber.trim()) {
       const trimmedSalesOrder = salesOrderNumber.trim();
-      if (!trimmedSalesOrder.startsWith('S12') || trimmedSalesOrder.length !== 6) {
-        toast.error('Sales Order # must start with "S12" and be exactly 6 characters (e.g., S12345)');
-        setSalesOrderError('Must start with "S12" and be exactly 6 characters');
+      if (!trimmedSalesOrder.startsWith('S1') || trimmedSalesOrder.length !== 6) {
+        toast.error('Sales Order # must start with "S1" and be exactly 6 characters (e.g., S12345)');
+        setSalesOrderError('Must start with "S1" and be exactly 6 characters');
         return;
       }
     }
@@ -533,12 +533,12 @@ export function ProjectForm({
               setSalesOrderNumber(e.target.value.toUpperCase());
               setSalesOrderError(null);
             }}
-            placeholder="S12XXX"
+            placeholder="S1XXXX"
             maxLength={6}
             className={salesOrderError ? 'border-destructive' : ''}
           />
           <p className="text-xs text-muted-foreground">
-            Must start with &quot;S12&quot; and be exactly 6 characters (e.g., S12345)
+            Must start with &quot;S1&quot; and be exactly 6 characters (e.g., S12345)
           </p>
           {salesOrderError && (
             <p className="text-xs text-destructive">{salesOrderError}</p>
