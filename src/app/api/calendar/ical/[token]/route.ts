@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import {
   generateCalendar,
   buildConsolidatedEvents,
@@ -18,7 +18,8 @@ export async function GET(
   }
 
   try {
-    const supabase = await createClient();
+    // Use service client to bypass RLS - the token itself acts as authentication
+    const supabase = await createServiceClient();
 
     // Look up subscription by token
     const { data: subscription, error: subError } = await supabase

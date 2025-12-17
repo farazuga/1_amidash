@@ -1,8 +1,10 @@
 // Calendar Components
 export { ProjectCalendar } from './project-calendar';
 export { CalendarHeader } from './calendar-header';
+export { CalendarHeaderWithDates } from './calendar-header-with-dates';
 export { CalendarDayCell } from './calendar-day-cell';
 export { CalendarLegend } from './calendar-legend';
+export { DatePickerButton } from './date-picker-button';
 
 // Gantt View Components
 export { GanttCalendar } from './gantt-calendar';
@@ -29,6 +31,7 @@ export { ProjectDatePicker } from './project-date-picker';
 
 // View Components
 export { UserScheduleView } from './user-schedule-view';
+export { WeekViewCalendar } from './week-view-calendar';
 
 // Drag and Drop Components
 export { DraggableUser, DraggingUserOverlay } from './draggable-user';

@@ -4,14 +4,19 @@ import {
   startOfWeek,
   endOfWeek,
   eachDayOfInterval,
+  eachWeekOfInterval,
   format,
   isSameMonth,
   isSameDay,
   isWithinInterval,
   addMonths,
   subMonths,
+  addWeeks,
+  subWeeks,
   parseISO,
   differenceInDays,
+  getDay,
+  isWeekend,
 } from 'date-fns';
 import type { CalendarAssignmentResult, CalendarEvent, BookingStatus } from '@/types/calendar';
 import { BOOKING_STATUS_ORDER } from './constants';
@@ -252,4 +257,78 @@ export function getUserInitials(name: string | null): string {
     .join('')
     .toUpperCase()
     .slice(0, 2);
+}
+
+/**
+ * Work weekdays only (Monday to Friday)
+ */
+export const WEEKDAYS_WORK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as const;
+
+/**
+ * Get all weekdays (Mon-Fri) within a date range
+ */
+export function getWeekViewDays(startDate: string, endDate: string): Date[] {
+  const start = parseISO(startDate);
+  const end = parseISO(endDate);
+  const days = eachDayOfInterval({ start, end });
+
+  // Filter to only weekdays (Mon-Fri)
+  return days.filter((day) => !isWeekend(day));
+}
+
+/**
+ * Get weeks in a date range for week view navigation
+ */
+export function getWeeksInRange(startDate: string, endDate: string): Date[][] {
+  const start = parseISO(startDate);
+  const end = parseISO(endDate);
+
+  // Get start of each week in the range
+  const weekStarts = eachWeekOfInterval({ start, end }, { weekStartsOn: 1 }); // Monday start
+
+  return weekStarts.map((weekStart) => {
+    const weekDays: Date[] = [];
+    // Get Mon-Fri for each week
+    for (let i = 0; i < 5; i++) {
+      const day = new Date(weekStart);
+      day.setDate(day.getDate() + i);
+      // Only include days within the project range
+      if (day >= start && day <= end) {
+        weekDays.push(day);
+      }
+    }
+    return weekDays;
+  }).filter(week => week.length > 0);
+}
+
+/**
+ * Get the week number for a given date within a project range
+ */
+export function getWeekNumber(date: Date, projectStartDate: string): number {
+  const start = parseISO(projectStartDate);
+  const startOfProjectWeek = startOfWeek(start, { weekStartsOn: 1 });
+  const startOfDateWeek = startOfWeek(date, { weekStartsOn: 1 });
+
+  return Math.floor(differenceInDays(startOfDateWeek, startOfProjectWeek) / 7) + 1;
+}
+
+/**
+ * Navigate to next week
+ */
+export function getNextWeek(date: Date): Date {
+  return addWeeks(date, 1);
+}
+
+/**
+ * Navigate to previous week
+ */
+export function getPreviousWeek(date: Date): Date {
+  return subWeeks(date, 1);
+}
+
+/**
+ * Check if a date is a weekday (Mon-Fri)
+ */
+export function isWeekday(date: Date): boolean {
+  return !isWeekend(date);
 }

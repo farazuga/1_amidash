@@ -719,6 +719,64 @@ export async function getMySubscriptions(): Promise<ActionResult<{
   return { success: true, data: data || [] };
 }
 
+/**
+ * Create a personal calendar subscription for a specific user (admin only)
+ * This allows admins to generate iCal links for team members
+ */
+export async function createCalendarSubscriptionForUser(
+  targetUserId: string
+): Promise<ActionResult<{ token: string; url: string }>> {
+  const { error: authError, supabase, user } = await requireAdmin();
+  if (authError || !supabase || !user) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  // Check if subscription already exists for target user
+  const { data: existing } = await supabase
+    .from('calendar_subscriptions')
+    .select('id, token')
+    .eq('user_id', targetUserId)
+    .eq('feed_type', 'personal')
+    .is('project_id', null)
+    .maybeSingle();
+
+  if (existing) {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    return {
+      success: true,
+      data: {
+        token: existing.token,
+        url: `${baseUrl}/api/calendar/ical/${existing.token}`,
+      },
+    };
+  }
+
+  // Create new subscription for target user
+  const { data: subscription, error: insertError } = await supabase
+    .from('calendar_subscriptions')
+    .insert({
+      user_id: targetUserId,
+      feed_type: 'personal',
+      project_id: null,
+    })
+    .select('token')
+    .single();
+
+  if (insertError) {
+    console.error('Create subscription for user error:', insertError);
+    return { success: false, error: 'Failed to create subscription' };
+  }
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  return {
+    success: true,
+    data: {
+      token: subscription.token,
+      url: `${baseUrl}/api/calendar/ical/${subscription.token}`,
+    },
+  };
+}
+
 export async function deleteCalendarSubscription(subscriptionId: string): Promise<ActionResult> {
   const { error: authError, supabase, user } = await getAuthenticatedClient();
   if (authError || !supabase || !user) {

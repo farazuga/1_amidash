@@ -3,7 +3,7 @@
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { AssignmentCard } from './assignment-card';
-import { isToday, isCurrentMonth } from '@/lib/calendar/utils';
+import { isToday, isCurrentMonth, isDateInRange } from '@/lib/calendar/utils';
 import type { CalendarEvent } from '@/types/calendar';
 
 interface CalendarDayCellProps {
@@ -13,7 +13,13 @@ interface CalendarDayCellProps {
   isSelected?: boolean;
   onDateClick?: (date: Date) => void;
   onEventClick?: (event: CalendarEvent) => void;
+  onStatusClick?: (assignmentId: string) => void;
+  onEditClick?: (event: CalendarEvent) => void;
+  isUpdatingAssignment?: string | null;
+  showEditButton?: boolean;
   maxEventsVisible?: number;
+  projectStartDate?: string | null;
+  projectEndDate?: string | null;
 }
 
 export function CalendarDayCell({
@@ -23,19 +29,27 @@ export function CalendarDayCell({
   isSelected = false,
   onDateClick,
   onEventClick,
+  onStatusClick,
+  onEditClick,
+  isUpdatingAssignment,
+  showEditButton = true,
   maxEventsVisible = 3,
+  projectStartDate,
+  projectEndDate,
 }: CalendarDayCellProps) {
   const today = isToday(date);
   const inCurrentMonth = isCurrentMonth(date, currentMonth);
   const hasMoreEvents = events.length > maxEventsVisible;
   const visibleEvents = events.slice(0, maxEventsVisible);
   const hiddenCount = events.length - maxEventsVisible;
+  const inProjectRange = isDateInRange(date, projectStartDate ?? null, projectEndDate ?? null);
 
   return (
     <div
       className={cn(
         'min-h-[100px] border-r border-b p-1 transition-colors',
         !inCurrentMonth && 'bg-muted/30',
+        inProjectRange && inCurrentMonth && 'bg-primary/5',
         isSelected && 'bg-accent',
         'hover:bg-accent/50 cursor-pointer'
       )}
@@ -63,6 +77,10 @@ export function CalendarDayCell({
               e?.stopPropagation?.();
               onEventClick?.(event);
             }}
+            onStatusClick={onStatusClick}
+            onEditClick={onEditClick}
+            isUpdating={isUpdatingAssignment === event.assignmentId}
+            showEditButton={showEditButton}
           />
         ))}
 

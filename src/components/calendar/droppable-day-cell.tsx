@@ -4,6 +4,7 @@ import { useDroppable } from '@dnd-kit/core';
 import { format, isSameDay, isSameMonth, isToday, isWeekend } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { AssignmentCard } from './assignment-card';
+import { isDateInRange } from '@/lib/calendar/utils';
 import type { CalendarEvent } from '@/types/calendar';
 
 interface DroppableDayCellProps {
@@ -12,8 +13,14 @@ interface DroppableDayCellProps {
   events: CalendarEvent[];
   onDayClick?: (date: Date) => void;
   onEventClick?: (event: CalendarEvent) => void;
+  onStatusClick?: (assignmentId: string) => void;
+  onEditClick?: (event: CalendarEvent) => void;
+  isUpdatingAssignment?: string | null;
+  showEditButton?: boolean;
   maxEventsToShow?: number;
   selectedDate?: Date | null;
+  projectStartDate?: string | null;
+  projectEndDate?: string | null;
 }
 
 export function DroppableDayCell({
@@ -22,8 +29,14 @@ export function DroppableDayCell({
   events,
   onDayClick,
   onEventClick,
+  onStatusClick,
+  onEditClick,
+  isUpdatingAssignment,
+  showEditButton = true,
   maxEventsToShow = 2,
   selectedDate,
+  projectStartDate,
+  projectEndDate,
 }: DroppableDayCellProps) {
   const { isOver, setNodeRef } = useDroppable({
     id: `day-${format(date, 'yyyy-MM-dd')}`,
@@ -38,6 +51,7 @@ export function DroppableDayCell({
   const visibleEvents = events.slice(0, maxEventsToShow);
   const hiddenCount = events.length - maxEventsToShow;
   const hasMoreEvents = hiddenCount > 0;
+  const inProjectRange = isDateInRange(date, projectStartDate ?? null, projectEndDate ?? null);
 
   return (
     <div
@@ -48,6 +62,7 @@ export function DroppableDayCell({
         !isCurrentMonth && 'bg-muted/30',
         isCurrentMonth && 'bg-background',
         isWeekend(date) && 'bg-muted/10',
+        inProjectRange && isCurrentMonth && 'bg-primary/5',
         isToday(date) && 'bg-blue-50 dark:bg-blue-950/30',
         isSelected && 'ring-2 ring-primary ring-inset',
         isOver && 'bg-primary/10 ring-2 ring-primary ring-inset',
@@ -79,6 +94,10 @@ export function DroppableDayCell({
               e?.stopPropagation?.();
               onEventClick?.(event);
             }}
+            onStatusClick={onStatusClick}
+            onEditClick={onEditClick}
+            isUpdating={isUpdatingAssignment === event.assignmentId}
+            showEditButton={showEditButton}
           />
         ))}
 

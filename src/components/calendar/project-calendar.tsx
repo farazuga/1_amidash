@@ -11,13 +11,15 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { CalendarHeader } from './calendar-header';
+import { CalendarHeaderWithDates } from './calendar-header-with-dates';
+import { useUser } from '@/hooks/use-user';
 import { CalendarDayCell } from './calendar-day-cell';
 import { DroppableDayCell } from './droppable-day-cell';
 import { CalendarLegend } from './calendar-legend';
 import { AssignmentDialog } from './assignment-dialog';
 import { AssignmentSidebar } from './assignment-sidebar';
 import { DraggingUserOverlay } from './draggable-user';
-import { WEEKDAYS } from '@/lib/calendar/constants';
+import { WEEKDAYS, BOOKING_STATUS_CONFIG } from '@/lib/calendar/constants';
 import {
   getCalendarDays,
   getMonthViewRange,
@@ -27,11 +29,21 @@ import {
   sortEventsByStatus,
   convertToCalendarEvents,
 } from '@/lib/calendar/utils';
-import { useCalendarData, useAssignableUsers, useCreateAssignment } from '@/hooks/queries/use-assignments';
+import { useCalendarData, useAssignableUsers, useCreateAssignment, useCycleAssignmentStatus } from '@/hooks/queries/use-assignments';
+import { AssignmentDaysDialog } from './assignment-days-dialog';
+import { useIsMobile } from '@/hooks/use-mobile';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import type { CalendarEvent, BookingStatus } from '@/types/calendar';
 import type { Project } from '@/types';
-import { Loader2, LayoutGrid, GanttChart } from 'lucide-react';
+import { Loader2, LayoutGrid, GanttChart, CalendarDays } from 'lucide-react';
 import { GanttCalendar } from './gantt-calendar';
+import { WeekViewCalendar } from './week-view-calendar';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
@@ -42,15 +54,26 @@ interface ProjectCalendarProps {
 }
 
 export function ProjectCalendar({ project, onEventClick, enableDragDrop = false }: ProjectCalendarProps) {
+  const isMobile = useIsMobile();
+  const { isAdmin } = useUser();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [assignmentDialogOpen, setAssignmentDialogOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [viewMode, setViewMode] = useState<'calendar' | 'gantt'>('calendar');
+  // Smart default: week view if project has dates, month view otherwise
+  const [viewMode, setViewMode] = useState<'calendar' | 'week' | 'gantt'>(() => {
+    if (project?.start_date && project?.end_date) {
+      return 'week';
+    }
+    return 'calendar';
+  });
   const [activeDragData, setActiveDragData] = useState<{
     userId: string;
     userName: string | null;
   } | null>(null);
+  const [statusFilter, setStatusFilter] = useState<BookingStatus | 'all'>('all');
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState<CalendarEvent | null>(null);
 
   const { start, end } = getMonthViewRange(currentDate);
   const days = getCalendarDays(currentDate);
@@ -62,12 +85,34 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   // Use assignable users instead of just admin users
   const { data: assignableUsers = [], isLoading: isLoadingUsers } = useAssignableUsers();
   const createAssignment = useCreateAssignment();
+  const cycleStatus = useCycleAssignmentStatus();
 
   // Convert assignments to calendar events
   const events = useMemo(() => {
     if (!calendarAssignments) return [];
     return convertToCalendarEvents(calendarAssignments, new Map());
   }, [calendarAssignments]);
+
+  // Calculate status counts for summary bar
+  const statusCounts = useMemo(() => {
+    const counts = {
+      pencil: 0,
+      pending_confirm: 0,
+      confirmed: 0,
+      total: 0,
+    };
+    events.forEach((event) => {
+      counts[event.bookingStatus]++;
+      counts.total++;
+    });
+    return counts;
+  }, [events]);
+
+  // Filter events by status
+  const filteredEvents = useMemo(() => {
+    if (statusFilter === 'all') return events;
+    return events.filter((e) => e.bookingStatus === statusFilter);
+  }, [events, statusFilter]);
 
   // Drag sensors for better UX
   const sensors = useSensors(
@@ -100,6 +145,26 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   const handleEventClick = (event: CalendarEvent) => {
     onEventClick?.(event);
   };
+
+  // Handle status cycling (click on status dot)
+  const handleStatusClick = useCallback(async (assignmentId: string) => {
+    try {
+      const result = await cycleStatus.mutateAsync(assignmentId);
+      toast.success('Status updated', {
+        description: `Changed to ${result.newStatus.replace('_', ' ')}`,
+      });
+    } catch (error) {
+      toast.error('Failed to update status', {
+        description: error instanceof Error ? error.message : 'An error occurred',
+      });
+    }
+  }, [cycleStatus]);
+
+  // Handle edit click (pencil icon)
+  const handleEditClick = useCallback((event: CalendarEvent) => {
+    setSelectedAssignment(event);
+    setEditDialogOpen(true);
+  }, []);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const { active } = event;
@@ -174,7 +239,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
       {/* Calendar grid */}
       <div className="grid grid-cols-7">
         {days.map((date, index) => {
-          const dayEvents = sortEventsByStatus(getEventsForDay(date, events));
+          const dayEvents = sortEventsByStatus(getEventsForDay(date, filteredEvents));
           const isSelected = selectedDate
             ? date.toDateString() === selectedDate.toDateString()
             : false;
@@ -189,6 +254,12 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
                 selectedDate={isSelected ? selectedDate : undefined}
                 onDayClick={handleDateClick}
                 onEventClick={handleEventClick}
+                onStatusClick={handleStatusClick}
+                onEditClick={!isMobile ? handleEditClick : undefined}
+                isUpdatingAssignment={cycleStatus.isPending ? cycleStatus.variables : null}
+                showEditButton={!isMobile}
+                projectStartDate={project?.start_date}
+                projectEndDate={project?.end_date}
               />
             );
           }
@@ -202,6 +273,12 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
               isSelected={isSelected}
               onDateClick={handleDateClick}
               onEventClick={handleEventClick}
+              onStatusClick={handleStatusClick}
+              onEditClick={!isMobile ? handleEditClick : undefined}
+              isUpdatingAssignment={cycleStatus.isPending ? cycleStatus.variables : null}
+              showEditButton={!isMobile}
+              projectStartDate={project?.start_date}
+              projectEndDate={project?.end_date}
             />
           );
         })}
@@ -210,8 +287,21 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   );
 
   // View toggle buttons
+  // View toggle - show week view option only when project has dates
+  const hasProjectDates = project?.start_date && project?.end_date;
   const viewToggle = enableDragDrop && (
-    <div className="flex items-center gap-1 border rounded-lg p-1">
+    <div className="flex items-center gap-1 border rounded-lg p-1 print:hidden">
+      {hasProjectDates && (
+        <Button
+          variant={viewMode === 'week' ? 'secondary' : 'ghost'}
+          size="sm"
+          className="h-7 gap-1"
+          onClick={() => setViewMode('week')}
+        >
+          <CalendarDays className="h-3.5 w-3.5" />
+          Week
+        </Button>
+      )}
       <Button
         variant={viewMode === 'calendar' ? 'secondary' : 'ghost'}
         size="sm"
@@ -219,7 +309,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
         onClick={() => setViewMode('calendar')}
       >
         <LayoutGrid className="h-3.5 w-3.5" />
-        Calendar
+        Month
       </Button>
       <Button
         variant={viewMode === 'gantt' ? 'secondary' : 'ghost'}
@@ -233,23 +323,108 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
     </div>
   );
 
+  // Status summary bar component
+  const statusSummaryBar = statusCounts.total > 0 && (
+    <div className="flex items-center gap-4 text-sm bg-muted/50 p-2 rounded-lg">
+      {(['pencil', 'pending_confirm', 'confirmed'] as const).map((status) => {
+        const config = BOOKING_STATUS_CONFIG[status];
+        const count = statusCounts[status];
+        return (
+          <div key={status} className="flex items-center gap-1.5">
+            <span className={`h-3 w-3 rounded-full ${config.dotColor}`} />
+            <span className="font-medium">{count}</span>
+            <span className="text-muted-foreground">{config.label}</span>
+          </div>
+        );
+      })}
+      <span className="text-muted-foreground ml-auto">
+        {statusCounts.total} total assignment{statusCounts.total !== 1 ? 's' : ''}
+      </span>
+    </div>
+  );
+
   const calendarContent = (
     <div className="flex-1 space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <CalendarHeader
-            currentDate={currentDate}
-            onPreviousMonth={handlePreviousMonth}
-            onNextMonth={handleNextMonth}
-            onToday={handleToday}
-          />
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          {project ? (
+            <CalendarHeaderWithDates
+              currentDate={currentDate}
+              onPreviousMonth={handlePreviousMonth}
+              onNextMonth={handleNextMonth}
+              onToday={handleToday}
+              projectId={project.id}
+              projectName={project.client_name}
+              projectStartDate={project.start_date}
+              projectEndDate={project.end_date}
+              salesOrderUrl={project.sales_order_url}
+              salesOrderNumber={project.sales_order_number}
+              isAdmin={isAdmin}
+              isMobile={isMobile}
+            />
+          ) : (
+            <CalendarHeader
+              currentDate={currentDate}
+              onPreviousMonth={handlePreviousMonth}
+              onNextMonth={handleNextMonth}
+              onToday={handleToday}
+            />
+          )}
           {viewToggle}
         </div>
-        <CalendarLegend />
+        <div className="flex flex-wrap items-center gap-4">
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as BookingStatus | 'all')}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="pencil">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-amber-500" />
+                  Pencil Only
+                </div>
+              </SelectItem>
+              <SelectItem value="pending_confirm">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-blue-500" />
+                  Pending Only
+                </div>
+              </SelectItem>
+              <SelectItem value="confirmed">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-green-500" />
+                  Confirmed Only
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          {/* Hide legend on mobile - visible in summary bar */}
+          {!isMobile && <CalendarLegend />}
+        </div>
       </div>
+
+      {statusSummaryBar}
 
       {viewMode === 'gantt' && project ? (
         <GanttCalendar projectId={project.id} projectName={project.client_name} />
+      ) : viewMode === 'week' && hasProjectDates ? (
+        isLoading ? (
+          <div className="flex items-center justify-center h-[500px]">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <WeekViewCalendar
+            events={filteredEvents}
+            projectStartDate={project!.start_date!}
+            projectEndDate={project!.end_date!}
+            onEventClick={handleEventClick}
+            onStatusClick={handleStatusClick}
+            onEditClick={!isMobile ? handleEditClick : undefined}
+            isUpdatingAssignment={cycleStatus.isPending ? cycleStatus.variables : null}
+            showEditButton={!isMobile}
+          />
+        )
       ) : isLoading ? (
         <div className="flex items-center justify-center h-[500px]">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -264,6 +439,19 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
         onOpenChange={setAssignmentDialogOpen}
         project={project || null}
       />
+
+      {/* Edit days dialog */}
+      {selectedAssignment && project?.start_date && project?.end_date && (
+        <AssignmentDaysDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          assignmentId={selectedAssignment.assignmentId}
+          userName={selectedAssignment.userName}
+          projectName={selectedAssignment.projectName}
+          projectStartDate={project.start_date}
+          projectEndDate={project.end_date}
+        />
+      )}
     </div>
   );
 
@@ -281,12 +469,15 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
     >
       <div className="flex">
         {calendarContent}
-        <AssignmentSidebar
-          users={assignableUsers}
-          isLoading={isLoadingUsers}
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-        />
+        {/* Hide sidebar on mobile - drag & drop not practical on touch */}
+        {!isMobile && (
+          <AssignmentSidebar
+            users={assignableUsers}
+            isLoading={isLoadingUsers}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+          />
+        )}
       </div>
 
       <DragOverlay>

@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 
@@ -9,6 +9,9 @@ interface CalendarHeaderProps {
   onPreviousMonth: () => void;
   onNextMonth: () => void;
   onToday: () => void;
+  projectName?: string;
+  salesOrderUrl?: string | null;
+  salesOrderNumber?: string | null;
 }
 
 export function CalendarHeader({
@@ -16,14 +19,38 @@ export function CalendarHeader({
   onPreviousMonth,
   onNextMonth,
   onToday,
+  projectName,
+  salesOrderUrl,
+  salesOrderNumber,
 }: CalendarHeaderProps) {
   return (
     <div className="flex items-center justify-between mb-4">
       <div className="flex items-center gap-2">
         <CalendarIcon className="h-5 w-5 text-muted-foreground" />
-        <h2 className="text-xl font-semibold">
-          {format(currentDate, 'MMMM yyyy')}
-        </h2>
+        {projectName ? (
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-semibold">{projectName}</h2>
+            {salesOrderUrl && (
+              <a
+                href={salesOrderUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground hover:text-primary transition-colors"
+                title={`Open Sales Order ${salesOrderNumber || ''}`}
+              >
+                <ExternalLink className="h-4 w-4" />
+              </a>
+            )}
+            <span className="text-muted-foreground">·</span>
+            <span className="text-lg text-muted-foreground">
+              {format(currentDate, 'MMMM yyyy')}
+            </span>
+          </div>
+        ) : (
+          <h2 className="text-xl font-semibold">
+            {format(currentDate, 'MMMM yyyy')}
+          </h2>
+        )}
       </div>
 
       <div className="flex items-center gap-2">
