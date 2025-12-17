@@ -1,0 +1,194 @@
+import { SlideConfig, DisplayConfig, TransitionConfig } from '../config/schema.js';
+import { DataCache } from '../data/polling-manager.js';
+import { CanvasManager } from './canvas-manager.js';
+import { BaseSlide } from './slides/base-slide.js';
+import { ActiveProjectsSlide } from './slides/active-projects.js';
+import { POTickerSlide } from './slides/po-ticker.js';
+import { RevenueDashboardSlide } from './slides/revenue-dashboard.js';
+import { TeamScheduleSlide } from './slides/team-schedule.js';
+import { logger } from '../utils/logger.js';
+
+export class SlideManager {
+  private slides: BaseSlide[] = [];
+  private currentSlideIndex: number = 0;
+  private slideStartTime: number = 0;
+  private transitionProgress: number = 0;
+  private isTransitioning: boolean = false;
+  private displayConfig: DisplayConfig;
+  private transitionConfig: TransitionConfig;
+  private lastFrameTime: number = 0;
+
+  constructor(
+    slideConfigs: SlideConfig[],
+    displayConfig: DisplayConfig,
+    transitionConfig: TransitionConfig
+  ) {
+    this.displayConfig = displayConfig;
+    this.transitionConfig = transitionConfig;
+
+    // Create slide instances for enabled slides
+    slideConfigs
+      .filter((config) => config.enabled)
+      .forEach((config) => {
+        const slide = this.createSlide(config);
+        if (slide) {
+          this.slides.push(slide);
+        }
+      });
+
+    logger.info({ slideCount: this.slides.length }, 'Slide manager initialized');
+  }
+
+  private createSlide(config: SlideConfig): BaseSlide | null {
+    switch (config.type) {
+      case 'active-projects':
+        return new ActiveProjectsSlide(config, this.displayConfig);
+      case 'po-ticker':
+        return new POTickerSlide(config, this.displayConfig);
+      case 'revenue-dashboard':
+        return new RevenueDashboardSlide(config, this.displayConfig);
+      case 'team-schedule':
+        return new TeamScheduleSlide(config, this.displayConfig);
+      default:
+        logger.warn({ type: config.type }, 'Unknown slide type');
+        return null;
+    }
+  }
+
+  async loadAssets(): Promise<void> {
+    for (const slide of this.slides) {
+      await slide.loadLogo();
+    }
+  }
+
+  render(canvasManager: CanvasManager, data: DataCache): void {
+    if (this.slides.length === 0) return;
+
+    const now = Date.now();
+    const deltaTime = this.lastFrameTime ? now - this.lastFrameTime : 16.67;
+    this.lastFrameTime = now;
+
+    const ctx = canvasManager.getBackContext();
+    canvasManager.clear();
+
+    const currentSlide = this.slides[this.currentSlideIndex];
+    const currentConfig = this.getSlideConfig(this.currentSlideIndex);
+
+    // Check if it's time to transition
+    if (!this.isTransitioning && now - this.slideStartTime >= currentConfig.duration) {
+      this.startTransition();
+    }
+
+    if (this.isTransitioning) {
+      this.renderTransition(ctx, canvasManager, data, deltaTime);
+    } else {
+      currentSlide.render(ctx, data, deltaTime);
+    }
+
+    canvasManager.swap();
+  }
+
+  private startTransition(): void {
+    this.isTransitioning = true;
+    this.transitionProgress = 0;
+    logger.debug({ from: this.currentSlideIndex, to: (this.currentSlideIndex + 1) % this.slides.length }, 'Starting transition');
+  }
+
+  private renderTransition(
+    ctx: CanvasRenderingContext2D,
+    canvasManager: CanvasManager,
+    data: DataCache,
+    deltaTime: number
+  ): void {
+    const duration = this.transitionConfig.duration;
+    this.transitionProgress += deltaTime / duration;
+
+    if (this.transitionProgress >= 1) {
+      this.transitionProgress = 0;
+      this.isTransitioning = false;
+      this.currentSlideIndex = (this.currentSlideIndex + 1) % this.slides.length;
+      this.slideStartTime = Date.now();
+      this.slides[this.currentSlideIndex].render(ctx, data, deltaTime);
+      return;
+    }
+
+    const currentSlide = this.slides[this.currentSlideIndex];
+    const nextIndex = (this.currentSlideIndex + 1) % this.slides.length;
+    const nextSlide = this.slides[nextIndex];
+
+    switch (this.transitionConfig.type) {
+      case 'fade':
+        this.renderFadeTransition(ctx, canvasManager, data, deltaTime, currentSlide, nextSlide);
+        break;
+      case 'slide':
+        this.renderSlideTransition(ctx, canvasManager, data, deltaTime, currentSlide, nextSlide);
+        break;
+      case 'none':
+      default:
+        nextSlide.render(ctx, data, deltaTime);
+    }
+  }
+
+  private renderFadeTransition(
+    ctx: CanvasRenderingContext2D,
+    _canvasManager: CanvasManager,
+    data: DataCache,
+    deltaTime: number,
+    currentSlide: BaseSlide,
+    nextSlide: BaseSlide
+  ): void {
+    // Render current slide
+    currentSlide.render(ctx, data, deltaTime);
+
+    // Apply fade overlay
+    ctx.globalAlpha = this.transitionProgress;
+    ctx.fillStyle = this.displayConfig.backgroundColor;
+    ctx.fillRect(0, 0, this.displayConfig.width, this.displayConfig.height);
+
+    // Render next slide with increasing opacity
+    nextSlide.render(ctx, data, deltaTime);
+    ctx.globalAlpha = 1;
+  }
+
+  private renderSlideTransition(
+    ctx: CanvasRenderingContext2D,
+    _canvasManager: CanvasManager,
+    data: DataCache,
+    deltaTime: number,
+    currentSlide: BaseSlide,
+    nextSlide: BaseSlide
+  ): void {
+    const offset = this.displayConfig.width * this.transitionProgress;
+
+    ctx.save();
+    ctx.translate(-offset, 0);
+    currentSlide.render(ctx, data, deltaTime);
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(this.displayConfig.width - offset, 0);
+    nextSlide.render(ctx, data, deltaTime);
+    ctx.restore();
+  }
+
+  private getSlideConfig(index: number): SlideConfig {
+    // Find the config for this slide
+    const enabledConfigs = this.slides.map((_, i) => i);
+    return this.slides[enabledConfigs[index]]?.['config'] || { type: 'active-projects', enabled: true, duration: 15000 };
+  }
+
+  getCurrentSlideIndex(): number {
+    return this.currentSlideIndex;
+  }
+
+  getSlideCount(): number {
+    return this.slides.length;
+  }
+
+  reset(): void {
+    this.currentSlideIndex = 0;
+    this.slideStartTime = Date.now();
+    this.isTransitioning = false;
+    this.transitionProgress = 0;
+  }
+}

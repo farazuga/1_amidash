@@ -16,6 +16,7 @@ import {
   Plus,
   Target,
   Settings,
+  Tv,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -59,6 +60,11 @@ const adminNavItems = [
     title: 'Users',
     href: '/admin/users',
     icon: Users,
+  },
+  {
+    title: 'Digital Signage',
+    href: '/admin/signage',
+    icon: Tv,
   },
   {
     title: 'Audit Log',
