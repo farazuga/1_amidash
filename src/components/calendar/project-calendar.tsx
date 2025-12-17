@@ -91,7 +91,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   const { start, end } = getMonthViewRange(currentDate);
   const days = getCalendarDays(currentDate);
 
-  const { data: calendarAssignments, isLoading } = useCalendarData(start, end, {
+  const { data: calendarAssignments, isLoading, isError, error } = useCalendarData(start, end, {
     projectId: project?.id,
   });
 
@@ -431,7 +431,12 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
 
       {statusSummaryBar}
 
-      {viewMode === 'gantt' && project ? (
+      {isError ? (
+        <div className="flex flex-col items-center justify-center h-[500px] text-muted-foreground">
+          <p className="text-destructive font-medium">Failed to load calendar data</p>
+          <p className="text-sm mt-1">{error instanceof Error ? error.message : 'An error occurred'}</p>
+        </div>
+      ) : viewMode === 'gantt' && project ? (
         <GanttCalendar projectId={project.id} projectName={project.client_name} />
       ) : viewMode === 'week' && hasProjectDates ? (
         isLoading ? (
