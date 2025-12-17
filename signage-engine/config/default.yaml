@@ -1,0 +1,70 @@
+# NDI Digital Signage Engine Configuration
+
+# NDI Output Settings
+ndi:
+  name: "Amidash Signage"
+  frameRate: 30
+
+# Display Settings
+display:
+  width: 3840
+  height: 2160
+  backgroundColor: "#1a1a2e"
+  accentColor: "#023A2D"
+  fontFamily: "Inter, Arial, sans-serif"
+  logoPath: "../public/new_logo.png"
+
+# Data Polling Intervals (milliseconds)
+polling:
+  projects: 30000       # 30 seconds
+  revenue: 60000        # 1 minute
+  schedule: 30000       # 30 seconds
+  purchaseOrders: 15000 # 15 seconds
+
+# Slide Configuration
+slides:
+  - type: "active-projects"
+    enabled: true
+    duration: 15000
+    title: "Active Projects"
+    maxItems: 15
+    showStatus: true
+    showDueDate: true
+    showSalesAmount: true
+
+  - type: "po-ticker"
+    enabled: true
+    duration: 10000
+    title: "Recent Purchase Orders"
+    maxItems: 10
+    scrollSpeed: 2
+
+  - type: "revenue-dashboard"
+    enabled: true
+    duration: 20000
+    title: "Revenue Dashboard"
+    showMonthlyGoals: true
+    showQuarterlyProgress: true
+    chartType: "bar"
+
+  - type: "team-schedule"
+    enabled: true
+    duration: 15000
+    title: "Team Schedule"
+    daysToShow: 14
+    showWeekends: true
+
+# Slide Transitions
+transitions:
+  type: "fade"          # fade, slide, none
+  duration: 500         # milliseconds
+
+# API Server (for admin control)
+api:
+  port: 3001
+  host: "127.0.0.1"
+
+# Stale Data Indicator
+staleData:
+  warningThresholdMs: 60000   # Show warning after 1 minute of no updates
+  indicatorPosition: "bottom-right"
