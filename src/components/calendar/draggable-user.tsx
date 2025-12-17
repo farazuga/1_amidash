@@ -30,15 +30,17 @@ export function DraggableUser({ user }: DraggableUserProps) {
     : undefined;
 
   return (
-    <button
+    <div
       ref={setNodeRef}
       style={style}
       {...listeners}
       {...attributes}
+      role="button"
+      tabIndex={0}
       className={cn(
         'flex items-center gap-2 px-3 py-2 rounded-lg border w-full text-left',
         'hover:bg-accent hover:text-accent-foreground transition-colors',
-        'cursor-grab active:cursor-grabbing',
+        'cursor-grab active:cursor-grabbing touch-none',
         isDragging && 'opacity-50 ring-2 ring-primary'
       )}
     >
@@ -49,7 +51,7 @@ export function DraggableUser({ user }: DraggableUserProps) {
         <p className="text-sm font-medium truncate">{user.full_name || 'Unknown'}</p>
         <p className="text-xs text-muted-foreground truncate">{user.email}</p>
       </div>
-    </button>
+    </div>
   );
 }
 

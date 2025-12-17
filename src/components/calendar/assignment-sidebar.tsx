@@ -38,22 +38,26 @@ export function AssignmentSidebar({
 
   if (collapsed) {
     return (
-      <div className="w-12 border-l bg-muted/20 flex flex-col items-center py-4">
+      <div className="w-12 border-l bg-muted/20 flex flex-col items-center py-4 transition-all duration-200">
         <Button
           variant="ghost"
           size="icon"
           onClick={onToggleCollapse}
           className="mb-4"
+          title="Expand sidebar"
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <Users className="h-5 w-5 text-muted-foreground" />
+        <Users className="h-5 w-5 text-muted-foreground mt-2" />
+        <span className="text-xs text-muted-foreground mt-2 [writing-mode:vertical-lr] rotate-180">
+          Team
+        </span>
       </div>
     );
   }
 
   return (
-    <div className="w-64 border-l bg-muted/20 flex flex-col">
+    <div className="w-64 border-l bg-muted/20 flex flex-col transition-all duration-200">
       <div className="p-4 border-b flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Users className="h-4 w-4" />

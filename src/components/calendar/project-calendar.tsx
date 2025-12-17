@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   DndContext,
   DragOverlay,
   useSensor,
   useSensors,
   PointerSensor,
+  closestCenter,
   type DragStartEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
@@ -31,7 +32,9 @@ import {
 } from '@/lib/calendar/utils';
 import { useCalendarData, useAssignableUsers, useCreateAssignment, useCycleAssignmentStatus } from '@/hooks/queries/use-assignments';
 import { AssignmentDaysDialog } from './assignment-days-dialog';
+import { MultiUserAssignmentDialog } from './multi-user-assignment-dialog';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useMediaQuery } from '@/hooks/use-media-query';
 import {
   Select,
   SelectContent,
@@ -41,7 +44,7 @@ import {
 } from '@/components/ui/select';
 import type { CalendarEvent, BookingStatus } from '@/types/calendar';
 import type { Project } from '@/types';
-import { Loader2, LayoutGrid, GanttChart, CalendarDays } from 'lucide-react';
+import { Loader2, LayoutGrid, GanttChart, CalendarDays, Users } from 'lucide-react';
 import { GanttCalendar } from './gantt-calendar';
 import { WeekViewCalendar } from './week-view-calendar';
 import { Button } from '@/components/ui/button';
@@ -55,11 +58,20 @@ interface ProjectCalendarProps {
 
 export function ProjectCalendar({ project, onEventClick, enableDragDrop = false }: ProjectCalendarProps) {
   const isMobile = useIsMobile();
+  const isLargeScreen = useMediaQuery('(min-width: 1280px)');
   const { isAdmin } = useUser();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [assignmentDialogOpen, setAssignmentDialogOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Auto-collapse sidebar on smaller screens
+  useEffect(() => {
+    if (!isLargeScreen && !sidebarCollapsed) {
+      setSidebarCollapsed(true);
+    }
+  }, [isLargeScreen, sidebarCollapsed]);
+
   // Smart default: week view if project has dates, month view otherwise
   const [viewMode, setViewMode] = useState<'calendar' | 'week' | 'gantt'>(() => {
     if (project?.start_date && project?.end_date) {
@@ -74,6 +86,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   const [statusFilter, setStatusFilter] = useState<BookingStatus | 'all'>('all');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<CalendarEvent | null>(null);
+  const [multiUserDialogOpen, setMultiUserDialogOpen] = useState(false);
 
   const { start, end } = getMonthViewRange(currentDate);
   const days = getCalendarDays(currentDate);
@@ -345,7 +358,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
 
   const calendarContent = (
     <div className="flex-1 space-y-4">
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           {project ? (
             <CalendarHeaderWithDates
@@ -373,6 +386,18 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
           {viewToggle}
         </div>
         <div className="flex flex-wrap items-center gap-4">
+          {/* Manage Schedule button - admin only, requires project with dates */}
+          {isAdmin && project?.start_date && project?.end_date && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setMultiUserDialogOpen(true)}
+              className="gap-2"
+            >
+              <Users className="h-4 w-4" />
+              Manage Schedule
+            </Button>
+          )}
           <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as BookingStatus | 'all')}>
             <SelectTrigger className="w-[150px]">
               <SelectValue placeholder="All statuses" />
@@ -452,6 +477,18 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
           projectEndDate={project.end_date}
         />
       )}
+
+      {/* Multi-user schedule dialog */}
+      {project?.start_date && project?.end_date && (
+        <MultiUserAssignmentDialog
+          open={multiUserDialogOpen}
+          onOpenChange={setMultiUserDialogOpen}
+          projectId={project.id}
+          projectName={project.client_name}
+          projectStartDate={project.start_date}
+          projectEndDate={project.end_date}
+        />
+      )}
     </div>
   );
 
@@ -464,11 +501,14 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   return (
     <DndContext
       sensors={sensors}
+      collisionDetection={closestCenter}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex">
-        {calendarContent}
+      <div className="flex gap-4">
+        <div className="flex-1 min-w-0 overflow-x-auto">
+          {calendarContent}
+        </div>
         {/* Hide sidebar on mobile - drag & drop not practical on touch */}
         {!isMobile && (
           <AssignmentSidebar

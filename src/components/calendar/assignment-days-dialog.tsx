@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { format, eachDayOfInterval, parseISO } from 'date-fns';
 import { CalendarDays, Plus, Trash2, Clock, Loader2 } from 'lucide-react';
 import {
@@ -47,9 +47,26 @@ export function AssignmentDaysDialog({
   const [defaultStartTime, setDefaultStartTime] = useState('08:00');
   const [defaultEndTime, setDefaultEndTime] = useState('17:00');
 
-  const { data: existingDays = [], isLoading } = useAssignmentDays(assignmentId);
+  const { data: existingDays = [], isLoading, refetch } = useAssignmentDays(assignmentId);
   const addDays = useAddAssignmentDays();
   const removeDays = useRemoveAssignmentDays();
+
+  // Reset state when assignment changes
+  useEffect(() => {
+    setSelectedDates(new Set());
+    setDefaultStartTime('08:00');
+    setDefaultEndTime('17:00');
+  }, [assignmentId]);
+
+  // Reset selection and refetch when dialog opens
+  useEffect(() => {
+    if (open) {
+      setSelectedDates(new Set());
+      if (assignmentId) {
+        refetch();
+      }
+    }
+  }, [open, assignmentId, refetch]);
 
   // Generate all possible dates in project range
   const projectDates = useMemo(() => {

@@ -56,9 +56,14 @@ export function DroppableDayCell({
   return (
     <div
       ref={setNodeRef}
-      onClick={() => onDayClick?.(date)}
+      onClick={() => {
+        // Don't trigger click if we're in a drag operation
+        if (!isOver) {
+          onDayClick?.(date);
+        }
+      }}
       className={cn(
-        'min-h-[100px] p-1 border-b border-r cursor-pointer transition-colors',
+        'min-h-[100px] p-1 border-b border-r cursor-pointer transition-colors touch-none',
         !isCurrentMonth && 'bg-muted/30',
         isCurrentMonth && 'bg-background',
         isWeekend(date) && 'bg-muted/10',
