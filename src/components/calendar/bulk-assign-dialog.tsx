@@ -16,7 +16,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, Users, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { getUserInitials } from '@/lib/calendar/utils';
-import { useAdminUsers, useCreateAssignment } from '@/hooks/queries/use-assignments';
+import { useAssignableUsers, useCreateAssignment } from '@/hooks/queries/use-assignments';
 import { toast } from 'sonner';
 import type { BookingStatus } from '@/types/calendar';
 
@@ -39,10 +39,10 @@ export function BulkAssignDialog({
   const [searchTerm, setSearchTerm] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
 
-  const { data: adminUsers = [], isLoading } = useAdminUsers();
+  const { data: assignableUsers = [], isLoading } = useAssignableUsers();
   const createAssignment = useCreateAssignment();
 
-  const filteredUsers = adminUsers.filter(
+  const filteredUsers = assignableUsers.filter(
     (user) =>
       user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase())
@@ -65,6 +65,7 @@ export function BulkAssignDialog({
   };
 
   const handleAssign = async () => {
+    console.log('[BULK-ASSIGN] Starting bulk assign:', { projectId, selectedUserIds });
     if (selectedUserIds.length === 0) return;
 
     setIsAssigning(true);
@@ -73,15 +74,17 @@ export function BulkAssignDialog({
 
     for (const userId of selectedUserIds) {
       try {
+        console.log('[BULK-ASSIGN] Assigning user:', userId);
         await createAssignment.mutateAsync({
           projectId,
           userId,
           bookingStatus: 'pencil' as BookingStatus,
         });
         successCount++;
+        console.log('[BULK-ASSIGN] User assigned successfully:', userId);
       } catch (error) {
         errorCount++;
-        console.error('Failed to assign user:', error);
+        console.error('[BULK-ASSIGN] Failed to assign user:', userId, error);
       }
     }
 
