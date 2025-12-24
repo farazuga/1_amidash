@@ -24,11 +24,6 @@ export function DraggableUser({ user }: DraggableUserProps) {
     },
   });
 
-  // Log when drag state changes
-  if (isDragging) {
-    console.log('[DRAGGABLE] Dragging user:', { id: draggableId, userId: user.id, userName: user.full_name });
-  }
-
   const style = transform
     ? {
         transform: CSS.Translate.toString(transform),

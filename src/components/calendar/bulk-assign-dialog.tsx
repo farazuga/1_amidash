@@ -65,7 +65,6 @@ export function BulkAssignDialog({
   };
 
   const handleAssign = async () => {
-    console.log('[BULK-ASSIGN] Starting bulk assign:', { projectId, selectedUserIds });
     if (selectedUserIds.length === 0) return;
 
     setIsAssigning(true);
@@ -74,17 +73,14 @@ export function BulkAssignDialog({
 
     for (const userId of selectedUserIds) {
       try {
-        console.log('[BULK-ASSIGN] Assigning user:', userId);
         await createAssignment.mutateAsync({
           projectId,
           userId,
           bookingStatus: 'pencil' as BookingStatus,
         });
         successCount++;
-        console.log('[BULK-ASSIGN] User assigned successfully:', userId);
-      } catch (error) {
+      } catch {
         errorCount++;
-        console.error('[BULK-ASSIGN] Failed to assign user:', userId, error);
       }
     }
 

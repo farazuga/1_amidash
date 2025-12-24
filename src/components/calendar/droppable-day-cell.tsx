@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { format, isSameDay, isSameMonth, isToday, isWeekend } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -47,13 +46,6 @@ export function DroppableDayCell({
       date: date,
     },
   });
-
-  // Debug logging for drop zone
-  useEffect(() => {
-    if (isOver) {
-      console.log('[DROPPABLE] Hovering over:', droppableId, { date: format(date, 'yyyy-MM-dd') });
-    }
-  }, [isOver, droppableId, date]);
 
   const isCurrentMonth = isSameMonth(date, currentMonth);
   const isSelected = selectedDate && isSameDay(date, selectedDate);

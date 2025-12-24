@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { format, startOfWeek, addWeeks, isSameDay } from 'date-fns';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -50,13 +50,6 @@ function WeekDayCell({
     },
     disabled: !enableDragDrop,
   });
-
-  // Debug logging for drop zone
-  useEffect(() => {
-    if (isOver) {
-      console.log('[DROPPABLE-WEEK] Hovering over:', droppableId);
-    }
-  }, [isOver, droppableId]);
 
   const dayEvents = sortEventsByStatus(getEventsForDay(date, events));
   const today = isToday(date);
