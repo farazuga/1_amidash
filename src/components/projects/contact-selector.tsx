@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -60,6 +60,21 @@ export function ContactSelector({
   const [hasManualEdit, setHasManualEdit] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
+  const fillFromContact = useCallback((contact: ACContact, index: number) => {
+    const fullName = `${contact.firstName || ''} ${contact.lastName || ''}`.trim();
+    onPocNameChange(fullName || contact.email);
+    onPocEmailChange(contact.email || '');
+    // Format phone if available
+    if (contact.phone) {
+      onPocPhoneChange(formatPhoneNumber(contact.phone));
+    } else {
+      onPocPhoneChange('');
+    }
+    onContactSelect(contact);
+    setCurrentIndex(index);
+    setHasManualEdit(false);
+  }, [onPocNameChange, onPocEmailChange, onPocPhoneChange, onContactSelect]);
+
   // Initialize with defaults if no account selected
   useEffect(() => {
     if (!initialized && !accountId) {
@@ -75,22 +90,7 @@ export function ContactSelector({
     if (contacts.length > 0 && !hasManualEdit && accountId) {
       fillFromContact(contacts[0], 0);
     }
-  }, [contacts, accountId]);
-
-  const fillFromContact = (contact: ACContact, index: number) => {
-    const fullName = `${contact.firstName || ''} ${contact.lastName || ''}`.trim();
-    onPocNameChange(fullName || contact.email);
-    onPocEmailChange(contact.email || '');
-    // Format phone if available
-    if (contact.phone) {
-      onPocPhoneChange(formatPhoneNumber(contact.phone));
-    } else {
-      onPocPhoneChange('');
-    }
-    onContactSelect(contact);
-    setCurrentIndex(index);
-    setHasManualEdit(false);
-  };
+  }, [contacts, accountId, hasManualEdit, fillFromContact]);
 
   const handlePrev = () => {
     if (contacts.length === 0) return;

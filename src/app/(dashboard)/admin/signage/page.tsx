@@ -7,7 +7,6 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Play, Square, RefreshCw, Monitor, AlertTriangle, Clock, Tv, Activity } from 'lucide-react';
 import {
@@ -17,12 +16,13 @@ import {
   stopSignageEngine,
   restartSignageEngine,
   getSignageLogs,
-  getPreviewUrl,
   updateSignageConfig,
   type SignageStatus,
   type SignageConfig,
   type LogEntry,
 } from './actions';
+
+const SIGNAGE_PREVIEW_URL = 'http://127.0.0.1:3001/preview';
 
 function formatUptime(ms: number): string {
   const seconds = Math.floor(ms / 1000);
@@ -295,7 +295,7 @@ export default function SignageAdminPage() {
                 <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
                   <img
                     key={previewKey}
-                    src={`${getPreviewUrl()}?t=${previewKey}`}
+                    src={`${SIGNAGE_PREVIEW_URL}?t=${previewKey}`}
                     alt="Signage Preview"
                     className="w-full h-full object-contain"
                   />

@@ -116,7 +116,3 @@ export async function getSignageLogs(count: number = 50): Promise<LogEntry[]> {
     return [];
   }
 }
-
-export function getPreviewUrl(): string {
-  return `${SIGNAGE_API_URL}/preview`;
-}
