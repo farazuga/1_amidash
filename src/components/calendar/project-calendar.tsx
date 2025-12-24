@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { parseISO } from 'date-fns';
 import {
   DndContext,
   DragOverlay,
@@ -90,10 +91,25 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   const [multiUserDialogOpen, setMultiUserDialogOpen] = useState(false);
   const [bulkAssignDialogOpen, setBulkAssignDialogOpen] = useState(false);
 
-  const { start, end } = getMonthViewRange(currentDate);
+  const { start: monthStart, end: monthEnd } = getMonthViewRange(currentDate);
   const days = getCalendarDays(currentDate);
 
-  const { data: calendarAssignments, isLoading, isError, error } = useCalendarData(start, end, {
+  // For week/gantt views, query based on project dates; for month view, use current month
+  const queryStart = useMemo(() => {
+    if ((viewMode === 'week' || viewMode === 'gantt') && project?.start_date) {
+      return parseISO(project.start_date);
+    }
+    return monthStart;
+  }, [viewMode, project?.start_date, monthStart]);
+
+  const queryEnd = useMemo(() => {
+    if ((viewMode === 'week' || viewMode === 'gantt') && project?.end_date) {
+      return parseISO(project.end_date);
+    }
+    return monthEnd;
+  }, [viewMode, project?.end_date, monthEnd]);
+
+  const { data: calendarAssignments, isLoading, isError, error } = useCalendarData(queryStart, queryEnd, {
     projectId: project?.id,
   });
 
