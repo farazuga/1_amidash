@@ -33,6 +33,7 @@ import {
 import { useCalendarData, useAssignableUsers, useCreateAssignment, useCycleAssignmentStatus } from '@/hooks/queries/use-assignments';
 import { AssignmentDaysDialog } from './assignment-days-dialog';
 import { MultiUserAssignmentDialog } from './multi-user-assignment-dialog';
+import { BulkAssignDialog } from './bulk-assign-dialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import {
@@ -44,7 +45,7 @@ import {
 } from '@/components/ui/select';
 import type { CalendarEvent, BookingStatus } from '@/types/calendar';
 import type { Project } from '@/types';
-import { Loader2, LayoutGrid, GanttChart, CalendarDays, Users } from 'lucide-react';
+import { Loader2, LayoutGrid, GanttChart, CalendarDays, Users, UserPlus } from 'lucide-react';
 import { GanttCalendar } from './gantt-calendar';
 import { WeekViewCalendar } from './week-view-calendar';
 import { Button } from '@/components/ui/button';
@@ -87,6 +88,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<CalendarEvent | null>(null);
   const [multiUserDialogOpen, setMultiUserDialogOpen] = useState(false);
+  const [bulkAssignDialogOpen, setBulkAssignDialogOpen] = useState(false);
 
   const { start, end } = getMonthViewRange(currentDate);
   const days = getCalendarDays(currentDate);
@@ -181,6 +183,12 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const { active } = event;
+    console.log('[DND] Drag started:', {
+      activeId: active.id,
+      type: active.data.current?.type,
+      userId: active.data.current?.userId,
+      userName: active.data.current?.userName,
+    });
     if (active.data.current?.type === 'user') {
       setActiveDragData({
         userId: active.data.current.userId,
@@ -192,17 +200,31 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
       const { active, over } = event;
+      console.log('[DND] Drag ended:', {
+        activeId: active.id,
+        activeType: active.data.current?.type,
+        overId: over?.id,
+        overType: over?.data.current?.type,
+        hasProject: !!project,
+        projectId: project?.id,
+        hasProjectDates: !!(project?.start_date && project?.end_date),
+      });
       setActiveDragData(null);
 
-      if (!over || !project) return;
+      if (!over || !project) {
+        console.log('[DND] Early return: no drop target or no project');
+        return;
+      }
 
       // Check if dropped on a day cell
       if (over.data.current?.type === 'day' && active.data.current?.type === 'user') {
         const userId = active.data.current.userId;
         const userName = active.data.current.userName;
+        console.log('[DND] Valid drop detected:', { userId, userName, dropDate: over.data.current?.date });
 
         // Check if project has dates set
         if (!project.start_date || !project.end_date) {
+          console.log('[DND] Early return: project missing dates');
           toast.error('Project dates required', {
             description: 'Please set project start and end dates before assigning users.',
           });
@@ -210,11 +232,13 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
         }
 
         try {
+          console.log('[DND] Creating assignment...', { projectId: project.id, userId });
           const result = await createAssignment.mutateAsync({
             projectId: project.id,
             userId,
             bookingStatus: 'pencil' as BookingStatus,
           });
+          console.log('[DND] Assignment created:', result);
 
           if (result.conflicts?.hasConflicts) {
             toast.warning(`${userName} assigned with conflicts`, {
@@ -226,10 +250,17 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
             });
           }
         } catch (error) {
+          console.error('[DND] Assignment failed:', error);
           toast.error('Failed to assign user', {
             description: error instanceof Error ? error.message : 'An error occurred',
           });
         }
+      } else {
+        console.log('[DND] Invalid drop - type mismatch:', {
+          overType: over.data.current?.type,
+          activeType: active.data.current?.type,
+          expected: { overType: 'day', activeType: 'user' },
+        });
       }
     },
     [project, createAssignment]
@@ -386,6 +417,18 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
           {viewToggle}
         </div>
         <div className="flex flex-wrap items-center gap-4">
+          {/* Bulk Assign button - admin only, requires project with dates */}
+          {isAdmin && project?.start_date && project?.end_date && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setBulkAssignDialogOpen(true)}
+              className="gap-2"
+            >
+              <UserPlus className="h-4 w-4" />
+              Bulk Assign
+            </Button>
+          )}
           {/* Manage Schedule button - admin only, requires project with dates */}
           {isAdmin && project?.start_date && project?.end_date && (
             <Button
@@ -492,6 +535,16 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
           projectName={project.client_name}
           projectStartDate={project.start_date}
           projectEndDate={project.end_date}
+        />
+      )}
+
+      {/* Bulk assign dialog */}
+      {project && (
+        <BulkAssignDialog
+          open={bulkAssignDialogOpen}
+          onOpenChange={setBulkAssignDialogOpen}
+          projectId={project.id}
+          projectName={project.client_name}
         />
       )}
     </div>

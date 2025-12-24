@@ -14,14 +14,20 @@ interface DraggableUserProps {
 }
 
 export function DraggableUser({ user }: DraggableUserProps) {
+  const draggableId = `user-${user.id}`;
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: `user-${user.id}`,
+    id: draggableId,
     data: {
       type: 'user',
       userId: user.id,
       userName: user.full_name,
     },
   });
+
+  // Log when drag state changes
+  if (isDragging) {
+    console.log('[DRAGGABLE] Dragging user:', { id: draggableId, userId: user.id, userName: user.full_name });
+  }
 
   const style = transform
     ? {
