@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useDroppable } from '@dnd-kit/core';
 import { format, startOfWeek, addWeeks, isSameDay } from 'date-fns';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -16,6 +17,105 @@ import {
 } from '@/lib/calendar/utils';
 import type { CalendarEvent } from '@/types/calendar';
 
+// Droppable day cell for week view
+function WeekDayCell({
+  date,
+  events,
+  projectStartDate,
+  projectEndDate,
+  onEventClick,
+  onStatusClick,
+  onEditClick,
+  isUpdatingAssignment,
+  showEditButton,
+  enableDragDrop,
+}: {
+  date: Date;
+  events: CalendarEvent[];
+  projectStartDate: string;
+  projectEndDate: string;
+  onEventClick?: (event: CalendarEvent) => void;
+  onStatusClick?: (assignmentId: string) => void;
+  onEditClick?: (event: CalendarEvent) => void;
+  isUpdatingAssignment?: string | null;
+  showEditButton?: boolean;
+  enableDragDrop?: boolean;
+}) {
+  const droppableId = `day-${format(date, 'yyyy-MM-dd')}`;
+  const { isOver, setNodeRef } = useDroppable({
+    id: droppableId,
+    data: {
+      type: 'day',
+      date: date,
+    },
+    disabled: !enableDragDrop,
+  });
+
+  // Debug logging for drop zone
+  useEffect(() => {
+    if (isOver) {
+      console.log('[DROPPABLE-WEEK] Hovering over:', droppableId);
+    }
+  }, [isOver, droppableId]);
+
+  const dayEvents = sortEventsByStatus(getEventsForDay(date, events));
+  const today = isToday(date);
+  const inProjectRange = isDateInRange(date, projectStartDate, projectEndDate);
+
+  return (
+    <div
+      ref={enableDragDrop ? setNodeRef : undefined}
+      className={cn(
+        'min-h-[120px] p-2 border-r border-b last:border-r-0',
+        'bg-background',
+        inProjectRange && 'bg-primary/5',
+        today && 'bg-blue-50 dark:bg-blue-950/30',
+        enableDragDrop && 'touch-none',
+        isOver && 'bg-primary/10 ring-2 ring-primary ring-inset'
+      )}
+    >
+      {/* Day header */}
+      <div className="flex items-center justify-between mb-2">
+        <span
+          className={cn(
+            'text-sm font-medium h-7 w-7 flex items-center justify-center rounded-full',
+            today && 'bg-primary text-primary-foreground'
+          )}
+        >
+          {format(date, 'd')}
+        </span>
+        <div className="flex items-center gap-1">
+          {isOver && (
+            <span className="text-xs text-primary font-medium">Drop here</span>
+          )}
+          <span className="text-xs text-muted-foreground">
+            {format(date, 'EEE')}
+          </span>
+        </div>
+      </div>
+
+      {/* Events */}
+      <div className="space-y-1">
+        {dayEvents.map((event) => (
+          <AssignmentCard
+            key={event.id}
+            event={event}
+            compact
+            onClick={(e) => {
+              e?.stopPropagation?.();
+              onEventClick?.(event);
+            }}
+            onStatusClick={onStatusClick}
+            onEditClick={onEditClick}
+            isUpdating={isUpdatingAssignment === event.assignmentId}
+            showEditButton={showEditButton}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 interface WeekViewCalendarProps {
   events: CalendarEvent[];
   projectStartDate: string;
@@ -25,6 +125,7 @@ interface WeekViewCalendarProps {
   onEditClick?: (event: CalendarEvent) => void;
   isUpdatingAssignment?: string | null;
   showEditButton?: boolean;
+  enableDragDrop?: boolean;
 }
 
 export function WeekViewCalendar({
@@ -36,6 +137,7 @@ export function WeekViewCalendar({
   onEditClick,
   isUpdatingAssignment,
   showEditButton = true,
+  enableDragDrop = false,
 }: WeekViewCalendarProps) {
   // Get all weeks in the project range
   const weeks = useMemo(
@@ -154,57 +256,21 @@ export function WeekViewCalendar({
                 className="min-h-[120px] border-r border-b bg-muted/20"
               />
             ))}
-          {currentWeek.map((date) => {
-            const dayEvents = sortEventsByStatus(getEventsForDay(date, events));
-            const today = isToday(date);
-            const inProjectRange = isDateInRange(date, projectStartDate, projectEndDate);
-
-            return (
-              <div
-                key={date.toISOString()}
-                className={cn(
-                  'min-h-[120px] p-2 border-r border-b last:border-r-0',
-                  'bg-background',
-                  inProjectRange && 'bg-primary/5',
-                  today && 'bg-blue-50 dark:bg-blue-950/30'
-                )}
-              >
-                {/* Day header */}
-                <div className="flex items-center justify-between mb-2">
-                  <span
-                    className={cn(
-                      'text-sm font-medium h-7 w-7 flex items-center justify-center rounded-full',
-                      today && 'bg-primary text-primary-foreground'
-                    )}
-                  >
-                    {format(date, 'd')}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {format(date, 'EEE')}
-                  </span>
-                </div>
-
-                {/* Events */}
-                <div className="space-y-1">
-                  {dayEvents.map((event) => (
-                    <AssignmentCard
-                      key={event.id}
-                      event={event}
-                      compact
-                      onClick={(e) => {
-                        e?.stopPropagation?.();
-                        onEventClick?.(event);
-                      }}
-                      onStatusClick={onStatusClick}
-                      onEditClick={onEditClick}
-                      isUpdating={isUpdatingAssignment === event.assignmentId}
-                      showEditButton={showEditButton}
-                    />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+          {currentWeek.map((date) => (
+            <WeekDayCell
+              key={date.toISOString()}
+              date={date}
+              events={events}
+              projectStartDate={projectStartDate}
+              projectEndDate={projectEndDate}
+              onEventClick={onEventClick}
+              onStatusClick={onStatusClick}
+              onEditClick={onEditClick}
+              isUpdatingAssignment={isUpdatingAssignment}
+              showEditButton={showEditButton}
+              enableDragDrop={enableDragDrop}
+            />
+          ))}
         </div>
       </div>
     </div>

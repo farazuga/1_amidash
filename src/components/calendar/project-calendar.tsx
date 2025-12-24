@@ -496,6 +496,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
             onEditClick={!isMobile ? handleEditClick : undefined}
             isUpdatingAssignment={cycleStatus.isPending ? cycleStatus.variables : null}
             showEditButton={!isMobile}
+            enableDragDrop={enableDragDrop}
           />
         )
       ) : isLoading ? (
