@@ -7,7 +7,7 @@ import {
   useSensor,
   useSensors,
   PointerSensor,
-  closestCenter,
+  pointerWithin,
   type DragStartEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
@@ -559,7 +559,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={pointerWithin}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
