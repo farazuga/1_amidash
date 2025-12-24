@@ -1,3 +1,8 @@
+import { config as dotenvConfig } from 'dotenv';
+// Load .env.local first, then fall back to .env
+dotenvConfig({ path: '.env.local' });
+dotenvConfig({ path: '.env' });
+
 import { logger } from './utils/logger.js';
 import { initConfig, getConfig, updateConfig, type SignageConfig } from './config/index.js';
 import { testConnection } from './data/supabase-client.js';
