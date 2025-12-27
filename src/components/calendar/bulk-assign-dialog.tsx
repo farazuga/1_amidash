@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -41,8 +41,17 @@ export function BulkAssignDialog({
   const [isAssigning, setIsAssigning] = useState(false);
 
   const { data: assignableUsers = [], isLoading } = useAssignableUsers();
-  const { data: projectAssignments = [] } = useProjectAssignments(projectId);
+  const { data: projectAssignments = [], refetch: refetchAssignments } = useProjectAssignments(projectId);
   const createAssignment = useCreateAssignment();
+
+  // Refetch assignments when dialog opens to ensure fresh data
+  useEffect(() => {
+    if (open) {
+      refetchAssignments();
+      setSelectedUserIds([]);
+      setSearchTerm('');
+    }
+  }, [open, refetchAssignments]);
 
   // Get IDs of users already assigned to this project
   const assignedUserIds = new Set(projectAssignments.map((a) => a.user_id));
@@ -75,11 +84,20 @@ export function BulkAssignDialog({
   const handleAssign = async () => {
     if (selectedUserIds.length === 0) return;
 
+    // Filter out any users that may have been assigned since dialog opened (race condition protection)
+    const usersToAssign = selectedUserIds.filter((id) => !assignedUserIds.has(id));
+
+    if (usersToAssign.length === 0) {
+      toast.info('All selected users are already assigned');
+      setSelectedUserIds([]);
+      return;
+    }
+
     setIsAssigning(true);
     let successCount = 0;
     let errorCount = 0;
 
-    for (const userId of selectedUserIds) {
+    for (const userId of usersToAssign) {
       try {
         await createAssignment.mutateAsync({
           projectId,

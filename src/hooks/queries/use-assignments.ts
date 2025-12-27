@@ -30,6 +30,7 @@ import {
   cycleAssignmentStatus,
   getAssignableUsers,
   updateUserAssignable,
+  getProjectAssignments,
   getProjectAssignmentsForGantt,
   getGanttDataForRange,
   // Calendar data server action
@@ -62,24 +63,13 @@ const THIRTY_SECONDS = 30 * 1000;
 // ============================================
 
 export function useProjectAssignments(projectId: string) {
-  const supabase = createClient();
-
   return useQuery({
     queryKey: [...ASSIGNMENTS_KEY, 'project', projectId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('project_assignments')
-        .select(`
-          *,
-          user:profiles!user_id(id, email, full_name),
-          excluded_dates:assignment_excluded_dates(*),
-          days:assignment_days(*)
-        `)
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-      return data as unknown as ProjectAssignment[];
+      // Use server action for reliable authentication
+      const result = await getProjectAssignments(projectId);
+      if (!result.success) throw new Error(result.error);
+      return result.data || [];
     },
     staleTime: THIRTY_SECONDS,
     enabled: !!projectId,
