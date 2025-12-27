@@ -247,6 +247,7 @@ export interface ConflictCheckResult {
     conflictDate: string;
     assignmentId: string;
   }[];
+  error?: string;
 }
 
 // Result from get_user_schedule database function

@@ -44,10 +44,13 @@ export function AssignmentCard({
 
   if (compact) {
     return (
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onClick}
+        onKeyDown={(e) => e.key === 'Enter' && onClick?.(e as unknown as React.MouseEvent)}
         className={cn(
-          'flex items-center gap-1 px-1.5 py-0.5 rounded text-xs truncate w-full text-left group',
+          'flex items-center gap-1 px-1.5 py-0.5 rounded text-xs truncate w-full text-left group cursor-pointer',
           config.bgColor,
           config.textColor,
           'hover:opacity-80 transition-opacity',
@@ -84,15 +87,18 @@ export function AssignmentCard({
             <Pencil className="h-2.5 w-2.5" />
           </button>
         )}
-      </button>
+      </div>
     );
   }
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => e.key === 'Enter' && onClick?.(e as unknown as React.MouseEvent)}
       className={cn(
-        'flex items-center gap-2 px-2 py-1.5 rounded-md border w-full text-left group',
+        'flex items-center gap-2 px-2 py-1.5 rounded-md border w-full text-left group cursor-pointer',
         config.bgColor,
         config.textColor,
         config.borderColor,
@@ -141,6 +147,6 @@ export function AssignmentCard({
           <Pencil className="h-3 w-3" />
         </button>
       )}
-    </button>
+    </div>
   );
 }

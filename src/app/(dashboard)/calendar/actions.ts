@@ -36,6 +36,19 @@ export interface CreateAssignmentResult {
 // Helper functions
 // ============================================
 
+/**
+ * Compare two time strings properly (handles "9:00" vs "09:00")
+ * Returns true if endTime is after startTime
+ */
+function isEndTimeAfterStartTime(startTime: string, endTime: string): boolean {
+  // Parse times to comparable numbers (minutes since midnight)
+  const parseTime = (time: string): number => {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + (minutes || 0);
+  };
+  return parseTime(endTime) > parseTime(startTime);
+}
+
 async function requireAdmin() {
   const supabase = await createClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -112,6 +125,11 @@ export async function createAssignment(data: {
     startDate: project.start_date,
     endDate: project.end_date,
   });
+
+  // If conflict check failed, abort assignment creation
+  if (conflictCheck.error) {
+    return { success: false, error: conflictCheck.error, conflicts: conflictCheck };
+  }
 
   // Create the assignment
   const { data: assignment, error: insertError } = await supabase
@@ -392,7 +410,8 @@ export async function checkConflicts(data: {
 }): Promise<ConflictCheckResult> {
   const { error: authError, supabase } = await getAuthenticatedClient();
   if (authError || !supabase) {
-    return { hasConflicts: false, conflicts: [] };
+    console.error('Conflict check auth error:', authError);
+    return { hasConflicts: false, conflicts: [], error: 'Authentication failed for conflict check' };
   }
 
   const { data: conflicts, error } = await supabase.rpc('check_user_conflicts', {
@@ -404,7 +423,7 @@ export async function checkConflicts(data: {
 
   if (error) {
     console.error('Conflict check error:', error);
-    return { hasConflicts: false, conflicts: [] };
+    return { hasConflicts: false, conflicts: [], error: 'Failed to check for conflicts' };
   }
 
   const conflictList = (conflicts || []).map((c: {
@@ -819,7 +838,7 @@ export async function addAssignmentDays(data: {
 
   // Validate time order for each day
   for (const day of data.days) {
-    if (day.endTime <= day.startTime) {
+    if (!isEndTimeAfterStartTime(day.startTime, day.endTime)) {
       return { success: false, error: `End time must be after start time for ${day.date}` };
     }
   }
@@ -866,7 +885,7 @@ export async function updateAssignmentDay(data: {
     return { success: false, error: authError || 'Authentication failed' };
   }
 
-  if (data.endTime <= data.startTime) {
+  if (!isEndTimeAfterStartTime(data.startTime, data.endTime)) {
     return { success: false, error: 'End time must be after start time' };
   }
 
