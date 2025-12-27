@@ -41,3 +41,9 @@ export { AssignmentSidebar } from './assignment-sidebar';
 // Bulk Operations Components
 export { BulkActionsToolbar } from './bulk-actions-toolbar';
 export { BulkAssignDialog } from './bulk-assign-dialog';
+
+// Availability Components
+export { AvailabilityDialog } from './availability-dialog';
+
+// Mobile Components
+export { MobileAssignSheet } from './mobile-assign-sheet';

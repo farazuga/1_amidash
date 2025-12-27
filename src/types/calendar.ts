@@ -270,3 +270,73 @@ export interface CalendarAssignmentResult {
   project_start_date: string;
   project_end_date: string;
 }
+
+// User availability types
+export type AvailabilityType = 'unavailable' | 'limited' | 'training' | 'pto' | 'sick';
+
+export const AVAILABILITY_TYPE_LABELS: Record<AvailabilityType, string> = {
+  unavailable: 'Unavailable',
+  limited: 'Limited Availability',
+  training: 'Training',
+  pto: 'PTO',
+  sick: 'Sick Leave',
+};
+
+export const AVAILABILITY_TYPE_COLORS: Record<AvailabilityType, { bg: string; text: string; border: string }> = {
+  unavailable: {
+    bg: 'bg-gray-100',
+    text: 'text-gray-600',
+    border: 'border-gray-300',
+  },
+  limited: {
+    bg: 'bg-orange-100',
+    text: 'text-orange-700',
+    border: 'border-orange-300',
+  },
+  training: {
+    bg: 'bg-purple-100',
+    text: 'text-purple-700',
+    border: 'border-purple-300',
+  },
+  pto: {
+    bg: 'bg-blue-100',
+    text: 'text-blue-700',
+    border: 'border-blue-300',
+  },
+  sick: {
+    bg: 'bg-red-100',
+    text: 'text-red-700',
+    border: 'border-red-300',
+  },
+};
+
+// User availability block
+export interface UserAvailability {
+  id: string;
+  user_id: string;
+  start_date: string;
+  end_date: string;
+  reason: string | null;
+  availability_type: AvailabilityType;
+  created_at: string;
+  created_by: string | null;
+  // Joined relations
+  user?: Profile;
+  created_by_profile?: Profile;
+}
+
+// Form data for creating/updating availability
+export interface CreateAvailabilityData {
+  userId: string;
+  startDate: string;
+  endDate: string;
+  availabilityType: AvailabilityType;
+  reason?: string;
+}
+
+// Result from check_user_availability function
+export interface UserAvailabilityCheck {
+  is_available: boolean;
+  availability_type: string;
+  reason: string | null;
+}

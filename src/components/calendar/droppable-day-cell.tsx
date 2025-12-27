@@ -2,6 +2,7 @@
 
 import { useDroppable } from '@dnd-kit/core';
 import { format, isSameDay, isSameMonth, isToday, isWeekend } from 'date-fns';
+import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AssignmentCard } from './assignment-card';
 import { DayEventsPopover } from './day-events-popover';
@@ -16,8 +17,10 @@ interface DroppableDayCellProps {
   onEventClick?: (event: CalendarEvent) => void;
   onStatusClick?: (assignmentId: string) => void;
   onEditClick?: (event: CalendarEvent) => void;
+  onAddClick?: (date: Date) => void;
   isUpdatingAssignment?: string | null;
   showEditButton?: boolean;
+  showAddButton?: boolean;
   maxEventsToShow?: number;
   selectedDate?: Date | null;
   projectStartDate?: string | null;
@@ -32,8 +35,10 @@ export function DroppableDayCell({
   onEventClick,
   onStatusClick,
   onEditClick,
+  onAddClick,
   isUpdatingAssignment,
   showEditButton = true,
+  showAddButton = false,
   maxEventsToShow = 2,
   selectedDate,
   projectStartDate,
@@ -55,6 +60,11 @@ export function DroppableDayCell({
   const hasMoreEvents = hiddenCount > 0;
   const inProjectRange = isDateInRange(date, projectStartDate ?? null, projectEndDate ?? null);
 
+  const handleAddClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onAddClick?.(date);
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -65,7 +75,7 @@ export function DroppableDayCell({
         }
       }}
       className={cn(
-        'min-h-[100px] p-1 border-b border-r cursor-pointer transition-colors touch-none',
+        'min-h-[100px] p-1 border-b border-r cursor-pointer transition-colors touch-none group',
         !isCurrentMonth && 'bg-muted/30',
         isCurrentMonth && 'bg-background',
         isWeekend(date) && 'bg-muted/10',
@@ -86,8 +96,23 @@ export function DroppableDayCell({
         >
           {format(date, 'd')}
         </span>
-        {isOver && (
+        {isOver ? (
           <span className="text-xs text-primary font-medium">Drop here</span>
+        ) : showAddButton && inProjectRange && isCurrentMonth && (
+          <button
+            onClick={handleAddClick}
+            className={cn(
+              'h-6 w-6 flex items-center justify-center rounded-full',
+              'bg-primary/10 hover:bg-primary/20 text-primary',
+              'transition-opacity',
+              // Always visible on mobile, hover on desktop
+              'opacity-100 md:opacity-0 md:group-hover:opacity-100',
+              'touch-manipulation'
+            )}
+            aria-label="Add assignment"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
         )}
       </div>
 

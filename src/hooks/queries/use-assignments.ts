@@ -35,7 +35,11 @@ import {
   // Calendar data server action
   getCalendarData,
   getUnresolvedConflicts,
+  // Availability actions
+  getTeamAvailability,
+  getUserAvailability,
 } from '@/app/(dashboard)/calendar/actions';
+import type { UserAvailability } from '@/types/calendar';
 
 // Query keys
 export const ASSIGNMENTS_KEY = ['assignments'];
@@ -47,6 +51,8 @@ export const ASSIGNABLE_USERS_KEY = ['assignableUsers'];
 export const ASSIGNMENT_DAYS_KEY = ['assignmentDays'];
 export const GANTT_KEY = ['gantt'];
 export const CONFLICTS_KEY = ['bookingConflicts'];
+export const TEAM_AVAILABILITY_KEY = ['team-availability'];
+export const USER_AVAILABILITY_KEY = ['user-availability'];
 
 const ONE_MINUTE = 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -643,5 +649,62 @@ export function useUnresolvedConflicts(userId?: string) {
       return result.data || [];
     },
     staleTime: THIRTY_SECONDS,
+  });
+}
+
+// ============================================
+// Availability Management hooks
+// ============================================
+
+/**
+ * Get team availability for a date range
+ */
+export function useTeamAvailability(
+  startDate: Date,
+  endDate: Date,
+  userIds?: string[]
+) {
+  const startStr = startDate.toISOString().split('T')[0];
+  const endStr = endDate.toISOString().split('T')[0];
+
+  return useQuery({
+    queryKey: [...TEAM_AVAILABILITY_KEY, startStr, endStr, userIds],
+    queryFn: async () => {
+      const result = await getTeamAvailability({
+        startDate: startStr,
+        endDate: endStr,
+        userIds,
+      });
+      if (!result.success) throw new Error(result.error);
+      return result.data || [];
+    },
+    staleTime: THIRTY_SECONDS,
+  });
+}
+
+/**
+ * Get availability for a specific user in a date range
+ */
+export function useUserAvailabilityRange(
+  userId: string,
+  startDate: Date,
+  endDate: Date
+) {
+  const startStr = startDate.toISOString().split('T')[0];
+  const endStr = endDate.toISOString().split('T')[0];
+
+  return useQuery({
+    queryKey: [...USER_AVAILABILITY_KEY, userId, startStr, endStr],
+    queryFn: async () => {
+      const result = await getUserAvailability({
+        userId,
+        startDate: startStr,
+        endDate: endStr,
+      });
+      if (!result.success) throw new Error(result.error);
+      return result.data || [];
+    },
+    staleTime: THIRTY_SECONDS,
+    enabled: !!userId,
   });
 }

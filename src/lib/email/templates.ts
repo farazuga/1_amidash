@@ -163,6 +163,173 @@ interface WelcomeEmailOptions {
   portalUrl: string;
 }
 
+// ============================================
+// Calendar Assignment Email Templates
+// ============================================
+
+interface AssignmentCreatedEmailOptions {
+  userName: string;
+  projectName: string;
+  startDate: string;
+  endDate: string;
+  bookingStatus: string;
+  calendarUrl: string;
+}
+
+export function assignmentCreatedEmail(options: AssignmentCreatedEmailOptions): string {
+  const { userName, projectName, startDate, endDate, bookingStatus, calendarUrl } = options;
+
+  const safeUserName = escapeHtml(userName);
+  const safeProjectName = escapeHtml(projectName);
+  const safeStartDate = escapeHtml(startDate);
+  const safeEndDate = escapeHtml(endDate);
+  const safeStatus = escapeHtml(bookingStatus);
+
+  const statusLabels: Record<string, string> = {
+    pencil: 'Penciled In',
+    pending_confirm: 'Pending Confirmation',
+    confirmed: 'Confirmed',
+  };
+
+  const content = `
+    <h1 style="color: ${BRAND_COLORS.primary}; font-size: 24px; margin: 0 0 10px 0;">
+      You've Been Assigned to a Project
+    </h1>
+
+    <p style="color: ${BRAND_COLORS.text}; font-size: 16px; line-height: 1.5; margin: 0 0 20px 0;">
+      Hi ${safeUserName},
+    </p>
+
+    <p style="color: ${BRAND_COLORS.text}; font-size: 16px; line-height: 1.5; margin: 0 0 20px 0;">
+      You have been assigned to work on <strong>${safeProjectName}</strong>.
+    </p>
+
+    <div style="background-color: #f8faf9; border-radius: 8px; padding: 20px; margin: 25px 0;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td style="color: ${BRAND_COLORS.muted}; font-size: 14px; padding: 8px 0;">Project:</td>
+          <td style="color: ${BRAND_COLORS.text}; font-size: 14px; padding: 8px 0; text-align: right; font-weight: 600;">${safeProjectName}</td>
+        </tr>
+        <tr>
+          <td style="color: ${BRAND_COLORS.muted}; font-size: 14px; padding: 8px 0;">Dates:</td>
+          <td style="color: ${BRAND_COLORS.text}; font-size: 14px; padding: 8px 0; text-align: right; font-weight: 600;">${safeStartDate} - ${safeEndDate}</td>
+        </tr>
+        <tr>
+          <td style="color: ${BRAND_COLORS.muted}; font-size: 14px; padding: 8px 0;">Status:</td>
+          <td style="color: ${BRAND_COLORS.text}; font-size: 14px; padding: 8px 0; text-align: right; font-weight: 600;">${statusLabels[safeStatus] || safeStatus}</td>
+        </tr>
+      </table>
+    </div>
+
+    ${button('View My Schedule', calendarUrl)}
+
+    <p style="color: ${BRAND_COLORS.muted}; font-size: 14px; text-align: center; margin: 30px 0 0 0;">
+      Questions? Please contact your project manager.
+    </p>
+  `;
+
+  return baseTemplate(content, {
+    previewText: `You've been assigned to ${safeProjectName}`,
+  });
+}
+
+interface AssignmentStatusChangedEmailOptions {
+  userName: string;
+  projectName: string;
+  oldStatus: string;
+  newStatus: string;
+  calendarUrl: string;
+}
+
+export function assignmentStatusChangedEmail(options: AssignmentStatusChangedEmailOptions): string {
+  const { userName, projectName, oldStatus, newStatus, calendarUrl } = options;
+
+  const safeUserName = escapeHtml(userName);
+  const safeProjectName = escapeHtml(projectName);
+
+  const statusLabels: Record<string, string> = {
+    pencil: 'Penciled In',
+    pending_confirm: 'Pending Confirmation',
+    confirmed: 'Confirmed',
+  };
+
+  const safeOldStatus = statusLabels[oldStatus] || escapeHtml(oldStatus);
+  const safeNewStatus = statusLabels[newStatus] || escapeHtml(newStatus);
+
+  const content = `
+    <h1 style="color: ${BRAND_COLORS.primary}; font-size: 24px; margin: 0 0 10px 0;">
+      Assignment Status Updated
+    </h1>
+
+    <p style="color: ${BRAND_COLORS.text}; font-size: 16px; line-height: 1.5; margin: 0 0 20px 0;">
+      Hi ${safeUserName},
+    </p>
+
+    <p style="color: ${BRAND_COLORS.text}; font-size: 16px; line-height: 1.5; margin: 0 0 20px 0;">
+      Your assignment status for <strong>${safeProjectName}</strong> has been updated.
+    </p>
+
+    <div style="background-color: #f8faf9; border-radius: 8px; padding: 20px; margin: 25px 0; text-align: center;">
+      <p style="color: ${BRAND_COLORS.muted}; font-size: 14px; margin: 0 0 10px 0;">
+        ${safeOldStatus}
+      </p>
+      <p style="font-size: 24px; margin: 0 0 10px 0;">↓</p>
+      <span style="display: inline-block; background-color: ${BRAND_COLORS.primary}; color: white; padding: 12px 24px; border-radius: 50px; font-size: 16px; font-weight: 600;">
+        ${safeNewStatus}
+      </span>
+    </div>
+
+    ${button('View My Schedule', calendarUrl)}
+
+    <p style="color: ${BRAND_COLORS.muted}; font-size: 14px; text-align: center; margin: 30px 0 0 0;">
+      Questions? Please contact your project manager.
+    </p>
+  `;
+
+  return baseTemplate(content, {
+    previewText: `${safeProjectName} status: ${safeNewStatus}`,
+  });
+}
+
+interface AssignmentReminderEmailOptions {
+  userName: string;
+  projectName: string;
+  startDate: string;
+  calendarUrl: string;
+}
+
+export function assignmentReminderEmail(options: AssignmentReminderEmailOptions): string {
+  const { userName, projectName, startDate, calendarUrl } = options;
+
+  const safeUserName = escapeHtml(userName);
+  const safeProjectName = escapeHtml(projectName);
+  const safeStartDate = escapeHtml(startDate);
+
+  const content = `
+    <h1 style="color: ${BRAND_COLORS.primary}; font-size: 24px; margin: 0 0 10px 0;">
+      Reminder: Assignment Tomorrow
+    </h1>
+
+    <p style="color: ${BRAND_COLORS.text}; font-size: 16px; line-height: 1.5; margin: 0 0 20px 0;">
+      Hi ${safeUserName},
+    </p>
+
+    <p style="color: ${BRAND_COLORS.text}; font-size: 16px; line-height: 1.5; margin: 0 0 20px 0;">
+      This is a reminder that you're scheduled to work on <strong>${safeProjectName}</strong> starting tomorrow, <strong>${safeStartDate}</strong>.
+    </p>
+
+    ${button('View My Schedule', calendarUrl)}
+
+    <p style="color: ${BRAND_COLORS.muted}; font-size: 14px; text-align: center; margin: 30px 0 0 0;">
+      Questions? Please contact your project manager.
+    </p>
+  `;
+
+  return baseTemplate(content, {
+    previewText: `Reminder: ${safeProjectName} starts tomorrow`,
+  });
+}
+
 export function welcomeEmail(options: WelcomeEmailOptions): string {
   const { clientName, pocName, projectType, initialStatus, portalUrl } = options;
 
