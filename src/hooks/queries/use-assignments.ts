@@ -252,6 +252,7 @@ export function useCreateAssignment() {
       queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
       queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
       queryClient.invalidateQueries({ queryKey: USER_SCHEDULE_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
       queryClient.invalidateQueries({ queryKey: ['project', variables.projectId] });
     },
   });
@@ -274,6 +275,7 @@ export function useUpdateAssignmentStatus() {
       queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
       queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
       queryClient.invalidateQueries({ queryKey: USER_SCHEDULE_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
     },
   });
 }
@@ -291,6 +293,7 @@ export function useRemoveAssignment() {
       queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
       queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
       queryClient.invalidateQueries({ queryKey: USER_SCHEDULE_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
     },
   });
 }
@@ -312,6 +315,7 @@ export function useAddExcludedDates() {
       queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
       queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
       queryClient.invalidateQueries({ queryKey: USER_SCHEDULE_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
     },
   });
 }
@@ -329,6 +333,7 @@ export function useRemoveExcludedDate() {
       queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
       queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
       queryClient.invalidateQueries({ queryKey: USER_SCHEDULE_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
     },
   });
 }
@@ -346,6 +351,7 @@ export function useBulkRemoveExcludedDates() {
       queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
       queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
       queryClient.invalidateQueries({ queryKey: USER_SCHEDULE_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
     },
   });
 }
@@ -365,6 +371,7 @@ export function useUpdateProjectDates() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
       queryClient.invalidateQueries({ queryKey: ['project', variables.projectId] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
@@ -399,6 +406,7 @@ export function useOverrideConflict() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
       queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
       queryClient.invalidateQueries({ queryKey: CONFLICTS_KEY });
     },
   });
