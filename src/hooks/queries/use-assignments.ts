@@ -72,7 +72,8 @@ export function useProjectAssignments(projectId: string) {
         .select(`
           *,
           user:profiles!user_id(id, email, full_name),
-          excluded_dates:assignment_excluded_dates(*)
+          excluded_dates:assignment_excluded_dates(*),
+          days:assignment_days(*)
         `)
         .eq('project_id', projectId)
         .order('created_at', { ascending: true });
