@@ -466,7 +466,12 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
           <p className="text-sm mt-1">{error instanceof Error ? error.message : 'An error occurred'}</p>
         </div>
       ) : viewMode === 'gantt' && project ? (
-        <GanttCalendar projectId={project.id} projectName={project.client_name} />
+        <GanttCalendar
+          projectId={project.id}
+          projectName={project.client_name}
+          projectStartDate={project.start_date}
+          projectEndDate={project.end_date}
+        />
       ) : viewMode === 'week' && hasProjectDates ? (
         isLoading ? (
           <div className="flex items-center justify-center h-[500px]">

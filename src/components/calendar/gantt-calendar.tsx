@@ -15,11 +15,17 @@ import { toast } from 'sonner';
 interface GanttCalendarProps {
   projectId: string;
   projectName?: string;
+  projectStartDate?: string | null;
+  projectEndDate?: string | null;
 }
 
-export function GanttCalendar({ projectId, projectName }: GanttCalendarProps) {
-  // View state - 2 weeks centered on current week
+export function GanttCalendar({ projectId, projectName, projectStartDate, projectEndDate }: GanttCalendarProps) {
+  // View state - start at project date if available, otherwise current week
   const [viewStartDate, setViewStartDate] = useState(() => {
+    if (projectStartDate) {
+      const startDate = new Date(projectStartDate + 'T00:00:00');
+      return startOfWeek(startDate, { weekStartsOn: 1 }); // Start on Monday of project week
+    }
     const today = new Date();
     return startOfWeek(today, { weekStartsOn: 1 }); // Start on Monday
   });

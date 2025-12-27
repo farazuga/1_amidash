@@ -1166,9 +1166,18 @@ export async function getProjectAssignmentsForGantt(projectId: string): Promise<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ganttAssignments: GanttAssignment[] = (data || []).map((assignment: any) => {
     const days = (assignment.days || []) as AssignmentDay[];
-    const blocks = groupDaysIntoBlocks(days);
+    let blocks = groupDaysIntoBlocks(days);
     const user = assignment.user as { id: string; email: string; full_name: string | null } | null;
     const project = assignment.project as { id: string; client_name: string; start_date: string | null; end_date: string | null } | null;
+
+    // If no explicit days, fall back to project date range
+    if (blocks.length === 0 && project?.start_date && project?.end_date) {
+      blocks = [{
+        startDate: project.start_date,
+        endDate: project.end_date,
+        days: [], // No specific day records
+      }];
+    }
 
     return {
       id: `gantt-${assignment.id}`,
