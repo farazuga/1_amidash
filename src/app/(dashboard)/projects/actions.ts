@@ -11,6 +11,8 @@ export interface CreateProjectData {
   sales_amount: number | null;
   contract_type: string;
   goal_completion_date: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
   salesperson_id: string;
   poc_name: string | null;
   poc_email: string | null;
@@ -20,6 +22,9 @@ export interface CreateProjectData {
   project_type_id: string;
   tags: string[];
   email_notifications_enabled?: boolean;
+  activecampaign_account_id?: string | null;
+  activecampaign_contact_id?: string | null;
+  secondary_activecampaign_contact_id?: string | null;
 }
 
 export interface CreateProjectResult {
@@ -90,6 +95,8 @@ export async function createProject(data: CreateProjectData): Promise<CreateProj
       sales_amount: data.sales_amount,
       contract_type: data.contract_type,
       goal_completion_date: data.goal_completion_date,
+      start_date: data.start_date || null,
+      end_date: data.end_date || null,
       salesperson_id: data.salesperson_id,
       poc_name: data.poc_name,
       poc_email: data.poc_email,
@@ -100,6 +107,9 @@ export async function createProject(data: CreateProjectData): Promise<CreateProj
       current_status_id: firstStatus.id,
       created_by: user.id,
       email_notifications_enabled: data.email_notifications_enabled ?? true,
+      activecampaign_account_id: data.activecampaign_account_id || null,
+      activecampaign_contact_id: data.activecampaign_contact_id || null,
+      secondary_activecampaign_contact_id: data.secondary_activecampaign_contact_id || null,
     })
     .select()
     .single();

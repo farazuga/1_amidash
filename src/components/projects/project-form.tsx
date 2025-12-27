@@ -18,7 +18,12 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { CONTRACT_TYPES } from '@/lib/constants';
 import type { Project, Tag, Profile, ProjectType } from '@/types';
+import type { ACAccount, ACContact } from '@/types/activecampaign';
 import { createProject } from '@/app/(dashboard)/projects/actions';
+import { ClientNameAutocomplete } from './client-name-autocomplete';
+import { ContactSelector } from './contact-selector';
+import { SecondaryContactSelector } from './secondary-contact-selector';
+import { useActiveCampaignContacts } from '@/hooks/use-activecampaign';
 
 // Validation helpers
 function cleanSalesAmount(value: string): string {
@@ -116,8 +121,27 @@ export function ProjectForm({
   const [goalCompletionDate, setGoalCompletionDate] = useState<string>(
     formatDateForInput(project?.goal_completion_date) || ''
   );
+  const [startDate, setStartDate] = useState<string>(
+    formatDateForInput(project?.start_date) || ''
+  );
+  const [endDate, setEndDate] = useState<string>(
+    formatDateForInput(project?.end_date) || ''
+  );
   const [secondaryPocEmail, setSecondaryPocEmail] = useState<string>(
     project?.secondary_poc_email || ''
+  );
+
+  // Active Campaign integration state
+  const [clientName, setClientName] = useState<string>(project?.client_name || '');
+  const [selectedAccount, setSelectedAccount] = useState<ACAccount | null>(null);
+  const [selectedPrimaryContact, setSelectedPrimaryContact] = useState<ACContact | null>(null);
+  const [selectedSecondaryContact, setSelectedSecondaryContact] = useState<ACContact | null>(null);
+  const [pocName, setPocName] = useState<string>(project?.poc_name || '');
+  const [pocEmail, setPocEmail] = useState<string>(project?.poc_email || '');
+
+  // Get contacts for selected AC account
+  const { contacts: acContacts, isLoading: acContactsLoading } = useActiveCampaignContacts(
+    selectedAccount?.id || null
   );
 
   const isEditing = !!project;
@@ -157,10 +181,7 @@ export function ProjectForm({
     }
 
     // Validate Point of Contact fields are all filled
-    const pocName = formData.get('poc_name') as string;
-    const pocEmail = formData.get('poc_email') as string;
-    const pocPhone = formData.get('poc_phone') as string;
-
+    // Use state values for POC fields since they're controlled
     if (!pocName?.trim() || !pocEmail?.trim() || !pocPhone?.trim()) {
       toast.error('All Point of Contact fields are required');
       return;
@@ -191,6 +212,20 @@ export function ProjectForm({
       return;
     }
 
+    // Validate project schedule dates
+    if (startDate && !validateDateInRange(startDate)) {
+      toast.error('Start date must be between 2024 and 2030');
+      return;
+    }
+    if (endDate && !validateDateInRange(endDate)) {
+      toast.error('End date must be between 2024 and 2030');
+      return;
+    }
+    if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
+      toast.error('End date must be after start date');
+      return;
+    }
+
     // Format phone number
     const formattedPhone = formatPhoneNumber(pocPhone);
 
@@ -210,7 +245,7 @@ export function ProjectForm({
     }
 
     const data = {
-      client_name: formData.get('client_name') as string,
+      client_name: clientName,
       sales_order_number: salesOrderNumber?.trim() || null,
       sales_order_url: formData.get('sales_order_url') as string || null,
       po_number: formData.get('po_number') as string || null,
@@ -218,12 +253,17 @@ export function ProjectForm({
       contract_type: formData.get('contract_type') as string || 'None',
       goal_completion_date: goalCompletionDate || null,
       salesperson_id: selectedSalesperson,
-      poc_name: formData.get('poc_name') as string || null,
-      poc_email: formData.get('poc_email') as string || null,
+      poc_name: pocName || null,
+      poc_email: pocEmail || null,
       poc_phone: formattedPhone || null,
       secondary_poc_email: secondaryPocEmail?.trim() || null,
       scope_link: formData.get('scope_link') as string || null,
       email_notifications_enabled: emailNotificationsEnabled,
+      activecampaign_account_id: selectedAccount?.id || null,
+      activecampaign_contact_id: selectedPrimaryContact?.id || null,
+      secondary_activecampaign_contact_id: selectedSecondaryContact?.id || null,
+      start_date: startDate || null,
+      end_date: endDate || null,
       ...(isEditing && { created_date: createdDate }),
     };
 
@@ -331,6 +371,11 @@ export function ProjectForm({
           project_type_id: selectedProjectType,
           tags: selectedTags,
           email_notifications_enabled: emailNotificationsEnabled,
+          activecampaign_account_id: data.activecampaign_account_id,
+          activecampaign_contact_id: data.activecampaign_contact_id,
+          secondary_activecampaign_contact_id: data.secondary_activecampaign_contact_id,
+          start_date: data.start_date,
+          end_date: data.end_date,
         });
 
         if (!result.success) {
@@ -391,16 +436,25 @@ export function ProjectForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2">
-        {/* Client Name */}
-        <div className="space-y-2">
-          <Label htmlFor="client_name">Client Name *</Label>
-          <Input
-            id="client_name"
-            name="client_name"
-            defaultValue={project?.client_name}
-            required
-          />
-        </div>
+        {/* Client Name with Active Campaign Autocomplete */}
+        <ClientNameAutocomplete
+          value={clientName}
+          onChange={setClientName}
+          onAccountSelect={setSelectedAccount}
+          onContactFromEmail={(contact) => {
+            // Auto-fill POC fields from email contact search
+            const fullName = `${contact.firstName || ''} ${contact.lastName || ''}`.trim();
+            if (fullName) setPocName(fullName);
+            if (contact.email) setPocEmail(contact.email);
+            if (contact.phone) {
+              // Strip +1 and format phone
+              const cleanPhone = contact.phone.replace(/^\+1\s*/, '').replace(/^1(?=\d{10})/, '');
+              setPocPhone(formatPhoneNumber(cleanPhone));
+            }
+          }}
+          selectedAccount={selectedAccount}
+          defaultValue={project?.client_name}
+        />
 
         {/* Project Type */}
         <div className="space-y-2">
@@ -588,67 +642,68 @@ export function ProjectForm({
 
       </div>
 
+      {/* Project Schedule Section */}
       <div className="border-t pt-4">
-        <h3 className="font-medium mb-4">Point of Contact *</h3>
-        <div className="grid gap-4 md:grid-cols-3">
+        <h3 className="text-sm font-medium mb-3">Project Schedule</h3>
+        <p className="text-xs text-muted-foreground mb-4">
+          Set the start and end dates for this project. These dates are used for calendar scheduling and customer visibility.
+        </p>
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* Start Date */}
           <div className="space-y-2">
-            <Label htmlFor="poc_name">Name *</Label>
+            <Label htmlFor="start_date">Start Date</Label>
             <Input
-              id="poc_name"
-              name="poc_name"
-              defaultValue={project?.poc_name || ''}
-              required
+              id="start_date"
+              name="start_date"
+              type="date"
+              min="2024-01-01"
+              max="2030-12-31"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
             />
           </div>
+
+          {/* End Date */}
           <div className="space-y-2">
-            <Label htmlFor="poc_email">Email *</Label>
+            <Label htmlFor="end_date">End Date</Label>
             <Input
-              id="poc_email"
-              name="poc_email"
-              type="email"
-              defaultValue={project?.poc_email || ''}
-              required
+              id="end_date"
+              name="end_date"
+              type="date"
+              min="2024-01-01"
+              max="2030-12-31"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="poc_phone">Phone *</Label>
-            <Input
-              id="poc_phone"
-              name="poc_phone"
-              type="tel"
-              placeholder="xxx-xxx-xxxx"
-              value={pocPhone}
-              onChange={(e) => setPocPhone(e.target.value)}
-              onBlur={() => {
-                // Auto-format on blur if we have enough digits
-                const digits = pocPhone.replace(/\D/g, '');
-                if (digits.length >= 10) {
-                  setPocPhone(formatPhoneNumber(pocPhone));
-                }
-              }}
-              required
-            />
-            <p className="text-xs text-muted-foreground">
-              Format: xxx-xxx-xxxx (extensions allowed, e.g., xxx-xxx-xxxx ext 123)
-            </p>
-          </div>
-        </div>
-        {/* Secondary Email */}
-        <div className="mt-4 space-y-2">
-          <Label htmlFor="secondary_poc_email">Secondary Contact Email</Label>
-          <Input
-            id="secondary_poc_email"
-            name="secondary_poc_email"
-            type="email"
-            placeholder="secondary@company.com"
-            value={secondaryPocEmail}
-            onChange={(e) => setSecondaryPocEmail(e.target.value)}
-          />
-          <p className="text-xs text-muted-foreground">
-            Optional. If this email matches a customer account, they will also have access to view this project.
-          </p>
         </div>
       </div>
+
+      {/* Primary Point of Contact with AC Integration */}
+      <ContactSelector
+        accountId={selectedAccount?.id || null}
+        accountName={selectedAccount?.name || clientName}
+        pocName={pocName}
+        pocEmail={pocEmail}
+        pocPhone={pocPhone}
+        onPocNameChange={setPocName}
+        onPocEmailChange={setPocEmail}
+        onPocPhoneChange={setPocPhone}
+        onContactSelect={setSelectedPrimaryContact}
+        defaultPocName={project?.poc_name || ''}
+        defaultPocEmail={project?.poc_email || ''}
+        defaultPocPhone={project?.poc_phone || ''}
+      />
+
+      {/* Secondary Contact with AC Integration */}
+      <SecondaryContactSelector
+        contacts={acContacts}
+        isLoading={acContactsLoading}
+        email={secondaryPocEmail}
+        onEmailChange={setSecondaryPocEmail}
+        onContactSelect={setSelectedSecondaryContact}
+        defaultEmail={project?.secondary_poc_email || ''}
+      />
 
       {/* Email Notifications */}
       <div className="border-t pt-4">

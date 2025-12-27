@@ -47,8 +47,9 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { Plus, Trash2, Loader2, KeyRound } from 'lucide-react';
+import { Plus, Trash2, Loader2, KeyRound, Calendar } from 'lucide-react';
 import type { Profile, UserRole } from '@/types';
+import { createCalendarSubscriptionForUser } from '@/app/(dashboard)/calendar/actions';
 
 const roleColors: Record<UserRole, string> = {
   admin: 'bg-primary text-primary-foreground',
@@ -71,6 +72,7 @@ export default function UsersAdminPage() {
   const [newUserName, setNewUserName] = useState('');
   const [newUserRole, setNewUserRole] = useState<UserRole>('viewer');
   const [newUserIsSalesperson, setNewUserIsSalesperson] = useState(false);
+  const [newUserIsAssignable, setNewUserIsAssignable] = useState(false);
   const [newUserPassword, setNewUserPassword] = useState('');
 
   // Delete user dialog state
@@ -83,6 +85,9 @@ export default function UsersAdminPage() {
   const [userToResetPassword, setUserToResetPassword] = useState<Profile | null>(null);
   const [resetPassword, setResetPassword] = useState('');
   const [isResettingPassword, setIsResettingPassword] = useState(false);
+
+  // iCal link generation state
+  const [generatingICalForUser, setGeneratingICalForUser] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -143,6 +148,24 @@ export default function UsersAdminPage() {
       }
 
       toast.success(isSalesperson ? 'Marked as salesperson' : 'Removed salesperson status');
+      loadUsers();
+    });
+  };
+
+  const handleAssignableChange = async (userId: string, isAssignable: boolean) => {
+    startTransition(async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
+        .from('profiles')
+        .update({ is_assignable: isAssignable })
+        .eq('id', userId);
+
+      if (error) {
+        toast.error('Failed to update assignable status');
+        return;
+      }
+
+      toast.success(isAssignable ? 'User can now be assigned to projects' : 'Removed assignable status');
       loadUsers();
     });
   };
@@ -208,6 +231,7 @@ export default function UsersAdminPage() {
     setNewUserName('');
     setNewUserRole('viewer');
     setNewUserIsSalesperson(false);
+    setNewUserIsAssignable(false);
     setNewUserPassword('');
   };
 
@@ -271,6 +295,24 @@ export default function UsersAdminPage() {
       toast.error('Failed to delete user');
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleGetUserICalLink = async (userId: string, userName: string) => {
+    setGeneratingICalForUser(userId);
+    try {
+      const result = await createCalendarSubscriptionForUser(userId);
+      if (!result.success) {
+        toast.error(result.error || 'Failed to generate calendar link');
+        return;
+      }
+      await navigator.clipboard.writeText(result.data!.url);
+      toast.success(`Calendar link for ${userName} copied to clipboard!`);
+    } catch (error) {
+      console.error('Error generating iCal link:', error);
+      toast.error('Failed to generate calendar link');
+    } finally {
+      setGeneratingICalForUser(null);
     }
   };
 
@@ -369,14 +411,24 @@ export default function UsersAdminPage() {
                 </div>
               )}
               {newUserRole !== 'customer' && (
-                <div className="flex items-center gap-2">
-                  <Switch
-                    id="salesperson"
-                    checked={newUserIsSalesperson}
-                    onCheckedChange={setNewUserIsSalesperson}
-                  />
-                  <Label htmlFor="salesperson">Salesperson</Label>
-                </div>
+                <>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="salesperson"
+                      checked={newUserIsSalesperson}
+                      onCheckedChange={setNewUserIsSalesperson}
+                    />
+                    <Label htmlFor="salesperson">Salesperson</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="assignable"
+                      checked={newUserIsAssignable}
+                      onCheckedChange={setNewUserIsAssignable}
+                    />
+                    <Label htmlFor="assignable">Can be assigned to projects</Label>
+                  </div>
+                </>
               )}
             </div>
             <DialogFooter>
@@ -407,6 +459,7 @@ export default function UsersAdminPage() {
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Salesperson</TableHead>
+                <TableHead>Assignable</TableHead>
                 <TableHead>Joined</TableHead>
                 <TableHead className="w-[80px]">Actions</TableHead>
               </TableRow>
@@ -480,11 +533,48 @@ export default function UsersAdminPage() {
                       <span className="text-sm text-muted-foreground">N/A</span>
                     )}
                   </TableCell>
+                  <TableCell>
+                    {user.role !== 'customer' ? (
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id={`assignable-${user.id}`}
+                          checked={user.is_assignable || false}
+                          onCheckedChange={(checked) =>
+                            handleAssignableChange(user.id, checked)
+                          }
+                          disabled={isPending}
+                        />
+                        <Label
+                          htmlFor={`assignable-${user.id}`}
+                          className="text-sm text-muted-foreground"
+                        >
+                          {user.is_assignable ? 'Yes' : 'No'}
+                        </Label>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">N/A</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-muted-foreground">
                     {user.created_at ? format(new Date(user.created_at), 'MMM d, yyyy') : '-'}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
+                      {user.role !== 'customer' && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleGetUserICalLink(user.id, user.full_name || user.email)}
+                          disabled={generatingICalForUser === user.id}
+                          title="Copy personal calendar link"
+                        >
+                          {generatingICalForUser === user.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Calendar className="h-4 w-4" />
+                          )}
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"

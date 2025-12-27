@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { Sidebar } from '@/components/layout/sidebar';
-import { Header } from '@/components/layout/header';
+import { DashboardContent } from '@/components/layout/dashboard-content';
 import { Toaster } from '@/components/ui/sonner';
 import { UserProvider } from '@/contexts/user-context';
 
@@ -41,10 +41,7 @@ export default async function DashboardLayout({
     <UserProvider user={user} profile={profile}>
       <div className="min-h-screen bg-background">
         <Sidebar />
-        <div className="md:ml-64">
-          <Header />
-          <main className="p-4 md:p-6">{children}</main>
-        </div>
+        <DashboardContent>{children}</DashboardContent>
         <Toaster position="top-right" />
       </div>
     </UserProvider>

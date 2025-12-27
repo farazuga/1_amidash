@@ -128,3 +128,40 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Print styles for calendar */
+@media print {
+  /* Hide non-essential UI elements */
+  .sidebar,
+  nav,
+  aside,
+  [data-radix-popper-content-wrapper],
+  [data-slot="sidebar"] {
+    display: none !important;
+  }
+
+  /* Full width calendar */
+  main {
+    width: 100% !important;
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Remove fixed/sticky positioning */
+  header {
+    position: static !important;
+  }
+
+  /* Status colors print properly */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Clean up text */
+  body {
+    background: white !important;
+    color: black !important;
+  }
+}

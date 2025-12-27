@@ -12,6 +12,7 @@ export interface Profile {
   full_name: string | null;
   role: string | null;
   is_salesperson: boolean | null;
+  is_assignable?: boolean | null;  // Optional until migration runs
   created_at: string | null;
   updated_at: string | null;
 }
@@ -56,6 +57,9 @@ export interface Project {
   sales_amount: number | null;
   contract_type: string | null;
   goal_completion_date: string | null;
+  // Calendar scheduling fields
+  start_date: string | null;
+  end_date: string | null;
   current_status_id: string | null;
   project_type_id: string | null;
   salesperson_id: string | null;
@@ -63,6 +67,9 @@ export interface Project {
   poc_email: string | null;
   poc_phone: string | null;
   secondary_poc_email: string | null;
+  activecampaign_account_id: string | null;
+  activecampaign_contact_id: string | null;
+  secondary_activecampaign_contact_id: string | null;
   scope_link: string | null;
   client_token: string | null;
   client_portal_url?: string | null;

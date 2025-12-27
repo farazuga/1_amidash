@@ -8,6 +8,7 @@ export function createProfile(overrides: Partial<Profile> = {}): Profile {
     full_name: 'Test User',
     role: 'viewer',
     is_salesperson: false,
+    is_assignable: false,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
@@ -70,6 +71,9 @@ export function createProject(overrides: Partial<Project> = {}): Project {
     poc_email: 'john@acme.com',
     poc_phone: '555-1234',
     secondary_poc_email: null,
+    activecampaign_account_id: null,
+    activecampaign_contact_id: null,
+    secondary_activecampaign_contact_id: null,
     scope_link: 'https://example.com/scope',
     client_token: 'abc123',
     expected_update_date: null,
@@ -78,6 +82,8 @@ export function createProject(overrides: Partial<Project> = {}): Project {
     created_by: 'profile-1',
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
+    start_date: null,
+    end_date: null,
     ...overrides,
   };
 }
