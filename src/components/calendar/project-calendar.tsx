@@ -34,6 +34,7 @@ import { useCalendarData, useAssignableUsers, useCreateAssignment, useCycleAssig
 import { AssignmentDaysDialog } from './assignment-days-dialog';
 import { MultiUserAssignmentDialog } from './multi-user-assignment-dialog';
 import { BulkAssignDialog } from './bulk-assign-dialog';
+import { ConflictsPanel } from './conflicts-panel';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import {
@@ -427,6 +428,8 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
               Manage Schedule
             </Button>
           )}
+          {/* Conflicts Panel - admin only */}
+          {isAdmin && <ConflictsPanel />}
           <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as BookingStatus | 'all')}>
             <SelectTrigger className="w-[150px]">
               <SelectValue placeholder="All statuses" />

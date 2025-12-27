@@ -272,9 +272,14 @@ export async function removeAssignment(assignmentId: string): Promise<ActionResu
 }
 
 // ============================================
-// Excluded dates operations
+// Excluded dates operations (DEPRECATED - use assignment_days instead)
+// These functions are kept for backward compatibility but new code should
+// use addAssignmentDays/removeAssignmentDays instead.
 // ============================================
 
+/**
+ * @deprecated Use addAssignmentDays instead. The excluded_dates model is being phased out.
+ */
 export async function addExcludedDates(data: {
   assignmentId: string;
   dates: string[];
@@ -311,6 +316,9 @@ export async function addExcludedDates(data: {
   return { success: true, data: inserted as AssignmentExcludedDate[] };
 }
 
+/**
+ * @deprecated Use removeAssignmentDays instead. The excluded_dates model is being phased out.
+ */
 export async function removeExcludedDate(excludedDateId: string): Promise<ActionResult> {
   const { error: authError, supabase } = await requireAdmin();
   if (authError || !supabase) {
@@ -333,6 +341,9 @@ export async function removeExcludedDate(excludedDateId: string): Promise<Action
   return { success: true };
 }
 
+/**
+ * @deprecated Use removeAssignmentDays instead. The excluded_dates model is being phased out.
+ */
 export async function bulkRemoveExcludedDates(excludedDateIds: string[]): Promise<ActionResult> {
   const { error: authError, supabase } = await requireAdmin();
   if (authError || !supabase) {

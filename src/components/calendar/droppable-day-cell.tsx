@@ -4,6 +4,7 @@ import { useDroppable } from '@dnd-kit/core';
 import { format, isSameDay, isSameMonth, isToday, isWeekend } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { AssignmentCard } from './assignment-card';
+import { DayEventsPopover } from './day-events-popover';
 import { isDateInRange } from '@/lib/calendar/utils';
 import type { CalendarEvent } from '@/types/calendar';
 
@@ -108,15 +109,16 @@ export function DroppableDayCell({
         ))}
 
         {hasMoreEvents && (
-          <button
-            className="text-xs text-muted-foreground hover:text-foreground px-1"
-            onClick={(e) => {
-              e.stopPropagation();
-              // Could show a popover with all events
-            }}
-          >
-            +{hiddenCount} more
-          </button>
+          <DayEventsPopover
+            date={date}
+            events={events}
+            hiddenCount={hiddenCount}
+            onEventClick={onEventClick}
+            onStatusClick={onStatusClick}
+            onEditClick={onEditClick}
+            isUpdatingAssignment={isUpdatingAssignment}
+            showEditButton={showEditButton}
+          />
         )}
       </div>
     </div>

@@ -34,6 +34,7 @@ import {
   getGanttDataForRange,
   // Calendar data server action
   getCalendarData,
+  getUnresolvedConflicts,
 } from '@/app/(dashboard)/calendar/actions';
 
 // Query keys
@@ -45,6 +46,7 @@ export const SUBSCRIPTIONS_KEY = ['calendarSubscriptions'];
 export const ASSIGNABLE_USERS_KEY = ['assignableUsers'];
 export const ASSIGNMENT_DAYS_KEY = ['assignmentDays'];
 export const GANTT_KEY = ['gantt'];
+export const CONFLICTS_KEY = ['bookingConflicts'];
 
 const ONE_MINUTE = 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -386,6 +388,7 @@ export function useOverrideConflict() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
       queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
+      queryClient.invalidateQueries({ queryKey: CONFLICTS_KEY });
     },
   });
 }
@@ -617,5 +620,24 @@ export function useUpdateUserAssignable() {
       queryClient.invalidateQueries({ queryKey: ASSIGNABLE_USERS_KEY });
       queryClient.invalidateQueries({ queryKey: ADMIN_USERS_KEY });
     },
+  });
+}
+
+// ============================================
+// Conflict Management hooks
+// ============================================
+
+/**
+ * Get unresolved booking conflicts
+ */
+export function useUnresolvedConflicts(userId?: string) {
+  return useQuery({
+    queryKey: [...CONFLICTS_KEY, 'unresolved', userId],
+    queryFn: async () => {
+      const result = await getUnresolvedConflicts(userId);
+      if (!result.success) throw new Error(result.error);
+      return result.data || [];
+    },
+    staleTime: THIRTY_SECONDS,
   });
 }
