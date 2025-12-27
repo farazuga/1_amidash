@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { parseISO } from 'date-fns';
 import {
   DndContext,
   DragOverlay,
@@ -94,24 +93,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   const { start, end } = getMonthViewRange(currentDate);
   const days = getCalendarDays(currentDate);
 
-  // For week/gantt views, extend query range to include project dates
-  const queryStart = useMemo(() => {
-    if (project?.start_date) {
-      const projectStart = parseISO(project.start_date);
-      return projectStart < start ? projectStart : start;
-    }
-    return start;
-  }, [project?.start_date, start]);
-
-  const queryEnd = useMemo(() => {
-    if (project?.end_date) {
-      const projectEnd = parseISO(project.end_date);
-      return projectEnd > end ? projectEnd : end;
-    }
-    return end;
-  }, [project?.end_date, end]);
-
-  const { data: calendarAssignments, isLoading, isError, error } = useCalendarData(queryStart, queryEnd, {
+  const { data: calendarAssignments, isLoading, isError, error } = useCalendarData(start, end, {
     projectId: project?.id,
   });
 

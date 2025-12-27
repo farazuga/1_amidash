@@ -88,9 +88,10 @@ export function isToday(date: Date): boolean {
 export function isDateInRange(date: Date, startDate: string | null, endDate: string | null): boolean {
   if (!startDate || !endDate) return false;
 
-  // Use string comparison to avoid timezone issues
-  const dateStr = format(date, 'yyyy-MM-dd');
-  return dateStr >= startDate && dateStr <= endDate;
+  const start = parseISO(startDate);
+  const end = parseISO(endDate);
+
+  return isWithinInterval(date, { start, end });
 }
 
 /**
@@ -125,19 +126,13 @@ export function convertToCalendarEvents(
 
 /**
  * Get events for a specific day
- * Uses date-only comparison to avoid timezone issues
  */
 export function getEventsForDay(
   date: Date,
   events: CalendarEvent[]
 ): CalendarEvent[] {
-  // Format as YYYY-MM-DD for reliable date-only comparison
-  const dateStr = format(date, 'yyyy-MM-dd');
-
   return events.filter((event) => {
-    const startStr = format(event.start, 'yyyy-MM-dd');
-    const endStr = format(event.end, 'yyyy-MM-dd');
-    const isInRange = dateStr >= startStr && dateStr <= endStr;
+    const isInRange = isWithinInterval(date, { start: event.start, end: event.end });
     const isExcluded = isDateExcluded(date, event.excludedDates);
     return isInRange && !isExcluded;
   });
