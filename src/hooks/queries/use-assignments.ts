@@ -106,18 +106,30 @@ export function useCalendarData(
 ) {
   const supabase = createClient();
 
+  // Format dates safely
+  const startStr = startDate instanceof Date && !isNaN(startDate.getTime())
+    ? startDate.toISOString().split('T')[0]
+    : null;
+  const endStr = endDate instanceof Date && !isNaN(endDate.getTime())
+    ? endDate.toISOString().split('T')[0]
+    : null;
+
   return useQuery({
     queryKey: [
       ...CALENDAR_KEY,
-      startDate.toISOString().split('T')[0],
-      endDate.toISOString().split('T')[0],
+      startStr,
+      endStr,
       filters?.projectId,
       filters?.userId,
     ],
     queryFn: async () => {
+      if (!startStr || !endStr) {
+        return [];
+      }
+
       const { data, error } = await supabase.rpc('get_calendar_assignments', {
-        p_start_date: startDate.toISOString().split('T')[0],
-        p_end_date: endDate.toISOString().split('T')[0],
+        p_start_date: startStr,
+        p_end_date: endStr,
         p_project_id: filters?.projectId || null,
       });
 
@@ -133,6 +145,7 @@ export function useCalendarData(
       return result;
     },
     staleTime: THIRTY_SECONDS,
+    enabled: !!startStr && !!endStr,
   });
 }
 
