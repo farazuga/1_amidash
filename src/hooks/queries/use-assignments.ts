@@ -32,6 +32,8 @@ import {
   updateUserAssignable,
   getProjectAssignmentsForGantt,
   getGanttDataForRange,
+  // Calendar data server action
+  getCalendarData,
 } from '@/app/(dashboard)/calendar/actions';
 
 // Query keys
@@ -104,8 +106,6 @@ export function useCalendarData(
   endDate: Date,
   filters?: { projectId?: string; userId?: string }
 ) {
-  const supabase = createClient();
-
   // Format dates safely
   const startStr = startDate instanceof Date && !isNaN(startDate.getTime())
     ? startDate.toISOString().split('T')[0]
@@ -127,22 +127,16 @@ export function useCalendarData(
         return [];
       }
 
-      const { data, error } = await supabase.rpc('get_calendar_assignments', {
-        p_start_date: startStr,
-        p_end_date: endStr,
-        p_project_id: filters?.projectId || null,
+      // Use server action for proper authentication
+      const result = await getCalendarData({
+        startDate: startStr,
+        endDate: endStr,
+        projectId: filters?.projectId,
+        userId: filters?.userId,
       });
 
-      if (error) throw error;
-
-      let result = data as CalendarAssignmentResult[];
-
-      // Filter by user if specified
-      if (filters?.userId) {
-        result = result.filter(a => a.user_id === filters.userId);
-      }
-
-      return result;
+      if (!result.success) throw new Error(result.error);
+      return result.data || [];
     },
     staleTime: THIRTY_SECONDS,
     enabled: !!startStr && !!endStr,
