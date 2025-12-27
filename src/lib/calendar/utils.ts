@@ -104,10 +104,14 @@ export function isDateExcluded(date: Date, excludedDates: string[]): boolean {
 
 /**
  * Convert database assignment results to calendar events
+ * @param assignments - Assignment data from database
+ * @param excludedDatesMap - Map of assignment_id to excluded dates (legacy)
+ * @param scheduledDaysMap - Map of assignment_id to scheduled work_dates (new model)
  */
 export function convertToCalendarEvents(
   assignments: CalendarAssignmentResult[],
-  excludedDatesMap: Map<string, string[]>
+  excludedDatesMap: Map<string, string[]>,
+  scheduledDaysMap?: Map<string, string[]>
 ): CalendarEvent[] {
   return assignments.map((assignment) => ({
     id: assignment.assignment_id,
@@ -121,17 +125,33 @@ export function convertToCalendarEvents(
     bookingStatus: assignment.booking_status,
     assignmentId: assignment.assignment_id,
     excludedDates: excludedDatesMap.get(assignment.assignment_id) || [],
+    scheduledDays: scheduledDaysMap?.get(assignment.assignment_id) || [],
   }));
 }
 
 /**
+ * Check if a date is in the scheduled days array
+ */
+export function isDateScheduled(date: Date, scheduledDays: string[]): boolean {
+  const dateStr = format(date, 'yyyy-MM-dd');
+  return scheduledDays.includes(dateStr);
+}
+
+/**
  * Get events for a specific day
+ * Uses scheduledDays (assignment_days) when available, otherwise falls back to project date range
  */
 export function getEventsForDay(
   date: Date,
   events: CalendarEvent[]
 ): CalendarEvent[] {
   return events.filter((event) => {
+    // If scheduledDays is populated, use it as the source of truth
+    if (event.scheduledDays && event.scheduledDays.length > 0) {
+      return isDateScheduled(date, event.scheduledDays);
+    }
+
+    // Fall back to project date range check (legacy behavior)
     const isInRange = isWithinInterval(date, { start: event.start, end: event.end });
     const isExcluded = isDateExcluded(date, event.excludedDates);
     return isInRange && !isExcluded;

@@ -684,6 +684,14 @@ export async function getUnresolvedConflicts(userId?: string): Promise<ActionRes
 // Default max assignments to return
 const DEFAULT_CALENDAR_LIMIT = 500;
 
+// Extended return type for calendar data with scheduled days
+export interface CalendarDataResult {
+  data: CalendarAssignmentResult[];
+  total: number;
+  hasMore: boolean;
+  scheduledDaysMap: Record<string, string[]>; // assignment_id -> work_dates[]
+}
+
 export async function getCalendarData(params: {
   startDate: string;
   endDate: string;
@@ -691,7 +699,7 @@ export async function getCalendarData(params: {
   userId?: string;
   limit?: number;
   offset?: number;
-}): Promise<ActionResult<{ data: CalendarAssignmentResult[]; total: number; hasMore: boolean }>> {
+}): Promise<ActionResult<CalendarDataResult>> {
   const { error: authError, supabase } = await getAuthenticatedClient();
   if (authError || !supabase) {
     return { success: false, error: authError || 'Authentication failed' };
@@ -722,12 +730,36 @@ export async function getCalendarData(params: {
   const paginatedResult = result.slice(offset, offset + limit);
   const hasMore = offset + limit < total;
 
+  // Fetch assignment_days for all assignments to get actual scheduled days
+  const assignmentIds = paginatedResult.map(a => a.assignment_id);
+  const scheduledDaysMap: Record<string, string[]> = {};
+
+  if (assignmentIds.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: daysData, error: daysError } = await (supabase as any)
+      .from('assignment_days')
+      .select('assignment_id, work_date')
+      .in('assignment_id', assignmentIds)
+      .order('work_date', { ascending: true });
+
+    if (!daysError && daysData) {
+      // Build map of assignment_id -> work_dates[]
+      for (const day of daysData as { assignment_id: string; work_date: string }[]) {
+        if (!scheduledDaysMap[day.assignment_id]) {
+          scheduledDaysMap[day.assignment_id] = [];
+        }
+        scheduledDaysMap[day.assignment_id].push(day.work_date);
+      }
+    }
+  }
+
   return {
     success: true,
     data: {
       data: paginatedResult,
       total,
       hasMore,
+      scheduledDaysMap,
     }
   };
 }

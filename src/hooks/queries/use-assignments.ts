@@ -135,7 +135,7 @@ export function useCalendarData(
     ],
     queryFn: async () => {
       if (!startStr || !endStr) {
-        return { data: [], total: 0, hasMore: false };
+        return { data: [], total: 0, hasMore: false, scheduledDaysMap: {} };
       }
 
       // Use server action for proper authentication
@@ -149,7 +149,7 @@ export function useCalendarData(
       });
 
       if (!result.success) throw new Error(result.error);
-      return result.data || { data: [], total: 0, hasMore: false };
+      return result.data || { data: [], total: 0, hasMore: false, scheduledDaysMap: {} };
     },
     staleTime: THIRTY_SECONDS,
     enabled: !!startStr && !!endStr,

@@ -116,10 +116,14 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   const createAssignment = useCreateAssignment();
   const cycleStatus = useCycleAssignmentStatus();
 
-  // Convert assignments to calendar events
+  // Convert assignments to calendar events with scheduled days
   const events = useMemo(() => {
     if (!calendarAssignments?.data) return [];
-    return convertToCalendarEvents(calendarAssignments.data, new Map());
+    // Convert scheduledDaysMap Record to Map
+    const scheduledDaysMap = new Map<string, string[]>(
+      Object.entries(calendarAssignments.scheduledDaysMap || {})
+    );
+    return convertToCalendarEvents(calendarAssignments.data, new Map(), scheduledDaysMap);
   }, [calendarAssignments]);
 
   // Calculate status counts for summary bar
@@ -142,6 +146,11 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
     if (statusFilter === 'all') return events;
     return events.filter((e) => e.bookingStatus === statusFilter);
   }, [events, statusFilter]);
+
+  // Get assigned user IDs for sidebar indicator
+  const assignedUserIds = useMemo(() => {
+    return new Set(events.map((e) => e.userId));
+  }, [events]);
 
   // Drag sensors for better UX
   const sensors = useSensors(
@@ -569,6 +578,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
             isLoading={isLoadingUsers}
             collapsed={sidebarCollapsed}
             onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+            assignedUserIds={assignedUserIds}
           />
         )}
       </div>

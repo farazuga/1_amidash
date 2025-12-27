@@ -16,8 +16,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, Users, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { getUserInitials } from '@/lib/calendar/utils';
-import { useAssignableUsers, useCreateAssignment } from '@/hooks/queries/use-assignments';
+import { useAssignableUsers, useCreateAssignment, useProjectAssignments } from '@/hooks/queries/use-assignments';
 import { toast } from 'sonner';
+import { Badge } from '@/components/ui/badge';
 import type { BookingStatus } from '@/types/calendar';
 
 interface BulkAssignDialogProps {
@@ -40,7 +41,11 @@ export function BulkAssignDialog({
   const [isAssigning, setIsAssigning] = useState(false);
 
   const { data: assignableUsers = [], isLoading } = useAssignableUsers();
+  const { data: projectAssignments = [] } = useProjectAssignments(projectId);
   const createAssignment = useCreateAssignment();
+
+  // Get IDs of users already assigned to this project
+  const assignedUserIds = new Set(projectAssignments.map((a) => a.user_id));
 
   const filteredUsers = assignableUsers.filter(
     (user) =>
@@ -56,11 +61,14 @@ export function BulkAssignDialog({
     );
   };
 
+  // Filter out already assigned users for selection
+  const selectableUsers = filteredUsers.filter((u) => !assignedUserIds.has(u.id));
+
   const handleSelectAll = () => {
-    if (selectedUserIds.length === filteredUsers.length) {
+    if (selectedUserIds.length === selectableUsers.length) {
       setSelectedUserIds([]);
     } else {
-      setSelectedUserIds(filteredUsers.map((u) => u.id));
+      setSelectedUserIds(selectableUsers.map((u) => u.id));
     }
   };
 
@@ -133,14 +141,18 @@ export function BulkAssignDialog({
           {/* Select all */}
           <div className="flex items-center justify-between px-1">
             <Label className="text-sm text-muted-foreground">
-              {selectedUserIds.length} of {filteredUsers.length} selected
+              {selectedUserIds.length} of {selectableUsers.length} available selected
+              {assignedUserIds.size > 0 && (
+                <span className="ml-1">({assignedUserIds.size} already assigned)</span>
+              )}
             </Label>
             <Button
               variant="ghost"
               size="sm"
               onClick={handleSelectAll}
+              disabled={selectableUsers.length === 0}
             >
-              {selectedUserIds.length === filteredUsers.length ? 'Deselect All' : 'Select All'}
+              {selectedUserIds.length === selectableUsers.length ? 'Deselect All' : 'Select All'}
             </Button>
           </div>
 
@@ -157,28 +169,45 @@ export function BulkAssignDialog({
               </div>
             ) : (
               <div className="p-2 space-y-1">
-                {filteredUsers.map((user) => (
-                  <label
-                    key={user.id}
-                    className="flex items-center gap-3 p-2 rounded-md hover:bg-accent cursor-pointer"
-                  >
-                    <Checkbox
-                      checked={selectedUserIds.includes(user.id)}
-                      onCheckedChange={() => handleToggleUser(user.id)}
-                    />
-                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium text-primary">
-                      {getUserInitials(user.full_name)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {user.full_name || 'Unknown'}
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {user.email}
-                      </p>
-                    </div>
-                  </label>
-                ))}
+                {filteredUsers.map((user) => {
+                  const isAlreadyAssigned = assignedUserIds.has(user.id);
+                  return (
+                    <label
+                      key={user.id}
+                      className={`flex items-center gap-3 p-2 rounded-md ${
+                        isAlreadyAssigned
+                          ? 'opacity-60 cursor-not-allowed'
+                          : 'hover:bg-accent cursor-pointer'
+                      }`}
+                    >
+                      <Checkbox
+                        checked={selectedUserIds.includes(user.id)}
+                        onCheckedChange={() => handleToggleUser(user.id)}
+                        disabled={isAlreadyAssigned}
+                      />
+                      <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                        isAlreadyAssigned ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'
+                      }`}>
+                        {getUserInitials(user.full_name)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium truncate">
+                            {user.full_name || 'Unknown'}
+                          </p>
+                          {isAlreadyAssigned && (
+                            <Badge variant="secondary" className="text-xs px-1.5 py-0 h-5">
+                              Assigned
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {user.email}
+                        </p>
+                      </div>
+                    </label>
+                  );
+                })}
               </div>
             )}
           </ScrollArea>

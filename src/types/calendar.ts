@@ -158,6 +158,7 @@ export interface CalendarEvent {
   bookingStatus: BookingStatus;
   assignmentId: string;
   excludedDates: string[];
+  scheduledDays: string[];  // Specific days the user is scheduled (from assignment_days)
 }
 
 // Date range for calendar queries
