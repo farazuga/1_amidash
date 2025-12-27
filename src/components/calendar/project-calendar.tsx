@@ -91,23 +91,25 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   const [multiUserDialogOpen, setMultiUserDialogOpen] = useState(false);
   const [bulkAssignDialogOpen, setBulkAssignDialogOpen] = useState(false);
 
-  const { start: monthStart, end: monthEnd } = getMonthViewRange(currentDate);
+  const { start, end } = getMonthViewRange(currentDate);
   const days = getCalendarDays(currentDate);
 
-  // For week/gantt views, query based on project dates; for month view, use current month
+  // For week/gantt views, extend query range to include project dates
   const queryStart = useMemo(() => {
-    if ((viewMode === 'week' || viewMode === 'gantt') && project?.start_date) {
-      return parseISO(project.start_date);
+    if (project?.start_date) {
+      const projectStart = parseISO(project.start_date);
+      return projectStart < start ? projectStart : start;
     }
-    return monthStart;
-  }, [viewMode, project?.start_date, monthStart]);
+    return start;
+  }, [project?.start_date, start]);
 
   const queryEnd = useMemo(() => {
-    if ((viewMode === 'week' || viewMode === 'gantt') && project?.end_date) {
-      return parseISO(project.end_date);
+    if (project?.end_date) {
+      const projectEnd = parseISO(project.end_date);
+      return projectEnd > end ? projectEnd : end;
     }
-    return monthEnd;
-  }, [viewMode, project?.end_date, monthEnd]);
+    return end;
+  }, [project?.end_date, end]);
 
   const { data: calendarAssignments, isLoading, isError, error } = useCalendarData(queryStart, queryEnd, {
     projectId: project?.id,
