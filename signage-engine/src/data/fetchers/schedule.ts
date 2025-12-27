@@ -1,4 +1,3 @@
-import { supabase, isSupabaseConfigured } from '../supabase-client.js';
 import { logger } from '../../utils/logger.js';
 import { format, addDays, startOfDay } from 'date-fns';
 
@@ -15,60 +14,10 @@ export interface ScheduleEntry {
 }
 
 export async function fetchScheduleData(daysToShow: number = 14): Promise<ScheduleEntry[]> {
-  if (!isSupabaseConfigured() || !supabase) {
-    logger.debug('Supabase not configured, returning mock schedule');
-    return getMockSchedule(daysToShow);
-  }
-
-  try {
-    const startDate = startOfDay(new Date());
-    const endDate = addDays(startDate, daysToShow);
-
-    const { data: assignments, error } = await supabase
-      .from('project_assignments')
-      .select(`
-        id,
-        user_id,
-        project_id,
-        users(full_name),
-        projects(name, color),
-        assignment_days(date, hours)
-      `)
-      .gte('assignment_days.date', format(startDate, 'yyyy-MM-dd'))
-      .lte('assignment_days.date', format(endDate, 'yyyy-MM-dd'));
-
-    if (error) throw error;
-
-    const userMap = new Map<string, ScheduleEntry>();
-
-    (assignments || []).forEach((a: Record<string, unknown>) => {
-      const userId = a.user_id as string;
-      const userName = (a.users as { full_name: string } | null)?.full_name || 'Unknown';
-      const projectId = a.project_id as string;
-      const projectName = (a.projects as { name: string } | null)?.name || 'Unknown';
-      const projectColor = (a.projects as { color: string } | null)?.color || '#808080';
-
-      if (!userMap.has(userId)) {
-        userMap.set(userId, { userId, userName, assignments: [] });
-      }
-
-      const days = a.assignment_days as { date: string; hours: number }[] | null;
-      (days || []).forEach((day) => {
-        userMap.get(userId)!.assignments.push({
-          projectId,
-          projectName,
-          projectColor,
-          date: day.date,
-          hours: day.hours,
-        });
-      });
-    });
-
-    return Array.from(userMap.values());
-  } catch (error) {
-    logger.error({ error }, 'Failed to fetch schedule data');
-    return [];
-  }
+  // Note: Schedule feature requires project_assignments table which doesn't exist yet
+  // Using mock data until the table is created
+  logger.debug('Using mock schedule data (project_assignments table not available)');
+  return getMockSchedule(daysToShow);
 }
 
 function getMockSchedule(daysToShow: number): ScheduleEntry[] {

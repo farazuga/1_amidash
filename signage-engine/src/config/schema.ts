@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const SlideTypeSchema = z.enum(['active-projects', 'po-ticker', 'revenue-dashboard', 'team-schedule']);
+export const SlideTypeSchema = z.enum(['active-projects', 'project-list', 'project-metrics', 'po-ticker', 'revenue-dashboard', 'team-schedule']);
 export type SlideType = z.infer<typeof SlideTypeSchema>;
 
 export const SlideConfigSchema = z.object({
@@ -23,9 +23,9 @@ export type NDIConfig = z.infer<typeof NDIConfigSchema>;
 export const DisplayConfigSchema = z.object({
   width: z.number().default(3840),
   height: z.number().default(2160),
-  backgroundColor: z.string().default('#1a1a2e'),
-  accentColor: z.string().default('#023A2D'),
-  fontFamily: z.string().default('Inter, Arial, sans-serif'),
+  backgroundColor: z.string().default('#053B2C'),     // Amitrace Main Dark Green background
+  accentColor: z.string().default('#C2E0AD'),         // Amitrace Main Light Green accent
+  fontFamily: z.string().default('Karla, Inter, Arial, sans-serif'),  // Amitrace brand font
   logoPath: z.string().optional(),
 });
 export type DisplayConfig = z.infer<typeof DisplayConfigSchema>;

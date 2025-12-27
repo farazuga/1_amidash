@@ -1,14 +1,24 @@
 import { logger } from '../utils/logger.js';
 import { NDIConfig, DisplayConfig } from '../config/schema.js';
 
-// Try to import grandiose (optional dependency)
-let grandiose: typeof import('grandiose') | null = null;
-try {
-  grandiose = await import('grandiose');
-  logger.info('NDI SDK (grandiose) loaded successfully');
-} catch {
-  logger.warn('NDI SDK (grandiose) not available. Using mock output for testing.');
+// Grandiose NDI SDK interface (optional dependency, may not be installed)
+interface GrandioseSend {
+  send(options: { name: string; clockVideo: boolean; clockAudio: boolean }): unknown;
 }
+
+// Try to import grandiose (optional dependency)
+let grandiose: GrandioseSend | null = null;
+async function loadGrandiose(): Promise<void> {
+  try {
+    // Dynamic import with error handling for missing module
+    grandiose = await import('grandiose' as string) as unknown as GrandioseSend;
+    logger.info('NDI SDK (grandiose) loaded successfully');
+  } catch {
+    logger.warn('NDI SDK (grandiose) not available. Using mock output for testing.');
+  }
+}
+// Load on module init
+loadGrandiose();
 
 export interface NDISender {
   send(frame: {

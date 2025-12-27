@@ -1,8 +1,11 @@
+import { CanvasRenderingContext2D } from 'canvas';
 import { SlideConfig, DisplayConfig, TransitionConfig } from '../config/schema.js';
 import { DataCache } from '../data/polling-manager.js';
+import { SignageSlide } from '../data/fetchers/slide-config.js';
 import { CanvasManager } from './canvas-manager.js';
 import { BaseSlide } from './slides/base-slide.js';
 import { ActiveProjectsSlide } from './slides/active-projects.js';
+import { ProjectMetricsSlide } from './slides/project-metrics.js';
 import { POTickerSlide } from './slides/po-ticker.js';
 import { RevenueDashboardSlide } from './slides/revenue-dashboard.js';
 import { TeamScheduleSlide } from './slides/team-schedule.js';
@@ -42,7 +45,10 @@ export class SlideManager {
   private createSlide(config: SlideConfig): BaseSlide | null {
     switch (config.type) {
       case 'active-projects':
+      case 'project-list':
         return new ActiveProjectsSlide(config, this.displayConfig);
+      case 'project-metrics':
+        return new ProjectMetricsSlide(config, this.displayConfig);
       case 'po-ticker':
         return new POTickerSlide(config, this.displayConfig);
       case 'revenue-dashboard':
@@ -53,6 +59,52 @@ export class SlideManager {
         logger.warn({ type: config.type }, 'Unknown slide type');
         return null;
     }
+  }
+
+  // Reload slides from database config
+  async reloadFromDatabase(dbSlides: SignageSlide[]): Promise<void> {
+    const newSlides: BaseSlide[] = [];
+
+    for (const dbSlide of dbSlides) {
+      if (!dbSlide.enabled) continue;
+
+      const config: SlideConfig = {
+        type: this.mapSlideType(dbSlide.slide_type),
+        enabled: dbSlide.enabled,
+        duration: dbSlide.duration_ms,
+        title: dbSlide.title || undefined,
+        maxItems: (dbSlide.config as { maxItems?: number })?.maxItems,
+        scrollSpeed: (dbSlide.config as { scrollSpeed?: number })?.scrollSpeed,
+      };
+
+      const slide = this.createSlide(config);
+      if (slide) {
+        await slide.loadLogo();
+        newSlides.push(slide);
+      }
+    }
+
+    if (newSlides.length > 0) {
+      this.slides = newSlides;
+      // Reset to first slide when reloading
+      if (this.currentSlideIndex >= this.slides.length) {
+        this.currentSlideIndex = 0;
+        this.slideStartTime = Date.now();
+      }
+      logger.info({ slideCount: newSlides.length }, 'Slides reloaded from database');
+    }
+  }
+
+  private mapSlideType(dbType: string): SlideConfig['type'] {
+    const typeMap: Record<string, SlideConfig['type']> = {
+      'project-list': 'project-list',
+      'project-metrics': 'project-metrics',
+      'po-ticker': 'po-ticker',
+      'revenue-dashboard': 'revenue-dashboard',
+      'team-schedule': 'team-schedule',
+      'active-projects': 'active-projects',
+    };
+    return typeMap[dbType] || 'active-projects';
   }
 
   async loadAssets(): Promise<void> {

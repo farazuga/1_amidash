@@ -1,12 +1,27 @@
 import { supabase, isSupabaseConfigured } from '../supabase-client.js';
 import { logger } from '../../utils/logger.js';
 
+// Generate a color based on status name
+function getStatusColor(statusName: string): string {
+  const name = statusName.toLowerCase();
+  if (name.includes('complete')) return '#10b981'; // green
+  if (name.includes('progress') || name.includes('active')) return '#3b82f6'; // blue
+  if (name.includes('review') || name.includes('waiting')) return '#f59e0b'; // amber
+  if (name.includes('pending') || name.includes('hold')) return '#6b7280'; // gray
+  if (name.includes('cancel')) return '#ef4444'; // red
+  if (name.includes('design') || name.includes('planning')) return '#8b5cf6'; // purple
+  if (name.includes('test') || name.includes('qa')) return '#06b6d4'; // cyan
+  return '#6b7280'; // default gray
+}
+
 export interface ActiveProject {
   id: string;
   name: string;
   client_name: string;
   status: string;
   status_color: string;
+  project_type: string | null;
+  salesperson: string | null;
   start_date: string | null;
   due_date: string | null;
   total_value: number;
@@ -19,34 +34,53 @@ export async function fetchActiveProjects(): Promise<ActiveProject[]> {
   }
 
   try {
-    const { data, error } = await supabase
+    // First get completed/cancelled status IDs to filter them out
+    const { data: excludeStatuses } = await supabase
+      .from('statuses')
+      .select('id')
+      .or('name.ilike.%complete%,name.ilike.%cancelled%');
+
+    const excludeIds = (excludeStatuses || []).map(s => s.id);
+
+    const query = supabase
       .from('projects')
       .select(`
         id,
-        name,
-        clients(name),
-        statuses(name, color),
-        start_date,
-        due_date,
-        total_value
+        client_name,
+        created_date,
+        goal_completion_date,
+        sales_amount,
+        statuses:current_status_id(id, name),
+        project_types:project_type_id(name),
+        salesperson:salesperson_id(full_name)
       `)
-      .not('statuses.name', 'ilike', '%complete%')
-      .not('statuses.name', 'ilike', '%cancelled%')
       .order('created_at', { ascending: false })
       .limit(20);
 
+    // Filter out completed/cancelled projects
+    if (excludeIds.length > 0) {
+      query.not('current_status_id', 'in', `(${excludeIds.join(',')})`);
+    }
+
+    const { data, error } = await query;
+
     if (error) throw error;
 
-    return (data || []).map((p: Record<string, unknown>) => ({
-      id: p.id as string,
-      name: p.name as string,
-      client_name: (p.clients as { name: string } | null)?.name || 'Unknown',
-      status: (p.statuses as { name: string } | null)?.name || 'Unknown',
-      status_color: (p.statuses as { color: string } | null)?.color || '#808080',
-      start_date: p.start_date as string | null,
-      due_date: p.due_date as string | null,
-      total_value: (p.total_value as number) || 0,
-    }));
+    return (data || []).map((p: Record<string, unknown>) => {
+      const statusName = (p.statuses as { name: string } | null)?.name || 'Unknown';
+      return {
+        id: p.id as string,
+        name: p.client_name as string,
+        client_name: p.client_name as string,
+        status: statusName,
+        status_color: getStatusColor(statusName),
+        project_type: (p.project_types as { name: string } | null)?.name || null,
+        salesperson: (p.salesperson as { full_name: string } | null)?.full_name || null,
+        start_date: p.created_date as string | null,
+        due_date: p.goal_completion_date as string | null,
+        total_value: (p.sales_amount as number) || 0,
+      };
+    });
   } catch (error) {
     logger.error({ error }, 'Failed to fetch active projects');
     return [];
@@ -55,8 +89,8 @@ export async function fetchActiveProjects(): Promise<ActiveProject[]> {
 
 function getMockProjects(): ActiveProject[] {
   return [
-    { id: '1', name: 'Project Alpha', client_name: 'Client A', status: 'In Progress', status_color: '#3b82f6', start_date: '2024-01-01', due_date: '2024-06-01', total_value: 50000 },
-    { id: '2', name: 'Project Beta', client_name: 'Client B', status: 'Review', status_color: '#f59e0b', start_date: '2024-02-01', due_date: '2024-05-01', total_value: 35000 },
-    { id: '3', name: 'Project Gamma', client_name: 'Client C', status: 'Design', status_color: '#8b5cf6', start_date: '2024-03-01', due_date: '2024-07-01', total_value: 75000 },
+    { id: '1', name: 'Project Alpha', client_name: 'Client A', status: 'In Progress', status_color: '#3b82f6', project_type: 'Integration', salesperson: 'John Doe', start_date: '2024-01-01', due_date: '2024-06-01', total_value: 50000 },
+    { id: '2', name: 'Project Beta', client_name: 'Client B', status: 'Review', status_color: '#f59e0b', project_type: 'Custom Dev', salesperson: 'Jane Smith', start_date: '2024-02-01', due_date: '2024-05-01', total_value: 35000 },
+    { id: '3', name: 'Project Gamma', client_name: 'Client C', status: 'Design', status_color: '#8b5cf6', project_type: 'Support', salesperson: 'Bob Wilson', start_date: '2024-03-01', due_date: '2024-07-01', total_value: 75000 },
   ];
 }

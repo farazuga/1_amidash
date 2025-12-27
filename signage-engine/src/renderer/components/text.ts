@@ -1,12 +1,18 @@
 import { CanvasRenderingContext2D } from 'canvas';
 
+// Text alignment types
+type TextAlign = 'left' | 'right' | 'center' | 'start' | 'end';
+type TextBaseline = 'top' | 'hanging' | 'middle' | 'alphabetic' | 'ideographic' | 'bottom';
+
 export interface TextStyle {
   font?: string;
   size?: number;
+  weight?: number | string;  // 400, 600, 700, 800, 'bold', etc.
   color?: string;
-  align?: CanvasTextAlign;
-  baseline?: CanvasTextBaseline;
+  align?: TextAlign;
+  baseline?: TextBaseline;
   maxWidth?: number;
+  letterSpacing?: number;    // Pixels between characters
 }
 
 export function drawText(
@@ -19,22 +25,62 @@ export function drawText(
   const {
     font = 'Inter',
     size = 24,
+    weight = 400,
     color = '#ffffff',
     align = 'left',
     baseline = 'top',
     maxWidth,
+    letterSpacing = 0,
   } = style;
 
-  ctx.font = `${size}px ${font}`;
+  // Build font string with weight
+  const fontWeight = typeof weight === 'number' ? weight : weight;
+  ctx.font = `${fontWeight} ${size}px ${font}`;
   ctx.fillStyle = color;
   ctx.textAlign = align;
   ctx.textBaseline = baseline;
 
-  if (maxWidth) {
+  // Handle letter spacing by drawing each character
+  if (letterSpacing > 0) {
+    drawTextWithSpacing(ctx, text, x, y, letterSpacing, align);
+  } else if (maxWidth) {
     ctx.fillText(text, x, y, maxWidth);
   } else {
     ctx.fillText(text, x, y);
   }
+}
+
+// Draw text with custom letter spacing
+function drawTextWithSpacing(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  spacing: number,
+  align: TextAlign
+): void {
+  const chars = text.split('');
+  let totalWidth = 0;
+
+  // Calculate total width
+  chars.forEach(char => {
+    totalWidth += ctx.measureText(char).width + spacing;
+  });
+  totalWidth -= spacing; // Remove trailing spacing
+
+  // Adjust starting position based on alignment
+  let currentX = x;
+  if (align === 'center') {
+    currentX = x - totalWidth / 2;
+  } else if (align === 'right' || align === 'end') {
+    currentX = x - totalWidth;
+  }
+
+  // Draw each character
+  chars.forEach(char => {
+    ctx.fillText(char, currentX, y);
+    currentX += ctx.measureText(char).width + spacing;
+  });
 }
 
 export function drawTextWrapped(

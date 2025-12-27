@@ -12,8 +12,8 @@ export class TeamScheduleSlide extends BaseSlide {
     const schedule = data.schedule.data;
     const daysToShow = this.config.daysToShow || 14;
     const padding = 60;
-    const nameColWidth = 250;
-    const rowHeight = 80;
+    const nameColWidth = 320;
+    const rowHeight = 100;
     const startDate = startOfDay(new Date());
 
     // Calculate day column width
@@ -35,17 +35,17 @@ export class TeamScheduleSlide extends BaseSlide {
       }
 
       // Day label
-      drawText(ctx, format(date, 'EEE'), x + dayWidth / 2, contentY + 15, {
+      drawText(ctx, format(date, 'EEE'), x + dayWidth / 2, contentY + 18, {
         font: this.displayConfig.fontFamily,
-        size: 18,
+        size: 24,
         color: isWeekend ? 'rgba(255, 255, 255, 0.4)' : 'rgba(255, 255, 255, 0.7)',
         align: 'center',
       });
 
       // Date number
-      drawText(ctx, format(date, 'd'), x + dayWidth / 2, contentY + 40, {
+      drawText(ctx, format(date, 'd'), x + dayWidth / 2, contentY + 50, {
         font: this.displayConfig.fontFamily,
-        size: 24,
+        size: 32,
         color: isWeekend ? 'rgba(255, 255, 255, 0.4)' : colors.white,
         align: 'center',
       });
@@ -73,12 +73,12 @@ export class TeamScheduleSlide extends BaseSlide {
       // User name
       drawText(
         ctx,
-        truncateText(ctx, user.userName, nameColWidth - 20, this.displayConfig.fontFamily, 24),
+        truncateText(ctx, user.userName, nameColWidth - 20, this.displayConfig.fontFamily, 32),
         padding + 10,
         rowY + rowHeight / 2,
         {
           font: this.displayConfig.fontFamily,
-          size: 24,
+          size: 32,
           color: colors.white,
           baseline: 'middle',
         }
@@ -104,12 +104,12 @@ export class TeamScheduleSlide extends BaseSlide {
           if (blockWidth > 60) {
             drawText(
               ctx,
-              truncateText(ctx, assignment.projectName, blockWidth - 8, this.displayConfig.fontFamily, 14),
+              truncateText(ctx, assignment.projectName, blockWidth - 8, this.displayConfig.fontFamily, 18),
               blockX + blockWidth / 2,
-              blockY + blockHeight / 2 - 8,
+              blockY + blockHeight / 2 - 12,
               {
                 font: this.displayConfig.fontFamily,
-                size: 14,
+                size: 18,
                 color: colors.white,
                 align: 'center',
                 baseline: 'middle',
@@ -118,9 +118,9 @@ export class TeamScheduleSlide extends BaseSlide {
           }
 
           // Hours
-          drawText(ctx, `${assignment.hours}h`, blockX + blockWidth / 2, blockY + blockHeight / 2 + 10, {
+          drawText(ctx, `${assignment.hours}h`, blockX + blockWidth / 2, blockY + blockHeight / 2 + 14, {
             font: this.displayConfig.fontFamily,
-            size: 16,
+            size: 22,
             color: 'rgba(255, 255, 255, 0.8)',
             align: 'center',
             baseline: 'middle',

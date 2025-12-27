@@ -7,9 +7,9 @@ ndi:
 display:
   width: 3840
   height: 2160
-  backgroundColor: "#1a1a2e"
-  accentColor: "#023A2D"
-  fontFamily: "Inter, Arial, sans-serif"
+  backgroundColor: "#053B2C"
+  accentColor: "#C2E0AD"
+  fontFamily: "Karla, Inter, Arial, sans-serif"
   logoPath: "../public/new_logo.png"
 
 polling:
@@ -23,14 +23,12 @@ slides:
     enabled: true
     duration: 15000
     title: "Active Projects"
-    maxItems: 15
+    maxItems: 4
 
   - type: "po-ticker"
     enabled: true
-    duration: 10000
-    title: "Recent Purchase Orders"
-    maxItems: 10
-    scrollSpeed: 2
+    duration: 15000
+    title: "Purchase Orders"
 
   - type: "revenue-dashboard"
     enabled: true

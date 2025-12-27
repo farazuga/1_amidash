@@ -148,21 +148,21 @@ export function drawKPICard(
   ctx.fillStyle = backgroundColor;
   ctx.fill();
 
-  const padding = 20;
+  const padding = 24;
 
   // Title
   ctx.fillStyle = titleColor;
-  ctx.font = '24px Inter';
+  ctx.font = '32px Karla, Inter';
   ctx.textAlign = 'left';
-  ctx.fillText(title, x + padding, y + padding + 24);
+  ctx.fillText(title, x + padding, y + padding + 32);
 
   // Value
   ctx.fillStyle = valueColor;
-  ctx.font = 'bold 48px Inter';
-  ctx.fillText(value, x + padding, y + padding + 80);
+  ctx.font = 'bold 64px Karla, Inter';
+  ctx.fillText(value, x + padding, y + padding + 110);
 
   // Subtitle
   ctx.fillStyle = subtitleColor;
-  ctx.font = '20px Inter';
-  ctx.fillText(subtitle, x + padding, y + padding + 110);
+  ctx.font = '28px Karla, Inter';
+  ctx.fillText(subtitle, x + padding, y + padding + 150);
 }

@@ -10,6 +10,7 @@ import { logger } from './utils/logger.js';
 class SignageEngine {
   private state: EngineState;
   private frameLoop: NodeJS.Timeout | null = null;
+  private lastSlideConfigHash: string = '';
 
   constructor() {
     const config = initConfig();
@@ -93,9 +94,29 @@ class SignageEngine {
     }
 
     const data = this.state.pollingManager.getCache();
+
+    // Check if slide config has changed and reload if necessary
+    this.checkAndReloadSlides(data);
+
     this.state.slideManager.render(this.state.canvasManager, data);
     const frameData = this.state.canvasManager.getFrameData();
     this.state.ndiOutput.sendFrame(frameData);
+  }
+
+  private checkAndReloadSlides(data: ReturnType<PollingManager['getCache']>): void {
+    const slideConfig = data.slideConfig.data;
+    if (!slideConfig || slideConfig.length === 0) return;
+
+    // Create a simple hash of slide config to detect changes
+    const configHash = slideConfig.map(s => `${s.id}:${s.enabled}:${s.display_order}`).join('|');
+
+    if (configHash !== this.lastSlideConfigHash) {
+      this.lastSlideConfigHash = configHash;
+      // Reload slides asynchronously (don't await in render loop)
+      this.state.slideManager?.reloadFromDatabase(slideConfig).catch(err => {
+        logger.error({ error: err }, 'Failed to reload slides from database');
+      });
+    }
   }
 
   getState(): EngineState {

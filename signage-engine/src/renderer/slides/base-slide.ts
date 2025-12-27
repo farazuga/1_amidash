@@ -2,16 +2,25 @@ import { CanvasRenderingContext2D, loadImage, Image } from 'canvas';
 import { DisplayConfig, SlideConfig } from '../../config/schema.js';
 import { DataCache } from '../../data/polling-manager.js';
 import { drawText } from '../components/text.js';
-import { colors } from '../components/colors.js';
+import { colors, hexToRgba } from '../components/colors.js';
+import {
+  AnimationState,
+  createAnimationState,
+  updateAnimations,
+  drawParticles,
+  drawAmbientGradient,
+} from '../components/animations.js';
 
 export abstract class BaseSlide {
   protected config: SlideConfig;
   protected displayConfig: DisplayConfig;
   protected logo: Image | null = null;
+  protected animationState: AnimationState;
 
   constructor(config: SlideConfig, displayConfig: DisplayConfig) {
     this.config = config;
     this.displayConfig = displayConfig;
+    this.animationState = createAnimationState();
   }
 
   async loadLogo(): Promise<void> {
@@ -26,41 +35,71 @@ export abstract class BaseSlide {
 
   abstract render(ctx: CanvasRenderingContext2D, data: DataCache, deltaTime: number): void;
 
-  protected drawHeader(ctx: CanvasRenderingContext2D, title: string): number {
-    const headerHeight = 120;
-    const padding = 60;
+  // Update animations - call at start of render
+  protected updateAnimationState(deltaTime: number): void {
+    updateAnimations(this.animationState, deltaTime, this.displayConfig.width, this.displayConfig.height);
+  }
 
-    // Header background
-    ctx.fillStyle = this.displayConfig.accentColor;
+  // Draw ambient background effects
+  protected drawAmbientEffects(ctx: CanvasRenderingContext2D): void {
+    drawAmbientGradient(ctx, this.displayConfig.width, this.displayConfig.height, this.animationState.pulsePhase);
+    drawParticles(ctx, this.animationState);
+  }
+
+  // New minimal header for full-screen slides
+  protected drawMinimalHeader(ctx: CanvasRenderingContext2D, title: string): number {
+    const headerHeight = 120;
+    const padding = 80;
+
+    // Subtle gradient header background
+    const gradient = ctx.createLinearGradient(0, 0, 0, headerHeight);
+    gradient.addColorStop(0, hexToRgba(colors.primary, 0.3));
+    gradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, this.displayConfig.width, headerHeight);
 
-    // Logo
+    // Logo with glow
     if (this.logo) {
-      const logoHeight = 60;
+      const logoHeight = 50;
       const logoWidth = (this.logo.width / this.logo.height) * logoHeight;
       ctx.drawImage(this.logo, padding, (headerHeight - logoHeight) / 2, logoWidth, logoHeight);
     }
 
-    // Title
-    drawText(ctx, title, this.displayConfig.width / 2, headerHeight / 2, {
+    // Bold title
+    drawText(ctx, title.toUpperCase(), this.displayConfig.width / 2, headerHeight / 2, {
       font: this.displayConfig.fontFamily,
-      size: 48,
+      size: 72,
+      weight: 700,
       color: colors.white,
       align: 'center',
       baseline: 'middle',
+      letterSpacing: 8,
     });
 
-    // Timestamp
-    const now = new Date().toLocaleTimeString();
+    // Timestamp with accent color
+    const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     drawText(ctx, now, this.displayConfig.width - padding, headerHeight / 2, {
       font: this.displayConfig.fontFamily,
-      size: 24,
-      color: 'rgba(255, 255, 255, 0.7)',
+      size: 48,
+      color: colors.primaryLight,
       align: 'right',
       baseline: 'middle',
     });
 
+    // Accent line under header
+    ctx.beginPath();
+    ctx.moveTo(padding, headerHeight - 2);
+    ctx.lineTo(this.displayConfig.width - padding, headerHeight - 2);
+    ctx.strokeStyle = hexToRgba(colors.primary, 0.5);
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
     return headerHeight;
+  }
+
+  // Legacy header for compatibility
+  protected drawHeader(ctx: CanvasRenderingContext2D, title: string): number {
+    return this.drawMinimalHeader(ctx, title);
   }
 
   protected drawStaleIndicator(

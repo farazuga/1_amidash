@@ -5,10 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
-import { Play, Square, RefreshCw, Monitor, AlertTriangle, Clock, Tv, Activity } from 'lucide-react';
+import { Play, Square, RefreshCw, AlertTriangle, Clock, Tv, Activity, Monitor } from 'lucide-react';
+import { SlideEditor } from '@/components/signage/slide-editor';
 import {
   getSignageStatus,
   getSignageConfig,
@@ -16,10 +14,11 @@ import {
   stopSignageEngine,
   restartSignageEngine,
   getSignageLogs,
-  updateSignageConfig,
+  getSlides,
   type SignageStatus,
   type SignageConfig,
   type LogEntry,
+  type SignageSlide,
 } from './actions';
 
 const SIGNAGE_PREVIEW_URL = 'http://127.0.0.1:3001/preview';
@@ -44,17 +43,24 @@ export default function SignageAdminPage() {
   const [status, setStatus] = useState<SignageStatus | null>(null);
   const [config, setConfig] = useState<SignageConfig | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [slides, setSlides] = useState<SignageSlide[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [previewKey, setPreviewKey] = useState(0);
   const [connectionError, setConnectionError] = useState(false);
 
+  const refreshSlides = useCallback(async () => {
+    const slidesData = await getSlides();
+    setSlides(slidesData);
+  }, []);
+
   const refreshData = useCallback(async () => {
     try {
-      const [statusData, configData, logsData] = await Promise.all([
+      const [statusData, configData, logsData, slidesData] = await Promise.all([
         getSignageStatus(),
         getSignageConfig(),
         getSignageLogs(),
+        getSlides(),
       ]);
 
       if (statusData) {
@@ -66,6 +72,7 @@ export default function SignageAdminPage() {
 
       if (configData) setConfig(configData);
       setLogs(logsData);
+      setSlides(slidesData);
     } catch (error) {
       console.error('Failed to refresh data:', error);
       setConnectionError(true);
@@ -108,22 +115,6 @@ export default function SignageAdminPage() {
     }
     await refreshData();
     setActionLoading(null);
-  };
-
-  const handleToggleSlide = async (index: number) => {
-    if (!config) return;
-    const updatedSlides = [...config.slides];
-    updatedSlides[index] = { ...updatedSlides[index], enabled: !updatedSlides[index].enabled };
-    const result = await updateSignageConfig({ slides: updatedSlides });
-    if (result) setConfig(result);
-  };
-
-  const handleSlideDurationChange = async (index: number, duration: number) => {
-    if (!config) return;
-    const updatedSlides = [...config.slides];
-    updatedSlides[index] = { ...updatedSlides[index], duration };
-    const result = await updateSignageConfig({ slides: updatedSlides });
-    if (result) setConfig(result);
   };
 
   const refreshPreview = () => {
@@ -315,42 +306,7 @@ export default function SignageAdminPage() {
         </TabsContent>
 
         <TabsContent value="slides" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Slide Configuration</CardTitle>
-              <CardDescription>Enable/disable slides and adjust their duration</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {config?.slides.map((slide, index) => (
-                <div key={index} className="flex items-center justify-between gap-4 pb-4 border-b last:border-0">
-                  <div className="flex items-center gap-4">
-                    <Switch
-                      checked={slide.enabled}
-                      onCheckedChange={() => handleToggleSlide(index)}
-                      id={`slide-${index}`}
-                    />
-                    <div>
-                      <Label htmlFor={`slide-${index}`} className="font-medium">
-                        {slide.title || slide.type}
-                      </Label>
-                      <p className="text-sm text-muted-foreground">{slide.type}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4 w-64">
-                    <Label className="text-sm whitespace-nowrap">{(slide.duration / 1000).toFixed(0)}s</Label>
-                    <Slider
-                      value={[slide.duration]}
-                      min={5000}
-                      max={60000}
-                      step={1000}
-                      onValueChange={(value) => handleSlideDurationChange(index, value[0])}
-                      className="flex-1"
-                    />
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+          <SlideEditor slides={slides} onSlidesChange={refreshSlides} />
         </TabsContent>
 
         <TabsContent value="logs" className="space-y-4">

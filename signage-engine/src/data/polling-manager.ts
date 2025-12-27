@@ -3,6 +3,8 @@ import { fetchActiveProjects, ActiveProject } from './fetchers/projects.js';
 import { fetchRecentPOs, RecentPO } from './fetchers/pos.js';
 import { fetchRevenueData, RevenueData } from './fetchers/revenue.js';
 import { fetchScheduleData, ScheduleEntry } from './fetchers/schedule.js';
+import { fetchProjectMetrics, ProjectMetrics } from './fetchers/metrics.js';
+import { fetchSlideConfig, SignageSlide } from './fetchers/slide-config.js';
 import { PollingConfig } from '../config/schema.js';
 
 export interface DataCache {
@@ -10,6 +12,8 @@ export interface DataCache {
   pos: { data: RecentPO[]; lastUpdated: Date | null };
   revenue: { data: RevenueData | null; lastUpdated: Date | null };
   schedule: { data: ScheduleEntry[]; lastUpdated: Date | null };
+  metrics: { data: ProjectMetrics | null; lastUpdated: Date | null };
+  slideConfig: { data: SignageSlide[]; lastUpdated: Date | null };
 }
 
 export class PollingManager {
@@ -18,6 +22,8 @@ export class PollingManager {
     pos: { data: [], lastUpdated: null },
     revenue: { data: null, lastUpdated: null },
     schedule: { data: [], lastUpdated: null },
+    metrics: { data: null, lastUpdated: null },
+    slideConfig: { data: [], lastUpdated: null },
   };
 
   private intervals: NodeJS.Timeout[] = [];
@@ -38,7 +44,9 @@ export class PollingManager {
       setInterval(() => this.fetchProjects(), this.config.projects),
       setInterval(() => this.fetchPOs(), this.config.purchaseOrders),
       setInterval(() => this.fetchRevenue(), this.config.revenue),
-      setInterval(() => this.fetchSchedule(), this.config.schedule)
+      setInterval(() => this.fetchSchedule(), this.config.schedule),
+      setInterval(() => this.fetchMetrics(), this.config.projects), // Same as projects
+      setInterval(() => this.fetchSlideConfig(), 60000) // Every 60 seconds
     );
 
     logger.info({ config: this.config }, 'Polling intervals configured');
@@ -56,6 +64,8 @@ export class PollingManager {
       this.fetchPOs(),
       this.fetchRevenue(),
       this.fetchSchedule(),
+      this.fetchMetrics(),
+      this.fetchSlideConfig(),
     ]);
   }
 
@@ -99,6 +109,26 @@ export class PollingManager {
     }
   }
 
+  private async fetchMetrics(): Promise<void> {
+    try {
+      const data = await fetchProjectMetrics();
+      this.cache.metrics = { data, lastUpdated: new Date() };
+      logger.debug({ total: data.total }, 'Fetched metrics');
+    } catch (error) {
+      logger.error({ error }, 'Failed to fetch metrics');
+    }
+  }
+
+  private async fetchSlideConfig(): Promise<void> {
+    try {
+      const data = await fetchSlideConfig();
+      this.cache.slideConfig = { data, lastUpdated: new Date() };
+      logger.debug({ count: data.length }, 'Fetched slide config');
+    } catch (error) {
+      logger.error({ error }, 'Failed to fetch slide config');
+    }
+  }
+
   getCache(): DataCache {
     return this.cache;
   }
@@ -110,6 +140,7 @@ export class PollingManager {
       this.cache.pos.lastUpdated,
       this.cache.revenue.lastUpdated,
       this.cache.schedule.lastUpdated,
+      this.cache.metrics.lastUpdated,
     ];
 
     return checks.some((date) => {

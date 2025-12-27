@@ -22,9 +22,8 @@ export async function fetchRecentPOs(): Promise<RecentPO[]> {
       .select(`
         id,
         po_number,
-        name,
-        clients(name),
-        total_value,
+        client_name,
+        sales_amount,
         created_at
       `)
       .not('po_number', 'is', null)
@@ -36,9 +35,9 @@ export async function fetchRecentPOs(): Promise<RecentPO[]> {
     return (data || []).map((p: Record<string, unknown>) => ({
       id: p.id as string,
       po_number: p.po_number as string,
-      project_name: p.name as string,
-      client_name: (p.clients as { name: string } | null)?.name || 'Unknown',
-      amount: (p.total_value as number) || 0,
+      project_name: p.client_name as string,
+      client_name: p.client_name as string,
+      amount: (p.sales_amount as number) || 0,
       created_at: p.created_at as string,
     }));
   } catch (error) {

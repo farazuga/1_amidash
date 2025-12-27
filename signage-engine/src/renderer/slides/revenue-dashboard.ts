@@ -17,7 +17,7 @@ export class RevenueDashboardSlide extends BaseSlide {
 
     // KPI Cards Row
     const cardWidth = (this.displayConfig.width - padding * 2 - cardGap * 3) / 4;
-    const cardHeight = 160;
+    const cardHeight = 200;
 
     // Current Month Revenue
     drawKPICard(
@@ -81,11 +81,11 @@ export class RevenueDashboardSlide extends BaseSlide {
 
     // Progress bars
     const progressY = contentY + cardHeight + 60;
-    const progressHeight = 30;
+    const progressHeight = 40;
 
     drawText(ctx, 'Monthly Progress', padding, progressY, {
       font: this.displayConfig.fontFamily,
-      size: 24,
+      size: 32,
       color: 'rgba(255, 255, 255, 0.7)',
     });
     drawProgressBar(
@@ -93,7 +93,7 @@ export class RevenueDashboardSlide extends BaseSlide {
       revenue.currentMonthRevenue,
       revenue.currentMonthGoal,
       padding,
-      progressY + 35,
+      progressY + 45,
       (this.displayConfig.width - padding * 2) / 2 - 20,
       progressHeight,
       { fillColor: colors.info }
@@ -101,7 +101,7 @@ export class RevenueDashboardSlide extends BaseSlide {
 
     drawText(ctx, 'YTD Progress', this.displayConfig.width / 2 + 20, progressY, {
       font: this.displayConfig.fontFamily,
-      size: 24,
+      size: 32,
       color: 'rgba(255, 255, 255, 0.7)',
     });
     drawProgressBar(
@@ -109,7 +109,7 @@ export class RevenueDashboardSlide extends BaseSlide {
       revenue.yearToDateRevenue,
       revenue.yearToDateGoal,
       this.displayConfig.width / 2 + 20,
-      progressY + 35,
+      progressY + 45,
       (this.displayConfig.width - padding * 2) / 2 - 20,
       progressHeight,
       { fillColor: colors.success }
@@ -121,7 +121,7 @@ export class RevenueDashboardSlide extends BaseSlide {
 
     drawText(ctx, 'Monthly Revenue vs Goals', padding, chartY - 40, {
       font: this.displayConfig.fontFamily,
-      size: 28,
+      size: 36,
       color: colors.white,
     });
 
@@ -135,7 +135,7 @@ export class RevenueDashboardSlide extends BaseSlide {
 
     drawBarChart(ctx, chartData, padding, chartY, this.displayConfig.width - padding * 2, chartHeight, {
       barGap: 20,
-      fontSize: 20,
+      fontSize: 28,
     });
   }
 }
