@@ -106,7 +106,7 @@ export function useUserAssignments(userId: string) {
 export function useCalendarData(
   startDate: Date,
   endDate: Date,
-  filters?: { projectId?: string; userId?: string }
+  filters?: { projectId?: string; userId?: string; limit?: number; offset?: number }
 ) {
   // Format dates safely
   const startStr = startDate instanceof Date && !isNaN(startDate.getTime())
@@ -123,10 +123,12 @@ export function useCalendarData(
       endStr,
       filters?.projectId,
       filters?.userId,
+      filters?.limit,
+      filters?.offset,
     ],
     queryFn: async () => {
       if (!startStr || !endStr) {
-        return [];
+        return { data: [], total: 0, hasMore: false };
       }
 
       // Use server action for proper authentication
@@ -135,10 +137,12 @@ export function useCalendarData(
         endDate: endStr,
         projectId: filters?.projectId,
         userId: filters?.userId,
+        limit: filters?.limit,
+        offset: filters?.offset,
       });
 
       if (!result.success) throw new Error(result.error);
-      return result.data || [];
+      return result.data || { data: [], total: 0, hasMore: false };
     },
     staleTime: THIRTY_SECONDS,
     enabled: !!startStr && !!endStr,

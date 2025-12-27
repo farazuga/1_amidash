@@ -7,6 +7,30 @@ import {
 } from '@/lib/ical/generator';
 import type { BookingStatus } from '@/types/calendar';
 
+// Simple in-memory rate limiting (resets on server restart)
+// For production, use Redis or similar persistent store
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT = 60; // requests per window
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute in ms
+
+function checkRateLimit(token: string): { allowed: boolean; remaining: number } {
+  const now = Date.now();
+  const record = rateLimitMap.get(token);
+
+  if (!record || now > record.resetTime) {
+    // New window
+    rateLimitMap.set(token, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return { allowed: true, remaining: RATE_LIMIT - 1 };
+  }
+
+  if (record.count >= RATE_LIMIT) {
+    return { allowed: false, remaining: 0 };
+  }
+
+  record.count++;
+  return { allowed: true, remaining: RATE_LIMIT - record.count };
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
@@ -15,6 +39,19 @@ export async function GET(
 
   if (!token) {
     return new NextResponse('Invalid token', { status: 400 });
+  }
+
+  // Check rate limit
+  const { allowed, remaining } = checkRateLimit(token);
+  if (!allowed) {
+    return new NextResponse('Too many requests', {
+      status: 429,
+      headers: {
+        'Retry-After': '60',
+        'X-RateLimit-Limit': String(RATE_LIMIT),
+        'X-RateLimit-Remaining': '0',
+      },
+    });
   }
 
   try {
@@ -199,6 +236,8 @@ export async function GET(
         'Content-Type': 'text/calendar; charset=utf-8',
         'Content-Disposition': `attachment; filename="${calendarName.replace(/[^a-zA-Z0-9]/g, '_')}.ics"`,
         'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'X-RateLimit-Limit': String(RATE_LIMIT),
+        'X-RateLimit-Remaining': String(remaining),
       },
     });
   } catch (error) {

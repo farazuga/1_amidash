@@ -118,8 +118,8 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
 
   // Convert assignments to calendar events
   const events = useMemo(() => {
-    if (!calendarAssignments) return [];
-    return convertToCalendarEvents(calendarAssignments, new Map());
+    if (!calendarAssignments?.data) return [];
+    return convertToCalendarEvents(calendarAssignments.data, new Map());
   }, [calendarAssignments]);
 
   // Calculate status counts for summary bar

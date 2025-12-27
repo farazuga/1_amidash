@@ -529,16 +529,24 @@ export async function getUnresolvedConflicts(userId?: string): Promise<ActionRes
 // Calendar data queries
 // ============================================
 
+// Default max assignments to return
+const DEFAULT_CALENDAR_LIMIT = 500;
+
 export async function getCalendarData(params: {
   startDate: string;
   endDate: string;
   projectId?: string;
   userId?: string;
-}): Promise<ActionResult<CalendarAssignmentResult[]>> {
+  limit?: number;
+  offset?: number;
+}): Promise<ActionResult<{ data: CalendarAssignmentResult[]; total: number; hasMore: boolean }>> {
   const { error: authError, supabase } = await getAuthenticatedClient();
   if (authError || !supabase) {
     return { success: false, error: authError || 'Authentication failed' };
   }
+
+  const limit = params.limit ?? DEFAULT_CALENDAR_LIMIT;
+  const offset = params.offset ?? 0;
 
   const { data, error } = await supabase.rpc('get_calendar_assignments', {
     p_start_date: params.startDate,
@@ -558,7 +566,18 @@ export async function getCalendarData(params: {
     result = result.filter(a => a.user_id === params.userId);
   }
 
-  return { success: true, data: result };
+  const total = result.length;
+  const paginatedResult = result.slice(offset, offset + limit);
+  const hasMore = offset + limit < total;
+
+  return {
+    success: true,
+    data: {
+      data: paginatedResult,
+      total,
+      hasMore,
+    }
+  };
 }
 
 export async function getUserSchedule(params: {
