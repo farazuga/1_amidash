@@ -61,7 +61,13 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   const isMobile = useIsMobile();
   const isLargeScreen = useMediaQuery('(min-width: 1280px)');
   const { isAdmin } = useUser();
-  const [currentDate, setCurrentDate] = useState(new Date());
+  // Initialize currentDate to project start date if available, otherwise today
+  const [currentDate, setCurrentDate] = useState(() => {
+    if (project?.start_date) {
+      return new Date(project.start_date + 'T00:00:00');
+    }
+    return new Date();
+  });
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [assignmentDialogOpen, setAssignmentDialogOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -72,6 +78,13 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
       setSidebarCollapsed(true);
     }
   }, [isLargeScreen, sidebarCollapsed]);
+
+  // Navigate to project start date when project changes
+  useEffect(() => {
+    if (project?.start_date) {
+      setCurrentDate(new Date(project.start_date + 'T00:00:00'));
+    }
+  }, [project?.start_date]);
 
   // Smart default: week view if project has dates, month view otherwise
   const [viewMode, setViewMode] = useState<'calendar' | 'week' | 'gantt'>(() => {
