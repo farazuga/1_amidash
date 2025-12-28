@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ProjectCalendar, BulkAssignDialog } from '@/components/calendar';
+import { ProjectCalendar } from '@/components/calendar';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Link2, ExternalLink, Users, ListTodo, UserPlus } from 'lucide-react';
+import { Link2, ExternalLink, Users, ListTodo } from 'lucide-react';
 import {
   useCalendarSubscriptions,
   useCreateCalendarSubscription,
@@ -33,7 +33,6 @@ interface ProjectCalendarContentProps {
 export function ProjectCalendarContent({ project, isAdmin }: ProjectCalendarContentProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'calendar' | 'list'>('calendar');
-  const [showBulkAssign, setShowBulkAssign] = useState(false);
 
   const { data: subscriptions } = useCalendarSubscriptions();
   const { data: assignments, isLoading: isLoadingAssignments } = useProjectAssignments(project.id);
@@ -83,16 +82,6 @@ export function ProjectCalendarContent({ project, isAdmin }: ProjectCalendarCont
         </Tabs>
 
         <div className="flex items-center gap-2">
-          {isAdmin && (
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => setShowBulkAssign(true)}
-            >
-              <UserPlus className="mr-2 h-4 w-4" />
-              Bulk Assign
-            </Button>
-          )}
           {existingProjectSub ? (
             <Button
               variant="outline"
@@ -188,13 +177,6 @@ export function ProjectCalendarContent({ project, isAdmin }: ProjectCalendarCont
         </div>
       )}
 
-      {/* Bulk Assign Dialog */}
-      <BulkAssignDialog
-        open={showBulkAssign}
-        onOpenChange={setShowBulkAssign}
-        projectId={project.id}
-        projectName={project.client_name}
-      />
-    </div>
+      </div>
   );
 }

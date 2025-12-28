@@ -33,7 +33,6 @@ import {
 import { useCalendarData, useAssignableUsers, useCreateAssignment, useCycleAssignmentStatus } from '@/hooks/queries/use-assignments';
 import { AssignmentDaysDialog } from './assignment-days-dialog';
 import { MultiUserAssignmentDialog } from './multi-user-assignment-dialog';
-import { BulkAssignDialog } from './bulk-assign-dialog';
 import { SendConfirmationDialog } from './send-confirmation-dialog';
 import { ConflictsPanel } from './conflicts-panel';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -47,7 +46,7 @@ import {
 } from '@/components/ui/select';
 import type { CalendarEvent, BookingStatus } from '@/types/calendar';
 import type { Project } from '@/types';
-import { Loader2, LayoutGrid, GanttChart, CalendarDays, Users, UserPlus, Mail } from 'lucide-react';
+import { Loader2, LayoutGrid, GanttChart, CalendarDays, Users, Mail } from 'lucide-react';
 import { GanttCalendar } from './gantt-calendar';
 import { WeekViewCalendar } from './week-view-calendar';
 import { Button } from '@/components/ui/button';
@@ -103,7 +102,6 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<CalendarEvent | null>(null);
   const [multiUserDialogOpen, setMultiUserDialogOpen] = useState(false);
-  const [bulkAssignDialogOpen, setBulkAssignDialogOpen] = useState(false);
   const [confirmationDialogOpen, setConfirmationDialogOpen] = useState(false);
   const [confirmationAssignment, setConfirmationAssignment] = useState<CalendarEvent | null>(null);
 
@@ -423,18 +421,6 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
           {viewToggle}
         </div>
         <div className="flex flex-wrap items-center gap-4">
-          {/* Bulk Assign button - admin only, requires project with dates */}
-          {isAdmin && project?.start_date && project?.end_date && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setBulkAssignDialogOpen(true)}
-              className="gap-2"
-            >
-              <UserPlus className="h-4 w-4" />
-              Bulk Assign
-            </Button>
-          )}
           {/* Manage Schedule button - admin only, requires project with dates */}
           {isAdmin && project?.start_date && project?.end_date && (
             <Button
@@ -576,16 +562,6 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
           projectName={project.client_name}
           projectStartDate={project.start_date}
           projectEndDate={project.end_date}
-        />
-      )}
-
-      {/* Bulk assign dialog */}
-      {project && (
-        <BulkAssignDialog
-          open={bulkAssignDialogOpen}
-          onOpenChange={setBulkAssignDialogOpen}
-          projectId={project.id}
-          projectName={project.client_name}
         />
       )}
 

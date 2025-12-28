@@ -933,12 +933,13 @@ export async function getProjectAssignments(projectId: string): Promise<ActionRe
     return { success: false, error: authError || 'Authentication failed' };
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as unknown as { from: (table: string) => unknown })
     .from('project_assignments')
     .select(`
       *,
       user:profiles!user_id(id, email, full_name),
-      excluded_dates:assignment_excluded_dates(*)
+      excluded_dates:assignment_excluded_dates(*),
+      days:assignment_days(*)
     `)
     .eq('project_id', projectId)
     .order('created_at', { ascending: true });
