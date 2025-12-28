@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Play, Square, RefreshCw, AlertTriangle, Clock, Tv, Activity, Monitor } from 'lucide-react';
+import { Play, Square, RefreshCw, AlertTriangle, Clock, Tv, Activity, Monitor, Globe } from 'lucide-react';
 import { SlideEditor } from '@/components/signage/slide-editor';
 import {
   getSignageStatus,
@@ -48,6 +48,14 @@ export default function SignageAdminPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [previewKey, setPreviewKey] = useState(0);
   const [connectionError, setConnectionError] = useState(false);
+  const [isRemoteAccess, setIsRemoteAccess] = useState(false);
+
+  // Detect if accessing from remote (non-localhost)
+  useEffect(() => {
+    const hostname = window.location.hostname;
+    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+    setIsRemoteAccess(!isLocal);
+  }, []);
 
   const refreshSlides = useCallback(async () => {
     const slidesData = await getSlides();
@@ -139,7 +147,12 @@ export default function SignageAdminPage() {
           <p className="text-muted-foreground">Control and monitor the NDI digital signage engine</p>
         </div>
         <div className="flex items-center gap-2">
-          {connectionError ? (
+          {connectionError && isRemoteAccess ? (
+            <Badge variant="secondary" className="gap-1 bg-yellow-500/20 text-yellow-700">
+              <Globe className="h-3 w-3" />
+              Remote Access
+            </Badge>
+          ) : connectionError ? (
             <Badge variant="destructive" className="gap-1">
               <AlertTriangle className="h-3 w-3" />
               Engine Offline
@@ -158,7 +171,27 @@ export default function SignageAdminPage() {
         </div>
       </div>
 
-      {connectionError && (
+      {connectionError && isRemoteAccess && (
+        <Card className="border-yellow-500 bg-yellow-500/10">
+          <CardContent className="flex items-center gap-4 py-4">
+            <Globe className="h-8 w-8 text-yellow-600" />
+            <div>
+              <p className="font-medium">Remote Access Detected</p>
+              <p className="text-sm text-muted-foreground">
+                The signage engine runs locally and can only be controlled from your local machine.
+                Access this page at{' '}
+                <code className="bg-muted px-1 rounded">http://localhost:3000/admin/signage</code>
+                {' '}to control the engine.
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">
+                You can still manage slide configuration below - changes are saved to the database.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {connectionError && !isRemoteAccess && (
         <Card className="border-destructive">
           <CardContent className="flex items-center gap-4 py-4">
             <AlertTriangle className="h-8 w-8 text-destructive" />
@@ -167,6 +200,9 @@ export default function SignageAdminPage() {
               <p className="text-sm text-muted-foreground">
                 The signage engine is not responding. Make sure it&apos;s running at{' '}
                 <code className="bg-muted px-1 rounded">http://127.0.0.1:3001</code>
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Start it with: <code className="bg-muted px-1 rounded">cd signage-engine && npm run dev</code>
               </p>
             </div>
           </CardContent>
