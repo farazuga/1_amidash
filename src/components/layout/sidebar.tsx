@@ -72,11 +72,6 @@ const adminNavItems = [
     icon: FileText,
   },
   {
-    title: 'Digital Signage',
-    href: '/admin/signage',
-    icon: Tv,
-  },
-  {
     title: 'Settings',
     href: '/admin/settings',
     icon: Settings,
