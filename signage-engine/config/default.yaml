@@ -1,0 +1,54 @@
+# NDI Digital Signage Engine Configuration
+
+ndi:
+  name: "Amidash Signage"
+  frameRate: 30
+
+display:
+  width: 3840
+  height: 2160
+  backgroundColor: "#053B2C"
+  accentColor: "#C2E0AD"
+  fontFamily: "Karla, Inter, Arial, sans-serif"
+  logoPath: "../public/new_logo.png"
+
+polling:
+  projects: 30000
+  revenue: 60000
+  schedule: 30000
+  purchaseOrders: 15000
+
+slides:
+  - type: "active-projects"
+    enabled: true
+    duration: 15000
+    title: "Active Projects"
+    maxItems: 4
+
+  - type: "po-ticker"
+    enabled: true
+    duration: 15000
+    title: "Purchase Orders"
+
+  - type: "revenue-dashboard"
+    enabled: true
+    duration: 20000
+    title: "Revenue Dashboard"
+
+  - type: "team-schedule"
+    enabled: true
+    duration: 15000
+    title: "Team Schedule"
+    daysToShow: 14
+
+transitions:
+  type: "fade"
+  duration: 500
+
+api:
+  port: 3001
+  host: "127.0.0.1"
+
+staleData:
+  warningThresholdMs: 60000
+  indicatorPosition: "bottom-right"
