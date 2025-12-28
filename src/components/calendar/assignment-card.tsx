@@ -4,8 +4,14 @@ import { cn } from '@/lib/utils';
 import { BookingStatusDot } from './booking-status-badge';
 import { BOOKING_STATUS_CONFIG } from '@/lib/calendar/constants';
 import { getUserInitials } from '@/lib/calendar/utils';
-import { Pencil, Loader2 } from 'lucide-react';
+import { Pencil, Loader2, MoreVertical, Mail } from 'lucide-react';
 import type { CalendarEvent } from '@/types/calendar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface AssignmentCardProps {
   event: CalendarEvent;
@@ -13,8 +19,10 @@ interface AssignmentCardProps {
   onClick?: (e: React.MouseEvent) => void;
   onStatusClick?: (assignmentId: string) => void;
   onEditClick?: (event: CalendarEvent) => void;
+  onSendConfirmation?: (event: CalendarEvent) => void;
   isUpdating?: boolean;
   showEditButton?: boolean;
+  showMenu?: boolean;
   className?: string;
 }
 
@@ -24,8 +32,10 @@ export function AssignmentCard({
   onClick,
   onStatusClick,
   onEditClick,
+  onSendConfirmation,
   isUpdating = false,
   showEditButton = true,
+  showMenu = false,
   className,
 }: AssignmentCardProps) {
   const config = BOOKING_STATUS_CONFIG[event.bookingStatus];
@@ -146,6 +156,36 @@ export function AssignmentCard({
         >
           <Pencil className="h-3 w-3" />
         </button>
+      )}
+      {showMenu && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              onClick={(e) => e.stopPropagation()}
+              className={cn(
+                'flex-shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100',
+                'hover:bg-black/10 transition-opacity',
+                'focus:outline-none focus:opacity-100'
+              )}
+            >
+              <MoreVertical className="h-3 w-3" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+            {event.bookingStatus === 'tentative' && onSendConfirmation && (
+              <DropdownMenuItem onClick={() => onSendConfirmation(event)}>
+                <Mail className="mr-2 h-4 w-4" />
+                Send to Customer
+              </DropdownMenuItem>
+            )}
+            {onEditClick && (
+              <DropdownMenuItem onClick={() => onEditClick(event)}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit Days & Times
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       )}
     </div>
   );

@@ -34,6 +34,7 @@ import { useCalendarData, useAssignableUsers, useCreateAssignment, useCycleAssig
 import { AssignmentDaysDialog } from './assignment-days-dialog';
 import { MultiUserAssignmentDialog } from './multi-user-assignment-dialog';
 import { BulkAssignDialog } from './bulk-assign-dialog';
+import { SendConfirmationDialog } from './send-confirmation-dialog';
 import { ConflictsPanel } from './conflicts-panel';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useMediaQuery } from '@/hooks/use-media-query';
@@ -46,7 +47,7 @@ import {
 } from '@/components/ui/select';
 import type { CalendarEvent, BookingStatus } from '@/types/calendar';
 import type { Project } from '@/types';
-import { Loader2, LayoutGrid, GanttChart, CalendarDays, Users, UserPlus } from 'lucide-react';
+import { Loader2, LayoutGrid, GanttChart, CalendarDays, Users, UserPlus, Mail } from 'lucide-react';
 import { GanttCalendar } from './gantt-calendar';
 import { WeekViewCalendar } from './week-view-calendar';
 import { Button } from '@/components/ui/button';
@@ -103,6 +104,8 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   const [selectedAssignment, setSelectedAssignment] = useState<CalendarEvent | null>(null);
   const [multiUserDialogOpen, setMultiUserDialogOpen] = useState(false);
   const [bulkAssignDialogOpen, setBulkAssignDialogOpen] = useState(false);
+  const [confirmationDialogOpen, setConfirmationDialogOpen] = useState(false);
+  const [confirmationAssignment, setConfirmationAssignment] = useState<CalendarEvent | null>(null);
 
   const { start, end } = getMonthViewRange(currentDate);
   const days = getCalendarDays(currentDate);
@@ -204,6 +207,11 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   const handleEditClick = useCallback((event: CalendarEvent) => {
     setSelectedAssignment(event);
     setEditDialogOpen(true);
+  }, []);
+
+  const handleSendConfirmation = useCallback((event: CalendarEvent) => {
+    setConfirmationAssignment(event);
+    setConfirmationDialogOpen(true);
   }, []);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -439,6 +447,21 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
               Manage Schedule
             </Button>
           )}
+          {/* Send to Customer button - admin only, when there are tentative assignments */}
+          {isAdmin && project && statusCounts.tentative > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setConfirmationAssignment(events.find(e => e.bookingStatus === 'tentative') || null);
+                setConfirmationDialogOpen(true);
+              }}
+              className="gap-2"
+            >
+              <Mail className="h-4 w-4" />
+              Send to Customer ({statusCounts.tentative})
+            </Button>
+          )}
           {/* Conflicts Panel - admin only */}
           {isAdmin && <ConflictsPanel />}
           <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as BookingStatus | 'all')}>
@@ -563,6 +586,19 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
           onOpenChange={setBulkAssignDialogOpen}
           projectId={project.id}
           projectName={project.client_name}
+        />
+      )}
+
+      {/* Send confirmation dialog */}
+      {project && confirmationAssignment && (
+        <SendConfirmationDialog
+          open={confirmationDialogOpen}
+          onOpenChange={setConfirmationDialogOpen}
+          projectId={project.id}
+          projectName={project.client_name}
+          assignments={events.filter(e => e.bookingStatus === 'tentative')}
+          customerEmail={project.poc_email || undefined}
+          customerName={project.poc_name || undefined}
         />
       )}
     </div>

@@ -7,15 +7,19 @@
 --   4. Update default working hours from 8am-5pm to 7am-4pm
 
 -- ============================================
--- 1. Update booking_status values in project_assignments
+-- 1. Update booking_status constraint and values
 -- ============================================
 
--- Step 1a: Rename 'pencil' to 'tentative' in existing data
+-- Step 1: Drop the existing CHECK constraint FIRST (before updating data)
+ALTER TABLE project_assignments
+DROP CONSTRAINT IF EXISTS project_assignments_booking_status_check;
+
+-- Step 2: Rename 'pencil' to 'tentative' in existing data
 UPDATE project_assignments
 SET booking_status = 'tentative'
 WHERE booking_status = 'pencil';
 
--- Step 1b: Update history records as well
+-- Step 3: Update history records as well
 UPDATE booking_status_history
 SET old_status = 'tentative'
 WHERE old_status = 'pencil';
@@ -24,11 +28,7 @@ UPDATE booking_status_history
 SET new_status = 'tentative'
 WHERE new_status = 'pencil';
 
--- Step 2: Drop the existing CHECK constraint
-ALTER TABLE project_assignments
-DROP CONSTRAINT IF EXISTS project_assignments_booking_status_check;
-
--- Step 3: Add new CHECK constraint with all 5 statuses
+-- Step 4: Add new CHECK constraint with all 5 statuses
 ALTER TABLE project_assignments
 ADD CONSTRAINT project_assignments_booking_status_check
 CHECK (booking_status IN ('draft', 'tentative', 'pending_confirm', 'confirmed', 'complete'));

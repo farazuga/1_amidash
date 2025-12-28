@@ -19,6 +19,7 @@ import {
   Tv,
   ChevronLeft,
   ChevronRight,
+  CalendarDays,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -45,6 +46,11 @@ const mainNavItems = [
     title: 'Projects',
     href: '/projects',
     icon: FolderKanban,
+  },
+  {
+    title: 'My Schedule',
+    href: '/my-schedule',
+    icon: CalendarDays,
   },
 ];
 
