@@ -7,7 +7,12 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsx watch src/index.ts"
+    "dev": "tsx watch src/index.ts",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:watch": "vitest watch",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.88",
@@ -28,8 +33,13 @@
     "@types/express": "^4.17.21",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.10.0",
+    "@types/supertest": "^6.0.3",
+    "@vitest/coverage-v8": "^4.0.16",
+    "supertest": "^7.1.4",
     "tsx": "^4.6.2",
-    "typescript": "^5.3.2"
+    "typescript": "^5.3.2",
+    "vitest": "^4.0.16",
+    "vitest-mock-extended": "^3.1.0"
   },
   "engines": {
     "node": ">=18.0.0"
