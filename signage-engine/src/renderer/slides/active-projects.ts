@@ -1,4 +1,4 @@
-import { CanvasRenderingContext2D } from 'canvas';
+import { SKRSContext2D } from '@napi-rs/canvas';
 import { BaseSlide } from './base-slide.js';
 import { DataCache } from '../../data/polling-manager.js';
 import { drawText, truncateText } from '../components/text.js';
@@ -6,7 +6,7 @@ import { colors, hexToRgba } from '../components/colors.js';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
 
 export class ActiveProjectsSlide extends BaseSlide {
-  render(ctx: CanvasRenderingContext2D, data: DataCache, deltaTime: number): void {
+  render(ctx: SKRSContext2D, data: DataCache, deltaTime: number): void {
     // Update animations
     this.updateAnimationState(deltaTime);
 
@@ -43,7 +43,7 @@ export class ActiveProjectsSlide extends BaseSlide {
     });
   }
 
-  private drawNoData(ctx: CanvasRenderingContext2D, headerHeight: number): void {
+  private drawNoData(ctx: SKRSContext2D, headerHeight: number): void {
     drawText(ctx, 'No active projects', this.displayConfig.width / 2, headerHeight + 200, {
       font: this.displayConfig.fontFamily,
       size: 64,
@@ -53,7 +53,7 @@ export class ActiveProjectsSlide extends BaseSlide {
   }
 
   private drawProjectCard(
-    ctx: CanvasRenderingContext2D,
+    ctx: SKRSContext2D,
     project: {
       id: string;
       name: string;

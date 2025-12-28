@@ -1,4 +1,4 @@
-import { CanvasRenderingContext2D } from 'canvas';
+import { SKRSContext2D } from '@napi-rs/canvas';
 import { BaseSlide } from './base-slide.js';
 import { DataCache } from '../../data/polling-manager.js';
 import { drawText, truncateText } from '../components/text.js';
@@ -6,7 +6,7 @@ import { roundRect, colors, hexToRgba } from '../components/index.js';
 import { formatDistanceToNow, subDays, isAfter } from 'date-fns';
 
 export class POTickerSlide extends BaseSlide {
-  render(ctx: CanvasRenderingContext2D, data: DataCache, _deltaTime: number): void {
+  render(ctx: SKRSContext2D, data: DataCache, _deltaTime: number): void {
     // Update animations
     this.updateAnimationState(_deltaTime);
     this.drawAmbientEffects(ctx);
@@ -97,7 +97,7 @@ export class POTickerSlide extends BaseSlide {
   }
 
   private drawLargePOCard(
-    ctx: CanvasRenderingContext2D,
+    ctx: SKRSContext2D,
     po: { id: string; po_number: string; project_name: string; client_name: string; amount: number; created_at: string },
     x: number,
     y: number,
@@ -188,7 +188,7 @@ export class POTickerSlide extends BaseSlide {
   }
 
   private drawSmallPOCard(
-    ctx: CanvasRenderingContext2D,
+    ctx: SKRSContext2D,
     po: { id: string; po_number: string; project_name: string; client_name: string; amount: number; created_at: string },
     x: number,
     y: number,

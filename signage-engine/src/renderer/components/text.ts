@@ -1,4 +1,4 @@
-import { CanvasRenderingContext2D } from 'canvas';
+import { SKRSContext2D } from '@napi-rs/canvas';
 
 // Text alignment types
 type TextAlign = 'left' | 'right' | 'center' | 'start' | 'end';
@@ -16,7 +16,7 @@ export interface TextStyle {
 }
 
 export function drawText(
-  ctx: CanvasRenderingContext2D,
+  ctx: SKRSContext2D,
   text: string,
   x: number,
   y: number,
@@ -52,7 +52,7 @@ export function drawText(
 
 // Draw text with custom letter spacing
 function drawTextWithSpacing(
-  ctx: CanvasRenderingContext2D,
+  ctx: SKRSContext2D,
   text: string,
   x: number,
   y: number,
@@ -84,7 +84,7 @@ function drawTextWithSpacing(
 }
 
 export function drawTextWrapped(
-  ctx: CanvasRenderingContext2D,
+  ctx: SKRSContext2D,
   text: string,
   x: number,
   y: number,
@@ -124,7 +124,7 @@ export function drawTextWrapped(
 }
 
 export function measureText(
-  ctx: CanvasRenderingContext2D,
+  ctx: SKRSContext2D,
   text: string,
   font: string,
   size: number
@@ -134,7 +134,7 @@ export function measureText(
 }
 
 export function truncateText(
-  ctx: CanvasRenderingContext2D,
+  ctx: SKRSContext2D,
   text: string,
   maxWidth: number,
   font: string,

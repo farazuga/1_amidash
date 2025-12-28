@@ -1,27 +1,50 @@
 import { logger } from '../utils/logger.js';
 import { NDIConfig, DisplayConfig } from '../config/schema.js';
 
-// Grandiose NDI SDK interface (optional dependency, may not be installed)
-interface GrandioseSend {
-  send(options: { name: string; clockVideo: boolean; clockAudio: boolean }): unknown;
+// NDI SDK interface (optional dependency, may not be installed)
+interface NDIModule {
+  initialize(): boolean;
+  destroy(): void;
+  Sender: new (options: { name: string; clockVideo: boolean; clockAudio: boolean }) => NDINativeSender;
+  FourCC: { BGRA: string; RGBA: string };
 }
 
-// Try to import grandiose (optional dependency)
-let grandiose: GrandioseSend | null = null;
-async function loadGrandiose(): Promise<void> {
+interface NDINativeSender {
+  sendVideo(frame: {
+    xres: number;
+    yres: number;
+    fourCC: string;
+    frameRateN: number;
+    frameRateD: number;
+    data: Buffer;
+  }): void;
+  destroy(): void;
+}
+
+// Try to import ndi-node (optional dependency)
+let ndi: NDIModule | null = null;
+let ndiInitialized = false;
+
+async function loadNDI(): Promise<void> {
   try {
     // Dynamic import with error handling for missing module
-    grandiose = await import('grandiose' as string) as unknown as GrandioseSend;
-    logger.info('NDI SDK (grandiose) loaded successfully');
+    ndi = await import('@vygr-labs/ndi-node' as string) as unknown as NDIModule;
+    if (ndi.initialize()) {
+      ndiInitialized = true;
+      logger.info('NDI SDK (@vygr-labs/ndi-node) loaded and initialized successfully');
+    } else {
+      logger.warn('NDI SDK failed to initialize. Using mock output for testing.');
+      ndi = null;
+    }
   } catch {
-    logger.warn('NDI SDK (grandiose) not available. Using mock output for testing.');
+    logger.warn('NDI SDK (@vygr-labs/ndi-node) not available. Using mock output for testing.');
   }
 }
 // Load on module init
-loadGrandiose();
+loadNDI();
 
 export interface NDISender {
-  send(frame: {
+  sendFrame(frame: {
     data: Buffer;
     width: number;
     height: number;
@@ -29,6 +52,38 @@ export interface NDISender {
     frameRateD: number;
   }): void;
   destroy(): void;
+}
+
+// Wrapper class for the native NDI sender
+class NativeNDISenderWrapper implements NDISender {
+  private nativeSender: NDINativeSender;
+  private fourCC: string;
+
+  constructor(nativeSender: NDINativeSender, fourCC: string) {
+    this.nativeSender = nativeSender;
+    this.fourCC = fourCC;
+  }
+
+  sendFrame(frame: {
+    data: Buffer;
+    width: number;
+    height: number;
+    frameRateN: number;
+    frameRateD: number;
+  }): void {
+    this.nativeSender.sendVideo({
+      xres: frame.width,
+      yres: frame.height,
+      fourCC: this.fourCC,
+      frameRateN: frame.frameRateN,
+      frameRateD: frame.frameRateD,
+      data: frame.data,
+    });
+  }
+
+  destroy(): void {
+    this.nativeSender.destroy();
+  }
 }
 
 export class NDIOutput {
@@ -44,13 +99,14 @@ export class NDIOutput {
   }
 
   async initialize(): Promise<void> {
-    if (grandiose) {
+    if (ndi && ndiInitialized) {
       try {
-        this.sender = grandiose.send({
+        const nativeSender = new ndi.Sender({
           name: this.config.name,
           clockVideo: true,
           clockAudio: false,
-        }) as unknown as NDISender;
+        });
+        this.sender = new NativeNDISenderWrapper(nativeSender, ndi.FourCC.BGRA);
         logger.info({ name: this.config.name }, 'NDI sender initialized');
       } catch (error) {
         logger.error({ error }, 'Failed to initialize NDI sender');
@@ -68,7 +124,7 @@ export class NDIOutput {
     if (!this.sender) return;
 
     try {
-      this.sender.send({
+      this.sender.sendFrame({
         data: frameData,
         width: this.displayConfig.width,
         height: this.displayConfig.height,
@@ -109,7 +165,7 @@ class MockNDISender implements NDISender {
     logger.info({ name }, 'Mock NDI sender initialized (no actual NDI output)');
   }
 
-  send(_frame: {
+  sendFrame(_frame: {
     data: Buffer;
     width: number;
     height: number;
@@ -126,3 +182,11 @@ class MockNDISender implements NDISender {
     logger.info({ name: this.name }, 'Mock NDI sender destroyed');
   }
 }
+
+// Cleanup NDI on process exit
+process.on('exit', () => {
+  if (ndi && ndiInitialized) {
+    ndi.destroy();
+    logger.info('NDI SDK destroyed');
+  }
+});

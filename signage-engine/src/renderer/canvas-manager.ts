@@ -1,12 +1,12 @@
-import { createCanvas, Canvas, CanvasRenderingContext2D } from 'canvas';
+import { createCanvas, Canvas, SKRSContext2D } from '@napi-rs/canvas';
 import { DisplayConfig } from '../config/schema.js';
 import { logger } from '../utils/logger.js';
 
 export class CanvasManager {
   private frontBuffer: Canvas;
   private backBuffer: Canvas;
-  private frontCtx: CanvasRenderingContext2D;
-  private backCtx: CanvasRenderingContext2D;
+  private frontCtx: SKRSContext2D;
+  private backCtx: SKRSContext2D;
   private config: DisplayConfig;
 
   constructor(config: DisplayConfig) {
@@ -21,7 +21,7 @@ export class CanvasManager {
     logger.info({ width: config.width, height: config.height }, 'Canvas manager initialized');
   }
 
-  getBackContext(): CanvasRenderingContext2D {
+  getBackContext(): SKRSContext2D {
     return this.backCtx;
   }
 

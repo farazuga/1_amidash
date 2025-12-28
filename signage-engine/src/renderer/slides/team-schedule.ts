@@ -1,4 +1,4 @@
-import { CanvasRenderingContext2D } from 'canvas';
+import { SKRSContext2D } from '@napi-rs/canvas';
 import { BaseSlide } from './base-slide.js';
 import { DataCache } from '../../data/polling-manager.js';
 import { drawText, truncateText } from '../components/text.js';
@@ -6,7 +6,7 @@ import { roundRect, colors } from '../components/index.js';
 import { format, addDays, startOfDay, differenceInDays } from 'date-fns';
 
 export class TeamScheduleSlide extends BaseSlide {
-  render(ctx: CanvasRenderingContext2D, data: DataCache, _deltaTime: number): void {
+  render(ctx: SKRSContext2D, data: DataCache, _deltaTime: number): void {
     const headerHeight = this.drawHeader(ctx, this.config.title || 'Team Schedule');
 
     const schedule = data.schedule.data;

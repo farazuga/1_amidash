@@ -1,11 +1,11 @@
-import { CanvasRenderingContext2D } from 'canvas';
+import { SKRSContext2D } from '@napi-rs/canvas';
 import { BaseSlide } from './base-slide.js';
 import { DataCache } from '../../data/polling-manager.js';
 import { drawBarChart, drawKPICard, drawProgressBar, colors } from '../components/index.js';
 import { drawText } from '../components/text.js';
 
 export class RevenueDashboardSlide extends BaseSlide {
-  render(ctx: CanvasRenderingContext2D, data: DataCache, _deltaTime: number): void {
+  render(ctx: SKRSContext2D, data: DataCache, _deltaTime: number): void {
     const headerHeight = this.drawHeader(ctx, this.config.title || 'Revenue Dashboard');
 
     const revenue = data.revenue.data;

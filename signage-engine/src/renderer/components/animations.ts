@@ -1,4 +1,4 @@
-import { CanvasRenderingContext2D } from 'canvas';
+import { SKRSContext2D } from '@napi-rs/canvas';
 import { colors, hexToRgba } from './colors.js';
 
 // Animation state management
@@ -109,7 +109,7 @@ function createParticle(width: number, height: number): Particle {
 }
 
 // Draw ambient particle effects
-export function drawParticles(ctx: CanvasRenderingContext2D, state: AnimationState): void {
+export function drawParticles(ctx: SKRSContext2D, state: AnimationState): void {
   state.particles.forEach(p => {
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
@@ -120,7 +120,7 @@ export function drawParticles(ctx: CanvasRenderingContext2D, state: AnimationSta
 
 // Draw subtle gradient overlay for depth
 export function drawAmbientGradient(
-  ctx: CanvasRenderingContext2D,
+  ctx: SKRSContext2D,
   width: number,
   height: number,
   phase: number
@@ -173,7 +173,7 @@ export function getAnimatedNumber(
 
 // Draw pulsing glow behind an element
 export function drawPulsingGlow(
-  ctx: CanvasRenderingContext2D,
+  ctx: SKRSContext2D,
   x: number,
   y: number,
   width: number,
@@ -198,7 +198,7 @@ export function drawPulsingGlow(
 
 // Draw animated progress bar that fills up
 export function drawAnimatedProgressBar(
-  ctx: CanvasRenderingContext2D,
+  ctx: SKRSContext2D,
   x: number,
   y: number,
   width: number,

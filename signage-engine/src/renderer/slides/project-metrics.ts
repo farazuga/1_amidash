@@ -1,4 +1,4 @@
-import { CanvasRenderingContext2D } from 'canvas';
+import { SKRSContext2D } from '@napi-rs/canvas';
 import { BaseSlide } from './base-slide.js';
 import { DataCache } from '../../data/polling-manager.js';
 import { drawText } from '../components/text.js';
@@ -11,7 +11,7 @@ import {
 } from '../components/animations.js';
 
 export class ProjectMetricsSlide extends BaseSlide {
-  render(ctx: CanvasRenderingContext2D, data: DataCache, deltaTime: number): void {
+  render(ctx: SKRSContext2D, data: DataCache, deltaTime: number): void {
     // Update animations
     this.updateAnimationState(deltaTime);
 
@@ -75,7 +75,7 @@ export class ProjectMetricsSlide extends BaseSlide {
     this.drawStatusMini(ctx, metrics.byStatus, startX + cardWidth * 3, cardY, cardWidth - cardGap);
   }
 
-  private drawNoData(ctx: CanvasRenderingContext2D, headerHeight: number): void {
+  private drawNoData(ctx: SKRSContext2D, headerHeight: number): void {
     drawText(ctx, 'Loading metrics...', this.displayConfig.width / 2, headerHeight + 300, {
       font: this.displayConfig.fontFamily,
       size: 48,
@@ -85,7 +85,7 @@ export class ProjectMetricsSlide extends BaseSlide {
   }
 
   private drawHeroMetric(
-    ctx: CanvasRenderingContext2D,
+    ctx: SKRSContext2D,
     value: number,
     label: string,
     x: number,
@@ -127,7 +127,7 @@ export class ProjectMetricsSlide extends BaseSlide {
   }
 
   private drawKPICard(
-    ctx: CanvasRenderingContext2D,
+    ctx: SKRSContext2D,
     value: number,
     title: string,
     subtitle: string,
@@ -178,7 +178,7 @@ export class ProjectMetricsSlide extends BaseSlide {
   }
 
   private drawStatusMini(
-    ctx: CanvasRenderingContext2D,
+    ctx: SKRSContext2D,
     byStatus: { status_name: string; status_color: string; count: number }[],
     x: number,
     y: number,

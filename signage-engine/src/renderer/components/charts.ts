@@ -1,4 +1,4 @@
-import { CanvasRenderingContext2D } from 'canvas';
+import { SKRSContext2D } from '@napi-rs/canvas';
 
 export interface BarChartData {
   label: string;
@@ -9,7 +9,7 @@ export interface BarChartData {
 }
 
 export function drawBarChart(
-  ctx: CanvasRenderingContext2D,
+  ctx: SKRSContext2D,
   data: BarChartData[],
   x: number,
   y: number,
@@ -62,7 +62,7 @@ export function drawBarChart(
 }
 
 export function drawProgressBar(
-  ctx: CanvasRenderingContext2D,
+  ctx: SKRSContext2D,
   value: number,
   max: number,
   x: number,
@@ -98,7 +98,7 @@ export function drawProgressBar(
 }
 
 export function roundRect(
-  ctx: CanvasRenderingContext2D,
+  ctx: SKRSContext2D,
   x: number,
   y: number,
   width: number,
@@ -119,7 +119,7 @@ export function roundRect(
 }
 
 export function drawKPICard(
-  ctx: CanvasRenderingContext2D,
+  ctx: SKRSContext2D,
   title: string,
   value: string,
   subtitle: string,

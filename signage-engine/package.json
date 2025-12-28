@@ -10,8 +10,9 @@
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.88",
     "@supabase/supabase-js": "^2.86.0",
-    "canvas": "^2.11.2",
+    "@vygr-labs/ndi-node": "^1.0.0",
     "cors": "^2.8.5",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
@@ -19,6 +20,7 @@
     "js-yaml": "^4.1.0",
     "pino": "^8.16.2",
     "pino-pretty": "^10.2.3",
+    "readable-stream": "^4.7.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {

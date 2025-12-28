@@ -1,4 +1,4 @@
-import { CanvasRenderingContext2D } from 'canvas';
+import { SKRSContext2D } from '@napi-rs/canvas';
 import { SlideConfig, DisplayConfig, TransitionConfig } from '../config/schema.js';
 import { DataCache } from '../data/polling-manager.js';
 import { SignageSlide } from '../data/fetchers/slide-config.js';
@@ -147,7 +147,7 @@ export class SlideManager {
   }
 
   private renderTransition(
-    ctx: CanvasRenderingContext2D,
+    ctx: SKRSContext2D,
     canvasManager: CanvasManager,
     data: DataCache,
     deltaTime: number
@@ -182,7 +182,7 @@ export class SlideManager {
   }
 
   private renderFadeTransition(
-    ctx: CanvasRenderingContext2D,
+    ctx: SKRSContext2D,
     _canvasManager: CanvasManager,
     data: DataCache,
     deltaTime: number,
@@ -203,7 +203,7 @@ export class SlideManager {
   }
 
   private renderSlideTransition(
-    ctx: CanvasRenderingContext2D,
+    ctx: SKRSContext2D,
     _canvasManager: CanvasManager,
     data: DataCache,
     deltaTime: number,
