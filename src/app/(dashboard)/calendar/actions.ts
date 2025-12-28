@@ -933,7 +933,7 @@ export async function getProjectAssignments(projectId: string): Promise<ActionRe
     return { success: false, error: authError || 'Authentication failed' };
   }
 
-  const { data, error } = await (supabase as unknown as { from: (table: string) => unknown })
+  const { data, error } = await supabase
     .from('project_assignments')
     .select(`
       *,
