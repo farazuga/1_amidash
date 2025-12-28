@@ -1,250 +1,148 @@
-import type { CanvasRenderingContext2D, Image } from 'canvas';
-import type { SlideConfig, DisplayConfig, StaleDataConfig } from '../../config/schema.js';
-import { colors } from '../components/colors.js';
-import { fontSizes, fontFamilies, drawText, drawTimestamp } from '../components/text.js';
-import { drawRoundedRect } from '../components/charts.js';
+import { SKRSContext2D, loadImage, Image } from '@napi-rs/canvas';
+import { DisplayConfig, SlideConfig } from '../../config/schema.js';
+import { DataCache } from '../../data/polling-manager.js';
+import { drawText } from '../components/text.js';
+import { colors, hexToRgba } from '../components/colors.js';
+import {
+  AnimationState,
+  createAnimationState,
+  updateAnimations,
+  drawParticles,
+  drawAmbientGradient,
+} from '../components/animations.js';
 
-export interface SlideRenderContext {
-  ctx: CanvasRenderingContext2D;
-  width: number;
-  height: number;
-  config: SlideConfig;
-  displayConfig: DisplayConfig;
-  staleDataConfig: StaleDataConfig;
-  logo: Image | null;
-  isStale: boolean;
-  lastUpdate: number;
-}
-
-/**
- * Base class for all slide types
- */
 export abstract class BaseSlide {
   protected config: SlideConfig;
+  protected displayConfig: DisplayConfig;
+  protected logo: Image | null = null;
+  protected animationState: AnimationState;
 
-  constructor(config: SlideConfig) {
+  constructor(config: SlideConfig, displayConfig: DisplayConfig) {
     this.config = config;
+    this.displayConfig = displayConfig;
+    this.animationState = createAnimationState();
   }
 
-  /**
-   * Get the slide configuration
-   */
-  getConfig(): SlideConfig {
-    return this.config;
+  async loadLogo(): Promise<void> {
+    if (this.displayConfig.logoPath) {
+      try {
+        this.logo = await loadImage(this.displayConfig.logoPath);
+      } catch {
+        // Logo loading failed, continue without it
+      }
+    }
   }
 
-  /**
-   * Update the slide configuration
-   */
-  updateConfig(config: SlideConfig): void {
-    this.config = config;
+  abstract render(ctx: SKRSContext2D, data: DataCache, deltaTime: number): void;
+
+  // Update animations - call at start of render
+  protected updateAnimationState(deltaTime: number): void {
+    updateAnimations(this.animationState, deltaTime, this.displayConfig.width, this.displayConfig.height);
   }
 
-  /**
-   * Render the slide - must be implemented by subclasses
-   */
-  abstract render(context: SlideRenderContext, data: unknown): void;
-
-  /**
-   * Get the slide type
-   */
-  getType(): string {
-    return this.config.type;
+  // Draw ambient background effects
+  protected drawAmbientEffects(ctx: SKRSContext2D): void {
+    drawAmbientGradient(ctx, this.displayConfig.width, this.displayConfig.height, this.animationState.pulsePhase);
+    drawParticles(ctx, this.animationState);
   }
 
-  /**
-   * Check if the slide is enabled
-   */
-  isEnabled(): boolean {
-    return this.config.enabled;
-  }
+  // New minimal header for full-screen slides
+  protected drawMinimalHeader(ctx: SKRSContext2D, title: string): number {
+    const headerHeight = 120;
+    const padding = 80;
 
-  /**
-   * Get slide duration in milliseconds
-   */
-  getDuration(): number {
-    return this.config.duration;
-  }
+    // Subtle gradient header background
+    const gradient = ctx.createLinearGradient(0, 0, 0, headerHeight);
+    gradient.addColorStop(0, hexToRgba(colors.primary, 0.3));
+    gradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, this.displayConfig.width, headerHeight);
 
-  // =====================
-  // Common rendering helpers
-  // =====================
-
-  /**
-   * Draw the slide background
-   */
-  protected drawBackground(ctx: CanvasRenderingContext2D, width: number, height: number, color?: string): void {
-    ctx.fillStyle = color || colors.background;
-    ctx.fillRect(0, 0, width, height);
-  }
-
-  /**
-   * Draw the slide header with logo and title
-   */
-  protected drawHeader(
-    context: SlideRenderContext,
-    title?: string
-  ): number {
-    const { ctx, width, logo, displayConfig } = context;
-    const headerHeight = 180;
-    const padding = 60;
-
-    // Draw header background
-    ctx.fillStyle = colors.backgroundDark;
-    ctx.fillRect(0, 0, width, headerHeight);
-
-    // Draw logo
-    let logoEndX = padding;
-    if (logo) {
-      const logoHeight = 100;
-      const logoWidth = (logo.width / logo.height) * logoHeight;
-      ctx.drawImage(logo, padding, (headerHeight - logoHeight) / 2, logoWidth, logoHeight);
-      logoEndX = padding + logoWidth + 40;
+    // Logo with glow
+    if (this.logo) {
+      const logoHeight = 50;
+      const logoWidth = (this.logo.width / this.logo.height) * logoHeight;
+      ctx.drawImage(this.logo, padding, (headerHeight - logoHeight) / 2, logoWidth, logoHeight);
     }
 
-    // Draw title
-    const slideTitle = title || this.config.title || this.getType();
-    ctx.font = `bold ${fontSizes.title}px ${fontFamilies.primary}`;
-    ctx.fillStyle = colors.textPrimary;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(slideTitle, logoEndX, headerHeight / 2);
-
-    // Draw timestamp on right
-    drawTimestamp(ctx, new Date(), width - padding, headerHeight / 2, {
-      format: 'datetime',
-      align: 'right',
+    // Bold title
+    drawText(ctx, title.toUpperCase(), this.displayConfig.width / 2, headerHeight / 2, {
+      font: this.displayConfig.fontFamily,
+      size: 72,
+      weight: 700,
+      color: colors.white,
+      align: 'center',
+      baseline: 'middle',
+      letterSpacing: 8,
     });
+
+    // Timestamp with accent color
+    const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    drawText(ctx, now, this.displayConfig.width - padding, headerHeight / 2, {
+      font: this.displayConfig.fontFamily,
+      size: 48,
+      color: colors.primaryLight,
+      align: 'right',
+      baseline: 'middle',
+    });
+
+    // Accent line under header
+    ctx.beginPath();
+    ctx.moveTo(padding, headerHeight - 2);
+    ctx.lineTo(this.displayConfig.width - padding, headerHeight - 2);
+    ctx.strokeStyle = hexToRgba(colors.primary, 0.5);
+    ctx.lineWidth = 2;
+    ctx.stroke();
 
     return headerHeight;
   }
 
-  /**
-   * Draw the stale data indicator
-   */
-  protected drawStaleIndicator(context: SlideRenderContext): void {
-    const { ctx, width, height, staleDataConfig, isStale, lastUpdate } = context;
+  // Legacy header for compatibility
+  protected drawHeader(ctx: SKRSContext2D, title: string): number {
+    return this.drawMinimalHeader(ctx, title);
+  }
 
+  protected drawStaleIndicator(
+    ctx: SKRSContext2D,
+    isStale: boolean,
+    position: string
+  ): void {
     if (!isStale) return;
 
-    const padding = 30;
-    const indicatorWidth = 350;
-    const indicatorHeight = 60;
+    const padding = 20;
+    const boxWidth = 200;
+    const boxHeight = 40;
 
-    // Calculate position
     let x: number, y: number;
-    switch (staleDataConfig.indicatorPosition) {
+
+    switch (position) {
       case 'top-left':
         x = padding;
-        y = padding;
+        y = 130;
         break;
       case 'top-right':
-        x = width - indicatorWidth - padding;
-        y = padding;
+        x = this.displayConfig.width - boxWidth - padding;
+        y = 130;
         break;
       case 'bottom-left':
         x = padding;
-        y = height - indicatorHeight - padding;
+        y = this.displayConfig.height - boxHeight - padding;
         break;
       case 'bottom-right':
       default:
-        x = width - indicatorWidth - padding;
-        y = height - indicatorHeight - padding;
+        x = this.displayConfig.width - boxWidth - padding;
+        y = this.displayConfig.height - boxHeight - padding;
     }
 
-    // Draw indicator background
-    ctx.fillStyle = colors.staleWarning;
-    drawRoundedRect(ctx, x, y, indicatorWidth, indicatorHeight, 10);
-    ctx.fill();
+    ctx.fillStyle = 'rgba(245, 158, 11, 0.9)';
+    ctx.fillRect(x, y, boxWidth, boxHeight);
 
-    // Draw warning text
-    ctx.font = `bold ${fontSizes.small}px ${fontFamilies.primary}`;
-    ctx.fillStyle = colors.backgroundDark;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    const staleMinutes = Math.floor((Date.now() - lastUpdate) / 60000);
-    const message = staleMinutes > 0
-      ? `Data may be stale (${staleMinutes}m ago)`
-      : 'Data may be stale';
-    ctx.fillText(message, x + indicatorWidth / 2, y + indicatorHeight / 2);
-  }
-
-  /**
-   * Draw a "No Data" message
-   */
-  protected drawNoData(ctx: CanvasRenderingContext2D, width: number, height: number, message?: string): void {
-    ctx.font = `${fontSizes.subtitle}px ${fontFamilies.primary}`;
-    ctx.fillStyle = colors.textMuted;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(message || 'No data available', width / 2, height / 2);
-  }
-
-  /**
-   * Draw a table header row
-   */
-  protected drawTableHeader(
-    ctx: CanvasRenderingContext2D,
-    columns: { label: string; x: number; width: number; align?: CanvasTextAlign }[],
-    y: number
-  ): void {
-    ctx.font = `bold ${fontSizes.heading}px ${fontFamilies.primary}`;
-    ctx.fillStyle = colors.textSecondary;
-
-    columns.forEach((col) => {
-      ctx.textAlign = col.align || 'left';
-      ctx.textBaseline = 'top';
-      ctx.fillText(col.label.toUpperCase(), col.x, y);
+    drawText(ctx, '⚠ Data may be stale', x + boxWidth / 2, y + boxHeight / 2, {
+      font: this.displayConfig.fontFamily,
+      size: 18,
+      color: colors.black,
+      align: 'center',
+      baseline: 'middle',
     });
-  }
-
-  /**
-   * Draw a horizontal divider line
-   */
-  protected drawDivider(ctx: CanvasRenderingContext2D, x: number, y: number, width: number): void {
-    ctx.strokeStyle = colors.border;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x + width, y);
-    ctx.stroke();
-  }
-
-  /**
-   * Draw a card/box with rounded corners
-   */
-  protected drawCard(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    options: {
-      backgroundColor?: string;
-      borderColor?: string;
-      borderWidth?: number;
-      borderRadius?: number;
-    } = {}
-  ): void {
-    const {
-      backgroundColor = colors.backgroundLight,
-      borderColor,
-      borderWidth = 2,
-      borderRadius = 16,
-    } = options;
-
-    // Fill
-    ctx.fillStyle = backgroundColor;
-    drawRoundedRect(ctx, x, y, width, height, borderRadius);
-    ctx.fill();
-
-    // Border
-    if (borderColor) {
-      ctx.strokeStyle = borderColor;
-      ctx.lineWidth = borderWidth;
-      drawRoundedRect(ctx, x, y, width, height, borderRadius);
-      ctx.stroke();
-    }
   }
 }

@@ -1,319 +1,132 @@
-import type { CanvasRenderingContext2D } from 'canvas';
-import { BaseSlide, SlideRenderContext } from './base-slide.js';
-import type { ScheduleData, GanttAssignment } from '../../types/database.js';
-import { colors, getBookingStatusColor, hexToRgba } from '../components/colors.js';
-import { fontSizes, fontFamilies, truncateText } from '../components/text.js';
-import { drawRoundedRect } from '../components/charts.js';
-import { addDays, format, isWeekend, isSameDay, isWithinInterval, parseISO } from 'date-fns';
+import { SKRSContext2D } from '@napi-rs/canvas';
+import { BaseSlide } from './base-slide.js';
+import { DataCache } from '../../data/polling-manager.js';
+import { drawText, truncateText } from '../components/text.js';
+import { roundRect, colors } from '../components/index.js';
+import { format, addDays, startOfDay, differenceInDays } from 'date-fns';
 
-/**
- * Team Schedule / Gantt slide
- * Displays team assignments in a Gantt-style chart
- */
 export class TeamScheduleSlide extends BaseSlide {
-  render(context: SlideRenderContext, data: ScheduleData | null): void {
-    const { ctx, width, height } = context;
+  render(ctx: SKRSContext2D, data: DataCache, _deltaTime: number): void {
+    const headerHeight = this.drawHeader(ctx, this.config.title || 'Team Schedule');
 
-    // Draw background
-    this.drawBackground(ctx, width, height);
-
-    // Draw header
-    const headerHeight = this.drawHeader(context, this.config.title || 'Team Schedule');
-
-    // Draw stale indicator if needed
-    this.drawStaleIndicator(context);
-
-    // Check for data
-    if (!data || !data.assignments || data.assignments.length === 0) {
-      this.drawNoData(ctx, width, height, 'No scheduled assignments');
-      return;
-    }
-
-    const padding = 60;
-    const contentY = headerHeight + 20;
-    const contentHeight = height - contentY - padding;
-
-    // Configuration
+    const schedule = data.schedule.data;
     const daysToShow = this.config.daysToShow || 14;
-    const showWeekends = this.config.showWeekends !== false;
+    const padding = 60;
+    const nameColWidth = 320;
+    const rowHeight = 100;
+    const startDate = startOfDay(new Date());
 
-    // Calculate dates to display
-    const today = new Date();
-    const dates = this.generateDates(today, daysToShow, showWeekends);
+    // Calculate day column width
+    const chartWidth = this.displayConfig.width - padding * 2 - nameColWidth;
+    const dayWidth = chartWidth / daysToShow;
 
-    // Group assignments by user
-    const userAssignments = this.groupByUser(data.assignments);
-    const users = Array.from(userAssignments.keys());
+    const contentY = headerHeight + 40;
 
-    // Calculate layout
-    const nameColumnWidth = 300;
-    const dateColumnWidth = (width - padding * 2 - nameColumnWidth) / dates.length;
-    const headerRowHeight = 80;
-    const rowHeight = Math.min(100, (contentHeight - headerRowHeight) / Math.max(users.length, 1));
+    // Draw day headers
+    for (let i = 0; i < daysToShow; i++) {
+      const date = addDays(startDate, i);
+      const x = padding + nameColWidth + i * dayWidth;
+      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
 
-    // Draw date headers
-    this.drawDateHeaders(ctx, dates, padding + nameColumnWidth, contentY, dateColumnWidth, headerRowHeight);
+      // Weekend background
+      if (isWeekend) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.fillRect(x, contentY, dayWidth, this.displayConfig.height - contentY - padding);
+      }
 
-    // Draw "Team Member" header
-    ctx.font = `bold ${fontSizes.heading}px ${fontFamilies.primary}`;
-    ctx.fillStyle = colors.textSecondary;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('TEAM MEMBER', padding, contentY + headerRowHeight / 2);
+      // Day label
+      drawText(ctx, format(date, 'EEE'), x + dayWidth / 2, contentY + 18, {
+        font: this.displayConfig.fontFamily,
+        size: 24,
+        color: isWeekend ? 'rgba(255, 255, 255, 0.4)' : 'rgba(255, 255, 255, 0.7)',
+        align: 'center',
+      });
 
-    // Draw user rows
-    let y = contentY + headerRowHeight;
-    users.forEach((userName, index) => {
-      const assignments = userAssignments.get(userName) || [];
-      this.drawUserRow(
+      // Date number
+      drawText(ctx, format(date, 'd'), x + dayWidth / 2, contentY + 50, {
+        font: this.displayConfig.fontFamily,
+        size: 32,
+        color: isWeekend ? 'rgba(255, 255, 255, 0.4)' : colors.white,
+        align: 'center',
+      });
+    }
+
+    // Today indicator line
+    ctx.strokeStyle = colors.warning;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(padding + nameColWidth, contentY);
+    ctx.lineTo(padding + nameColWidth, this.displayConfig.height - padding);
+    ctx.stroke();
+
+    // Draw team rows
+    const rowStartY = contentY + 70;
+    schedule.forEach((user, userIndex) => {
+      const rowY = rowStartY + userIndex * rowHeight;
+
+      // Alternating row background
+      if (userIndex % 2 === 0) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+        ctx.fillRect(padding, rowY, this.displayConfig.width - padding * 2, rowHeight);
+      }
+
+      // User name
+      drawText(
         ctx,
-        userName,
-        assignments,
-        dates,
-        padding,
-        y,
-        nameColumnWidth,
-        dateColumnWidth,
-        rowHeight - 10,
-        index % 2 === 0
+        truncateText(ctx, user.userName, nameColWidth - 20, this.displayConfig.fontFamily, 32),
+        padding + 10,
+        rowY + rowHeight / 2,
+        {
+          font: this.displayConfig.fontFamily,
+          size: 32,
+          color: colors.white,
+          baseline: 'middle',
+        }
       );
-      y += rowHeight;
-    });
 
-    // Draw today indicator line
-    this.drawTodayIndicator(ctx, dates, padding + nameColumnWidth, contentY, dateColumnWidth, y - contentY);
+      // Draw assignment blocks
+      user.assignments.forEach((assignment) => {
+        const assignmentDate = new Date(assignment.date);
+        const dayIndex = differenceInDays(assignmentDate, startDate);
 
-    // Draw legend
-    this.drawLegend(ctx, width - padding - 600, height - 60);
-  }
+        if (dayIndex >= 0 && dayIndex < daysToShow) {
+          const blockX = padding + nameColWidth + dayIndex * dayWidth + 2;
+          const blockWidth = dayWidth - 4;
+          const blockHeight = rowHeight - 16;
+          const blockY = rowY + 8;
 
-  private generateDates(startDate: Date, days: number, includeWeekends: boolean): Date[] {
-    const dates: Date[] = [];
-    let currentDate = startDate;
-    let daysAdded = 0;
+          // Assignment block
+          roundRect(ctx, blockX, blockY, blockWidth, blockHeight, 6);
+          ctx.fillStyle = assignment.projectColor || colors.info;
+          ctx.fill();
 
-    while (daysAdded < days) {
-      if (includeWeekends || !isWeekend(currentDate)) {
-        dates.push(new Date(currentDate));
-        daysAdded++;
-      }
-      currentDate = addDays(currentDate, 1);
-    }
+          // Project name (if block is wide enough)
+          if (blockWidth > 60) {
+            drawText(
+              ctx,
+              truncateText(ctx, assignment.projectName, blockWidth - 8, this.displayConfig.fontFamily, 18),
+              blockX + blockWidth / 2,
+              blockY + blockHeight / 2 - 12,
+              {
+                font: this.displayConfig.fontFamily,
+                size: 18,
+                color: colors.white,
+                align: 'center',
+                baseline: 'middle',
+              }
+            );
+          }
 
-    return dates;
-  }
-
-  private groupByUser(assignments: GanttAssignment[]): Map<string, GanttAssignment[]> {
-    const grouped = new Map<string, GanttAssignment[]>();
-
-    assignments.forEach((assignment) => {
-      const userName = assignment.user_name || 'Unassigned';
-      if (!grouped.has(userName)) {
-        grouped.set(userName, []);
-      }
-      grouped.get(userName)!.push(assignment);
-    });
-
-    return grouped;
-  }
-
-  private drawDateHeaders(
-    ctx: CanvasRenderingContext2D,
-    dates: Date[],
-    x: number,
-    y: number,
-    columnWidth: number,
-    headerHeight: number
-  ): void {
-    const today = new Date();
-
-    dates.forEach((date, index) => {
-      const colX = x + index * columnWidth;
-      const isToday = isSameDay(date, today);
-      const isWeekendDay = isWeekend(date);
-
-      // Draw column background for weekends
-      if (isWeekendDay) {
-        ctx.fillStyle = hexToRgba(colors.backgroundLight, 0.3);
-        ctx.fillRect(colX, y, columnWidth, headerHeight);
-      }
-
-      // Draw today highlight
-      if (isToday) {
-        ctx.fillStyle = hexToRgba(colors.primary, 0.3);
-        ctx.fillRect(colX, y, columnWidth, headerHeight);
-      }
-
-      // Draw day of week
-      ctx.font = `bold ${fontSizes.small}px ${fontFamilies.primary}`;
-      ctx.fillStyle = isToday ? colors.chartBar : colors.textSecondary;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.fillText(format(date, 'EEE'), colX + columnWidth / 2, y + 15);
-
-      // Draw date
-      ctx.font = `${fontSizes.body}px ${fontFamilies.primary}`;
-      ctx.fillStyle = isToday ? colors.textPrimary : colors.textSecondary;
-      ctx.fillText(format(date, 'd'), colX + columnWidth / 2, y + 45);
-    });
-
-    // Draw bottom border
-    ctx.strokeStyle = colors.border;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(x - 10, y + headerHeight);
-    ctx.lineTo(x + dates.length * columnWidth + 10, y + headerHeight);
-    ctx.stroke();
-  }
-
-  private drawUserRow(
-    ctx: CanvasRenderingContext2D,
-    userName: string,
-    assignments: GanttAssignment[],
-    dates: Date[],
-    x: number,
-    y: number,
-    nameWidth: number,
-    dateColumnWidth: number,
-    rowHeight: number,
-    isEven: boolean
-  ): void {
-    // Draw row background
-    if (isEven) {
-      ctx.fillStyle = colors.backgroundLight;
-      ctx.fillRect(x, y, nameWidth + dates.length * dateColumnWidth, rowHeight + 10);
-    }
-
-    // Draw user name
-    ctx.font = `bold ${fontSizes.body}px ${fontFamilies.primary}`;
-    ctx.fillStyle = colors.textPrimary;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    const truncatedName = truncateText(ctx, userName, nameWidth - 20);
-    ctx.fillText(truncatedName, x + 10, y + rowHeight / 2 + 5);
-
-    // Draw assignments
-    assignments.forEach((assignment) => {
-      this.drawAssignmentBar(ctx, assignment, dates, x + nameWidth, y + 5, dateColumnWidth, rowHeight);
-    });
-  }
-
-  private drawAssignmentBar(
-    ctx: CanvasRenderingContext2D,
-    assignment: GanttAssignment,
-    dates: Date[],
-    x: number,
-    y: number,
-    columnWidth: number,
-    height: number
-  ): void {
-    const startDate = parseISO(assignment.start_date);
-    const endDate = parseISO(assignment.end_date);
-    const color = getBookingStatusColor(assignment.booking_status);
-
-    // Find start and end columns
-    let startCol = -1;
-    let endCol = -1;
-
-    dates.forEach((date, index) => {
-      if (isSameDay(date, startDate) || (startCol === -1 && date > startDate)) {
-        startCol = index;
-      }
-      if (isSameDay(date, endDate) || date <= endDate) {
-        endCol = index;
-      }
-    });
-
-    // Don't draw if outside visible range
-    if (startCol === -1 || endCol === -1 || startCol > endCol) {
-      // Check if assignment spans across visible range
-      if (startDate <= dates[0] && endDate >= dates[dates.length - 1]) {
-        startCol = 0;
-        endCol = dates.length - 1;
-      } else {
-        return;
-      }
-    }
-
-    // Clamp to visible range
-    startCol = Math.max(0, startCol);
-    endCol = Math.min(dates.length - 1, endCol);
-
-    const barX = x + startCol * columnWidth + 4;
-    const barWidth = (endCol - startCol + 1) * columnWidth - 8;
-    const barHeight = height - 10;
-
-    // Draw bar background
-    ctx.fillStyle = hexToRgba(color, 0.3);
-    drawRoundedRect(ctx, barX, y, barWidth, barHeight, 8);
-    ctx.fill();
-
-    // Draw bar border
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    drawRoundedRect(ctx, barX, y, barWidth, barHeight, 8);
-    ctx.stroke();
-
-    // Draw project name inside bar
-    ctx.font = `bold ${Math.min(fontSizes.small, barHeight - 10)}px ${fontFamilies.primary}`;
-    ctx.fillStyle = colors.textPrimary;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    const projectName = truncateText(ctx, assignment.project_name, barWidth - 20);
-    ctx.fillText(projectName, barX + 10, y + barHeight / 2);
-  }
-
-  private drawTodayIndicator(
-    ctx: CanvasRenderingContext2D,
-    dates: Date[],
-    x: number,
-    y: number,
-    columnWidth: number,
-    height: number
-  ): void {
-    const today = new Date();
-    const todayIndex = dates.findIndex((d) => isSameDay(d, today));
-
-    if (todayIndex === -1) return;
-
-    const lineX = x + todayIndex * columnWidth + columnWidth / 2;
-
-    ctx.strokeStyle = colors.chartBar;
-    ctx.lineWidth = 3;
-    ctx.setLineDash([10, 5]);
-    ctx.beginPath();
-    ctx.moveTo(lineX, y);
-    ctx.lineTo(lineX, y + height);
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
-  private drawLegend(ctx: CanvasRenderingContext2D, x: number, y: number): void {
-    const items = [
-      { color: colors.pencil, label: 'Penciled' },
-      { color: colors.pendingConfirm, label: 'Pending' },
-      { color: colors.confirmed, label: 'Confirmed' },
-    ];
-
-    let currentX = x;
-
-    items.forEach((item) => {
-      // Draw color box
-      ctx.fillStyle = hexToRgba(item.color, 0.3);
-      ctx.strokeStyle = item.color;
-      ctx.lineWidth = 2;
-      drawRoundedRect(ctx, currentX, y, 30, 25, 5);
-      ctx.fill();
-      ctx.stroke();
-
-      // Draw label
-      ctx.font = `${fontSizes.small}px ${fontFamilies.primary}`;
-      ctx.fillStyle = colors.textSecondary;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(item.label, currentX + 40, y + 12);
-
-      currentX += 180;
+          // Hours
+          drawText(ctx, `${assignment.hours}h`, blockX + blockWidth / 2, blockY + blockHeight / 2 + 14, {
+            font: this.displayConfig.fontFamily,
+            size: 22,
+            color: 'rgba(255, 255, 255, 0.8)',
+            align: 'center',
+            baseline: 'middle',
+          });
+        }
+      });
     });
   }
 }

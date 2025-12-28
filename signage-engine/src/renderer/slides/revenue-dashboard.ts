@@ -1,225 +1,141 @@
-import type { CanvasRenderingContext2D } from 'canvas';
-import { BaseSlide, SlideRenderContext } from './base-slide.js';
-import type { RevenueData } from '../../types/database.js';
-import { colors } from '../components/colors.js';
-import { fontSizes, fontFamilies, formatCurrency, formatCompactNumber } from '../components/text.js';
-import { drawKPICard, drawBarChart, drawProgressRing, drawProgressBar, BarChartData } from '../components/charts.js';
+import { SKRSContext2D } from '@napi-rs/canvas';
+import { BaseSlide } from './base-slide.js';
+import { DataCache } from '../../data/polling-manager.js';
+import { drawBarChart, drawKPICard, drawProgressBar, colors } from '../components/index.js';
+import { drawText } from '../components/text.js';
 
-/**
- * Revenue Dashboard slide
- * Displays KPI metrics, goals, and revenue charts
- */
 export class RevenueDashboardSlide extends BaseSlide {
-  render(context: SlideRenderContext, data: RevenueData | null): void {
-    const { ctx, width, height } = context;
+  render(ctx: SKRSContext2D, data: DataCache, _deltaTime: number): void {
+    const headerHeight = this.drawHeader(ctx, this.config.title || 'Revenue Dashboard');
 
-    // Draw background
-    this.drawBackground(ctx, width, height);
-
-    // Draw header
-    const headerHeight = this.drawHeader(context, this.config.title || 'Revenue Dashboard');
-
-    // Draw stale indicator if needed
-    this.drawStaleIndicator(context);
-
-    // Check for data
-    if (!data) {
-      this.drawNoData(ctx, width, height, 'Revenue data unavailable');
-      return;
-    }
+    const revenue = data.revenue.data;
+    if (!revenue) return;
 
     const padding = 60;
-    const contentY = headerHeight + 40;
-    const contentHeight = height - contentY - padding;
+    const cardGap = 40;
+    const contentY = headerHeight + 60;
 
-    // Layout: KPI cards on top, chart below
-    const kpiRowHeight = 350;
-    const chartAreaY = contentY + kpiRowHeight + 40;
-    const chartAreaHeight = contentHeight - kpiRowHeight - 40;
+    // KPI Cards Row
+    const cardWidth = (this.displayConfig.width - padding * 2 - cardGap * 3) / 4;
+    const cardHeight = 200;
 
-    // Draw KPI cards
-    this.drawKPIRow(ctx, data, padding, contentY, width - padding * 2, kpiRowHeight);
-
-    // Draw revenue chart
-    this.drawRevenueChart(ctx, data, padding, chartAreaY, width - padding * 2, chartAreaHeight);
-  }
-
-  private drawKPIRow(
-    ctx: CanvasRenderingContext2D,
-    data: RevenueData,
-    x: number,
-    y: number,
-    width: number,
-    height: number
-  ): void {
-    const cardWidth = (width - 60) / 3; // 3 cards with gaps
-    const cardHeight = height - 40;
-    const gap = 30;
-
-    // Card 1: Current Month Revenue
+    // Current Month Revenue
     drawKPICard(
       ctx,
-      'Revenue This Month',
-      data.currentMonthRevenue,
-      x,
-      y,
-      cardWidth,
-      cardHeight,
-      {
-        format: 'currency',
-        goal: data.monthlyGoal,
-        showProgress: true,
-        accentColor: colors.chartBar,
-      }
-    );
-
-    // Card 2: Invoiced Revenue
-    drawKPICard(
-      ctx,
-      'Invoiced',
-      data.invoicedRevenue,
-      x + cardWidth + gap,
-      y,
-      cardWidth,
-      cardHeight,
-      {
-        format: 'currency',
-        goal: data.invoicedGoal,
-        showProgress: true,
-        accentColor: colors.statusBlue,
-      }
-    );
-
-    // Card 3: Pipeline with progress ring
-    this.drawPipelineCard(
-      ctx,
-      data.pipelineTotal,
-      data.monthProgress,
-      x + (cardWidth + gap) * 2,
-      y,
+      'This Month',
+      `$${(revenue.currentMonthRevenue / 1000).toFixed(0)}K`,
+      `Goal: $${(revenue.currentMonthGoal / 1000).toFixed(0)}K`,
+      padding,
+      contentY,
       cardWidth,
       cardHeight
     );
-  }
 
-  private drawPipelineCard(
-    ctx: CanvasRenderingContext2D,
-    pipelineTotal: number,
-    monthProgress: number,
-    x: number,
-    y: number,
-    width: number,
-    height: number
-  ): void {
-    // Draw card background
-    this.drawCard(ctx, x, y, width, height);
-
-    // Draw accent bar
-    ctx.fillStyle = colors.statusPurple;
-    ctx.fillRect(x, y + 20, 6, height - 40);
-
-    // Draw label
-    ctx.font = `${fontSizes.heading}px ${fontFamilies.primary}`;
-    ctx.fillStyle = colors.textSecondary;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText('PIPELINE', x + 30, y + 30);
-
-    // Draw pipeline value
-    ctx.font = `bold ${fontSizes.title}px ${fontFamilies.primary}`;
-    ctx.fillStyle = colors.textPrimary;
-    ctx.fillText(formatCurrency(pipelineTotal), x + 30, y + 80);
-
-    // Draw month progress ring on right side
-    const ringRadius = 80;
-    const ringX = x + width - ringRadius - 50;
-    const ringY = y + height / 2;
-
-    drawProgressRing(ctx, monthProgress, ringX, ringY, ringRadius, {
-      strokeWidth: 15,
-      progressColor: colors.statusPurple,
-      label: 'Month Progress',
-      showPercent: true,
-    });
-  }
-
-  private drawRevenueChart(
-    ctx: CanvasRenderingContext2D,
-    data: RevenueData,
-    x: number,
-    y: number,
-    width: number,
-    height: number
-  ): void {
-    // Draw chart background card
-    this.drawCard(ctx, x, y, width, height);
-
-    // Draw chart title
-    ctx.font = `bold ${fontSizes.heading}px ${fontFamilies.primary}`;
-    ctx.fillStyle = colors.textSecondary;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText('MONTHLY REVENUE', x + 40, y + 30);
-
-    // Draw legend
-    this.drawLegend(ctx, x + width - 400, y + 25);
-
-    // Prepare chart data
-    const chartData: BarChartData[] = data.monthlyData.map((m) => ({
-      label: m.month,
-      value: m.revenue,
-      goal: m.goal,
-    }));
-
-    // Draw bar chart
-    drawBarChart(
+    // Month Progress
+    const monthProgress = revenue.currentMonthGoal > 0
+      ? (revenue.currentMonthRevenue / revenue.currentMonthGoal * 100).toFixed(0)
+      : '0';
+    drawKPICard(
       ctx,
-      chartData,
-      x + 40,
-      y + 80,
-      width - 80,
-      height - 120,
+      'Month Progress',
+      `${monthProgress}%`,
+      revenue.currentMonthRevenue >= revenue.currentMonthGoal ? 'On Track' : 'Behind',
+      padding + cardWidth + cardGap,
+      contentY,
+      cardWidth,
+      cardHeight,
       {
-        barColor: colors.chartBar,
-        goalColor: colors.chartGoal,
-        showValues: true,
-        showGoalLine: true,
+        valueColor: revenue.currentMonthRevenue >= revenue.currentMonthGoal ? colors.success : colors.warning,
       }
     );
-  }
 
-  private drawLegend(ctx: CanvasRenderingContext2D, x: number, y: number): void {
-    const items = [
-      { color: colors.chartBar, label: 'Revenue' },
-      { color: colors.chartGoal, label: 'Goal', isDashed: true },
-    ];
+    // YTD Revenue
+    drawKPICard(
+      ctx,
+      'Year to Date',
+      `$${(revenue.yearToDateRevenue / 1000000).toFixed(2)}M`,
+      `Goal: $${(revenue.yearToDateGoal / 1000000).toFixed(2)}M`,
+      padding + (cardWidth + cardGap) * 2,
+      contentY,
+      cardWidth,
+      cardHeight
+    );
 
-    let currentX = x;
-
-    items.forEach((item) => {
-      // Draw color indicator
-      if (item.isDashed) {
-        ctx.strokeStyle = item.color;
-        ctx.lineWidth = 3;
-        ctx.setLineDash([8, 4]);
-        ctx.beginPath();
-        ctx.moveTo(currentX, y + 15);
-        ctx.lineTo(currentX + 30, y + 15);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      } else {
-        ctx.fillStyle = item.color;
-        ctx.fillRect(currentX, y + 5, 30, 20);
+    // YTD Progress
+    const ytdProgress = revenue.yearToDateGoal > 0
+      ? (revenue.yearToDateRevenue / revenue.yearToDateGoal * 100).toFixed(0)
+      : '0';
+    drawKPICard(
+      ctx,
+      'YTD Progress',
+      `${ytdProgress}%`,
+      revenue.yearToDateRevenue >= revenue.yearToDateGoal ? 'Ahead of Goal' : 'Behind Goal',
+      padding + (cardWidth + cardGap) * 3,
+      contentY,
+      cardWidth,
+      cardHeight,
+      {
+        valueColor: revenue.yearToDateRevenue >= revenue.yearToDateGoal ? colors.success : colors.warning,
       }
+    );
 
-      // Draw label
-      ctx.font = `${fontSizes.small}px ${fontFamilies.primary}`;
-      ctx.fillStyle = colors.textSecondary;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(item.label, currentX + 40, y + 15);
+    // Progress bars
+    const progressY = contentY + cardHeight + 60;
+    const progressHeight = 40;
 
-      currentX += 150;
+    drawText(ctx, 'Monthly Progress', padding, progressY, {
+      font: this.displayConfig.fontFamily,
+      size: 32,
+      color: 'rgba(255, 255, 255, 0.7)',
+    });
+    drawProgressBar(
+      ctx,
+      revenue.currentMonthRevenue,
+      revenue.currentMonthGoal,
+      padding,
+      progressY + 45,
+      (this.displayConfig.width - padding * 2) / 2 - 20,
+      progressHeight,
+      { fillColor: colors.info }
+    );
+
+    drawText(ctx, 'YTD Progress', this.displayConfig.width / 2 + 20, progressY, {
+      font: this.displayConfig.fontFamily,
+      size: 32,
+      color: 'rgba(255, 255, 255, 0.7)',
+    });
+    drawProgressBar(
+      ctx,
+      revenue.yearToDateRevenue,
+      revenue.yearToDateGoal,
+      this.displayConfig.width / 2 + 20,
+      progressY + 45,
+      (this.displayConfig.width - padding * 2) / 2 - 20,
+      progressHeight,
+      { fillColor: colors.success }
+    );
+
+    // Monthly Bar Chart
+    const chartY = progressY + progressHeight + 100;
+    const chartHeight = this.displayConfig.height - chartY - 80;
+
+    drawText(ctx, 'Monthly Revenue vs Goals', padding, chartY - 40, {
+      font: this.displayConfig.fontFamily,
+      size: 36,
+      color: colors.white,
+    });
+
+    const chartData = revenue.monthlyData.map((m) => ({
+      label: m.month,
+      value: m.revenue,
+      color: colors.info,
+      secondaryValue: m.goal,
+      secondaryColor: 'rgba(255, 255, 255, 0.2)',
+    }));
+
+    drawBarChart(ctx, chartData, padding, chartY, this.displayConfig.width - padding * 2, chartHeight, {
+      barGap: 20,
+      fontSize: 28,
     });
   }
 }

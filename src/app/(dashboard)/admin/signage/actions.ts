@@ -1,305 +1,303 @@
 'use server';
 
-// Signage engine API URL (configured via environment variable)
-const SIGNAGE_ENGINE_URL = process.env.SIGNAGE_ENGINE_URL || 'http://127.0.0.1:3001';
+import { createClient } from '@/lib/supabase/server';
 
-export interface EngineStatus {
-  running: boolean;
+const SIGNAGE_API_URL = process.env.SIGNAGE_API_URL || 'http://127.0.0.1:3001';
+
+// Slide types for database
+export type SlideType = 'project-list' | 'project-metrics' | 'po-ticker' | 'revenue-dashboard' | 'team-schedule';
+
+export interface SignageSlide {
+  id: string;
+  slide_type: SlideType;
+  title: string | null;
+  enabled: boolean;
+  display_order: number;
+  duration_ms: number;
+  config: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SignageStatus {
+  isRunning: boolean;
+  uptime: number;
   currentSlide: number;
   totalSlides: number;
-  frameRate: number;
-  actualFps: number;
-  uptime: number;
-  lastDataUpdate: number;
-  ndiName: string;
-  resolution: {
-    width: number;
-    height: number;
-  };
-  errors: number;
+  fps: number;
+  frameCount: number;
+  dataStale: boolean;
 }
 
 export interface SignageConfig {
-  ndi: {
-    name: string;
-    frameRate: number;
-  };
-  display: {
-    width: number;
-    height: number;
-    backgroundColor: string;
-    accentColor: string;
-    fontFamily: string;
-    logoPath?: string;
-  };
-  polling: {
-    projects: number;
-    revenue: number;
-    schedule: number;
-    purchaseOrders: number;
-  };
-  slides: SlideConfig[];
-  transitions: {
-    type: 'fade' | 'slide' | 'none';
-    duration: number;
-  };
-  api: {
-    port: number;
-    host: string;
-  };
-  staleData: {
-    warningThresholdMs: number;
-    indicatorPosition: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
-  };
-}
-
-export interface SlideConfig {
-  type: 'active-projects' | 'po-ticker' | 'revenue-dashboard' | 'team-schedule';
-  enabled: boolean;
-  duration: number;
-  title?: string;
-  maxItems?: number;
-  showStatus?: boolean;
-  showDueDate?: boolean;
-  showSalesAmount?: boolean;
-  scrollSpeed?: number;
-  showMonthlyGoals?: boolean;
-  showQuarterlyProgress?: boolean;
-  chartType?: 'bar' | 'line' | 'pie';
-  daysToShow?: number;
-  showWeekends?: boolean;
+  ndi: { name: string; frameRate: number };
+  display: { width: number; height: number; backgroundColor: string; accentColor: string; fontFamily: string; logoPath?: string };
+  polling: { projects: number; revenue: number; schedule: number; purchaseOrders: number };
+  slides: Array<{ type: string; enabled: boolean; duration: number; title?: string; maxItems?: number; scrollSpeed?: number; daysToShow?: number }>;
+  transitions: { type: string; duration: number };
+  api: { port: number; host: string };
+  staleData: { warningThresholdMs: number; indicatorPosition: string };
 }
 
 export interface LogEntry {
   level: string;
   time: number;
   msg: string;
-  [key: string]: unknown;
 }
 
-export interface ActionResult {
-  success: boolean;
-  message?: string;
-  error?: string;
+async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(`${SIGNAGE_API_URL}${endpoint}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    },
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(error.error || 'API request failed');
+  }
+
+  return res.json();
 }
 
-/**
- * Get signage engine status
- */
-export async function getSignageStatus(): Promise<EngineStatus | null> {
+export async function getSignageStatus(): Promise<SignageStatus | null> {
   try {
-    const response = await fetch(`${SIGNAGE_ENGINE_URL}/status`, {
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      console.error('Failed to get signage status:', response.statusText);
-      return null;
-    }
-
-    return response.json();
+    return await fetchAPI<SignageStatus>('/status');
   } catch (error) {
-    console.error('Error connecting to signage engine:', error);
+    console.error('Failed to get signage status:', error);
     return null;
   }
 }
 
-/**
- * Start the signage engine
- */
-export async function startSignageEngine(): Promise<ActionResult> {
-  try {
-    const response = await fetch(`${SIGNAGE_ENGINE_URL}/control/start`, {
-      method: 'POST',
-      cache: 'no-store',
-    });
-
-    const result = await response.json();
-    return result;
-  } catch (error) {
-    console.error('Error starting signage engine:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to connect to signage engine',
-    };
-  }
-}
-
-/**
- * Stop the signage engine
- */
-export async function stopSignageEngine(): Promise<ActionResult> {
-  try {
-    const response = await fetch(`${SIGNAGE_ENGINE_URL}/control/stop`, {
-      method: 'POST',
-      cache: 'no-store',
-    });
-
-    const result = await response.json();
-    return result;
-  } catch (error) {
-    console.error('Error stopping signage engine:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to connect to signage engine',
-    };
-  }
-}
-
-/**
- * Restart the signage engine
- */
-export async function restartSignageEngine(): Promise<ActionResult> {
-  try {
-    const response = await fetch(`${SIGNAGE_ENGINE_URL}/control/restart`, {
-      method: 'POST',
-      cache: 'no-store',
-    });
-
-    const result = await response.json();
-    return result;
-  } catch (error) {
-    console.error('Error restarting signage engine:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to connect to signage engine',
-    };
-  }
-}
-
-/**
- * Advance to next slide
- */
-export async function nextSlide(): Promise<ActionResult> {
-  try {
-    const response = await fetch(`${SIGNAGE_ENGINE_URL}/control/next`, {
-      method: 'POST',
-      cache: 'no-store',
-    });
-
-    const result = await response.json();
-    return result;
-  } catch (error) {
-    return { success: false, error: 'Failed to connect to signage engine' };
-  }
-}
-
-/**
- * Go to previous slide
- */
-export async function previousSlide(): Promise<ActionResult> {
-  try {
-    const response = await fetch(`${SIGNAGE_ENGINE_URL}/control/previous`, {
-      method: 'POST',
-      cache: 'no-store',
-    });
-
-    const result = await response.json();
-    return result;
-  } catch (error) {
-    return { success: false, error: 'Failed to connect to signage engine' };
-  }
-}
-
-/**
- * Go to specific slide
- */
-export async function goToSlide(index: number): Promise<ActionResult> {
-  try {
-    const response = await fetch(`${SIGNAGE_ENGINE_URL}/control/slide/${index}`, {
-      method: 'POST',
-      cache: 'no-store',
-    });
-
-    const result = await response.json();
-    return result;
-  } catch (error) {
-    return { success: false, error: 'Failed to connect to signage engine' };
-  }
-}
-
-/**
- * Get signage configuration
- */
 export async function getSignageConfig(): Promise<SignageConfig | null> {
   try {
-    const response = await fetch(`${SIGNAGE_ENGINE_URL}/config`, {
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    return response.json();
+    return await fetchAPI<SignageConfig>('/config');
   } catch (error) {
-    console.error('Error getting signage config:', error);
+    console.error('Failed to get signage config:', error);
     return null;
   }
 }
 
-/**
- * Update signage configuration
- */
-export async function updateSignageConfig(config: Partial<SignageConfig>): Promise<ActionResult> {
+export async function updateSignageConfig(config: Partial<SignageConfig>): Promise<SignageConfig | null> {
   try {
-    const response = await fetch(`${SIGNAGE_ENGINE_URL}/config`, {
+    return await fetchAPI<SignageConfig>('/config', {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify(config),
-      cache: 'no-store',
     });
-
-    const result = await response.json();
-    return result;
   } catch (error) {
-    console.error('Error updating signage config:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to connect to signage engine',
-    };
+    console.error('Failed to update signage config:', error);
+    return null;
   }
 }
 
-/**
- * Get preview image URL
- */
-export async function getPreviewUrl(): Promise<string> {
-  return `${SIGNAGE_ENGINE_URL}/preview`;
+export async function startSignageEngine(): Promise<{ success: boolean; message?: string; error?: string }> {
+  try {
+    const result = await fetchAPI<{ success: boolean; message: string }>('/control/start', {
+      method: 'POST',
+    });
+    return result;
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
 }
 
-/**
- * Get recent logs
- */
+export async function stopSignageEngine(): Promise<{ success: boolean; message?: string; error?: string }> {
+  try {
+    const result = await fetchAPI<{ success: boolean; message: string }>('/control/stop', {
+      method: 'POST',
+    });
+    return result;
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+export async function restartSignageEngine(): Promise<{ success: boolean; message?: string; error?: string }> {
+  try {
+    const result = await fetchAPI<{ success: boolean; message: string }>('/control/restart', {
+      method: 'POST',
+    });
+    return result;
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
 export async function getSignageLogs(count: number = 50): Promise<LogEntry[]> {
   try {
-    const response = await fetch(`${SIGNAGE_ENGINE_URL}/logs?count=${count}`, {
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      return [];
-    }
-
-    return response.json();
+    return await fetchAPI<LogEntry[]>(`/logs?count=${count}`);
   } catch (error) {
-    console.error('Error getting signage logs:', error);
+    console.error('Failed to get signage logs:', error);
     return [];
   }
 }
 
-/**
- * Check if signage engine is reachable
- */
-export async function isEngineReachable(): Promise<boolean> {
-  try {
-    const response = await fetch(`${SIGNAGE_ENGINE_URL}/health`, {
-      cache: 'no-store',
-    });
-    return response.ok;
-  } catch {
+// ===== Slide CRUD Operations =====
+
+export async function getSlides(): Promise<SignageSlide[]> {
+  const supabase = await createClient();
+  // Note: signage_slides table needs to be created via migration 013_signage_slides.sql
+  // After applying, run: npm run db:types to regenerate types
+  const { data, error } = await (supabase as unknown as { from: (table: string) => { select: (cols: string) => { order: (col: string, opts: { ascending: boolean }) => Promise<{ data: SignageSlide[] | null; error: unknown }> } } })
+    .from('signage_slides')
+    .select('*')
+    .order('display_order', { ascending: true });
+
+  if (error) {
+    console.error('Failed to fetch slides:', error);
+    return [];
+  }
+
+  return (data || []) as SignageSlide[];
+}
+
+// Helper type for untyped Supabase queries (until db:types is regenerated)
+type UntypedSupabase = {
+  from: (table: string) => {
+    select: (cols: string) => {
+      order: (col: string, opts: { ascending: boolean }) => {
+        limit: (n: number) => Promise<{ data: { display_order: number }[] | null; error: unknown }>;
+      };
+    };
+    insert: (data: Record<string, unknown>) => {
+      select: () => {
+        single: () => Promise<{ data: SignageSlide | null; error: unknown }>;
+      };
+    };
+    update: (data: Record<string, unknown>) => {
+      eq: (col: string, val: string) => Promise<{ error: unknown }> & {
+        select: () => {
+          single: () => Promise<{ data: SignageSlide | null; error: unknown }>;
+        };
+      };
+    };
+    delete: () => {
+      eq: (col: string, val: string) => Promise<{ error: unknown }>;
+    };
+  };
+};
+
+export async function createSlide(slide: {
+  slide_type: SlideType;
+  title?: string;
+  enabled?: boolean;
+  duration_ms?: number;
+  config?: Record<string, unknown>;
+}): Promise<SignageSlide | null> {
+  const supabase = (await createClient()) as unknown as UntypedSupabase;
+
+  // Get the highest display_order
+  const { data: existing } = await supabase
+    .from('signage_slides')
+    .select('display_order')
+    .order('display_order', { ascending: false })
+    .limit(1);
+
+  const nextOrder = (existing?.[0]?.display_order ?? 0) + 1;
+
+  const { data, error } = await supabase
+    .from('signage_slides')
+    .insert({
+      slide_type: slide.slide_type,
+      title: slide.title || null,
+      enabled: slide.enabled ?? true,
+      display_order: nextOrder,
+      duration_ms: slide.duration_ms ?? 15000,
+      config: slide.config ?? {},
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Failed to create slide:', error);
+    return null;
+  }
+
+  return data as SignageSlide;
+}
+
+export async function updateSlide(
+  id: string,
+  updates: Partial<Omit<SignageSlide, 'id' | 'created_at' | 'updated_at'>>
+): Promise<SignageSlide | null> {
+  const supabase = (await createClient()) as unknown as UntypedSupabase;
+
+  const { data, error } = await supabase
+    .from('signage_slides')
+    .update(updates as Record<string, unknown>)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Failed to update slide:', error);
+    return null;
+  }
+
+  return data as SignageSlide;
+}
+
+export async function deleteSlide(id: string): Promise<boolean> {
+  const supabase = (await createClient()) as unknown as UntypedSupabase;
+
+  const { error } = await supabase
+    .from('signage_slides')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Failed to delete slide:', error);
     return false;
   }
+
+  return true;
+}
+
+export async function reorderSlides(slideIds: string[]): Promise<boolean> {
+  const supabase = (await createClient()) as unknown as UntypedSupabase;
+
+  // Update each slide's display_order
+  const updates = slideIds.map((id, index) => ({
+    id,
+    display_order: index + 1,
+  }));
+
+  for (const update of updates) {
+    const { error } = await supabase
+      .from('signage_slides')
+      .update({ display_order: update.display_order })
+      .eq('id', update.id);
+
+    if (error) {
+      console.error('Failed to reorder slide:', error);
+      return false;
+    }
+  }
+
+  return true;
+}
+
+// Update all slide durations at once
+export async function updateAllSlideDurations(durationMs: number): Promise<boolean> {
+  const supabase = await createClient();
+
+  const { error } = await (supabase as unknown as {
+    from: (table: string) => {
+      update: (data: Record<string, unknown>) => {
+        neq: (col: string, val: string) => Promise<{ error: unknown }>;
+      };
+    };
+  })
+    .from('signage_slides')
+    .update({ duration_ms: durationMs })
+    .neq('id', ''); // Update all rows
+
+  if (error) {
+    console.error('Failed to update slide durations:', error);
+    return false;
+  }
+
+  return true;
 }

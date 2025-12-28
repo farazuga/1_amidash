@@ -1,386 +1,168 @@
-import type { CanvasRenderingContext2D } from 'canvas';
-import { colors, hexToRgba } from './colors.js';
-import { fontSizes, fontFamilies, formatCompactNumber, formatCurrency } from './text.js';
+import { SKRSContext2D } from '@napi-rs/canvas';
 
 export interface BarChartData {
   label: string;
   value: number;
-  goal?: number;
+  color?: string;
+  secondaryValue?: number;
+  secondaryColor?: string;
 }
 
-export interface ProgressBarOptions {
-  width: number;
-  height: number;
-  borderRadius?: number;
-  backgroundColor?: string;
-  fillColor?: string;
-  showLabel?: boolean;
-  labelPosition?: 'inside' | 'right';
-}
-
-/**
- * Draw a horizontal progress bar
- */
-export function drawProgressBar(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  progress: number, // 0-100
-  options: ProgressBarOptions
-): void {
-  const {
-    width,
-    height,
-    borderRadius = height / 2,
-    backgroundColor = colors.chartBackground,
-    fillColor = colors.chartBar,
-    showLabel = true,
-    labelPosition = 'inside',
-  } = options;
-
-  const clampedProgress = Math.max(0, Math.min(100, progress));
-  const fillWidth = (width * clampedProgress) / 100;
-
-  // Draw background
-  ctx.fillStyle = backgroundColor;
-  drawRoundedRect(ctx, x, y, width, height, borderRadius);
-  ctx.fill();
-
-  // Draw fill
-  if (fillWidth > 0) {
-    ctx.fillStyle = fillColor;
-    drawRoundedRect(ctx, x, y, Math.max(fillWidth, borderRadius * 2), height, borderRadius);
-    ctx.fill();
-  }
-
-  // Draw label
-  if (showLabel) {
-    const label = `${Math.round(clampedProgress)}%`;
-    ctx.font = `bold ${Math.min(height - 8, fontSizes.small)}px ${fontFamilies.primary}`;
-
-    if (labelPosition === 'inside' && fillWidth > 60) {
-      ctx.fillStyle = colors.textPrimary;
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, x + fillWidth - 10, y + height / 2);
-    } else {
-      ctx.fillStyle = colors.textSecondary;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, x + width + 15, y + height / 2);
-    }
-  }
-}
-
-/**
- * Draw a vertical bar chart
- */
 export function drawBarChart(
-  ctx: CanvasRenderingContext2D,
+  ctx: SKRSContext2D,
   data: BarChartData[],
   x: number,
   y: number,
   width: number,
   height: number,
   options: {
-    barColor?: string;
-    goalColor?: string;
-    showValues?: boolean;
-    showGoalLine?: boolean;
-    animate?: boolean;
-    animationProgress?: number;
+    barGap?: number;
+    labelColor?: string;
+    fontSize?: number;
+    showLabels?: boolean;
+    maxValue?: number;
   } = {}
 ): void {
   const {
-    barColor = colors.chartBar,
-    goalColor = colors.chartGoal,
-    showValues = true,
-    showGoalLine = true,
-    animationProgress = 1,
+    barGap = 10,
+    labelColor = '#ffffff',
+    fontSize = 18,
+    showLabels = true,
+    maxValue = Math.max(...data.map((d) => Math.max(d.value, d.secondaryValue || 0))),
   } = options;
 
-  if (data.length === 0) return;
+  const barWidth = (width - barGap * (data.length - 1)) / data.length;
+  const chartHeight = showLabels ? height - fontSize - 10 : height;
 
-  const padding = 20;
-  const labelHeight = 50;
-  const chartHeight = height - labelHeight - padding;
-  const chartY = y + padding;
+  data.forEach((item, index) => {
+    const barX = x + index * (barWidth + barGap);
+    const barHeight = (item.value / maxValue) * chartHeight;
+    const barY = y + chartHeight - barHeight;
 
-  // Calculate bar dimensions
-  const totalBars = data.length;
-  const barGap = 20;
-  const availableWidth = width - (totalBars - 1) * barGap;
-  const barWidth = Math.min(availableWidth / totalBars, 120);
-
-  // Find max value for scaling
-  const maxValue = Math.max(
-    ...data.map((d) => Math.max(d.value, d.goal || 0)),
-    1
-  );
-
-  // Draw bars
-  data.forEach((item, i) => {
-    const barX = x + i * (barWidth + barGap) + (width - totalBars * barWidth - (totalBars - 1) * barGap) / 2;
-    const barHeight = (item.value / maxValue) * chartHeight * animationProgress;
-
-    // Draw bar
-    ctx.fillStyle = barColor;
-    drawRoundedRect(
-      ctx,
-      barX,
-      chartY + chartHeight - barHeight,
-      barWidth,
-      barHeight,
-      8
-    );
-    ctx.fill();
-
-    // Draw goal line if exists
-    if (showGoalLine && item.goal) {
-      const goalY = chartY + chartHeight - (item.goal / maxValue) * chartHeight;
-      ctx.strokeStyle = goalColor;
-      ctx.lineWidth = 3;
-      ctx.setLineDash([8, 4]);
-      ctx.beginPath();
-      ctx.moveTo(barX - 5, goalY);
-      ctx.lineTo(barX + barWidth + 5, goalY);
-      ctx.stroke();
-      ctx.setLineDash([]);
+    // Draw secondary bar (goal) behind primary
+    if (item.secondaryValue !== undefined) {
+      const secondaryHeight = (item.secondaryValue / maxValue) * chartHeight;
+      const secondaryY = y + chartHeight - secondaryHeight;
+      ctx.fillStyle = item.secondaryColor || 'rgba(255, 255, 255, 0.2)';
+      ctx.fillRect(barX, secondaryY, barWidth, secondaryHeight);
     }
 
-    // Draw value on top of bar
-    if (showValues && animationProgress >= 1) {
-      ctx.font = `bold ${fontSizes.small}px ${fontFamilies.primary}`;
-      ctx.fillStyle = colors.textPrimary;
+    // Draw primary bar
+    ctx.fillStyle = item.color || '#3b82f6';
+    ctx.fillRect(barX, barY, barWidth, barHeight);
+
+    // Draw label
+    if (showLabels) {
+      ctx.fillStyle = labelColor;
+      ctx.font = `${fontSize}px Inter`;
       ctx.textAlign = 'center';
-      ctx.textBaseline = 'bottom';
-      ctx.fillText(
-        formatCompactNumber(item.value),
-        barX + barWidth / 2,
-        chartY + chartHeight - barHeight - 10
-      );
+      ctx.fillText(item.label, barX + barWidth / 2, y + chartHeight + 5);
     }
-
-    // Draw label below bar
-    ctx.font = `${fontSizes.small}px ${fontFamilies.primary}`;
-    ctx.fillStyle = colors.textSecondary;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(item.label, barX + barWidth / 2, y + height - labelHeight + 10);
   });
 }
 
-/**
- * Draw a KPI card
- */
-export function drawKPICard(
-  ctx: CanvasRenderingContext2D,
-  label: string,
+export function drawProgressBar(
+  ctx: SKRSContext2D,
   value: number,
+  max: number,
   x: number,
   y: number,
   width: number,
   height: number,
   options: {
-    format?: 'currency' | 'number' | 'percent';
-    goal?: number;
-    showProgress?: boolean;
-    accentColor?: string;
+    backgroundColor?: string;
+    fillColor?: string;
+    borderRadius?: number;
   } = {}
 ): void {
   const {
-    format = 'currency',
-    goal,
-    showProgress = true,
-    accentColor = colors.primary,
+    backgroundColor = 'rgba(255, 255, 255, 0.2)',
+    fillColor = '#10b981',
+    borderRadius = 4,
   } = options;
 
-  // Draw card background
-  ctx.fillStyle = colors.backgroundLight;
-  drawRoundedRect(ctx, x, y, width, height, 16);
+  const progress = Math.min(value / max, 1);
+  const fillWidth = width * progress;
+
+  // Background
+  roundRect(ctx, x, y, width, height, borderRadius);
+  ctx.fillStyle = backgroundColor;
   ctx.fill();
 
-  // Draw accent bar on left
-  ctx.fillStyle = accentColor;
-  ctx.fillRect(x, y + 20, 6, height - 40);
-
-  // Format value
-  let displayValue: string;
-  switch (format) {
-    case 'currency':
-      displayValue = formatCurrency(value);
-      break;
-    case 'percent':
-      displayValue = `${Math.round(value)}%`;
-      break;
-    default:
-      displayValue = formatCompactNumber(value);
-  }
-
-  // Draw label
-  ctx.font = `${fontSizes.heading}px ${fontFamilies.primary}`;
-  ctx.fillStyle = colors.textSecondary;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  ctx.fillText(label.toUpperCase(), x + 30, y + 30);
-
-  // Draw value
-  ctx.font = `bold ${fontSizes.title}px ${fontFamilies.primary}`;
-  ctx.fillStyle = colors.textPrimary;
-  ctx.fillText(displayValue, x + 30, y + 80);
-
-  // Draw progress bar if goal exists
-  if (showProgress && goal && goal > 0) {
-    const progress = (value / goal) * 100;
-    const progressY = y + height - 60;
-
-    // Goal label
-    ctx.font = `${fontSizes.small}px ${fontFamilies.primary}`;
-    ctx.fillStyle = colors.textMuted;
-    ctx.fillText(`Goal: ${formatCurrency(goal)}`, x + 30, progressY - 30);
-
-    // Progress bar
-    drawProgressBar(ctx, x + 30, progressY, progress, {
-      width: width - 60,
-      height: 20,
-      fillColor: progress >= 100 ? colors.statusGreen : accentColor,
-    });
+  // Fill
+  if (fillWidth > 0) {
+    roundRect(ctx, x, y, fillWidth, height, borderRadius);
+    ctx.fillStyle = fillColor;
+    ctx.fill();
   }
 }
 
-/**
- * Draw a circular progress ring
- */
-export function drawProgressRing(
-  ctx: CanvasRenderingContext2D,
-  progress: number, // 0-100
-  x: number,
-  y: number,
-  radius: number,
-  options: {
-    strokeWidth?: number;
-    backgroundColor?: string;
-    progressColor?: string;
-    label?: string;
-    showPercent?: boolean;
-  } = {}
-): void {
-  const {
-    strokeWidth = 20,
-    backgroundColor = colors.chartBackground,
-    progressColor = colors.chartBar,
-    label,
-    showPercent = true,
-  } = options;
-
-  const clampedProgress = Math.max(0, Math.min(100, progress));
-  const startAngle = -Math.PI / 2; // Start from top
-  const endAngle = startAngle + (2 * Math.PI * clampedProgress) / 100;
-
-  // Draw background ring
-  ctx.beginPath();
-  ctx.arc(x, y, radius, 0, 2 * Math.PI);
-  ctx.strokeStyle = backgroundColor;
-  ctx.lineWidth = strokeWidth;
-  ctx.lineCap = 'round';
-  ctx.stroke();
-
-  // Draw progress arc
-  if (clampedProgress > 0) {
-    ctx.beginPath();
-    ctx.arc(x, y, radius, startAngle, endAngle);
-    ctx.strokeStyle = progressColor;
-    ctx.lineWidth = strokeWidth;
-    ctx.lineCap = 'round';
-    ctx.stroke();
-  }
-
-  // Draw center text
-  if (showPercent) {
-    ctx.font = `bold ${radius * 0.5}px ${fontFamilies.primary}`;
-    ctx.fillStyle = colors.textPrimary;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`${Math.round(clampedProgress)}%`, x, y);
-  }
-
-  // Draw label below
-  if (label) {
-    ctx.font = `${fontSizes.small}px ${fontFamilies.primary}`;
-    ctx.fillStyle = colors.textSecondary;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(label, x, y + radius + strokeWidth + 15);
-  }
-}
-
-/**
- * Draw a rounded rectangle path
- */
-export function drawRoundedRect(
-  ctx: CanvasRenderingContext2D,
+export function roundRect(
+  ctx: SKRSContext2D,
   x: number,
   y: number,
   width: number,
   height: number,
   radius: number
 ): void {
-  const r = Math.min(radius, width / 2, height / 2);
-
   ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + width - r, y);
-  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
-  ctx.lineTo(x + width, y + height - r);
-  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
-  ctx.lineTo(x + r, y + height);
-  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
   ctx.closePath();
 }
 
-/**
- * Draw a status badge
- */
-export function drawStatusBadge(
-  ctx: CanvasRenderingContext2D,
-  text: string,
+export function drawKPICard(
+  ctx: SKRSContext2D,
+  title: string,
+  value: string,
+  subtitle: string,
   x: number,
   y: number,
-  color: string,
+  width: number,
+  height: number,
   options: {
-    minWidth?: number;
-    height?: number;
-    fontSize?: number;
+    backgroundColor?: string;
+    titleColor?: string;
+    valueColor?: string;
+    subtitleColor?: string;
+    borderRadius?: number;
   } = {}
-): number {
+): void {
   const {
-    minWidth = 100,
-    height = 40,
-    fontSize = fontSizes.small,
+    backgroundColor = 'rgba(255, 255, 255, 0.1)',
+    titleColor = 'rgba(255, 255, 255, 0.7)',
+    valueColor = '#ffffff',
+    subtitleColor = 'rgba(255, 255, 255, 0.5)',
+    borderRadius = 12,
   } = options;
 
-  ctx.font = `bold ${fontSize}px ${fontFamilies.primary}`;
-  const textWidth = ctx.measureText(text).width;
-  const badgeWidth = Math.max(minWidth, textWidth + 30);
-
-  // Draw badge background
-  ctx.fillStyle = hexToRgba(color, 0.2);
-  drawRoundedRect(ctx, x, y, badgeWidth, height, height / 2);
+  // Card background
+  roundRect(ctx, x, y, width, height, borderRadius);
+  ctx.fillStyle = backgroundColor;
   ctx.fill();
 
-  // Draw badge border
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  drawRoundedRect(ctx, x, y, badgeWidth, height, height / 2);
-  ctx.stroke();
+  const padding = 24;
 
-  // Draw text
-  ctx.fillStyle = color;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, x + badgeWidth / 2, y + height / 2);
+  // Title
+  ctx.fillStyle = titleColor;
+  ctx.font = '32px Karla, Inter';
+  ctx.textAlign = 'left';
+  ctx.fillText(title, x + padding, y + padding + 32);
 
-  return badgeWidth;
+  // Value
+  ctx.fillStyle = valueColor;
+  ctx.font = 'bold 64px Karla, Inter';
+  ctx.fillText(value, x + padding, y + padding + 110);
+
+  // Subtitle
+  ctx.fillStyle = subtitleColor;
+  ctx.font = '28px Karla, Inter';
+  ctx.fillText(subtitle, x + padding, y + padding + 150);
 }

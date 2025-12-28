@@ -1,142 +1,65 @@
-/**
- * Color palette for signage rendering
- * Based on Amidash brand colors
- */
-
 export const colors = {
-  // Brand colors
-  primary: '#023A2D',      // Amidash green
-  secondary: '#1a1a2e',    // Dark background
-  accent: '#4ade80',       // Bright green accent
+  // Amitrace Official Brand Colors (from Brand Guide)
+  primary: '#053B2C',        // Main Dark Green
+  primaryLight: '#C2E0AD',   // Main Light Green
+  primaryDark: '#032218',    // Darker green for contrast
+  primaryGlow: '#C2E0AD',    // Light green for glows
 
-  // Background variations
-  background: '#1a1a2e',
-  backgroundLight: '#2a2a3e',
-  backgroundDark: '#0a0a1e',
+  // Secondary brand colors
+  mauve: '#C67CA8',          // Mauve/Pink accent
+  coral: '#DE3829',          // Red/Coral accent
+  amber: '#F59F43',          // Orange/Amber accent
 
-  // Text colors
-  textPrimary: '#ffffff',
-  textSecondary: '#a0a0b0',
-  textMuted: '#6b7280',
+  // Accent colors (derived from brand palette)
+  accent: '#C67CA8',         // Mauve for variety
+  accentAlt: '#F59F43',      // Amber accent
 
-  // Status colors
-  statusGreen: '#22c55e',
-  statusYellow: '#eab308',
-  statusOrange: '#f97316',
-  statusRed: '#ef4444',
-  statusBlue: '#3b82f6',
-  statusPurple: '#a855f7',
+  // Status colors - using brand palette
+  success: '#C2E0AD',        // Light green for success
+  warning: '#F59F43',        // Amber for warning
+  error: '#DE3829',          // Coral for errors
+  info: '#C67CA8',           // Mauve for info
 
-  // Booking status colors (for schedule)
-  pencil: '#fbbf24',         // Yellow/amber for tentative
-  pendingConfirm: '#60a5fa', // Blue for pending
-  confirmed: '#34d399',      // Green for confirmed
+  // Neutral
+  white: '#ffffff',
+  black: '#000000',
+  gray: {
+    50: '#f9fafb',
+    100: '#f3f4f6',
+    200: '#e5e7eb',
+    300: '#d1d5db',
+    400: '#9ca3af',
+    500: '#6b7280',
+    600: '#4b5563',
+    700: '#374151',
+    800: '#1f2937',
+    900: '#111827',
+    950: '#0a0a0f',
+  },
 
-  // Chart colors
-  chartBar: '#4ade80',
-  chartBarSecondary: '#22c55e',
-  chartGoal: '#60a5fa',
-  chartBackground: '#374151',
+  // Background - using brand dark green for cohesive look
+  background: '#053B2C',        // Main Dark Green as background
+  backgroundAlt: '#042a20',     // Slightly darker for depth
+  cardBackground: 'rgba(255, 255, 255, 0.12)',      // More visible cards
+  cardBackgroundHover: 'rgba(255, 255, 255, 0.18)',
+  overlayBackground: 'rgba(0, 0, 0, 0.7)',
 
-  // Borders and dividers
-  border: '#374151',
-  borderLight: '#4b5563',
-
-  // Stale indicator
-  staleWarning: '#fbbf24',
-  staleError: '#ef4444',
+  // Gradients (as CSS strings)
+  gradientPrimary: 'linear-gradient(135deg, #053B2C, #C2E0AD)',
+  gradientDark: 'linear-gradient(180deg, #111118 0%, #0a0a0f 100%)',
 };
 
-/**
- * Get booking status color
- */
-export function getBookingStatusColor(status: 'pencil' | 'pending_confirm' | 'confirmed'): string {
-  switch (status) {
-    case 'pencil':
-      return colors.pencil;
-    case 'pending_confirm':
-      return colors.pendingConfirm;
-    case 'confirmed':
-      return colors.confirmed;
-    default:
-      return colors.textMuted;
-  }
-}
-
-/**
- * Get status color based on name (common status names)
- */
-export function getStatusColor(statusName: string): string {
-  const name = statusName.toLowerCase();
-
-  if (name.includes('complete') || name.includes('done') || name.includes('invoiced')) {
-    return colors.statusGreen;
-  }
-  if (name.includes('progress') || name.includes('active') || name.includes('working')) {
-    return colors.statusBlue;
-  }
-  if (name.includes('review') || name.includes('pending') || name.includes('waiting')) {
-    return colors.statusYellow;
-  }
-  if (name.includes('hold') || name.includes('blocked') || name.includes('paused')) {
-    return colors.statusOrange;
-  }
-  if (name.includes('cancel') || name.includes('overdue') || name.includes('fail')) {
-    return colors.statusRed;
-  }
-  if (name.includes('new') || name.includes('draft') || name.includes('start')) {
-    return colors.statusPurple;
-  }
-
-  return colors.textSecondary;
-}
-
-/**
- * Convert hex color to RGBA
- */
 export function hexToRgba(hex: string, alpha: number = 1): string {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (!result) return `rgba(255, 255, 255, ${alpha})`;
-
-  const r = parseInt(result[1], 16);
-  const g = parseInt(result[2], 16);
-  const b = parseInt(result[3], 16);
-
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-/**
- * Lighten a hex color
- */
-export function lightenColor(hex: string, percent: number): string {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (!result) return hex;
-
-  let r = parseInt(result[1], 16);
-  let g = parseInt(result[2], 16);
-  let b = parseInt(result[3], 16);
-
-  r = Math.min(255, Math.round(r + (255 - r) * (percent / 100)));
-  g = Math.min(255, Math.round(g + (255 - g) * (percent / 100)));
-  b = Math.min(255, Math.round(b + (255 - b) * (percent / 100)));
-
-  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-}
-
-/**
- * Darken a hex color
- */
-export function darkenColor(hex: string, percent: number): string {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (!result) return hex;
-
-  let r = parseInt(result[1], 16);
-  let g = parseInt(result[2], 16);
-  let b = parseInt(result[3], 16);
-
-  r = Math.max(0, Math.round(r * (1 - percent / 100)));
-  g = Math.max(0, Math.round(g * (1 - percent / 100)));
-  b = Math.max(0, Math.round(b * (1 - percent / 100)));
-
-  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+export function getContrastColor(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? '#000000' : '#ffffff';
 }

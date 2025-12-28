@@ -1,302 +1,151 @@
-import { EventEmitter } from 'events';
 import { logger } from '../utils/logger.js';
-import { fetchActiveProjects, fetchStatuses } from './fetchers/projects.js';
-import { fetchRecentPOs } from './fetchers/pos.js';
-import { fetchRevenueData } from './fetchers/revenue.js';
-import { fetchScheduleData } from './fetchers/schedule.js';
-import type { PollingConfig } from '../config/schema.js';
-import type {
-  SignageProject,
-  PurchaseOrder,
-  RevenueData,
-  ScheduleData,
-  Status,
-} from '../types/database.js';
+import { fetchActiveProjects, ActiveProject } from './fetchers/projects.js';
+import { fetchRecentPOs, RecentPO } from './fetchers/pos.js';
+import { fetchRevenueData, RevenueData } from './fetchers/revenue.js';
+import { fetchScheduleData, ScheduleEntry } from './fetchers/schedule.js';
+import { fetchProjectMetrics, ProjectMetrics } from './fetchers/metrics.js';
+import { fetchSlideConfig, SignageSlide } from './fetchers/slide-config.js';
+import { PollingConfig } from '../config/schema.js';
 
-export type DataKey = 'projects' | 'pos' | 'revenue' | 'schedule' | 'statuses';
-
-export interface CachedData {
-  projects: SignageProject[];
-  pos: PurchaseOrder[];
-  revenue: RevenueData | null;
-  schedule: ScheduleData | null;
-  statuses: Status[];
+export interface DataCache {
+  projects: { data: ActiveProject[]; lastUpdated: Date | null };
+  pos: { data: RecentPO[]; lastUpdated: Date | null };
+  revenue: { data: RevenueData | null; lastUpdated: Date | null };
+  schedule: { data: ScheduleEntry[]; lastUpdated: Date | null };
+  metrics: { data: ProjectMetrics | null; lastUpdated: Date | null };
+  slideConfig: { data: SignageSlide[]; lastUpdated: Date | null };
 }
 
-export interface DataTimestamps {
-  projects: number;
-  pos: number;
-  revenue: number;
-  schedule: number;
-  statuses: number;
-}
-
-interface DataUpdateEvent {
-  key: DataKey;
-  data: unknown;
-  timestamp: number;
-}
-
-interface DataErrorEvent {
-  key: DataKey;
-  error: Error;
-  timestamp: number;
-}
-
-/**
- * Polling manager that periodically fetches data from Supabase
- * and caches it in memory for the slide renderers.
- */
-export class PollingManager extends EventEmitter {
-  private intervals: Map<DataKey, NodeJS.Timeout> = new Map();
-  private cache: CachedData = {
-    projects: [],
-    pos: [],
-    revenue: null,
-    schedule: null,
-    statuses: [],
+export class PollingManager {
+  private cache: DataCache = {
+    projects: { data: [], lastUpdated: null },
+    pos: { data: [], lastUpdated: null },
+    revenue: { data: null, lastUpdated: null },
+    schedule: { data: [], lastUpdated: null },
+    metrics: { data: null, lastUpdated: null },
+    slideConfig: { data: [], lastUpdated: null },
   };
-  private timestamps: DataTimestamps = {
-    projects: 0,
-    pos: 0,
-    revenue: 0,
-    schedule: 0,
-    statuses: 0,
-  };
-  private errors: Map<DataKey, Error | null> = new Map();
-  private running = false;
+
+  private intervals: NodeJS.Timeout[] = [];
   private config: PollingConfig;
 
   constructor(config: PollingConfig) {
-    super();
     this.config = config;
   }
 
-  /**
-   * Start polling all data sources
-   */
   async start(): Promise<void> {
-    if (this.running) {
-      logger.warn('Polling manager already running');
-      return;
-    }
-
-    this.running = true;
     logger.info('Starting polling manager');
 
-    // Initial fetch of all data
-    await this.fetchAllData();
+    // Initial fetch
+    await this.fetchAll();
 
-    // Set up polling intervals
-    this.schedulePolling('projects', this.config.projects, () =>
-      fetchActiveProjects(15)
+    // Set up intervals
+    this.intervals.push(
+      setInterval(() => this.fetchProjects(), this.config.projects),
+      setInterval(() => this.fetchPOs(), this.config.purchaseOrders),
+      setInterval(() => this.fetchRevenue(), this.config.revenue),
+      setInterval(() => this.fetchSchedule(), this.config.schedule),
+      setInterval(() => this.fetchMetrics(), this.config.projects), // Same as projects
+      setInterval(() => this.fetchSlideConfig(), 60000) // Every 60 seconds
     );
-    this.schedulePolling('pos', this.config.purchaseOrders, () =>
-      fetchRecentPOs(10)
-    );
-    this.schedulePolling('revenue', this.config.revenue, () =>
-      fetchRevenueData()
-    );
-    this.schedulePolling('schedule', this.config.schedule, () =>
-      fetchScheduleData(14)
-    );
-    // Statuses don't change often, poll less frequently
-    this.schedulePolling('statuses', this.config.revenue, () => fetchStatuses());
 
-    logger.info('Polling manager started with intervals', {
-      projects: this.config.projects,
-      pos: this.config.purchaseOrders,
-      revenue: this.config.revenue,
-      schedule: this.config.schedule,
-    });
+    logger.info({ config: this.config }, 'Polling intervals configured');
   }
 
-  /**
-   * Stop all polling
-   */
   stop(): void {
-    if (!this.running) {
-      return;
-    }
-
-    this.running = false;
-
-    // Clear all intervals
-    this.intervals.forEach((interval, key) => {
-      clearInterval(interval);
-      logger.info({ key }, 'Stopped polling');
-    });
-    this.intervals.clear();
-
+    this.intervals.forEach(clearInterval);
+    this.intervals = [];
     logger.info('Polling manager stopped');
   }
 
-  /**
-   * Fetch all data once (for initial load or refresh)
-   */
-  async fetchAllData(): Promise<void> {
-    logger.info('Fetching all data...');
-
-    const fetches = [
-      this.pollData('projects', () => fetchActiveProjects(15)),
-      this.pollData('pos', () => fetchRecentPOs(10)),
-      this.pollData('revenue', () => fetchRevenueData()),
-      this.pollData('schedule', () => fetchScheduleData(14)),
-      this.pollData('statuses', () => fetchStatuses()),
-    ];
-
-    await Promise.allSettled(fetches);
-    logger.info('Initial data fetch complete');
+  private async fetchAll(): Promise<void> {
+    await Promise.all([
+      this.fetchProjects(),
+      this.fetchPOs(),
+      this.fetchRevenue(),
+      this.fetchSchedule(),
+      this.fetchMetrics(),
+      this.fetchSlideConfig(),
+    ]);
   }
 
-  /**
-   * Get cached data by key
-   */
-  getData<K extends DataKey>(key: K): CachedData[K] {
-    return this.cache[key];
+  private async fetchProjects(): Promise<void> {
+    try {
+      const data = await fetchActiveProjects();
+      this.cache.projects = { data, lastUpdated: new Date() };
+      logger.debug({ count: data.length }, 'Fetched projects');
+    } catch (error) {
+      logger.error({ error }, 'Failed to fetch projects');
+    }
   }
 
-  /**
-   * Get all cached data
-   */
-  getAllData(): CachedData {
-    return { ...this.cache };
+  private async fetchPOs(): Promise<void> {
+    try {
+      const data = await fetchRecentPOs();
+      this.cache.pos = { data, lastUpdated: new Date() };
+      logger.debug({ count: data.length }, 'Fetched POs');
+    } catch (error) {
+      logger.error({ error }, 'Failed to fetch POs');
+    }
   }
 
-  /**
-   * Get timestamp for when data was last updated
-   */
-  getTimestamp(key: DataKey): number {
-    return this.timestamps[key];
+  private async fetchRevenue(): Promise<void> {
+    try {
+      const data = await fetchRevenueData();
+      this.cache.revenue = { data, lastUpdated: new Date() };
+      logger.debug('Fetched revenue data');
+    } catch (error) {
+      logger.error({ error }, 'Failed to fetch revenue');
+    }
   }
 
-  /**
-   * Get all timestamps
-   */
-  getAllTimestamps(): DataTimestamps {
-    return { ...this.timestamps };
+  private async fetchSchedule(): Promise<void> {
+    try {
+      const data = await fetchScheduleData();
+      this.cache.schedule = { data, lastUpdated: new Date() };
+      logger.debug({ count: data.length }, 'Fetched schedule');
+    } catch (error) {
+      logger.error({ error }, 'Failed to fetch schedule');
+    }
   }
 
-  /**
-   * Check if any data is stale (older than threshold)
-   */
+  private async fetchMetrics(): Promise<void> {
+    try {
+      const data = await fetchProjectMetrics();
+      this.cache.metrics = { data, lastUpdated: new Date() };
+      logger.debug({ total: data.total }, 'Fetched metrics');
+    } catch (error) {
+      logger.error({ error }, 'Failed to fetch metrics');
+    }
+  }
+
+  private async fetchSlideConfig(): Promise<void> {
+    try {
+      const data = await fetchSlideConfig();
+      this.cache.slideConfig = { data, lastUpdated: new Date() };
+      logger.debug({ count: data.length }, 'Fetched slide config');
+    } catch (error) {
+      logger.error({ error }, 'Failed to fetch slide config');
+    }
+  }
+
+  getCache(): DataCache {
+    return this.cache;
+  }
+
   isDataStale(thresholdMs: number): boolean {
     const now = Date.now();
-    return Object.values(this.timestamps).some(
-      (timestamp) => timestamp > 0 && now - timestamp > thresholdMs
-    );
-  }
+    const checks = [
+      this.cache.projects.lastUpdated,
+      this.cache.pos.lastUpdated,
+      this.cache.revenue.lastUpdated,
+      this.cache.schedule.lastUpdated,
+      this.cache.metrics.lastUpdated,
+    ];
 
-  /**
-   * Get the oldest data timestamp
-   */
-  getOldestTimestamp(): number {
-    const validTimestamps = Object.values(this.timestamps).filter((t) => t > 0);
-    return validTimestamps.length > 0 ? Math.min(...validTimestamps) : 0;
-  }
-
-  /**
-   * Get last error for a data key
-   */
-  getError(key: DataKey): Error | null {
-    return this.errors.get(key) || null;
-  }
-
-  /**
-   * Check if there are any errors
-   */
-  hasErrors(): boolean {
-    return Array.from(this.errors.values()).some((e) => e !== null);
-  }
-
-  /**
-   * Update polling configuration
-   */
-  updateConfig(config: PollingConfig): void {
-    this.config = config;
-
-    if (this.running) {
-      // Restart with new intervals
-      this.stop();
-      this.start();
-    }
-  }
-
-  /**
-   * Schedule periodic polling for a data source
-   */
-  private schedulePolling<T>(
-    key: DataKey,
-    intervalMs: number,
-    fetcher: () => Promise<T>
-  ): void {
-    const interval = setInterval(async () => {
-      if (!this.running) return;
-      await this.pollData(key, fetcher);
-    }, intervalMs);
-
-    this.intervals.set(key, interval);
-    logger.info({ key, intervalMs }, 'Scheduled polling');
-  }
-
-  /**
-   * Poll data and update cache
-   */
-  private async pollData<T>(
-    key: DataKey,
-    fetcher: () => Promise<T>
-  ): Promise<void> {
-    try {
-      const data = await fetcher();
-      const timestamp = Date.now();
-
-      // Update cache
-      (this.cache as Record<DataKey, unknown>)[key] = data;
-      this.timestamps[key] = timestamp;
-      this.errors.set(key, null);
-
-      // Emit update event
-      const event: DataUpdateEvent = { key, data, timestamp };
-      this.emit('data', event);
-      this.emit(`data:${key}`, event);
-
-      logger.debug({ key, timestamp }, 'Data updated');
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      this.errors.set(key, err);
-
-      // Emit error event
-      const event: DataErrorEvent = { key, error: err, timestamp: Date.now() };
-      this.emit('error', event);
-      this.emit(`error:${key}`, event);
-
-      logger.error({ key, error: err.message }, 'Failed to fetch data');
-    }
-  }
-}
-
-// Singleton instance
-let pollingManager: PollingManager | null = null;
-
-/**
- * Get or create the polling manager instance
- */
-export function getPollingManager(config?: PollingConfig): PollingManager {
-  if (!pollingManager && config) {
-    pollingManager = new PollingManager(config);
-  }
-  if (!pollingManager) {
-    throw new Error('Polling manager not initialized. Call with config first.');
-  }
-  return pollingManager;
-}
-
-/**
- * Destroy the polling manager instance
- */
-export function destroyPollingManager(): void {
-  if (pollingManager) {
-    pollingManager.stop();
-    pollingManager = null;
+    return checks.some((date) => {
+      if (!date) return true;
+      return now - date.getTime() > thresholdMs;
+    });
   }
 }

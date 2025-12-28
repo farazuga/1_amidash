@@ -1,510 +1,375 @@
 'use client';
 
-import { useEffect, useState, useCallback, useTransition } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import {
-  Play,
-  Pause,
-  RefreshCw,
-  ChevronLeft,
-  ChevronRight,
-  Monitor,
-  Tv,
-  Activity,
-  Clock,
-  Loader2,
-  AlertTriangle,
-  CheckCircle2,
-  XCircle,
-  LayoutGrid,
-  Settings,
-  ScrollText,
-} from 'lucide-react';
-import { toast } from 'sonner';
+import { Play, Square, RefreshCw, AlertTriangle, Clock, Tv, Activity, Monitor, Globe } from 'lucide-react';
+import { SlideEditor } from '@/components/signage/slide-editor';
 import {
   getSignageStatus,
+  getSignageConfig,
   startSignageEngine,
   stopSignageEngine,
   restartSignageEngine,
-  nextSlide,
-  previousSlide,
-  getSignageConfig,
-  updateSignageConfig,
   getSignageLogs,
-  getPreviewUrl,
-  isEngineReachable,
-  type EngineStatus,
+  getSlides,
+  type SignageStatus,
   type SignageConfig,
-  type SlideConfig,
   type LogEntry,
+  type SignageSlide,
 } from './actions';
 
-const SLIDE_TYPE_LABELS: Record<string, string> = {
-  'active-projects': 'Active Projects',
-  'po-ticker': 'PO Ticker',
-  'revenue-dashboard': 'Revenue Dashboard',
-  'team-schedule': 'Team Schedule',
-};
+const SIGNAGE_PREVIEW_URL = 'http://127.0.0.1:3001/preview';
+
+function formatUptime(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) return `${days}d ${hours % 24}h`;
+  if (hours > 0) return `${hours}h ${minutes % 60}m`;
+  if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+  return `${seconds}s`;
+}
+
+function formatTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString();
+}
 
 export default function SignageAdminPage() {
-  const [status, setStatus] = useState<EngineStatus | null>(null);
+  const [status, setStatus] = useState<SignageStatus | null>(null);
   const [config, setConfig] = useState<SignageConfig | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [previewKey, setPreviewKey] = useState(0);
-  const [isReachable, setIsReachable] = useState(false);
+  const [slides, setSlides] = useState<SignageSlide[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isPending, startTransition] = useTransition();
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [previewKey, setPreviewKey] = useState(0);
+  const [connectionError, setConnectionError] = useState(false);
+  const [isRemoteAccess, setIsRemoteAccess] = useState(false);
 
-  // Fetch status periodically
-  const fetchStatus = useCallback(async () => {
-    const reachable = await isEngineReachable();
-    setIsReachable(reachable);
+  // Detect if accessing from remote (non-localhost)
+  useEffect(() => {
+    const hostname = window.location.hostname;
+    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+    setIsRemoteAccess(!isLocal);
+  }, []);
 
-    if (reachable) {
-      const [statusData, configData, logsData] = await Promise.all([
+  const refreshSlides = useCallback(async () => {
+    const slidesData = await getSlides();
+    setSlides(slidesData);
+  }, []);
+
+  const refreshData = useCallback(async () => {
+    try {
+      const [statusData, configData, logsData, slidesData] = await Promise.all([
         getSignageStatus(),
         getSignageConfig(),
-        getSignageLogs(20),
+        getSignageLogs(),
+        getSlides(),
       ]);
 
-      setStatus(statusData);
-      setConfig(configData);
-      setLogs(logsData);
-    } else {
-      setStatus(null);
-      setConfig(null);
-    }
+      if (statusData) {
+        setStatus(statusData);
+        setConnectionError(false);
+      } else {
+        setConnectionError(true);
+      }
 
-    setIsLoading(false);
+      if (configData) setConfig(configData);
+      setLogs(logsData);
+      setSlides(slidesData);
+    } catch (error) {
+      console.error('Failed to refresh data:', error);
+      setConnectionError(true);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 3000);
+    refreshData();
+    const interval = setInterval(refreshData, 2000);
     return () => clearInterval(interval);
-  }, [fetchStatus]);
+  }, [refreshData]);
 
-  // Refresh preview image
-  useEffect(() => {
-    if (status?.running) {
-      const interval = setInterval(() => {
-        setPreviewKey((k) => k + 1);
-      }, 1000);
-      return () => clearInterval(interval);
+  const handleStart = async () => {
+    setActionLoading('start');
+    const result = await startSignageEngine();
+    if (!result.success) {
+      console.error('Failed to start:', result.error);
     }
-  }, [status?.running]);
-
-  // Action handlers
-  const handleStart = () => {
-    startTransition(async () => {
-      const result = await startSignageEngine();
-      if (result.success) {
-        toast.success('Signage engine started');
-        fetchStatus();
-      } else {
-        toast.error(result.error || 'Failed to start engine');
-      }
-    });
+    await refreshData();
+    setActionLoading(null);
   };
 
-  const handleStop = () => {
-    startTransition(async () => {
-      const result = await stopSignageEngine();
-      if (result.success) {
-        toast.success('Signage engine stopped');
-        fetchStatus();
-      } else {
-        toast.error(result.error || 'Failed to stop engine');
-      }
-    });
-  };
-
-  const handleRestart = () => {
-    startTransition(async () => {
-      const result = await restartSignageEngine();
-      if (result.success) {
-        toast.success('Signage engine restarted');
-        fetchStatus();
-      } else {
-        toast.error(result.error || 'Failed to restart engine');
-      }
-    });
-  };
-
-  const handleNextSlide = () => {
-    startTransition(async () => {
-      await nextSlide();
-      fetchStatus();
-    });
-  };
-
-  const handlePrevSlide = () => {
-    startTransition(async () => {
-      await previousSlide();
-      fetchStatus();
-    });
-  };
-
-  const handleSlideToggle = (index: number, enabled: boolean) => {
-    if (!config) return;
-
-    startTransition(async () => {
-      const newSlides = [...config.slides];
-      newSlides[index] = { ...newSlides[index], enabled };
-
-      const result = await updateSignageConfig({ slides: newSlides });
-      if (result.success) {
-        toast.success(`Slide ${enabled ? 'enabled' : 'disabled'}`);
-        fetchStatus();
-      } else {
-        toast.error('Failed to update slide');
-      }
-    });
-  };
-
-  const handleDurationChange = (index: number, duration: number) => {
-    if (!config) return;
-
-    startTransition(async () => {
-      const newSlides = [...config.slides];
-      newSlides[index] = { ...newSlides[index], duration: duration * 1000 };
-
-      const result = await updateSignageConfig({ slides: newSlides });
-      if (result.success) {
-        fetchStatus();
-      }
-    });
-  };
-
-  const formatUptime = (ms: number): string => {
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-
-    if (hours > 0) {
-      return `${hours}h ${minutes % 60}m`;
+  const handleStop = async () => {
+    setActionLoading('stop');
+    const result = await stopSignageEngine();
+    if (!result.success) {
+      console.error('Failed to stop:', result.error);
     }
-    if (minutes > 0) {
-      return `${minutes}m ${seconds % 60}s`;
-    }
-    return `${seconds}s`;
+    await refreshData();
+    setActionLoading(null);
   };
 
-  const formatDataAge = (timestamp: number): string => {
-    if (timestamp === 0) return 'Never';
-    const age = Date.now() - timestamp;
-    const seconds = Math.floor(age / 1000);
+  const handleRestart = async () => {
+    setActionLoading('restart');
+    const result = await restartSignageEngine();
+    if (!result.success) {
+      console.error('Failed to restart:', result.error);
+    }
+    await refreshData();
+    setActionLoading(null);
+  };
 
-    if (seconds < 60) return `${seconds}s ago`;
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    return `${Math.floor(minutes / 60)}h ago`;
+  const refreshPreview = () => {
+    setPreviewKey((k) => k + 1);
   };
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="h-6 w-6 animate-spin" />
+      <div className="container mx-auto p-6">
+        <div className="flex items-center justify-center h-64">
+          <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Digital Signage</h1>
-        <p className="text-muted-foreground">Control your NDI signage output</p>
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Digital Signage</h1>
+          <p className="text-muted-foreground">Control and monitor the NDI digital signage engine</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {connectionError && isRemoteAccess ? (
+            <Badge variant="secondary" className="gap-1 bg-yellow-500/20 text-yellow-700">
+              <Globe className="h-3 w-3" />
+              Remote Access
+            </Badge>
+          ) : connectionError ? (
+            <Badge variant="destructive" className="gap-1">
+              <AlertTriangle className="h-3 w-3" />
+              Engine Offline
+            </Badge>
+          ) : status?.isRunning ? (
+            <Badge variant="default" className="bg-green-600 gap-1">
+              <Activity className="h-3 w-3" />
+              Running
+            </Badge>
+          ) : (
+            <Badge variant="secondary" className="gap-1">
+              <Square className="h-3 w-3" />
+              Stopped
+            </Badge>
+          )}
+        </div>
       </div>
 
-      {/* Connection Warning */}
-      {!isReachable && (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Engine Not Reachable</AlertTitle>
-          <AlertDescription>
-            Cannot connect to the signage engine. Make sure it&apos;s running with{' '}
-            <code className="bg-muted px-1 rounded">cd signage-engine && npm run dev</code>
-          </AlertDescription>
-        </Alert>
+      {connectionError && isRemoteAccess && (
+        <Card className="border-yellow-500 bg-yellow-500/10">
+          <CardContent className="flex items-center gap-4 py-4">
+            <Globe className="h-8 w-8 text-yellow-600" />
+            <div>
+              <p className="font-medium">Remote Access Detected</p>
+              <p className="text-sm text-muted-foreground">
+                The signage engine runs locally and can only be controlled from your local machine.
+                Access this page at{' '}
+                <code className="bg-muted px-1 rounded">http://localhost:3000/admin/signage</code>
+                {' '}to control the engine.
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">
+                You can still manage slide configuration below - changes are saved to the database.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* Status and Controls Row */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Engine Status Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Tv className="h-5 w-5" />
-              Engine Status
-            </CardTitle>
-            <CardDescription>Current signage engine status</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Status Badge */}
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Status</span>
-              {status?.running ? (
-                <Badge variant="default" className="bg-green-600">
-                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                  Running
-                </Badge>
-              ) : (
-                <Badge variant="secondary">
-                  <XCircle className="h-3 w-3 mr-1" />
-                  Stopped
-                </Badge>
-              )}
+      {connectionError && !isRemoteAccess && (
+        <Card className="border-destructive">
+          <CardContent className="flex items-center gap-4 py-4">
+            <AlertTriangle className="h-8 w-8 text-destructive" />
+            <div>
+              <p className="font-medium">Signage Engine Not Connected</p>
+              <p className="text-sm text-muted-foreground">
+                The signage engine is not responding. Make sure it&apos;s running at{' '}
+                <code className="bg-muted px-1 rounded">http://127.0.0.1:3001</code>
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Start it with: <code className="bg-muted px-1 rounded">cd signage-engine && npm run dev</code>
+              </p>
             </div>
+          </CardContent>
+        </Card>
+      )}
 
-            {/* Stats */}
-            {status && (
-              <>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">NDI Output</span>
-                  <span className="font-medium">{status.ndiName}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Resolution</span>
-                  <span className="font-medium">
-                    {status.resolution.width} x {status.resolution.height}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Frame Rate</span>
-                  <span className="font-medium">
-                    {status.actualFps} / {status.frameRate} fps
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Uptime</span>
-                  <span className="font-medium">{formatUptime(status.uptime)}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Data Updated</span>
-                  <span className="font-medium">{formatDataAge(status.lastDataUpdate)}</span>
-                </div>
-              </>
-            )}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Uptime</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <span className="text-2xl font-bold">
+                {status?.isRunning ? formatUptime(status.uptime) : '--'}
+              </span>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Controls Card */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5" />
-              Controls
-            </CardTitle>
-            <CardDescription>Start, stop, and control the signage</CardDescription>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Frame Rate</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Main Controls */}
-            <div className="flex gap-2">
-              {status?.running ? (
-                <Button
-                  variant="destructive"
-                  onClick={handleStop}
-                  disabled={isPending || !isReachable}
-                  className="flex-1"
-                >
-                  {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Pause className="h-4 w-4 mr-2" />}
-                  Stop
-                </Button>
-              ) : (
-                <Button onClick={handleStart} disabled={isPending || !isReachable} className="flex-1">
-                  {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Play className="h-4 w-4 mr-2" />}
-                  Start
-                </Button>
-              )}
-              <Button variant="outline" onClick={handleRestart} disabled={isPending || !isReachable}>
-                <RefreshCw className="h-4 w-4" />
-              </Button>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <Monitor className="h-4 w-4 text-muted-foreground" />
+              <span className="text-2xl font-bold">
+                {status?.isRunning ? `${status.fps.toFixed(1)} fps` : '--'}
+              </span>
             </div>
+          </CardContent>
+        </Card>
 
-            {/* Slide Navigation */}
-            {status?.running && status.totalSlides > 1 && (
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">
-                  Slide {status.currentSlide + 1} of {status.totalSlides}
-                </Label>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={handlePrevSlide} disabled={isPending}>
-                    <ChevronLeft className="h-4 w-4" />
-                    Prev
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handleNextSlide} disabled={isPending}>
-                    Next
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Current Slide</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <Tv className="h-4 w-4 text-muted-foreground" />
+              <span className="text-2xl font-bold">
+                {status?.isRunning ? `${status.currentSlide + 1} / ${status.totalSlides}` : '--'}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Frames Sent</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-muted-foreground" />
+              <span className="text-2xl font-bold">
+                {status?.isRunning ? status.frameCount.toLocaleString() : '--'}
+              </span>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Tabs for Preview, Slides, and Logs */}
-      <Tabs defaultValue="preview" className="w-full">
+      <div className="flex gap-2">
+        <Button
+          onClick={handleStart}
+          disabled={status?.isRunning || actionLoading !== null || connectionError}
+          className="gap-2"
+        >
+          {actionLoading === 'start' ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+          Start
+        </Button>
+        <Button
+          onClick={handleStop}
+          disabled={!status?.isRunning || actionLoading !== null || connectionError}
+          variant="secondary"
+          className="gap-2"
+        >
+          {actionLoading === 'stop' ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Square className="h-4 w-4" />}
+          Stop
+        </Button>
+        <Button
+          onClick={handleRestart}
+          disabled={actionLoading !== null || connectionError}
+          variant="outline"
+          className="gap-2"
+        >
+          {actionLoading === 'restart' ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          Restart
+        </Button>
+      </div>
+
+      <Tabs defaultValue="preview" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="preview">
-            <Monitor className="h-4 w-4 mr-2" />
-            Preview
-          </TabsTrigger>
-          <TabsTrigger value="slides">
-            <LayoutGrid className="h-4 w-4 mr-2" />
-            Slides
-          </TabsTrigger>
-          <TabsTrigger value="logs">
-            <ScrollText className="h-4 w-4 mr-2" />
-            Logs
-          </TabsTrigger>
+          <TabsTrigger value="preview">Preview</TabsTrigger>
+          <TabsTrigger value="slides">Slides</TabsTrigger>
+          <TabsTrigger value="logs">Logs</TabsTrigger>
         </TabsList>
 
-        {/* Preview Tab */}
-        <TabsContent value="preview">
+        <TabsContent value="preview" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Live Preview</CardTitle>
-              <CardDescription>Preview of the current signage output (scaled down)</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Live Preview</CardTitle>
+                  <CardDescription>Current frame being sent via NDI</CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={refreshPreview} disabled={!status?.isRunning}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
-              {status?.running && isReachable ? (
+              {status?.isRunning ? (
                 <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     key={previewKey}
-                    src={`${getPreviewUrl()}?t=${previewKey}`}
+                    src={`${SIGNAGE_PREVIEW_URL}?t=${previewKey}`}
                     alt="Signage Preview"
                     className="w-full h-full object-contain"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
                   />
+                  {status.dataStale && (
+                    <div className="absolute bottom-4 right-4 bg-yellow-500 text-black px-3 py-1 rounded text-sm font-medium">
+                      Data may be stale
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
-                  <div className="text-center text-muted-foreground">
-                    <Monitor className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>{isReachable ? 'Engine not running' : 'Engine not reachable'}</p>
-                  </div>
+                  <p className="text-muted-foreground">Engine not running</p>
                 </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Slides Tab */}
-        <TabsContent value="slides">
-          <Card>
-            <CardHeader>
-              <CardTitle>Slide Configuration</CardTitle>
-              <CardDescription>Enable, disable, and configure individual slides</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {config?.slides ? (
-                <div className="space-y-4">
-                  {config.slides.map((slide, index) => (
-                    <div
-                      key={`${slide.type}-${index}`}
-                      className={`p-4 rounded-lg border ${
-                        slide.enabled ? 'bg-background' : 'bg-muted/50'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <Switch
-                            checked={slide.enabled}
-                            onCheckedChange={(checked) => handleSlideToggle(index, checked)}
-                            disabled={isPending || !isReachable}
-                          />
-                          <div>
-                            <Label className="text-base font-medium">
-                              {SLIDE_TYPE_LABELS[slide.type] || slide.type}
-                            </Label>
-                            {slide.title && (
-                              <p className="text-sm text-muted-foreground">{slide.title}</p>
-                            )}
-                          </div>
-                        </div>
-                        {status?.running && status.currentSlide === index && (
-                          <Badge variant="default" className="bg-green-600">
-                            Active
-                          </Badge>
-                        )}
-                      </div>
-
-                      {slide.enabled && (
-                        <div className="pl-10 space-y-3">
-                          <div className="flex items-center gap-4">
-                            <Label className="w-24 text-sm text-muted-foreground">Duration</Label>
-                            <Slider
-                              value={[slide.duration / 1000]}
-                              onValueChange={(value) => handleDurationChange(index, value[0])}
-                              min={5}
-                              max={60}
-                              step={5}
-                              className="flex-1"
-                              disabled={isPending || !isReachable}
-                            />
-                            <span className="w-16 text-sm text-right">{slide.duration / 1000}s</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Settings className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>{isReachable ? 'Loading configuration...' : 'Engine not reachable'}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+        <TabsContent value="slides" className="space-y-4">
+          <SlideEditor slides={slides} onSlidesChange={refreshSlides} />
         </TabsContent>
 
-        {/* Logs Tab */}
-        <TabsContent value="logs">
+        <TabsContent value="logs" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Recent Logs</CardTitle>
-              <CardDescription>Last 20 log entries from the signage engine</CardDescription>
+              <CardDescription>Latest log entries from the signage engine</CardDescription>
             </CardHeader>
             <CardContent>
-              {logs.length > 0 ? (
-                <div className="space-y-2 font-mono text-sm max-h-96 overflow-y-auto">
-                  {logs.map((log, index) => (
-                    <div
-                      key={index}
-                      className={`p-2 rounded ${
-                        log.level === 'error'
-                          ? 'bg-red-500/10 text-red-500'
-                          : log.level === 'warn'
-                          ? 'bg-yellow-500/10 text-yellow-600'
-                          : 'bg-muted'
-                      }`}
-                    >
-                      <span className="text-muted-foreground">
-                        {new Date(log.time).toLocaleTimeString()}
-                      </span>{' '}
-                      <span className="font-semibold">[{log.level}]</span> {log.msg}
+              <div className="h-96 overflow-y-auto font-mono text-sm bg-muted rounded-lg p-4 space-y-1">
+                {logs.length === 0 ? (
+                  <p className="text-muted-foreground">No logs available</p>
+                ) : (
+                  logs.map((log, index) => (
+                    <div key={index} className="flex gap-2">
+                      <span className="text-muted-foreground">{formatTime(log.time)}</span>
+                      <Badge
+                        variant={log.level === 'error' ? 'destructive' : log.level === 'warn' ? 'secondary' : 'outline'}
+                        className="text-xs"
+                      >
+                        {log.level}
+                      </Badge>
+                      <span>{log.msg}</span>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <ScrollText className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>{isReachable ? 'No logs available' : 'Engine not reachable'}</p>
-                </div>
-              )}
+                  ))
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

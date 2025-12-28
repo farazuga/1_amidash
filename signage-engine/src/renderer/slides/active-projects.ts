@@ -1,193 +1,183 @@
-import type { CanvasRenderingContext2D } from 'canvas';
-import { BaseSlide, SlideRenderContext } from './base-slide.js';
-import type { SignageProject } from '../../types/database.js';
-import { colors, getStatusColor } from '../components/colors.js';
-import { fontSizes, fontFamilies, drawText, formatCurrency, formatDate, truncateText } from '../components/text.js';
-import { drawStatusBadge } from '../components/charts.js';
+import { SKRSContext2D } from '@napi-rs/canvas';
+import { BaseSlide } from './base-slide.js';
+import { DataCache } from '../../data/polling-manager.js';
+import { drawText, truncateText } from '../components/text.js';
+import { colors, hexToRgba } from '../components/colors.js';
+import { format, formatDistanceToNow, isPast } from 'date-fns';
 
-export interface ActiveProjectsData {
-  projects: SignageProject[];
-}
-
-/**
- * Active Projects Board slide
- * Displays a table of current projects with status, client, and due dates
- */
 export class ActiveProjectsSlide extends BaseSlide {
-  render(context: SlideRenderContext, data: ActiveProjectsData): void {
-    const { ctx, width, height } = context;
+  render(ctx: SKRSContext2D, data: DataCache, deltaTime: number): void {
+    // Update animations
+    this.updateAnimationState(deltaTime);
 
-    // Draw background
-    this.drawBackground(ctx, width, height);
+    // Draw ambient effects
+    this.drawAmbientEffects(ctx);
 
-    // Draw header
-    const headerHeight = this.drawHeader(context, this.config.title || 'Active Projects');
+    const headerHeight = this.drawMinimalHeader(ctx, this.config.title || 'Active Projects');
 
-    // Draw stale indicator if needed
-    this.drawStaleIndicator(context);
+    const projects = data.projects.data.slice(0, this.config.maxItems || 4);
+    const { width, height } = this.displayConfig;
+    const padding = 80;
+    const cardGap = 40;
 
-    // Check for data
-    if (!data?.projects || data.projects.length === 0) {
-      this.drawNoData(ctx, width, height, 'No active projects');
+    if (projects.length === 0) {
+      this.drawNoData(ctx, headerHeight);
       return;
     }
 
-    // Configuration
-    const padding = 60;
-    const rowHeight = 90;
-    const tableTop = headerHeight + 40;
-    const maxItems = this.config.maxItems || 15;
+    // Calculate card layout - 2 columns, 2 rows max for large readable cards
+    const contentHeight = height - headerHeight - padding * 2;
+    const cols = 2;
+    const rows = Math.min(2, Math.ceil(projects.length / cols));
+    const cardWidth = (width - padding * 2 - cardGap * (cols - 1)) / cols;
+    const cardHeight = (contentHeight - cardGap * (rows - 1)) / rows;
+    const startY = headerHeight + padding;
 
-    // Calculate available space and items to show
-    const availableHeight = height - tableTop - padding;
-    const maxRows = Math.floor(availableHeight / rowHeight) - 1; // -1 for header
-    const itemsToShow = Math.min(data.projects.length, maxItems, maxRows);
-    const projects = data.projects.slice(0, itemsToShow);
-
-    // Define columns
-    const columns = this.getColumns(width, padding);
-
-    // Draw table header
-    this.drawTableHeader(ctx, columns, tableTop);
-
-    // Draw header divider
-    this.drawDivider(ctx, padding, tableTop + 60, width - padding * 2);
-
-    // Draw rows
-    let y = tableTop + 80;
     projects.forEach((project, index) => {
-      this.drawProjectRow(ctx, project, y, columns, index % 2 === 0);
-      y += rowHeight;
+      const col = index % cols;
+      const row = Math.floor(index / cols);
+      const x = padding + col * (cardWidth + cardGap);
+      const y = startY + row * (cardHeight + cardGap);
+
+      this.drawProjectCard(ctx, project, x, y, cardWidth, cardHeight);
     });
-
-    // Draw "showing X of Y" footer if truncated
-    if (data.projects.length > itemsToShow) {
-      ctx.font = `${fontSizes.small}px ${fontFamilies.primary}`;
-      ctx.fillStyle = colors.textMuted;
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'bottom';
-      ctx.fillText(
-        `Showing ${itemsToShow} of ${data.projects.length} projects`,
-        width - padding,
-        height - 30
-      );
-    }
   }
 
-  private getColumns(width: number, padding: number) {
-    const showSalesAmount = this.config.showSalesAmount !== false;
-    const showStatus = this.config.showStatus !== false;
-    const showDueDate = this.config.showDueDate !== false;
-
-    // Calculate column positions based on what's shown
-    let x = padding;
-    const columns: { label: string; x: number; width: number; key: string; align?: CanvasTextAlign }[] = [];
-
-    // Client name - takes remaining space
-    let clientWidth = width - padding * 2;
-    if (showSalesAmount) clientWidth -= 300;
-    if (showStatus) clientWidth -= 350;
-    if (showDueDate) clientWidth -= 250;
-
-    columns.push({ label: 'Client', x, width: Math.max(clientWidth, 400), key: 'client' });
-    x += columns[0].width;
-
-    if (showSalesAmount) {
-      columns.push({ label: 'Amount', x, width: 300, key: 'amount', align: 'right' });
-      x += 300;
-    }
-
-    if (showStatus) {
-      columns.push({ label: 'Status', x, width: 350, key: 'status', align: 'center' });
-      x += 350;
-    }
-
-    if (showDueDate) {
-      columns.push({ label: 'Due Date', x, width: 250, key: 'dueDate', align: 'right' });
-    }
-
-    return columns;
+  private drawNoData(ctx: SKRSContext2D, headerHeight: number): void {
+    drawText(ctx, 'No active projects', this.displayConfig.width / 2, headerHeight + 200, {
+      font: this.displayConfig.fontFamily,
+      size: 64,
+      color: hexToRgba(colors.white, 0.5),
+      align: 'center',
+    });
   }
 
-  private drawProjectRow(
-    ctx: CanvasRenderingContext2D,
-    project: SignageProject,
+  private drawProjectCard(
+    ctx: SKRSContext2D,
+    project: {
+      id: string;
+      name: string;
+      client_name: string;
+      status: string;
+      status_color: string;
+      due_date: string | null;
+      total_value: number;
+    },
+    x: number,
     y: number,
-    columns: { label: string; x: number; width: number; key: string; align?: CanvasTextAlign }[],
-    isEven: boolean
+    width: number,
+    height: number
   ): void {
-    // Draw row background for alternating rows
-    if (isEven) {
-      ctx.fillStyle = colors.backgroundLight;
-      ctx.fillRect(columns[0].x - 20, y - 10, columns.reduce((sum, c) => sum + c.width, 0) + 40, 80);
-    }
+    const padding = 24;
+    const isOverdue = project.due_date && isPast(new Date(project.due_date));
 
-    columns.forEach((col) => {
-      switch (col.key) {
-        case 'client':
-          this.drawClientCell(ctx, project, col.x, y, col.width);
-          break;
-        case 'amount':
-          this.drawAmountCell(ctx, project, col.x, y, col.width);
-          break;
-        case 'status':
-          this.drawStatusCell(ctx, project, col.x, y, col.width);
-          break;
-        case 'dueDate':
-          this.drawDueDateCell(ctx, project, col.x, y, col.width);
-          break;
-      }
+    // Card background with hover effect simulation
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, 12);
+    ctx.fillStyle = hexToRgba(colors.white, 0.06);
+    ctx.fill();
+
+    // Left accent bar based on status
+    ctx.beginPath();
+    ctx.roundRect(x, y, 6, height, [12, 0, 0, 12]);
+    ctx.fillStyle = project.status_color || colors.primary;
+    ctx.fill();
+
+    // Status badge
+    const statusBadgeWidth = Math.min(200, ctx.measureText(project.status).width + 60);
+    ctx.beginPath();
+    ctx.roundRect(x + padding + 10, y + padding, statusBadgeWidth, 44, 8);
+    ctx.fillStyle = hexToRgba(project.status_color || colors.primary, 0.3);
+    ctx.fill();
+
+    drawText(ctx, project.status.toUpperCase(), x + padding + 10 + statusBadgeWidth / 2, y + padding + 28, {
+      font: this.displayConfig.fontFamily,
+      size: 28,
+      weight: 700,
+      color: project.status_color || colors.primary,
+      align: 'center',
+      baseline: 'middle',
+      letterSpacing: 2,
     });
-  }
 
-  private drawClientCell(ctx: CanvasRenderingContext2D, project: SignageProject, x: number, y: number, width: number): void {
-    ctx.font = `bold ${fontSizes.body}px ${fontFamilies.primary}`;
-    ctx.fillStyle = colors.textPrimary;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-
-    const clientName = truncateText(ctx, project.client_name, width - 40);
-    ctx.fillText(clientName, x, y + 30);
-
-    // Draw PO number below if exists
-    if (project.po_number) {
-      ctx.font = `${fontSizes.small}px ${fontFamilies.primary}`;
-      ctx.fillStyle = colors.textMuted;
-      ctx.fillText(`PO: ${project.po_number}`, x, y + 60);
-    }
-  }
-
-  private drawAmountCell(ctx: CanvasRenderingContext2D, project: SignageProject, x: number, y: number, width: number): void {
-    ctx.font = `bold ${fontSizes.body}px ${fontFamilies.primary}`;
-    ctx.fillStyle = colors.chartBar;
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(formatCurrency(project.sales_amount), x + width - 40, y + 40);
-  }
-
-  private drawStatusCell(ctx: CanvasRenderingContext2D, project: SignageProject, x: number, y: number, width: number): void {
-    const statusName = project.current_status?.name || 'Unknown';
-    const statusColor = getStatusColor(statusName);
-
-    // Center the badge in the column
-    const badgeWidth = drawStatusBadge(
+    // Project name - large and bold
+    drawText(
       ctx,
-      statusName,
-      x + (width - 180) / 2,
-      y + 20,
-      statusColor,
-      { minWidth: 180, height: 45, fontSize: fontSizes.small }
+      truncateText(ctx, project.name, width - padding * 2 - 20, this.displayConfig.fontFamily, 64),
+      x + padding + 10,
+      y + padding + 100,
+      {
+        font: this.displayConfig.fontFamily,
+        size: 64,
+        weight: 600,
+        color: colors.white,
+      }
     );
-  }
 
-  private drawDueDateCell(ctx: CanvasRenderingContext2D, project: SignageProject, x: number, y: number, width: number): void {
-    const dueDate = project.goal_completion_date;
-    const isOverdue = dueDate && new Date(dueDate) < new Date();
+    // Client name
+    drawText(
+      ctx,
+      truncateText(ctx, project.client_name, width / 2 - padding, this.displayConfig.fontFamily, 42),
+      x + padding + 10,
+      y + padding + 160,
+      {
+        font: this.displayConfig.fontFamily,
+        size: 42,
+        color: hexToRgba(colors.white, 0.6),
+      }
+    );
 
-    ctx.font = `${fontSizes.body}px ${fontFamilies.primary}`;
-    ctx.fillStyle = isOverdue ? colors.statusRed : colors.textSecondary;
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(formatDate(dueDate), x + width - 40, y + 40);
+    // Right side: value and due date
+    const rightX = x + width - padding;
+
+    // Value - large teal number
+    if (project.total_value > 0) {
+      const valueStr = `$${project.total_value.toLocaleString()}`;
+      drawText(ctx, valueStr, rightX, y + padding + 50, {
+        font: this.displayConfig.fontFamily,
+        size: 60,
+        weight: 700,
+        color: colors.primaryLight,
+        align: 'right',
+      });
+    }
+
+    // Due date
+    if (project.due_date) {
+      const dueDate = new Date(project.due_date);
+      const dueDateStr = format(dueDate, 'MMM d');
+      const relativeStr = formatDistanceToNow(dueDate, { addSuffix: true });
+
+      drawText(ctx, dueDateStr, rightX, y + height - padding - 70, {
+        font: this.displayConfig.fontFamily,
+        size: 48,
+        weight: 600,
+        color: isOverdue ? colors.error : colors.white,
+        align: 'right',
+      });
+
+      drawText(ctx, relativeStr, rightX, y + height - padding - 20, {
+        font: this.displayConfig.fontFamily,
+        size: 36,
+        color: isOverdue ? hexToRgba(colors.error, 0.8) : hexToRgba(colors.white, 0.5),
+        align: 'right',
+      });
+    }
+
+    // Overdue indicator
+    if (isOverdue) {
+      ctx.beginPath();
+      ctx.arc(x + width - 20, y + 20, 8, 0, Math.PI * 2);
+      ctx.fillStyle = colors.error;
+      ctx.fill();
+
+      // Pulsing effect
+      const pulse = Math.sin(this.animationState.pulsePhase * 3) * 0.3 + 0.7;
+      ctx.beginPath();
+      ctx.arc(x + width - 20, y + 20, 12, 0, Math.PI * 2);
+      ctx.strokeStyle = hexToRgba(colors.error, pulse * 0.5);
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
   }
 }

@@ -62,6 +62,11 @@ const adminNavItems = [
     icon: Users,
   },
   {
+    title: 'Digital Signage',
+    href: '/admin/signage',
+    icon: Tv,
+  },
+  {
     title: 'Audit Log',
     href: '/admin/audit',
     icon: FileText,

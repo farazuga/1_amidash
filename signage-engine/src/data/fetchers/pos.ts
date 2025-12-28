@@ -1,115 +1,56 @@
-import { getSupabaseClient } from '../supabase-client.js';
+import { supabase, isSupabaseConfigured } from '../supabase-client.js';
 import { logger } from '../../utils/logger.js';
-import type { PurchaseOrder } from '../../types/database.js';
 
-/**
- * Fetch recent purchase orders (projects with po_number)
- */
-export async function fetchRecentPOs(maxItems: number = 10): Promise<PurchaseOrder[]> {
-  const supabase = getSupabaseClient();
+export interface RecentPO {
+  id: string;
+  po_number: string;
+  project_name: string;
+  client_name: string;
+  amount: number;
+  created_at: string;
+}
+
+export async function fetchRecentPOs(): Promise<RecentPO[]> {
+  if (!isSupabaseConfigured() || !supabase) {
+    logger.debug('Supabase not configured, returning mock POs');
+    return getMockPOs();
+  }
 
   try {
     const { data, error } = await supabase
       .from('projects')
-      .select('id, client_name, po_number, sales_amount, created_at')
+      .select(`
+        id,
+        po_number,
+        client_name,
+        sales_amount,
+        created_at
+      `)
       .not('po_number', 'is', null)
       .order('created_at', { ascending: false })
-      .limit(maxItems);
+      .limit(15);
 
-    if (error) {
-      logger.error({ error }, 'Failed to fetch recent POs');
-      throw error;
-    }
+    if (error) throw error;
 
-    // Transform to PurchaseOrder type
-    const pos: PurchaseOrder[] = (data || []).map((row) => ({
-      id: row.id,
-      client_name: row.client_name,
-      po_number: row.po_number!,
-      sales_amount: row.sales_amount,
-      created_at: row.created_at,
+    return (data || []).map((p: Record<string, unknown>) => ({
+      id: p.id as string,
+      po_number: p.po_number as string,
+      project_name: p.client_name as string,
+      client_name: p.client_name as string,
+      amount: (p.sales_amount as number) || 0,
+      created_at: p.created_at as string,
     }));
-
-    logger.info({ count: pos.length }, 'Fetched recent POs');
-    return pos;
   } catch (error) {
-    logger.error({ error }, 'Exception fetching recent POs');
-    throw error;
+    logger.error({ error }, 'Failed to fetch recent POs');
+    return [];
   }
 }
 
-/**
- * Fetch POs created within a specific date range
- */
-export async function fetchPOsInRange(
-  startDate: string,
-  endDate: string,
-  maxItems: number = 20
-): Promise<PurchaseOrder[]> {
-  const supabase = getSupabaseClient();
-
-  try {
-    const { data, error } = await supabase
-      .from('projects')
-      .select('id, client_name, po_number, sales_amount, created_at')
-      .not('po_number', 'is', null)
-      .gte('created_at', startDate)
-      .lte('created_at', endDate)
-      .order('created_at', { ascending: false })
-      .limit(maxItems);
-
-    if (error) {
-      logger.error({ error, startDate, endDate }, 'Failed to fetch POs in range');
-      throw error;
-    }
-
-    const pos: PurchaseOrder[] = (data || []).map((row) => ({
-      id: row.id,
-      client_name: row.client_name,
-      po_number: row.po_number!,
-      sales_amount: row.sales_amount,
-      created_at: row.created_at,
-    }));
-
-    logger.info({ count: pos.length, startDate, endDate }, 'Fetched POs in range');
-    return pos;
-  } catch (error) {
-    logger.error({ error }, 'Exception fetching POs in range');
-    throw error;
-  }
-}
-
-/**
- * Get total PO value for a time period
- */
-export async function getPOTotals(
-  startDate: string,
-  endDate: string
-): Promise<{ count: number; totalValue: number }> {
-  const supabase = getSupabaseClient();
-
-  try {
-    const { data, error } = await supabase
-      .from('projects')
-      .select('sales_amount')
-      .not('po_number', 'is', null)
-      .gte('created_at', startDate)
-      .lte('created_at', endDate);
-
-    if (error) {
-      logger.error({ error }, 'Failed to get PO totals');
-      throw error;
-    }
-
-    const count = data?.length || 0;
-    const totalValue = (data || []).reduce(
-      (sum, row) => sum + (row.sales_amount || 0),
-      0
-    );
-
-    return { count, totalValue };
-  } catch (error) {
-    logger.error({ error }, 'Exception getting PO totals');
-    throw error;
-  }
+function getMockPOs(): RecentPO[] {
+  const now = new Date();
+  return [
+    { id: '1', po_number: 'PO-2024-001', project_name: 'Website Redesign', client_name: 'Acme Corp', amount: 15000, created_at: new Date(now.getTime() - 3600000).toISOString() },
+    { id: '2', po_number: 'PO-2024-002', project_name: 'Mobile App', client_name: 'TechStart', amount: 25000, created_at: new Date(now.getTime() - 7200000).toISOString() },
+    { id: '3', po_number: 'PO-2024-003', project_name: 'Brand Identity', client_name: 'NewCo', amount: 8000, created_at: new Date(now.getTime() - 86400000).toISOString() },
+  ];
 }

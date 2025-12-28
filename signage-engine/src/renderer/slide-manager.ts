@@ -1,383 +1,246 @@
-import type { CanvasRenderingContext2D, Image } from 'canvas';
-import { logger } from '../utils/logger.js';
-import type { SlideConfig, DisplayConfig, TransitionConfig, StaleDataConfig } from '../config/schema.js';
-import { BaseSlide, SlideRenderContext } from './slides/base-slide.js';
-import { ActiveProjectsSlide, ActiveProjectsData } from './slides/active-projects.js';
-import { POTickerSlide, POTickerData } from './slides/po-ticker.js';
+import { SKRSContext2D } from '@napi-rs/canvas';
+import { SlideConfig, DisplayConfig, TransitionConfig } from '../config/schema.js';
+import { DataCache } from '../data/polling-manager.js';
+import { SignageSlide } from '../data/fetchers/slide-config.js';
+import { CanvasManager } from './canvas-manager.js';
+import { BaseSlide } from './slides/base-slide.js';
+import { ActiveProjectsSlide } from './slides/active-projects.js';
+import { ProjectMetricsSlide } from './slides/project-metrics.js';
+import { POTickerSlide } from './slides/po-ticker.js';
 import { RevenueDashboardSlide } from './slides/revenue-dashboard.js';
 import { TeamScheduleSlide } from './slides/team-schedule.js';
-import type { CachedData } from '../data/polling-manager.js';
-import { colors } from './components/colors.js';
+import { logger } from '../utils/logger.js';
 
-export type SlideData = ActiveProjectsData | POTickerData | CachedData['revenue'] | CachedData['schedule'];
-
-interface TransitionState {
-  active: boolean;
-  progress: number; // 0-1
-  type: 'fade' | 'slide' | 'none';
-  startTime: number;
-  duration: number;
-}
-
-/**
- * Slide manager handles slide creation, rotation, and transitions
- */
 export class SlideManager {
   private slides: BaseSlide[] = [];
-  private currentIndex: number = 0;
+  private currentSlideIndex: number = 0;
   private slideStartTime: number = 0;
-  private transitionState: TransitionState = {
-    active: false,
-    progress: 0,
-    type: 'none',
-    startTime: 0,
-    duration: 0,
-  };
+  private transitionProgress: number = 0;
+  private isTransitioning: boolean = false;
   private displayConfig: DisplayConfig;
   private transitionConfig: TransitionConfig;
-  private staleDataConfig: StaleDataConfig;
-  private logo: Image | null = null;
+  private lastFrameTime: number = 0;
 
   constructor(
     slideConfigs: SlideConfig[],
     displayConfig: DisplayConfig,
-    transitionConfig: TransitionConfig,
-    staleDataConfig: StaleDataConfig
+    transitionConfig: TransitionConfig
   ) {
     this.displayConfig = displayConfig;
     this.transitionConfig = transitionConfig;
-    this.staleDataConfig = staleDataConfig;
-    this.createSlides(slideConfigs);
-    this.slideStartTime = Date.now();
+
+    // Create slide instances for enabled slides
+    slideConfigs
+      .filter((config) => config.enabled)
+      .forEach((config) => {
+        const slide = this.createSlide(config);
+        if (slide) {
+          this.slides.push(slide);
+        }
+      });
+
+    logger.info({ slideCount: this.slides.length }, 'Slide manager initialized');
   }
 
-  /**
-   * Create slide instances from configurations
-   */
-  private createSlides(configs: SlideConfig[]): void {
-    this.slides = [];
+  private createSlide(config: SlideConfig): BaseSlide | null {
+    switch (config.type) {
+      case 'active-projects':
+      case 'project-list':
+        return new ActiveProjectsSlide(config, this.displayConfig);
+      case 'project-metrics':
+        return new ProjectMetricsSlide(config, this.displayConfig);
+      case 'po-ticker':
+        return new POTickerSlide(config, this.displayConfig);
+      case 'revenue-dashboard':
+        return new RevenueDashboardSlide(config, this.displayConfig);
+      case 'team-schedule':
+        return new TeamScheduleSlide(config, this.displayConfig);
+      default:
+        logger.warn({ type: config.type }, 'Unknown slide type');
+        return null;
+    }
+  }
 
-    configs.forEach((config) => {
-      if (!config.enabled) return;
+  // Reload slides from database config
+  async reloadFromDatabase(dbSlides: SignageSlide[]): Promise<void> {
+    const newSlides: BaseSlide[] = [];
 
-      let slide: BaseSlide | null = null;
+    for (const dbSlide of dbSlides) {
+      if (!dbSlide.enabled) continue;
 
-      switch (config.type) {
-        case 'active-projects':
-          slide = new ActiveProjectsSlide(config);
-          break;
-        case 'po-ticker':
-          slide = new POTickerSlide(config);
-          break;
-        case 'revenue-dashboard':
-          slide = new RevenueDashboardSlide(config);
-          break;
-        case 'team-schedule':
-          slide = new TeamScheduleSlide(config);
-          break;
-        default:
-          logger.warn({ type: config.type }, 'Unknown slide type');
-      }
+      const config: SlideConfig = {
+        type: this.mapSlideType(dbSlide.slide_type),
+        enabled: dbSlide.enabled,
+        duration: dbSlide.duration_ms,
+        title: dbSlide.title || undefined,
+        maxItems: (dbSlide.config as { maxItems?: number })?.maxItems,
+        scrollSpeed: (dbSlide.config as { scrollSpeed?: number })?.scrollSpeed,
+      };
 
+      const slide = this.createSlide(config);
       if (slide) {
-        this.slides.push(slide);
-        logger.info({ type: config.type, duration: config.duration }, 'Created slide');
+        await slide.loadLogo();
+        newSlides.push(slide);
       }
-    });
+    }
 
-    if (this.slides.length === 0) {
-      logger.warn('No slides enabled');
-    } else {
-      logger.info({ count: this.slides.length }, 'Slide manager initialized');
+    if (newSlides.length > 0) {
+      this.slides = newSlides;
+      // Reset to first slide when reloading
+      if (this.currentSlideIndex >= this.slides.length) {
+        this.currentSlideIndex = 0;
+        this.slideStartTime = Date.now();
+      }
+      logger.info({ slideCount: newSlides.length }, 'Slides reloaded from database');
     }
   }
 
-  /**
-   * Set the logo image
-   */
-  setLogo(logo: Image | null): void {
-    this.logo = logo;
-  }
-
-  /**
-   * Update slide configurations
-   */
-  updateSlides(configs: SlideConfig[]): void {
-    this.createSlides(configs);
-    this.currentIndex = 0;
-    this.slideStartTime = Date.now();
-  }
-
-  /**
-   * Update display configuration
-   */
-  updateDisplayConfig(config: DisplayConfig): void {
-    this.displayConfig = config;
-  }
-
-  /**
-   * Update transition configuration
-   */
-  updateTransitionConfig(config: TransitionConfig): void {
-    this.transitionConfig = config;
-  }
-
-  /**
-   * Get the current slide index
-   */
-  getCurrentIndex(): number {
-    return this.currentIndex;
-  }
-
-  /**
-   * Get total number of slides
-   */
-  getTotalSlides(): number {
-    return this.slides.length;
-  }
-
-  /**
-   * Get the current slide
-   */
-  getCurrentSlide(): BaseSlide | null {
-    return this.slides[this.currentIndex] || null;
-  }
-
-  /**
-   * Get time remaining on current slide (ms)
-   */
-  getTimeRemaining(): number {
-    const currentSlide = this.getCurrentSlide();
-    if (!currentSlide) return 0;
-
-    const elapsed = Date.now() - this.slideStartTime;
-    return Math.max(0, currentSlide.getDuration() - elapsed);
-  }
-
-  /**
-   * Check if it's time to advance to the next slide
-   */
-  private shouldAdvance(): boolean {
-    if (this.slides.length <= 1) return false;
-    if (this.transitionState.active) return false;
-
-    const currentSlide = this.getCurrentSlide();
-    if (!currentSlide) return false;
-
-    const elapsed = Date.now() - this.slideStartTime;
-    return elapsed >= currentSlide.getDuration();
-  }
-
-  /**
-   * Start transition to next slide
-   */
-  private startTransition(): void {
-    if (this.transitionConfig.type === 'none' || this.transitionConfig.duration === 0) {
-      // No transition, just advance
-      this.advanceSlide();
-      return;
-    }
-
-    this.transitionState = {
-      active: true,
-      progress: 0,
-      type: this.transitionConfig.type,
-      startTime: Date.now(),
-      duration: this.transitionConfig.duration,
+  private mapSlideType(dbType: string): SlideConfig['type'] {
+    const typeMap: Record<string, SlideConfig['type']> = {
+      'project-list': 'project-list',
+      'project-metrics': 'project-metrics',
+      'po-ticker': 'po-ticker',
+      'revenue-dashboard': 'revenue-dashboard',
+      'team-schedule': 'team-schedule',
+      'active-projects': 'active-projects',
     };
+    return typeMap[dbType] || 'active-projects';
   }
 
-  /**
-   * Update transition progress
-   */
-  private updateTransition(): void {
-    if (!this.transitionState.active) return;
-
-    const elapsed = Date.now() - this.transitionState.startTime;
-    this.transitionState.progress = Math.min(1, elapsed / this.transitionState.duration);
-
-    if (this.transitionState.progress >= 1) {
-      this.transitionState.active = false;
-      this.advanceSlide();
+  async loadAssets(): Promise<void> {
+    for (const slide of this.slides) {
+      await slide.loadLogo();
     }
   }
 
-  /**
-   * Advance to the next slide
-   */
-  private advanceSlide(): void {
-    this.currentIndex = (this.currentIndex + 1) % this.slides.length;
-    this.slideStartTime = Date.now();
+  render(canvasManager: CanvasManager, data: DataCache): void {
+    if (this.slides.length === 0) return;
 
-    // Reset scroll on ticker slides
-    const currentSlide = this.getCurrentSlide();
-    if (currentSlide instanceof POTickerSlide) {
-      currentSlide.resetScroll();
-    }
+    const now = Date.now();
+    const deltaTime = this.lastFrameTime ? now - this.lastFrameTime : 16.67;
+    this.lastFrameTime = now;
 
-    logger.debug({ index: this.currentIndex, type: currentSlide?.getType() }, 'Advanced to slide');
-  }
+    const ctx = canvasManager.getBackContext();
+    canvasManager.clear();
 
-  /**
-   * Render the current frame
-   */
-  render(
-    ctx: CanvasRenderingContext2D,
-    data: CachedData,
-    lastUpdateTime: number,
-    width: number,
-    height: number
-  ): void {
-    // Check if we should advance
-    if (this.shouldAdvance()) {
+    const currentSlide = this.slides[this.currentSlideIndex];
+    const currentConfig = this.getSlideConfig(this.currentSlideIndex);
+
+    // Check if it's time to transition
+    if (!this.isTransitioning && now - this.slideStartTime >= currentConfig.duration) {
       this.startTransition();
     }
 
-    // Update transition
-    this.updateTransition();
+    if (this.isTransitioning) {
+      this.renderTransition(ctx, canvasManager, data, deltaTime);
+    } else {
+      currentSlide.render(ctx, data, deltaTime);
+    }
 
-    // Determine if data is stale
-    const isStale = Date.now() - lastUpdateTime > this.staleDataConfig.warningThresholdMs;
+    canvasManager.swap();
+  }
 
-    // Create render context
-    const context: SlideRenderContext = {
-      ctx,
-      width,
-      height,
-      config: this.getCurrentSlide()?.getConfig() || { type: 'active-projects', enabled: true, duration: 15000 },
-      displayConfig: this.displayConfig,
-      staleDataConfig: this.staleDataConfig,
-      logo: this.logo,
-      isStale,
-      lastUpdate: lastUpdateTime,
-    };
+  private startTransition(): void {
+    this.isTransitioning = true;
+    this.transitionProgress = 0;
+    logger.debug({ from: this.currentSlideIndex, to: (this.currentSlideIndex + 1) % this.slides.length }, 'Starting transition');
+  }
 
-    // Get current slide data
-    const currentSlide = this.getCurrentSlide();
-    if (!currentSlide) {
-      this.renderNoSlides(ctx, width, height);
+  private renderTransition(
+    ctx: SKRSContext2D,
+    canvasManager: CanvasManager,
+    data: DataCache,
+    deltaTime: number
+  ): void {
+    const duration = this.transitionConfig.duration;
+    this.transitionProgress += deltaTime / duration;
+
+    if (this.transitionProgress >= 1) {
+      this.transitionProgress = 0;
+      this.isTransitioning = false;
+      this.currentSlideIndex = (this.currentSlideIndex + 1) % this.slides.length;
+      this.slideStartTime = Date.now();
+      this.slides[this.currentSlideIndex].render(ctx, data, deltaTime);
       return;
     }
 
-    // Render based on transition state
-    if (this.transitionState.active) {
-      this.renderWithTransition(ctx, context, data, width, height);
-    } else {
-      const slideData = this.getSlideData(currentSlide.getType(), data);
-      currentSlide.render(context, slideData);
-    }
-  }
-
-  /**
-   * Render with transition effect
-   */
-  private renderWithTransition(
-    ctx: CanvasRenderingContext2D,
-    context: SlideRenderContext,
-    data: CachedData,
-    width: number,
-    height: number
-  ): void {
-    const currentSlide = this.getCurrentSlide();
-    const nextIndex = (this.currentIndex + 1) % this.slides.length;
+    const currentSlide = this.slides[this.currentSlideIndex];
+    const nextIndex = (this.currentSlideIndex + 1) % this.slides.length;
     const nextSlide = this.slides[nextIndex];
 
-    if (!currentSlide || !nextSlide) return;
-
-    const progress = this.transitionState.progress;
-
-    switch (this.transitionState.type) {
+    switch (this.transitionConfig.type) {
       case 'fade':
-        // Render current slide
-        const currentData = this.getSlideData(currentSlide.getType(), data);
-        currentSlide.render(context, currentData);
-
-        // Overlay next slide with increasing opacity
-        ctx.globalAlpha = progress;
-        const nextContext = { ...context, config: nextSlide.getConfig() };
-        const nextData = this.getSlideData(nextSlide.getType(), data);
-        nextSlide.render(nextContext, nextData);
-        ctx.globalAlpha = 1;
+        this.renderFadeTransition(ctx, canvasManager, data, deltaTime, currentSlide, nextSlide);
         break;
-
       case 'slide':
-        // Slide current slide out to the left
-        ctx.save();
-        ctx.translate(-width * progress, 0);
-        const slideCurrentData = this.getSlideData(currentSlide.getType(), data);
-        currentSlide.render(context, slideCurrentData);
-        ctx.restore();
-
-        // Slide next slide in from the right
-        ctx.save();
-        ctx.translate(width * (1 - progress), 0);
-        const slideNextContext = { ...context, config: nextSlide.getConfig() };
-        const slideNextData = this.getSlideData(nextSlide.getType(), data);
-        nextSlide.render(slideNextContext, slideNextData);
-        ctx.restore();
+        this.renderSlideTransition(ctx, canvasManager, data, deltaTime, currentSlide, nextSlide);
         break;
-
+      case 'none':
       default:
-        // No transition, just render current
-        const defaultData = this.getSlideData(currentSlide.getType(), data);
-        currentSlide.render(context, defaultData);
+        nextSlide.render(ctx, data, deltaTime);
     }
   }
 
-  /**
-   * Get data for a specific slide type
-   */
-  private getSlideData(type: string, data: CachedData): SlideData {
-    switch (type) {
-      case 'active-projects':
-        return { projects: data.projects };
-      case 'po-ticker':
-        return { pos: data.pos };
-      case 'revenue-dashboard':
-        return data.revenue;
-      case 'team-schedule':
-        return data.schedule;
-      default:
-        return { projects: [] };
-    }
+  private renderFadeTransition(
+    ctx: SKRSContext2D,
+    _canvasManager: CanvasManager,
+    data: DataCache,
+    deltaTime: number,
+    currentSlide: BaseSlide,
+    nextSlide: BaseSlide
+  ): void {
+    // Render current slide
+    currentSlide.render(ctx, data, deltaTime);
+
+    // Apply fade overlay
+    ctx.globalAlpha = this.transitionProgress;
+    ctx.fillStyle = this.displayConfig.backgroundColor;
+    ctx.fillRect(0, 0, this.displayConfig.width, this.displayConfig.height);
+
+    // Render next slide with increasing opacity
+    nextSlide.render(ctx, data, deltaTime);
+    ctx.globalAlpha = 1;
   }
 
-  /**
-   * Render "no slides" message
-   */
-  private renderNoSlides(ctx: CanvasRenderingContext2D, width: number, height: number): void {
-    ctx.fillStyle = colors.background;
-    ctx.fillRect(0, 0, width, height);
+  private renderSlideTransition(
+    ctx: SKRSContext2D,
+    _canvasManager: CanvasManager,
+    data: DataCache,
+    deltaTime: number,
+    currentSlide: BaseSlide,
+    nextSlide: BaseSlide
+  ): void {
+    const offset = this.displayConfig.width * this.transitionProgress;
 
-    ctx.font = 'bold 64px Inter, Arial, sans-serif';
-    ctx.fillStyle = colors.textMuted;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('No slides configured', width / 2, height / 2);
+    ctx.save();
+    ctx.translate(-offset, 0);
+    currentSlide.render(ctx, data, deltaTime);
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(this.displayConfig.width - offset, 0);
+    nextSlide.render(ctx, data, deltaTime);
+    ctx.restore();
   }
 
-  /**
-   * Force advance to next slide
-   */
-  forceNext(): void {
-    this.advanceSlide();
+  private getSlideConfig(index: number): SlideConfig {
+    // Find the config for this slide
+    const enabledConfigs = this.slides.map((_, i) => i);
+    return this.slides[enabledConfigs[index]]?.['config'] || { type: 'active-projects', enabled: true, duration: 15000 };
   }
 
-  /**
-   * Force go to previous slide
-   */
-  forcePrevious(): void {
-    this.currentIndex = (this.currentIndex - 1 + this.slides.length) % this.slides.length;
+  getCurrentSlideIndex(): number {
+    return this.currentSlideIndex;
+  }
+
+  getSlideCount(): number {
+    return this.slides.length;
+  }
+
+  reset(): void {
+    this.currentSlideIndex = 0;
     this.slideStartTime = Date.now();
-  }
-
-  /**
-   * Go to a specific slide by index
-   */
-  goToSlide(index: number): void {
-    if (index >= 0 && index < this.slides.length) {
-      this.currentIndex = index;
-      this.slideStartTime = Date.now();
-    }
+    this.isTransitioning = false;
+    this.transitionProgress = 0;
   }
 }
