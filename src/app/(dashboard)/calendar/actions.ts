@@ -23,6 +23,7 @@ import {
   validateInput,
   createAssignmentSchema,
   updateAssignmentStatusSchema,
+  bulkUpdateStatusSchema,
   addAssignmentDaysSchema,
   updateAssignmentDaySchema,
   checkConflictsSchema,
@@ -247,7 +248,7 @@ export async function createAssignment(data: {
     .insert({
       project_id: data.projectId,
       user_id: data.userId,
-      booking_status: data.bookingStatus || 'pencil',
+      booking_status: data.bookingStatus || 'draft',
       notes: data.notes || null,
       created_by: user.id,
     })
@@ -270,7 +271,7 @@ export async function createAssignment(data: {
   await supabase.from('booking_status_history').insert({
     assignment_id: assignment.id,
     old_status: null,
-    new_status: data.bookingStatus || 'pencil',
+    new_status: data.bookingStatus || 'draft',
     changed_by: user.id,
     note: 'Initial assignment',
   });
@@ -300,7 +301,7 @@ export async function createAssignment(data: {
       projectName: assignedProject.client_name,
       startDate: assignedProject.start_date,
       endDate: assignedProject.end_date,
-      bookingStatus: data.bookingStatus || 'pencil',
+      bookingStatus: data.bookingStatus || 'draft',
       projectId: data.projectId,
     });
   }
@@ -387,6 +388,114 @@ export async function updateAssignmentStatus(data: {
   revalidatePath('/my-schedule');
 
   return { success: true };
+}
+
+/**
+ * Bulk update status for multiple assignments at once
+ * All assignments will receive the same new status and history entries
+ */
+export async function bulkUpdateAssignmentStatus(data: {
+  assignmentIds: string[];
+  newStatus: BookingStatus;
+  note?: string;
+}): Promise<ActionResult<{ updatedCount: number; failedIds: string[] }>> {
+  // Validate input
+  const validation = validateInput(bulkUpdateStatusSchema, data);
+  if (!validation.success) {
+    return { success: false, error: validation.error };
+  }
+
+  const { error: authError, supabase, user } = await requireAdmin();
+  if (authError || !supabase || !user) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  // Get current assignments with their current statuses
+  const { data: assignments, error: fetchError } = await supabase
+    .from('project_assignments')
+    .select(`
+      id, booking_status, project_id,
+      user:profiles!user_id(id, email, full_name),
+      project:projects(id, client_name)
+    `)
+    .in('id', data.assignmentIds);
+
+  if (fetchError) {
+    console.error('Bulk status fetch error:', fetchError);
+    return { success: false, error: 'Failed to fetch assignments' };
+  }
+
+  if (!assignments || assignments.length === 0) {
+    return { success: false, error: 'No assignments found' };
+  }
+
+  // Track which assignments we successfully update
+  const updatedIds: string[] = [];
+  const failedIds: string[] = [];
+  const projectIds = new Set<string>();
+
+  // Update each assignment and record history
+  for (const assignment of assignments) {
+    // Skip if already at the target status
+    if (assignment.booking_status === data.newStatus) {
+      updatedIds.push(assignment.id);
+      projectIds.add(assignment.project_id);
+      continue;
+    }
+
+    const { error: updateError } = await supabase
+      .from('project_assignments')
+      .update({ booking_status: data.newStatus })
+      .eq('id', assignment.id);
+
+    if (updateError) {
+      console.error(`Failed to update assignment ${assignment.id}:`, updateError);
+      failedIds.push(assignment.id);
+      continue;
+    }
+
+    // Record in history
+    await supabase.from('booking_status_history').insert({
+      assignment_id: assignment.id,
+      old_status: assignment.booking_status,
+      new_status: data.newStatus,
+      changed_by: user.id,
+      note: data.note || 'Bulk status update',
+    });
+
+    // Send status change email (fire and forget)
+    const assignedUser = assignment.user as { id: string; email: string; full_name: string | null } | null;
+    const assignedProject = assignment.project as { id: string; client_name: string } | null;
+
+    if (assignedUser?.email && assignedProject) {
+      sendStatusChangeEmail({
+        userEmail: assignedUser.email,
+        userName: assignedUser.full_name || assignedUser.email,
+        projectName: assignedProject.client_name,
+        oldStatus: assignment.booking_status,
+        newStatus: data.newStatus,
+        projectId: assignment.project_id,
+      });
+    }
+
+    updatedIds.push(assignment.id);
+    projectIds.add(assignment.project_id);
+  }
+
+  // Revalidate all affected paths
+  revalidatePath('/calendar');
+  revalidatePath('/my-schedule');
+  for (const projectId of projectIds) {
+    revalidatePath(`/projects/${projectId}`);
+  }
+
+  return {
+    success: true,
+    data: {
+      updatedCount: updatedIds.length,
+      failedIds,
+    },
+  };
 }
 
 export async function removeAssignment(assignmentId: string): Promise<ActionResult> {
@@ -700,10 +809,19 @@ export async function getCalendarData(params: {
   limit?: number;
   offset?: number;
 }): Promise<ActionResult<CalendarDataResult>> {
-  const { error: authError, supabase } = await getAuthenticatedClient();
-  if (authError || !supabase) {
+  const { error: authError, supabase, user } = await getAuthenticatedClient();
+  if (authError || !supabase || !user) {
     return { success: false, error: authError || 'Authentication failed' };
   }
+
+  // Get current user's role to determine if they can see draft assignments
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  const canSeeDrafts = profile?.role === 'admin' || profile?.role === 'editor';
 
   const limit = params.limit ?? DEFAULT_CALENDAR_LIMIT;
   const offset = params.offset ?? 0;
@@ -720,6 +838,11 @@ export async function getCalendarData(params: {
   }
 
   let result = data as CalendarAssignmentResult[];
+
+  // Filter out draft assignments for non-admin/non-editor users
+  if (!canSeeDrafts) {
+    result = result.filter(a => a.booking_status !== 'draft');
+  }
 
   // Filter by user if specified
   if (params.userId) {
@@ -769,10 +892,19 @@ export async function getUserSchedule(params: {
   startDate: string;
   endDate: string;
 }): Promise<ActionResult<UserScheduleResult[]>> {
-  const { error: authError, supabase } = await getAuthenticatedClient();
-  if (authError || !supabase) {
+  const { error: authError, supabase, user } = await getAuthenticatedClient();
+  if (authError || !supabase || !user) {
     return { success: false, error: authError || 'Authentication failed' };
   }
+
+  // Get current user's role to determine if they can see draft assignments
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  const canSeeDrafts = profile?.role === 'admin' || profile?.role === 'editor';
 
   const { data, error } = await supabase.rpc('get_user_schedule', {
     p_user_id: params.userId,
@@ -785,7 +917,14 @@ export async function getUserSchedule(params: {
     return { success: false, error: 'Failed to fetch user schedule' };
   }
 
-  return { success: true, data: data as UserScheduleResult[] };
+  let result = data as UserScheduleResult[];
+
+  // Filter out draft assignments for non-admin/non-editor users
+  if (!canSeeDrafts) {
+    result = result.filter(r => r.booking_status !== 'draft');
+  }
+
+  return { success: true, data: result };
 }
 
 export async function getProjectAssignments(projectId: string): Promise<ActionResult<ProjectAssignment[]>> {
@@ -1181,10 +1320,13 @@ export async function getAssignmentDays(assignmentId: string): Promise<ActionRes
 // Status cycling (click-to-toggle)
 // ============================================
 
-const STATUS_CYCLE: BookingStatus[] = ['pencil', 'pending_confirm', 'confirmed'];
+// Status cycle for PM manual cycling - skips pending_confirm (requires confirmation flow)
+// Workflow: draft → tentative → confirmed → complete → draft
+const STATUS_CYCLE: BookingStatus[] = ['draft', 'tentative', 'confirmed', 'complete'];
 
 /**
- * Cycle assignment status: pencil → pending_confirm → confirmed → pencil
+ * Cycle assignment status: draft → tentative → confirmed → complete → draft
+ * Note: pending_confirm is NOT in the cycle - it's only reached via the customer confirmation flow
  */
 export async function cycleAssignmentStatus(assignmentId: string): Promise<ActionResult<{ newStatus: BookingStatus }>> {
   const { error: authError, supabase, user } = await requireAdmin();
@@ -1208,9 +1350,16 @@ export async function cycleAssignmentStatus(assignmentId: string): Promise<Actio
   }
 
   // Calculate next status
-  const currentIndex = STATUS_CYCLE.indexOf(currentAssignment.booking_status as BookingStatus);
-  const nextIndex = (currentIndex + 1) % STATUS_CYCLE.length;
-  const newStatus = STATUS_CYCLE[nextIndex];
+  // Special case: if current status is pending_confirm (from confirmation flow), cycle to confirmed
+  let newStatus: BookingStatus;
+  if (currentAssignment.booking_status === 'pending_confirm') {
+    newStatus = 'confirmed';
+  } else {
+    const currentIndex = STATUS_CYCLE.indexOf(currentAssignment.booking_status as BookingStatus);
+    // If status not in cycle (shouldn't happen), default to draft
+    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % STATUS_CYCLE.length;
+    newStatus = STATUS_CYCLE[nextIndex];
+  }
 
   // Update the assignment
   const { error: updateError } = await supabase

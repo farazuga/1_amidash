@@ -102,7 +102,7 @@ export function BulkAssignDialog({
         await createAssignment.mutateAsync({
           projectId,
           userId,
-          bookingStatus: 'pencil' as BookingStatus,
+          bookingStatus: 'draft' as BookingStatus,
         });
         successCount++;
       } catch {

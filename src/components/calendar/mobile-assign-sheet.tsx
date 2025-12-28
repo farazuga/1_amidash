@@ -44,7 +44,7 @@ export function MobileAssignSheet({
   const { data: users = [], isLoading: usersLoading } = useAssignableUsers();
 
   const [selectedUserId, setSelectedUserId] = useState<string>('');
-  const [bookingStatus, setBookingStatus] = useState<BookingStatus>('pencil');
+  const [bookingStatus, setBookingStatus] = useState<BookingStatus>('draft');
 
   const createMutation = useMutation({
     mutationFn: createAssignment,
@@ -56,7 +56,7 @@ export function MobileAssignSheet({
         onOpenChange(false);
         // Reset form
         setSelectedUserId('');
-        setBookingStatus('pencil');
+        setBookingStatus('draft');
       } else {
         toast.error(result.error || 'Failed to create assignment');
       }

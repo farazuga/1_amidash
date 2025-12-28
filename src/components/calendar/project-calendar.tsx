@@ -128,10 +128,12 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
 
   // Calculate status counts for summary bar
   const statusCounts = useMemo(() => {
-    const counts = {
-      pencil: 0,
+    const counts: Record<BookingStatus | 'total', number> = {
+      draft: 0,
+      tentative: 0,
       pending_confirm: 0,
       confirmed: 0,
+      complete: 0,
       total: 0,
     };
     events.forEach((event) => {
@@ -240,7 +242,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
           const result = await createAssignment.mutateAsync({
             projectId: project.id,
             userId,
-            bookingStatus: 'pencil' as BookingStatus,
+            bookingStatus: 'draft' as BookingStatus,
           });
 
           if (result.conflicts?.hasConflicts) {
@@ -366,7 +368,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   // Status summary bar component
   const statusSummaryBar = statusCounts.total > 0 && (
     <div className="flex items-center gap-4 text-sm bg-muted/50 p-2 rounded-lg">
-      {(['pencil', 'pending_confirm', 'confirmed'] as const).map((status) => {
+      {(['draft', 'tentative', 'pending_confirm', 'confirmed', 'complete'] as const).map((status) => {
         const config = BOOKING_STATUS_CONFIG[status];
         const count = statusCounts[status];
         return (
@@ -445,10 +447,16 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="pencil">
+              <SelectItem value="draft">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-gray-400" />
+                  Draft Only
+                </div>
+              </SelectItem>
+              <SelectItem value="tentative">
                 <div className="flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-amber-500" />
-                  Pencil Only
+                  Tentative Only
                 </div>
               </SelectItem>
               <SelectItem value="pending_confirm">
@@ -461,6 +469,12 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
                 <div className="flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-green-500" />
                   Confirmed Only
+                </div>
+              </SelectItem>
+              <SelectItem value="complete">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-purple-500" />
+                  Complete Only
                 </div>
               </SelectItem>
             </SelectContent>

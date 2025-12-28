@@ -41,7 +41,7 @@ export function AssignmentDialog({
   onSuccess,
 }: AssignmentDialogProps) {
   const [selectedUserId, setSelectedUserId] = useState<string>('');
-  const [bookingStatus, setBookingStatus] = useState<BookingStatus>('pencil');
+  const [bookingStatus, setBookingStatus] = useState<BookingStatus>('draft');
   const [notes, setNotes] = useState('');
 
   const { data: adminUsers, isLoading: isLoadingUsers } = useAdminUsers();
@@ -68,7 +68,7 @@ export function AssignmentDialog({
 
       // Reset form
       setSelectedUserId('');
-      setBookingStatus('pencil');
+      setBookingStatus('draft');
       setNotes('');
       onOpenChange(false);
       onSuccess?.();
@@ -77,7 +77,7 @@ export function AssignmentDialog({
     }
   };
 
-  const statuses: BookingStatus[] = ['pencil', 'pending_confirm', 'confirmed'];
+  const statuses: BookingStatus[] = ['draft', 'tentative', 'confirmed'];
 
   if (!project) return null;
 
@@ -145,8 +145,8 @@ export function AssignmentDialog({
               </Select>
               <p className="text-xs text-muted-foreground">
                 {BOOKING_STATUS_CONFIG[bookingStatus].label}:{' '}
-                {bookingStatus === 'pencil' && 'Tentative booking, can be easily changed'}
-                {bookingStatus === 'pending_confirm' && 'Awaiting confirmation from team member'}
+                {bookingStatus === 'draft' && 'Internal draft, only visible to admin/editor'}
+                {bookingStatus === 'tentative' && 'Shared externally, awaiting confirmation'}
                 {bookingStatus === 'confirmed' && 'Finalized and committed booking'}
               </p>
             </div>

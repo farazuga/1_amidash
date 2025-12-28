@@ -11,6 +11,7 @@ import type {
 import {
   createAssignment,
   updateAssignmentStatus,
+  bulkUpdateAssignmentStatus,
   removeAssignment,
   addExcludedDates,
   removeExcludedDate,
@@ -40,6 +41,12 @@ import {
   getTeamAvailability,
   getUserAvailability,
 } from '@/app/(dashboard)/calendar/actions';
+import {
+  createConfirmationRequest,
+  getPendingConfirmations,
+  resendConfirmationEmail,
+  cancelConfirmationRequest,
+} from '@/app/(dashboard)/calendar/confirmation-actions';
 import type { UserAvailability } from '@/types/calendar';
 
 // Query keys
@@ -54,6 +61,7 @@ export const GANTT_KEY = ['gantt'];
 export const CONFLICTS_KEY = ['bookingConflicts'];
 export const TEAM_AVAILABILITY_KEY = ['team-availability'];
 export const USER_AVAILABILITY_KEY = ['user-availability'];
+export const CONFIRMATION_REQUESTS_KEY = ['confirmation-requests'];
 
 const ONE_MINUTE = 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -705,5 +713,118 @@ export function useUserAvailabilityRange(
     },
     staleTime: THIRTY_SECONDS,
     enabled: !!userId,
+  });
+}
+
+// ============================================
+// Bulk Status Update hooks
+// ============================================
+
+/**
+ * Bulk update status for multiple assignments at once
+ */
+export function useBulkUpdateAssignmentStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      assignmentIds: string[];
+      newStatus: BookingStatus;
+      note?: string;
+    }) => {
+      const result = await bulkUpdateAssignmentStatus(data);
+      if (!result.success) throw new Error(result.error);
+      return result.data!;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
+      queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
+      queryClient.invalidateQueries({ queryKey: USER_SCHEDULE_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
+    },
+  });
+}
+
+// ============================================
+// Confirmation Request hooks
+// ============================================
+
+/**
+ * Get pending confirmation requests
+ */
+export function usePendingConfirmations() {
+  return useQuery({
+    queryKey: [...CONFIRMATION_REQUESTS_KEY, 'pending'],
+    queryFn: async () => {
+      const result = await getPendingConfirmations();
+      if (!result.success) throw new Error(result.error);
+      return result.data || [];
+    },
+    staleTime: THIRTY_SECONDS,
+  });
+}
+
+/**
+ * Create a confirmation request to send to customer
+ */
+export function useCreateConfirmationRequest() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      projectId: string;
+      assignmentIds: string[];
+      sendToEmail: string;
+      sendToName?: string;
+    }) => {
+      const result = await createConfirmationRequest(data);
+      if (!result.success) throw new Error(result.error);
+      return result.data!;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
+      queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
+      queryClient.invalidateQueries({ queryKey: CONFIRMATION_REQUESTS_KEY });
+    },
+  });
+}
+
+/**
+ * Resend a confirmation email
+ */
+export function useResendConfirmationEmail() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (requestId: string) => {
+      const result = await resendConfirmationEmail(requestId);
+      if (!result.success) throw new Error(result.error);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: CONFIRMATION_REQUESTS_KEY });
+    },
+  });
+}
+
+/**
+ * Cancel a pending confirmation request
+ */
+export function useCancelConfirmationRequest() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (requestId: string) => {
+      const result = await cancelConfirmationRequest(requestId);
+      if (!result.success) throw new Error(result.error);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
+      queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
+      queryClient.invalidateQueries({ queryKey: CONFIRMATION_REQUESTS_KEY });
+    },
   });
 }

@@ -100,17 +100,21 @@ export function BulkActionsToolbar({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => handleStatusChange('pencil')}>
-                <PencilLine className="mr-2 h-4 w-4 text-amber-500" />
-                Pencil
+              <DropdownMenuItem onClick={() => handleStatusChange('draft')}>
+                <PencilLine className="mr-2 h-4 w-4 text-gray-500" />
+                Draft
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleStatusChange('pending_confirm')}>
-                <Clock className="mr-2 h-4 w-4 text-blue-500" />
-                Pending Confirm
+              <DropdownMenuItem onClick={() => handleStatusChange('tentative')}>
+                <PencilLine className="mr-2 h-4 w-4 text-amber-500" />
+                Tentative
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleStatusChange('confirmed')}>
                 <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
                 Confirmed
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleStatusChange('complete')}>
+                <CheckCircle className="mr-2 h-4 w-4 text-purple-500" />
+                Complete
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

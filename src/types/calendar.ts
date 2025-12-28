@@ -1,33 +1,84 @@
 import type { Profile, Project } from './index';
 
 // Booking status for project assignments
-export type BookingStatus = 'pencil' | 'pending_confirm' | 'confirmed';
+// Workflow: draft -> tentative -> pending_confirm -> confirmed -> complete
+export type BookingStatus = 'draft' | 'tentative' | 'pending_confirm' | 'confirmed' | 'complete';
 
 // Display labels for booking statuses
 export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
-  pencil: 'Pencil',
-  pending_confirm: 'Pending Confirm',
+  draft: 'Draft',
+  tentative: 'Tentative',
+  pending_confirm: 'Pending Confirmation',
   confirmed: 'Confirmed',
+  complete: 'Complete',
 };
 
 // Colors for booking statuses (Tailwind classes)
-export const BOOKING_STATUS_COLORS: Record<BookingStatus, { bg: string; text: string; border: string }> = {
-  pencil: {
-    bg: 'bg-amber-100',
-    text: 'text-amber-800',
-    border: 'border-amber-300',
-  },
-  pending_confirm: {
+export const BOOKING_STATUS_COLORS: Record<BookingStatus, { bg: string; text: string; border: string; dot: string }> = {
+  draft: {
     bg: 'bg-blue-100',
     text: 'text-blue-800',
     border: 'border-blue-300',
+    dot: 'bg-blue-500',
+  },
+  tentative: {
+    bg: 'bg-amber-100',
+    text: 'text-amber-800',
+    border: 'border-amber-300',
+    dot: 'bg-amber-500',
+  },
+  pending_confirm: {
+    bg: 'bg-purple-100',
+    text: 'text-purple-800',
+    border: 'border-purple-300',
+    dot: 'bg-purple-500',
   },
   confirmed: {
     bg: 'bg-green-100',
     text: 'text-green-800',
     border: 'border-green-300',
+    dot: 'bg-green-500',
+  },
+  complete: {
+    bg: 'bg-gray-100',
+    text: 'text-gray-600',
+    border: 'border-gray-300',
+    dot: 'bg-gray-400',
   },
 };
+
+// Status visibility - draft is only visible to admin/editor (PM)
+export const BOOKING_STATUS_VISIBILITY: Record<BookingStatus, { visibleToEngineers: boolean; description: string }> = {
+  draft: {
+    visibleToEngineers: false,
+    description: 'PM planning - not visible to engineers',
+  },
+  tentative: {
+    visibleToEngineers: true,
+    description: 'Planned but not yet sent to customer',
+  },
+  pending_confirm: {
+    visibleToEngineers: true,
+    description: 'Awaiting customer confirmation',
+  },
+  confirmed: {
+    visibleToEngineers: true,
+    description: 'Customer confirmed',
+  },
+  complete: {
+    visibleToEngineers: true,
+    description: 'Work completed',
+  },
+};
+
+// Status cycle order for manual cycling (skips pending_confirm)
+export const BOOKING_STATUS_CYCLE: BookingStatus[] = ['draft', 'tentative', 'confirmed', 'complete'];
+
+// Default working hours
+export const DEFAULT_WORKING_HOURS = {
+  start: '07:00',
+  end: '16:00',
+} as const;
 
 // Project assignment - user assigned to a project
 export interface ProjectAssignment {
@@ -340,4 +391,97 @@ export interface UserAvailabilityCheck {
   is_available: boolean;
   availability_type: string;
   reason: string | null;
+}
+
+// ============================================
+// Customer Confirmation Request Types
+// ============================================
+
+// Confirmation request status
+export type ConfirmationRequestStatus = 'pending' | 'confirmed' | 'declined' | 'expired';
+
+// Confirmation request record
+export interface ConfirmationRequest {
+  id: string;
+  project_id: string;
+  token: string;
+  sent_to_email: string;
+  sent_to_name: string | null;
+  sent_at: string;
+  expires_at: string;
+  status: ConfirmationRequestStatus;
+  responded_at: string | null;
+  decline_reason: string | null;
+  created_by: string | null;
+  created_at: string;
+  // Joined relations
+  project?: Project;
+  created_by_profile?: Profile;
+  assignments?: ConfirmationRequestAssignment[];
+}
+
+// Junction table for confirmation request assignments
+export interface ConfirmationRequestAssignment {
+  id: string;
+  confirmation_request_id: string;
+  assignment_id: string;
+  created_at: string;
+  // Joined relations
+  assignment?: ProjectAssignment;
+}
+
+// Data for creating a confirmation request
+export interface CreateConfirmationRequestData {
+  projectId: string;
+  assignmentIds: string[];
+  sendToEmail: string;
+  sendToName?: string;
+}
+
+// Data for customer confirmation response
+export interface ConfirmationResponseData {
+  token: string;
+  action: 'confirm' | 'decline';
+  declineReason?: string;
+}
+
+// Data for confirmation page display
+export interface ConfirmationPageData {
+  project_name: string;
+  customer_name: string;
+  dates: ConfirmationScheduleItem[];
+  is_expired: boolean;
+  is_responded: boolean;
+  previous_response?: 'confirmed' | 'declined';
+}
+
+// Individual schedule item for confirmation display
+export interface ConfirmationScheduleItem {
+  date: string;
+  start_time: string;
+  end_time: string;
+  engineers: string[];
+}
+
+// Pending confirmation for PM dashboard
+export interface PendingConfirmation {
+  id: string;
+  project_id: string;
+  project_name: string;
+  sent_to_email: string;
+  sent_to_name: string | null;
+  sent_at: string;
+  expires_at: string;
+  is_expired: boolean;
+  assignment_count: number;
+}
+
+// Result from validate_confirmation_token function
+export interface ConfirmationTokenValidation {
+  is_valid: boolean;
+  request_id: string | null;
+  project_id: string | null;
+  status: ConfirmationRequestStatus | null;
+  is_expired: boolean;
+  error_message: string | null;
 }

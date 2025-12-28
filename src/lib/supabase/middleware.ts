@@ -42,7 +42,9 @@ export async function updateSession(request: NextRequest) {
 
   const isCustomerRoute = request.nextUrl.pathname.startsWith('/customer');
   const isLoginRoute = request.nextUrl.pathname === '/login';
-  const isPublicRoute = request.nextUrl.pathname.startsWith('/status/');
+  const isStatusRoute = request.nextUrl.pathname.startsWith('/status/');
+  const isConfirmationRoute = request.nextUrl.pathname.startsWith('/confirm/');
+  const isPublicRoute = isStatusRoute || isConfirmationRoute;
 
   // Allow public routes without auth
   if (isPublicRoute) {
