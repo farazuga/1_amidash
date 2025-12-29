@@ -21,7 +21,22 @@ import { ProjectForm } from '@/components/projects/project-form';
 import { StatusHistory } from '@/components/projects/status-history';
 import { StatusChangeButton } from '@/components/projects/status-change-button';
 import { CopyClientLink } from '@/components/projects/copy-client-link';
+import { DeleteProjectButton } from '@/components/projects/delete-project-button';
 import type { Project } from '@/types';
+
+async function getCurrentUser() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  return profile;
+}
 
 async function getProject(id: string) {
   const supabase = await createClient();
@@ -104,7 +119,7 @@ export default async function ProjectDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [project, statuses, tags, statusHistory, salespeople, projectTypes, projectTypeStatuses] = await Promise.all([
+  const [project, statuses, tags, statusHistory, salespeople, projectTypes, projectTypeStatuses, currentUser] = await Promise.all([
     getProject(id),
     getStatuses(),
     getTags(),
@@ -112,7 +127,10 @@ export default async function ProjectDetailPage({
     getSalespeople(),
     getProjectTypes(),
     getProjectTypeStatuses(),
+    getCurrentUser(),
   ]);
+
+  const isAdmin = currentUser?.role === 'admin';
 
   if (!project) {
     notFound();
@@ -174,6 +192,12 @@ export default async function ProjectDetailPage({
               Schedule
             </Link>
           </Button>
+          {isAdmin && (
+            <DeleteProjectButton
+              projectId={project.id}
+              projectName={project.client_name}
+            />
+          )}
         </div>
       </div>
 
