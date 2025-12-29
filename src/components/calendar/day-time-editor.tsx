@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { format } from 'date-fns';
-import { Clock } from 'lucide-react';
+import { Clock, Plus, Minus } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
@@ -20,12 +20,36 @@ interface DayTimeEditorProps {
   trigger?: React.ReactNode;
 }
 
+// Helper to adjust time by hours (exported for testing)
+export function adjustTime(time: string, hours: number): string {
+  const [h, m] = time.split(':').map(Number);
+  let newH = h + hours;
+  // Clamp between 0 and 23
+  newH = Math.max(0, Math.min(23, newH));
+  return `${String(newH).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 export function DayTimeEditor({ day, trigger }: DayTimeEditorProps) {
   const [open, setOpen] = useState(false);
   const [startTime, setStartTime] = useState(day.start_time.slice(0, 5)); // HH:MM format
   const [endTime, setEndTime] = useState(day.end_time.slice(0, 5)); // HH:MM format
 
   const updateDay = useUpdateAssignmentDay();
+
+  // Quick hour adjustments
+  const adjustStartTime = useCallback((hours: number) => {
+    const newTime = adjustTime(startTime, hours);
+    // Don't allow start time to go past end time
+    if (hours > 0 && newTime >= endTime) return;
+    setStartTime(newTime);
+  }, [startTime, endTime]);
+
+  const adjustEndTime = useCallback((hours: number) => {
+    const newTime = adjustTime(endTime, hours);
+    // Don't allow end time to go before start time
+    if (hours < 0 && newTime <= startTime) return;
+    setEndTime(newTime);
+  }, [startTime, endTime]);
 
   const handleSave = async () => {
     // Validate times
@@ -77,22 +101,68 @@ export function DayTimeEditor({ day, trigger }: DayTimeEditorProps) {
           <div className="grid gap-3">
             <div className="grid gap-1.5">
               <Label htmlFor="start-time">Start Time</Label>
-              <Input
-                id="start-time"
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-              />
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 flex-shrink-0"
+                  onClick={() => adjustStartTime(-1)}
+                  title="Earlier by 1 hour"
+                >
+                  <Minus className="h-3 w-3" />
+                </Button>
+                <Input
+                  id="start-time"
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 flex-shrink-0"
+                  onClick={() => adjustStartTime(1)}
+                  title="Later by 1 hour"
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </div>
             </div>
 
             <div className="grid gap-1.5">
               <Label htmlFor="end-time">End Time</Label>
-              <Input
-                id="end-time"
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-              />
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 flex-shrink-0"
+                  onClick={() => adjustEndTime(-1)}
+                  title="Earlier by 1 hour"
+                >
+                  <Minus className="h-3 w-3" />
+                </Button>
+                <Input
+                  id="end-time"
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 flex-shrink-0"
+                  onClick={() => adjustEndTime(1)}
+                  title="Later by 1 hour"
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </div>
             </div>
           </div>
 

@@ -112,10 +112,6 @@ export function BulkActionsToolbar({
                 <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
                 Confirmed
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleStatusChange('complete')}>
-                <CheckCircle className="mr-2 h-4 w-4 text-purple-500" />
-                Complete
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}

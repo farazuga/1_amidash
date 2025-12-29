@@ -1,8 +1,8 @@
 import type { Profile, Project } from './index';
 
 // Booking status for project assignments
-// Workflow: draft -> tentative -> pending_confirm -> confirmed -> complete
-export type BookingStatus = 'draft' | 'tentative' | 'pending_confirm' | 'confirmed' | 'complete';
+// Workflow: draft -> tentative -> (pending_confirm via confirmation flow) -> confirmed
+export type BookingStatus = 'draft' | 'tentative' | 'pending_confirm' | 'confirmed';
 
 // Display labels for booking statuses
 export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
@@ -10,7 +10,6 @@ export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
   tentative: 'Tentative',
   pending_confirm: 'Pending Confirmation',
   confirmed: 'Confirmed',
-  complete: 'Complete',
 };
 
 // Colors for booking statuses (Tailwind classes)
@@ -39,12 +38,6 @@ export const BOOKING_STATUS_COLORS: Record<BookingStatus, { bg: string; text: st
     border: 'border-green-300',
     dot: 'bg-green-500',
   },
-  complete: {
-    bg: 'bg-gray-100',
-    text: 'text-gray-600',
-    border: 'border-gray-300',
-    dot: 'bg-gray-400',
-  },
 };
 
 // Status visibility - draft is only visible to admin/editor (PM)
@@ -65,14 +58,10 @@ export const BOOKING_STATUS_VISIBILITY: Record<BookingStatus, { visibleToEnginee
     visibleToEngineers: true,
     description: 'Customer confirmed',
   },
-  complete: {
-    visibleToEngineers: true,
-    description: 'Work completed',
-  },
 };
 
 // Status cycle order for manual cycling (skips pending_confirm)
-export const BOOKING_STATUS_CYCLE: BookingStatus[] = ['draft', 'tentative', 'confirmed', 'complete'];
+export const BOOKING_STATUS_CYCLE: BookingStatus[] = ['draft', 'tentative', 'confirmed'];
 
 // Default working hours
 export const DEFAULT_WORKING_HOURS = {

@@ -18,7 +18,7 @@ import {
   getDay,
   isWeekend,
 } from 'date-fns';
-import type { CalendarAssignmentResult, CalendarEvent, BookingStatus } from '@/types/calendar';
+import type { CalendarAssignmentResult, CalendarEvent, BookingStatus, AssignmentDay } from '@/types/calendar';
 import { BOOKING_STATUS_ORDER } from './constants';
 
 /**
@@ -351,4 +351,20 @@ export function getPreviousWeek(date: Date): Date {
  */
 export function isWeekday(date: Date): boolean {
   return !isWeekend(date);
+}
+
+/**
+ * Format assignment dates for display
+ * Returns a human-readable string like "Jan 15" or "Jan 15 - Jan 20 (5 days)"
+ */
+export function formatAssignmentDates(days?: AssignmentDay[]): string {
+  if (!days?.length) return 'No dates scheduled';
+
+  const sorted = [...days].sort((a, b) => a.work_date.localeCompare(b.work_date));
+
+  if (days.length === 1) {
+    return format(parseISO(sorted[0].work_date), 'MMM d');
+  }
+
+  return `${format(parseISO(sorted[0].work_date), 'MMM d')} - ${format(parseISO(sorted[sorted.length - 1].work_date), 'MMM d')} (${days.length} days)`;
 }

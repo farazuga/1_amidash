@@ -32,9 +32,11 @@ export { ProjectDatePicker } from './project-date-picker';
 // View Components
 export { UserScheduleView } from './user-schedule-view';
 export { WeekViewCalendar } from './week-view-calendar';
+export { MyScheduleCalendarView } from './my-schedule-calendar-view';
 
 // Drag and Drop Components
 export { DraggableUser, DraggingUserOverlay } from './draggable-user';
+export { DraggableAssignmentCard } from './draggable-assignment-card';
 export { DroppableDayCell } from './droppable-day-cell';
 export { AssignmentSidebar } from './assignment-sidebar';
 

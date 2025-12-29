@@ -17,7 +17,9 @@ import {
   useProjectAssignments,
 } from '@/hooks/queries/use-assignments';
 import { toast } from 'sonner';
-import type { CalendarEvent } from '@/types/calendar';
+import { format } from 'date-fns';
+import type { CalendarEvent, AssignmentDay } from '@/types/calendar';
+import { formatAssignmentDates } from '@/lib/calendar/utils';
 import type { Project } from '@/types';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -145,6 +147,9 @@ export function ProjectCalendarContent({ project, isAdmin }: ProjectCalendarCont
                       <div>
                         <p className="font-medium">{assignment.user?.full_name || 'Unknown'}</p>
                         <p className="text-sm text-muted-foreground">{assignment.user?.email}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {formatAssignmentDates((assignment as unknown as { days?: AssignmentDay[] }).days)}
+                        </p>
                       </div>
                     </div>
                     <BookingStatusBadge status={assignment.booking_status} />

@@ -5,9 +5,11 @@ import { format, isSameDay, isSameMonth, isToday, isWeekend } from 'date-fns';
 import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AssignmentCard } from './assignment-card';
+import { DraggableAssignmentCard } from './draggable-assignment-card';
 import { DayEventsPopover } from './day-events-popover';
 import { isDateInRange } from '@/lib/calendar/utils';
 import type { CalendarEvent } from '@/types/calendar';
+import type { ScheduledDayInfo } from '@/app/(dashboard)/calendar/actions';
 
 interface DroppableDayCellProps {
   date: Date;
@@ -25,6 +27,8 @@ interface DroppableDayCellProps {
   selectedDate?: Date | null;
   projectStartDate?: string | null;
   projectEndDate?: string | null;
+  enableDragMove?: boolean;
+  scheduledDaysWithIds?: Record<string, ScheduledDayInfo[]>;
 }
 
 export function DroppableDayCell({
@@ -43,6 +47,8 @@ export function DroppableDayCell({
   selectedDate,
   projectStartDate,
   projectEndDate,
+  enableDragMove = false,
+  scheduledDaysWithIds,
 }: DroppableDayCellProps) {
   const droppableId = `day-${format(date, 'yyyy-MM-dd')}`;
   const { isOver, setNodeRef } = useDroppable({
@@ -117,21 +123,48 @@ export function DroppableDayCell({
       </div>
 
       <div className="space-y-1">
-        {visibleEvents.map((event) => (
-          <AssignmentCard
-            key={event.id}
-            event={event}
-            compact
-            onClick={(e) => {
-              e?.stopPropagation?.();
-              onEventClick?.(event);
-            }}
-            onStatusClick={onStatusClick}
-            onEditClick={onEditClick}
-            isUpdating={isUpdatingAssignment === event.assignmentId}
-            showEditButton={showEditButton}
-          />
-        ))}
+        {visibleEvents.map((event) => {
+          const dateStr = format(date, 'yyyy-MM-dd');
+          const dayInfo = scheduledDaysWithIds?.[event.assignmentId]?.find(d => d.date === dateStr);
+          const dayId = dayInfo?.dayId;
+
+          if (enableDragMove && dayId) {
+            return (
+              <DraggableAssignmentCard
+                key={`${event.id}-${dateStr}`}
+                event={event}
+                dayId={dayId}
+                currentDate={dateStr}
+                compact
+                onClick={(e) => {
+                  e?.stopPropagation?.();
+                  onEventClick?.(event);
+                }}
+                onStatusClick={onStatusClick}
+                onEditClick={onEditClick}
+                isUpdating={isUpdatingAssignment === event.assignmentId}
+                showEditButton={showEditButton}
+                enableDrag={!isUpdatingAssignment}
+              />
+            );
+          }
+
+          return (
+            <AssignmentCard
+              key={event.id}
+              event={event}
+              compact
+              onClick={(e) => {
+                e?.stopPropagation?.();
+                onEventClick?.(event);
+              }}
+              onStatusClick={onStatusClick}
+              onEditClick={onEditClick}
+              isUpdating={isUpdatingAssignment === event.assignmentId}
+              showEditButton={showEditButton}
+            />
+          );
+        })}
 
         {hasMoreEvents && (
           <DayEventsPopover

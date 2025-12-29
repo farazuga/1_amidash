@@ -30,7 +30,7 @@ import {
   sortEventsByStatus,
   convertToCalendarEvents,
 } from '@/lib/calendar/utils';
-import { useCalendarData, useAssignableUsers, useCreateAssignment, useCycleAssignmentStatus } from '@/hooks/queries/use-assignments';
+import { useCalendarData, useAssignableUsers, useCreateAssignment, useCycleAssignmentStatus, useBulkUpdateAssignmentStatus, useMoveAssignmentDay } from '@/hooks/queries/use-assignments';
 import { AssignmentDaysDialog } from './assignment-days-dialog';
 import { MultiUserAssignmentDialog } from './multi-user-assignment-dialog';
 import { SendConfirmationDialog } from './send-confirmation-dialog';
@@ -50,6 +50,16 @@ import { Loader2, LayoutGrid, GanttChart, CalendarDays, Users, Mail } from 'luci
 import { GanttCalendar } from './gantt-calendar';
 import { WeekViewCalendar } from './week-view-calendar';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 
 interface ProjectCalendarProps {
@@ -104,6 +114,10 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   const [multiUserDialogOpen, setMultiUserDialogOpen] = useState(false);
   const [confirmationDialogOpen, setConfirmationDialogOpen] = useState(false);
   const [confirmationAssignment, setConfirmationAssignment] = useState<CalendarEvent | null>(null);
+  const [bulkStatusDialog, setBulkStatusDialog] = useState<{
+    open: boolean;
+    targetStatus: BookingStatus | null;
+  }>({ open: false, targetStatus: null });
 
   const { start, end } = getMonthViewRange(currentDate);
   const days = getCalendarDays(currentDate);
@@ -116,6 +130,8 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   const { data: assignableUsers = [], isLoading: isLoadingUsers } = useAssignableUsers();
   const createAssignment = useCreateAssignment();
   const cycleStatus = useCycleAssignmentStatus();
+  const bulkUpdateStatus = useBulkUpdateAssignmentStatus();
+  const moveAssignmentDay = useMoveAssignmentDay();
 
   // Convert assignments to calendar events with scheduled days
   const events = useMemo(() => {
@@ -127,6 +143,9 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
     return convertToCalendarEvents(calendarAssignments.data, new Map(), scheduledDaysMap);
   }, [calendarAssignments]);
 
+  // Extract scheduledDaysWithIds for drag-drop support
+  const scheduledDaysWithIds = calendarAssignments?.scheduledDaysWithIds || {};
+
   // Calculate status counts for summary bar
   const statusCounts = useMemo(() => {
     const counts: Record<BookingStatus | 'total', number> = {
@@ -134,7 +153,6 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
       tentative: 0,
       pending_confirm: 0,
       confirmed: 0,
-      complete: 0,
       total: 0,
     };
     events.forEach((event) => {
@@ -212,6 +230,39 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
     setConfirmationDialogOpen(true);
   }, []);
 
+  // Handle bulk status click (clicking on status in summary bar)
+  const handleBulkStatusClick = useCallback((status: BookingStatus) => {
+    // Don't open dialog if all assignments are already at this status
+    if (statusCounts[status] === statusCounts.total) return;
+    setBulkStatusDialog({ open: true, targetStatus: status });
+  }, [statusCounts]);
+
+  // Confirm bulk status change
+  const confirmBulkStatusChange = useCallback(async () => {
+    if (!bulkStatusDialog.targetStatus || !project) return;
+
+    // Get unique assignment IDs from events
+    const assignmentIds = [...new Set(events.map(e => e.assignmentId))];
+    if (assignmentIds.length === 0) return;
+
+    try {
+      const result = await bulkUpdateStatus.mutateAsync({
+        assignmentIds,
+        newStatus: bulkStatusDialog.targetStatus,
+      });
+
+      const statusLabel = BOOKING_STATUS_CONFIG[bulkStatusDialog.targetStatus].label;
+      toast.success(`Assignments updated`, {
+        description: `${result.updatedCount} assignment(s) changed to ${statusLabel}`,
+      });
+      setBulkStatusDialog({ open: false, targetStatus: null });
+    } catch (error) {
+      toast.error('Failed to update assignments', {
+        description: error instanceof Error ? error.message : 'An error occurred',
+      });
+    }
+  }, [bulkStatusDialog.targetStatus, project, bulkUpdateStatus, events]);
+
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const { active } = event;
     if (active.data.current?.type === 'user') {
@@ -231,7 +282,35 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
         return;
       }
 
-      // Check if dropped on a day cell
+      // Handle moving an existing assignment to a new day
+      if (over.data.current?.type === 'day' && active.data.current?.type === 'move-assignment') {
+        const { dayId, originalDate, userName } = active.data.current;
+        const newDate = over.data.current.date;
+        const newDateStr = newDate.toISOString().split('T')[0];
+
+        // Don't move if dropped on the same day
+        if (originalDate === newDateStr) {
+          return;
+        }
+
+        try {
+          await moveAssignmentDay.mutateAsync({
+            dayId,
+            newDate: newDateStr,
+          });
+
+          toast.success('Assignment moved', {
+            description: `${userName} moved to ${newDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`,
+          });
+        } catch (error) {
+          toast.error('Failed to move assignment', {
+            description: error instanceof Error ? error.message : 'An error occurred',
+          });
+        }
+        return;
+      }
+
+      // Handle assigning a new user from the sidebar
       if (over.data.current?.type === 'day' && active.data.current?.type === 'user') {
         const userId = active.data.current.userId;
         const userName = active.data.current.userName;
@@ -267,7 +346,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
         }
       }
     },
-    [project, createAssignment]
+    [project, createAssignment, moveAssignmentDay]
   );
 
   const renderCalendarGrid = () => (
@@ -308,6 +387,8 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
                 showEditButton={!isMobile}
                 projectStartDate={project?.start_date}
                 projectEndDate={project?.end_date}
+                enableDragMove={isAdmin}
+                scheduledDaysWithIds={scheduledDaysWithIds}
               />
             );
           }
@@ -371,18 +452,29 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
     </div>
   );
 
-  // Status summary bar component
+  // Status summary bar component - clickable to bulk change status
   const statusSummaryBar = statusCounts.total > 0 && (
-    <div className="flex items-center gap-4 text-sm bg-muted/50 p-2 rounded-lg">
-      {(['draft', 'tentative', 'pending_confirm', 'confirmed', 'complete'] as const).map((status) => {
+    <div className="flex items-center gap-2 text-sm bg-muted/50 p-2 rounded-lg">
+      {(['draft', 'tentative', 'pending_confirm', 'confirmed'] as const).map((status) => {
         const config = BOOKING_STATUS_CONFIG[status];
         const count = statusCounts[status];
+        const isCurrentStatus = count === statusCounts.total;
         return (
-          <div key={status} className="flex items-center gap-1.5">
+          <button
+            key={status}
+            onClick={() => isAdmin && project && handleBulkStatusClick(status)}
+            disabled={!isAdmin || !project || isCurrentStatus}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded transition-colors ${
+              isAdmin && project && !isCurrentStatus
+                ? 'hover:bg-muted cursor-pointer'
+                : 'cursor-default'
+            } ${isCurrentStatus ? 'opacity-50' : ''}`}
+            title={isAdmin && project ? `Change all to ${config.label}` : undefined}
+          >
             <span className={`h-3 w-3 rounded-full ${config.dotColor}`} />
             <span className="font-medium">{count}</span>
             <span className="text-muted-foreground">{config.label}</span>
-          </div>
+          </button>
         );
       })}
       <span className="text-muted-foreground ml-auto">
@@ -393,8 +485,9 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
 
   const calendarContent = (
     <div className="flex-1 space-y-4">
-      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+      {/* Row 1: Navigation + Views on left, Status filter on right */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           {project ? (
             <CalendarHeaderWithDates
               currentDate={currentDate}
@@ -420,7 +513,43 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
           )}
           {viewToggle}
         </div>
-        <div className="flex flex-wrap items-center gap-4">
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as BookingStatus | 'all')}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue placeholder="All statuses" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="draft">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-gray-400" />
+                Draft Only
+              </div>
+            </SelectItem>
+            <SelectItem value="tentative">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-amber-500" />
+                Tentative Only
+              </div>
+            </SelectItem>
+            <SelectItem value="pending_confirm">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-blue-500" />
+                Pending Only
+              </div>
+            </SelectItem>
+            <SelectItem value="confirmed">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-green-500" />
+                Confirmed Only
+              </div>
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Row 2: Action buttons on left, Status summary on right */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-2">
           {/* Manage Schedule button - admin only, requires project with dates */}
           {isAdmin && project?.start_date && project?.end_date && (
             <Button
@@ -450,50 +579,9 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
           )}
           {/* Conflicts Panel - admin only */}
           {isAdmin && <ConflictsPanel />}
-          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as BookingStatus | 'all')}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="All statuses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="draft">
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-gray-400" />
-                  Draft Only
-                </div>
-              </SelectItem>
-              <SelectItem value="tentative">
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-amber-500" />
-                  Tentative Only
-                </div>
-              </SelectItem>
-              <SelectItem value="pending_confirm">
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-blue-500" />
-                  Pending Only
-                </div>
-              </SelectItem>
-              <SelectItem value="confirmed">
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-green-500" />
-                  Confirmed Only
-                </div>
-              </SelectItem>
-              <SelectItem value="complete">
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-purple-500" />
-                  Complete Only
-                </div>
-              </SelectItem>
-            </SelectContent>
-          </Select>
-          {/* Hide legend on mobile - visible in summary bar */}
-          {!isMobile && <CalendarLegend />}
         </div>
+        {statusSummaryBar}
       </div>
-
-      {statusSummaryBar}
 
       {isError ? (
         <div className="flex flex-col items-center justify-center h-[500px] text-muted-foreground">
@@ -577,6 +665,30 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
           customerName={project.poc_name || undefined}
         />
       )}
+
+      {/* Bulk status change confirmation dialog */}
+      <AlertDialog
+        open={bulkStatusDialog.open}
+        onOpenChange={(open) => !open && setBulkStatusDialog({ open: false, targetStatus: null })}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Change all assignments?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will change {statusCounts.total} assignment{statusCounts.total !== 1 ? 's' : ''} to &quot;{bulkStatusDialog.targetStatus && BOOKING_STATUS_CONFIG[bulkStatusDialog.targetStatus].label}&quot;.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmBulkStatusChange}
+              disabled={bulkUpdateStatus.isPending}
+            >
+              {bulkUpdateStatus.isPending ? 'Updating...' : 'Confirm'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 

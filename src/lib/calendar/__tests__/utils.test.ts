@@ -21,8 +21,9 @@ import {
   doRangesOverlap,
   formatDateRange,
   getUserInitials,
+  formatAssignmentDates,
 } from '../utils';
-import type { CalendarAssignmentResult, CalendarEvent } from '@/types/calendar';
+import type { CalendarAssignmentResult, CalendarEvent, AssignmentDay } from '@/types/calendar';
 
 describe('Calendar Utils', () => {
   describe('getCalendarDays', () => {
@@ -288,7 +289,7 @@ describe('Calendar Utils', () => {
           project_end_date: '2024-01-20',
           user_id: 'u1',
           user_name: null,
-          booking_status: 'pencil',
+          booking_status: 'draft',
         },
       ];
       const excludedDatesMap = new Map<string, string[]>();
@@ -356,7 +357,7 @@ describe('Calendar Utils', () => {
   });
 
   describe('sortEventsByStatus', () => {
-    it('sorts confirmed first, then pending, then pencil', () => {
+    it('sorts confirmed first, then pending, then tentative, then draft', () => {
       const events: CalendarEvent[] = [
         {
           id: '1',
@@ -367,9 +368,10 @@ describe('Calendar Utils', () => {
           projectName: 'Test',
           userId: 'u1',
           userName: 'User',
-          bookingStatus: 'pencil',
+          bookingStatus: 'draft',
           assignmentId: '1',
           excludedDates: [],
+          scheduledDays: [],
         },
         {
           id: '2',
@@ -383,6 +385,7 @@ describe('Calendar Utils', () => {
           bookingStatus: 'confirmed',
           assignmentId: '2',
           excludedDates: [],
+          scheduledDays: [],
         },
         {
           id: '3',
@@ -396,6 +399,21 @@ describe('Calendar Utils', () => {
           bookingStatus: 'pending_confirm',
           assignmentId: '3',
           excludedDates: [],
+          scheduledDays: [],
+        },
+        {
+          id: '4',
+          title: 'Test',
+          start: new Date(),
+          end: new Date(),
+          projectId: 'p1',
+          projectName: 'Test',
+          userId: 'u1',
+          userName: 'User',
+          bookingStatus: 'tentative',
+          assignmentId: '4',
+          excludedDates: [],
+          scheduledDays: [],
         },
       ];
 
@@ -403,7 +421,8 @@ describe('Calendar Utils', () => {
 
       expect(sorted[0].bookingStatus).toBe('confirmed');
       expect(sorted[1].bookingStatus).toBe('pending_confirm');
-      expect(sorted[2].bookingStatus).toBe('pencil');
+      expect(sorted[2].bookingStatus).toBe('tentative');
+      expect(sorted[3].bookingStatus).toBe('draft');
     });
 
     it('does not mutate original array', () => {
@@ -417,9 +436,10 @@ describe('Calendar Utils', () => {
           projectName: 'Test',
           userId: 'u1',
           userName: 'User',
-          bookingStatus: 'pencil',
+          bookingStatus: 'draft',
           assignmentId: '1',
           excludedDates: [],
+          scheduledDays: [],
         },
       ];
 
@@ -674,6 +694,78 @@ describe('Calendar Utils', () => {
 
     it('handles empty string', () => {
       expect(getUserInitials('')).toBe('?');
+    });
+  });
+
+  describe('formatAssignmentDates', () => {
+    const createDay = (date: string): AssignmentDay => ({
+      id: `day-${date}`,
+      assignment_id: 'assignment-1',
+      work_date: date,
+      start_time: '07:00:00',
+      end_time: '16:00:00',
+      created_by: null,
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00Z',
+    });
+
+    it('returns "No dates scheduled" for undefined', () => {
+      expect(formatAssignmentDates(undefined)).toBe('No dates scheduled');
+    });
+
+    it('returns "No dates scheduled" for empty array', () => {
+      expect(formatAssignmentDates([])).toBe('No dates scheduled');
+    });
+
+    it('formats single day correctly', () => {
+      const days = [createDay('2024-01-15')];
+      expect(formatAssignmentDates(days)).toBe('Jan 15');
+    });
+
+    it('formats two days with range', () => {
+      const days = [createDay('2024-01-15'), createDay('2024-01-16')];
+      expect(formatAssignmentDates(days)).toBe('Jan 15 - Jan 16 (2 days)');
+    });
+
+    it('formats multiple days with count', () => {
+      const days = [
+        createDay('2024-01-15'),
+        createDay('2024-01-16'),
+        createDay('2024-01-17'),
+        createDay('2024-01-18'),
+        createDay('2024-01-19'),
+      ];
+      expect(formatAssignmentDates(days)).toBe('Jan 15 - Jan 19 (5 days)');
+    });
+
+    it('sorts days chronologically', () => {
+      // Days passed in wrong order
+      const days = [
+        createDay('2024-01-20'),
+        createDay('2024-01-15'),
+        createDay('2024-01-18'),
+      ];
+      expect(formatAssignmentDates(days)).toBe('Jan 15 - Jan 20 (3 days)');
+    });
+
+    it('handles non-consecutive days', () => {
+      // Days with gaps - still shows first to last
+      const days = [
+        createDay('2024-01-15'),
+        createDay('2024-01-18'),
+        createDay('2024-01-22'),
+      ];
+      expect(formatAssignmentDates(days)).toBe('Jan 15 - Jan 22 (3 days)');
+    });
+
+    it('handles days across months', () => {
+      const days = [
+        createDay('2024-01-30'),
+        createDay('2024-01-31'),
+        createDay('2024-02-01'),
+        createDay('2024-02-02'),
+      ];
+      expect(formatAssignmentDates(days)).toBe('Jan 30 - Feb 2 (4 days)');
     });
   });
 });

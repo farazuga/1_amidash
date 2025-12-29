@@ -54,16 +54,6 @@ export const BOOKING_STATUS_CONFIG: Record<
     description: 'Customer confirmed',
     visibleToEngineers: true,
   },
-  complete: {
-    label: 'Complete',
-    shortLabel: 'X',
-    bgColor: 'bg-gray-100',
-    textColor: 'text-gray-600',
-    borderColor: 'border-gray-300',
-    dotColor: 'bg-gray-400',
-    description: 'Work completed',
-    visibleToEngineers: true,
-  },
 };
 
 // Default working hours (7am - 4pm)
@@ -106,7 +96,6 @@ export const BOOKING_STATUS_ORDER: BookingStatus[] = [
   'pending_confirm',
   'tentative',
   'draft',
-  'complete',
 ];
 
 // Status cycle for manual PM cycling (skips pending_confirm - requires confirmation flow)
@@ -114,5 +103,4 @@ export const BOOKING_STATUS_CYCLE: BookingStatus[] = [
   'draft',
   'tentative',
   'confirmed',
-  'complete',
 ];

@@ -793,12 +793,19 @@ export async function getUnresolvedConflicts(userId?: string): Promise<ActionRes
 // Default max assignments to return
 const DEFAULT_CALENDAR_LIMIT = 500;
 
+// Scheduled day info with ID for drag-drop support
+export interface ScheduledDayInfo {
+  date: string;
+  dayId: string;
+}
+
 // Extended return type for calendar data with scheduled days
 export interface CalendarDataResult {
   data: CalendarAssignmentResult[];
   total: number;
   hasMore: boolean;
-  scheduledDaysMap: Record<string, string[]>; // assignment_id -> work_dates[]
+  scheduledDaysMap: Record<string, string[]>; // assignment_id -> work_dates[] (for backwards compat)
+  scheduledDaysWithIds: Record<string, ScheduledDayInfo[]>; // assignment_id -> {date, dayId}[]
 }
 
 export async function getCalendarData(params: {
@@ -856,22 +863,33 @@ export async function getCalendarData(params: {
   // Fetch assignment_days for all assignments to get actual scheduled days
   const assignmentIds = paginatedResult.map(a => a.assignment_id);
   const scheduledDaysMap: Record<string, string[]> = {};
+  const scheduledDaysWithIds: Record<string, ScheduledDayInfo[]> = {};
 
   if (assignmentIds.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: daysData, error: daysError } = await (supabase as any)
       .from('assignment_days')
-      .select('assignment_id, work_date')
+      .select('id, assignment_id, work_date')
       .in('assignment_id', assignmentIds)
       .order('work_date', { ascending: true });
 
     if (!daysError && daysData) {
-      // Build map of assignment_id -> work_dates[]
-      for (const day of daysData as { assignment_id: string; work_date: string }[]) {
+      // Build maps
+      for (const day of daysData as { id: string; assignment_id: string; work_date: string }[]) {
+        // Legacy map: assignment_id -> work_dates[]
         if (!scheduledDaysMap[day.assignment_id]) {
           scheduledDaysMap[day.assignment_id] = [];
         }
         scheduledDaysMap[day.assignment_id].push(day.work_date);
+
+        // New map with IDs for drag-drop: assignment_id -> {date, dayId}[]
+        if (!scheduledDaysWithIds[day.assignment_id]) {
+          scheduledDaysWithIds[day.assignment_id] = [];
+        }
+        scheduledDaysWithIds[day.assignment_id].push({
+          date: day.work_date,
+          dayId: day.id,
+        });
       }
     }
   }
@@ -883,6 +901,7 @@ export async function getCalendarData(params: {
       total,
       hasMore,
       scheduledDaysMap,
+      scheduledDaysWithIds,
     }
   };
 }
@@ -1264,6 +1283,69 @@ export async function updateAssignmentDay(data: {
 }
 
 /**
+ * Move an assignment day to a new date
+ */
+export async function moveAssignmentDay(data: {
+  dayId: string;
+  newDate: string; // YYYY-MM-DD format
+}): Promise<ActionResult<{ dayId: string; newDate: string }>> {
+  const { error: authError, supabase } = await requireAdmin();
+  if (authError || !supabase) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  // Validate date format
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data.newDate)) {
+    return { success: false, error: 'Invalid date format' };
+  }
+
+  // Get the day to check assignment info
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: day, error: fetchError } = await (supabase as any)
+    .from('assignment_days')
+    .select('*, assignment:project_assignments(id, user_id, project_id)')
+    .eq('id', data.dayId)
+    .single();
+
+  if (fetchError || !day) {
+    console.error('Fetch assignment day error:', fetchError);
+    return { success: false, error: 'Assignment day not found' };
+  }
+
+  // Check if the new date already exists for this assignment
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: existingDay } = await (supabase as any)
+    .from('assignment_days')
+    .select('id')
+    .eq('assignment_id', day.assignment_id)
+    .eq('work_date', data.newDate)
+    .neq('id', data.dayId)
+    .maybeSingle();
+
+  if (existingDay) {
+    return { success: false, error: 'This person is already scheduled for this date' };
+  }
+
+  // Update the work_date
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: updateError } = await (supabase as any)
+    .from('assignment_days')
+    .update({ work_date: data.newDate })
+    .eq('id', data.dayId);
+
+  if (updateError) {
+    console.error('Move assignment day error:', updateError);
+    return { success: false, error: 'Failed to move assignment day' };
+  }
+
+  revalidatePath('/calendar');
+  revalidatePath('/my-schedule');
+  revalidatePath('/projects');
+
+  return { success: true, data: { dayId: data.dayId, newDate: data.newDate } };
+}
+
+/**
  * Remove specific days from an assignment
  */
 export async function removeAssignmentDays(dayIds: string[]): Promise<ActionResult> {
@@ -1322,11 +1404,11 @@ export async function getAssignmentDays(assignmentId: string): Promise<ActionRes
 // ============================================
 
 // Status cycle for PM manual cycling - skips pending_confirm (requires confirmation flow)
-// Workflow: draft → tentative → confirmed → complete → draft
-const STATUS_CYCLE: BookingStatus[] = ['draft', 'tentative', 'confirmed', 'complete'];
+// Workflow: draft → tentative → confirmed → draft
+const STATUS_CYCLE: BookingStatus[] = ['draft', 'tentative', 'confirmed'];
 
 /**
- * Cycle assignment status: draft → tentative → confirmed → complete → draft
+ * Cycle assignment status: draft → tentative → confirmed → draft
  * Note: pending_confirm is NOT in the cycle - it's only reached via the customer confirmation flow
  */
 export async function cycleAssignmentStatus(assignmentId: string): Promise<ActionResult<{ newStatus: BookingStatus }>> {

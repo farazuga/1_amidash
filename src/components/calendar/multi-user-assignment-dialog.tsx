@@ -158,6 +158,47 @@ export function MultiUserAssignmentDialog({
     return count;
   }, [pendingChanges]);
 
+  // Toggle all days for an assignment (skip weekends)
+  const handleToggleAllForAssignment = (assignmentId: string) => {
+    // Check if all weekdays are currently scheduled
+    const weekdayDates = projectDates.filter(d => !isWeekend(d));
+    const allScheduled = weekdayDates.every(date =>
+      isDateScheduled(assignmentId, format(date, 'yyyy-MM-dd'))
+    );
+
+    setPendingChanges((prev) => {
+      const newChanges = new Map(prev);
+      const existingDays = existingDaysMap.get(assignmentId) || new Set();
+      const assignmentChanges = new Map<string, ChangeAction>();
+
+      weekdayDates.forEach(date => {
+        const dateStr = format(date, 'yyyy-MM-dd');
+        const hasExisting = existingDays.has(dateStr);
+
+        if (allScheduled) {
+          // All are scheduled, so we want to remove all
+          if (hasExisting) {
+            assignmentChanges.set(dateStr, 'remove');
+          }
+          // If not existing, no need to add a remove action
+        } else {
+          // Not all scheduled, so we want to add all
+          if (!hasExisting) {
+            assignmentChanges.set(dateStr, 'add');
+          }
+          // If already existing, no need to add an add action
+        }
+      });
+
+      if (assignmentChanges.size === 0) {
+        newChanges.delete(assignmentId);
+      } else {
+        newChanges.set(assignmentId, assignmentChanges);
+      }
+      return newChanges;
+    });
+  };
+
   // Save all pending changes
   const handleSave = async () => {
     if (pendingChangeCount === 0) {
@@ -273,7 +314,11 @@ export function MultiUserAssignmentDialog({
                         key={assignment.id}
                         className="p-2 border-b text-center font-medium min-w-[100px]"
                       >
-                        <div className="truncate">
+                        <div
+                          className="truncate cursor-pointer hover:text-primary hover:underline transition-colors"
+                          onClick={() => handleToggleAllForAssignment(assignment.id)}
+                          title="Click to toggle all days for this person"
+                        >
                           {assignment.user?.full_name || 'Unknown'}
                         </div>
                       </th>

@@ -31,13 +31,12 @@ export const welcomeEmailSchema = z.object({
 // Calendar & Booking Validation
 // ============================================
 
-// Booking status enum validation
+// Booking status enum validation (4 statuses: draft -> tentative -> pending_confirm -> confirmed)
 export const bookingStatusSchema = z.enum([
   'draft',
   'tentative',
   'pending_confirm',
   'confirmed',
-  'complete',
 ]);
 
 // Availability type enum validation

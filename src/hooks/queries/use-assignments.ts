@@ -26,6 +26,7 @@ import {
   // New actions for Gantt/day management
   addAssignmentDays,
   updateAssignmentDay,
+  moveAssignmentDay,
   removeAssignmentDays,
   getAssignmentDays,
   cycleAssignmentStatus,
@@ -133,7 +134,7 @@ export function useCalendarData(
     ],
     queryFn: async () => {
       if (!startStr || !endStr) {
-        return { data: [], total: 0, hasMore: false, scheduledDaysMap: {} };
+        return { data: [], total: 0, hasMore: false, scheduledDaysMap: {}, scheduledDaysWithIds: {} };
       }
 
       // Use server action for proper authentication
@@ -147,7 +148,7 @@ export function useCalendarData(
       });
 
       if (!result.success) throw new Error(result.error);
-      return result.data || { data: [], total: 0, hasMore: false, scheduledDaysMap: {} };
+      return result.data || { data: [], total: 0, hasMore: false, scheduledDaysMap: {}, scheduledDaysWithIds: {} };
     },
     staleTime: THIRTY_SECONDS,
     enabled: !!startStr && !!endStr,
@@ -563,6 +564,31 @@ export function useUpdateAssignmentDay() {
       const result = await updateAssignmentDay(data);
       if (!result.success) throw new Error(result.error);
       return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
+      queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
+      queryClient.invalidateQueries({ queryKey: USER_SCHEDULE_KEY });
+      queryClient.invalidateQueries({ queryKey: ASSIGNMENT_DAYS_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
+    },
+  });
+}
+
+/**
+ * Move an assignment day to a new date
+ */
+export function useMoveAssignmentDay() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      dayId: string;
+      newDate: string;
+    }) => {
+      const result = await moveAssignmentDay(data);
+      if (!result.success) throw new Error(result.error);
+      return result.data!;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });

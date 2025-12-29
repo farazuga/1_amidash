@@ -26,7 +26,7 @@ interface UserScheduleViewProps {
   currentDate: Date;
 }
 
-const ALL_STATUSES: BookingStatus[] = ['draft', 'tentative', 'pending_confirm', 'confirmed', 'complete'];
+const ALL_STATUSES: BookingStatus[] = ['draft', 'tentative', 'pending_confirm', 'confirmed'];
 
 export function UserScheduleView({ userId, userName, currentDate }: UserScheduleViewProps) {
   const monthStart = startOfMonth(currentDate);

@@ -51,16 +51,20 @@ test.describe('Calendar', () => {
       expect(newMonth).not.toBe(initialMonth);
     });
 
-    test.skip('should display calendar legend', async ({ page }) => {
+    test.skip('should display calendar legend with 4 statuses', async ({ page }) => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
       await page.goto('/calendar');
 
-      // Check for booking status legend
-      await expect(page.getByText('Pencil')).toBeVisible();
-      await expect(page.getByText('Pending Confirm')).toBeVisible();
+      // Check for booking status legend - 4 statuses (no 'complete')
+      await expect(page.getByText('Draft')).toBeVisible();
+      await expect(page.getByText('Tentative')).toBeVisible();
+      await expect(page.getByText('Pending Confirmation')).toBeVisible();
       await expect(page.getByText('Confirmed')).toBeVisible();
+
+      // 'Complete' should NOT be visible
+      await expect(page.getByText('Complete')).not.toBeVisible();
     });
   });
 
@@ -466,6 +470,210 @@ test.describe('Calendar', () => {
       const addButton = page.getByRole('button', { name: /add assignment/i });
       await expect(addButton).toBeVisible();
       await expect(addButton).toBeEnabled();
+    });
+  });
+
+  // =========================================
+  // NEW FEATURE TESTS - Calendar Improvements
+  // =========================================
+
+  test.describe('My Schedule Views', () => {
+    test.skip('should default to calendar view', async ({ page }) => {
+      const authHelpers = new AuthHelpers(page);
+      await authHelpers.login('admin@example.com', 'password123');
+
+      await page.goto('/my-schedule');
+      await page.waitForLoadState('networkidle');
+
+      // Calendar view button should be active/selected by default
+      const calendarButton = page.getByRole('button', { name: /calendar/i }).first();
+      await expect(calendarButton).toHaveAttribute('data-state', 'on');
+
+      // Month grid should be visible
+      await expect(page.locator('[data-testid="month-grid"]')).toBeVisible();
+    });
+
+    test.skip('should toggle between calendar and list views', async ({ page }) => {
+      const authHelpers = new AuthHelpers(page);
+      await authHelpers.login('admin@example.com', 'password123');
+
+      await page.goto('/my-schedule');
+      await page.waitForLoadState('networkidle');
+
+      // Click list view
+      await page.getByRole('button', { name: /list/i }).first().click();
+      await expect(page.locator('[data-testid="list-view"]')).toBeVisible();
+
+      // Click calendar view
+      await page.getByRole('button', { name: /calendar/i }).first().click();
+      await expect(page.locator('[data-testid="month-grid"]')).toBeVisible();
+    });
+  });
+
+  test.describe('Status Cycle', () => {
+    test.skip('should cycle through 3 statuses: draft -> tentative -> confirmed -> draft', async ({ page }) => {
+      const authHelpers = new AuthHelpers(page);
+      await authHelpers.login('admin@example.com', 'password123');
+
+      await page.goto('/projects/test-project-id/calendar');
+      await page.waitForLoadState('networkidle');
+
+      // Find an assignment card with draft status
+      const assignmentCard = page.getByTestId('assignment-card').first();
+
+      // Click to cycle status (assuming click cycles status)
+      await assignmentCard.click();
+
+      // Status should cycle: draft -> tentative -> confirmed -> draft
+      // Verify status doesn't include 'complete'
+      const statusBadge = page.getByTestId('booking-status-badge').first();
+      const statusText = await statusBadge.textContent();
+
+      // Status should be one of: Draft, Tentative, Confirmed (not Complete)
+      expect(['Draft', 'Tentative', 'Confirmed']).toContain(statusText);
+    });
+  });
+
+  test.describe('Bulk Status Change', () => {
+    test.skip('should show confirmation dialog for bulk status change', async ({ page }) => {
+      const authHelpers = new AuthHelpers(page);
+      await authHelpers.login('admin@example.com', 'password123');
+
+      await page.goto('/projects/test-project-id/calendar');
+      await page.waitForLoadState('networkidle');
+
+      // Click on a status in the status summary bar
+      await page.getByTestId('status-summary-bar').locator('button').first().click();
+
+      // Confirmation dialog should appear
+      await expect(page.getByRole('alertdialog')).toBeVisible();
+      await expect(page.getByText('Change all assignments?')).toBeVisible();
+    });
+
+    test.skip('should change all assignments status on confirm', async ({ page }) => {
+      const authHelpers = new AuthHelpers(page);
+      await authHelpers.login('admin@example.com', 'password123');
+
+      await page.goto('/projects/test-project-id/calendar');
+      await page.waitForLoadState('networkidle');
+
+      // Click on confirmed status
+      await page.getByTestId('status-summary-bar').getByText('Confirmed').click();
+
+      // Confirm the action
+      await page.getByRole('button', { name: 'Confirm' }).click();
+
+      // Success toast should appear
+      await expect(page.getByText('All assignments changed')).toBeVisible();
+    });
+  });
+
+  test.describe('List View Dates', () => {
+    test.skip('should show dates for each assignment in list view', async ({ page }) => {
+      const authHelpers = new AuthHelpers(page);
+      await authHelpers.login('admin@example.com', 'password123');
+
+      await page.goto('/projects/test-project-id/calendar');
+      await page.waitForLoadState('networkidle');
+
+      // Switch to list view
+      await page.getByRole('tab', { name: /list/i }).click();
+
+      // Each assignment should show dates
+      const assignmentCards = page.locator('[data-testid="assignment-list-item"]');
+      const firstCard = assignmentCards.first();
+
+      // Should contain date information like "Jan 15" or "Jan 15 - Jan 20 (5 days)"
+      await expect(firstCard.locator('.text-muted-foreground')).toContainText(/\w{3} \d+/);
+    });
+  });
+
+  test.describe('Toggle All Days', () => {
+    test.skip('should toggle all days when clicking user name in manage schedule', async ({ page }) => {
+      const authHelpers = new AuthHelpers(page);
+      await authHelpers.login('admin@example.com', 'password123');
+
+      await page.goto('/projects/test-project-id/calendar');
+      await page.waitForLoadState('networkidle');
+
+      // Open manage schedule dialog
+      await page.getByRole('button', { name: /manage schedule/i }).click();
+      await expect(page.getByRole('dialog')).toBeVisible();
+
+      // Click on a user name to toggle all days
+      const userName = page.locator('[data-testid="assignment-user-name"]').first();
+      await userName.click();
+
+      // All checkboxes for that user should be toggled
+      const checkboxes = page.locator('[data-testid="assignment-day-checkbox"]');
+      const firstCheckboxChecked = await checkboxes.first().isChecked();
+
+      // All checkboxes should have the same state
+      const checkboxCount = await checkboxes.count();
+      for (let i = 0; i < checkboxCount; i++) {
+        expect(await checkboxes.nth(i).isChecked()).toBe(firstCheckboxChecked);
+      }
+    });
+  });
+
+  test.describe('Drag and Drop Move', () => {
+    test.skip('should move assignment to different day via drag and drop', async ({ page }) => {
+      const authHelpers = new AuthHelpers(page);
+      await authHelpers.login('admin@example.com', 'password123');
+
+      await page.goto('/projects/test-project-id/calendar');
+      await page.waitForLoadState('networkidle');
+
+      // Find an existing assignment card
+      const assignmentCard = page.getByTestId('draggable-assignment-card').first();
+
+      // Find a different day cell
+      const targetDayCell = page.getByTestId('droppable-day-cell').nth(2);
+
+      // Drag the assignment to the new day
+      await assignmentCard.dragTo(targetDayCell);
+
+      // Success toast should appear
+      await expect(page.getByText('Assignment moved')).toBeVisible();
+    });
+  });
+
+  test.describe('Time Adjustments', () => {
+    test.skip('should have 1-hour adjustment buttons in time editor', async ({ page }) => {
+      const authHelpers = new AuthHelpers(page);
+      await authHelpers.login('admin@example.com', 'password123');
+
+      await page.goto('/projects/test-project-id/calendar');
+      await page.waitForLoadState('networkidle');
+
+      // Open time editor popover
+      await page.getByTestId('time-editor-trigger').first().click();
+
+      // Check for +/- buttons
+      await expect(page.getByRole('button', { name: /earlier by 1 hour/i })).toBeVisible();
+      await expect(page.getByRole('button', { name: /later by 1 hour/i })).toBeVisible();
+    });
+
+    test.skip('should adjust time by 1 hour when clicking buttons', async ({ page }) => {
+      const authHelpers = new AuthHelpers(page);
+      await authHelpers.login('admin@example.com', 'password123');
+
+      await page.goto('/projects/test-project-id/calendar');
+      await page.waitForLoadState('networkidle');
+
+      // Open time editor
+      await page.getByTestId('time-editor-trigger').first().click();
+
+      // Get initial start time
+      const startTimeInput = page.getByLabel('Start Time');
+      const initialTime = await startTimeInput.inputValue();
+
+      // Click + button for start time
+      await page.getByRole('button', { name: /later by 1 hour/i }).first().click();
+
+      // Time should be 1 hour later
+      const newTime = await startTimeInput.inputValue();
+      expect(newTime).not.toBe(initialTime);
     });
   });
 });

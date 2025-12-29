@@ -33,7 +33,6 @@ interface GenerateCalendarOptions {
 function mapBookingStatusToICalStatus(status: BookingStatus): ICalEventStatus {
   switch (status) {
     case 'confirmed':
-    case 'complete':
       return ICalEventStatus.CONFIRMED;
     case 'pending_confirm':
     case 'tentative':
@@ -49,8 +48,6 @@ function getStatusLabel(status: BookingStatus): string {
   switch (status) {
     case 'confirmed':
       return 'Confirmed';
-    case 'complete':
-      return 'Complete';
     case 'pending_confirm':
       return 'Pending Confirm';
     case 'tentative':
