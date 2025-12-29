@@ -30,7 +30,7 @@ export function useProjectsWithDates() {
           assignments:project_assignments(
             id,
             user_id,
-            user:users(id, full_name)
+            user:profiles(id, full_name)
           )
         `)
         .not('start_date', 'is', null)
