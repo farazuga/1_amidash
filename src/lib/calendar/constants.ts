@@ -62,9 +62,19 @@ export const DEFAULT_WORKING_HOURS = {
   end: '16:00',
 } as const;
 
-// Days of the week
-export const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+// Days of the week (weekdays only - no weekends)
+export const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as const;
 export const WEEKDAYS_FULL = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+] as const;
+
+// Full week including weekends (for legacy support if needed)
+export const WEEKDAYS_WITH_WEEKENDS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+export const WEEKDAYS_FULL_WITH_WEEKENDS = [
   'Sunday',
   'Monday',
   'Tuesday',

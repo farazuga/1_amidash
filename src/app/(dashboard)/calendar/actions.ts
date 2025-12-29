@@ -1996,3 +1996,178 @@ export async function checkUserAvailabilityOnDate(params: {
     },
   };
 }
+
+// ============================================
+// Project Schedule Status Actions
+// ============================================
+
+export interface AssignmentForCascade {
+  id: string;
+  userId: string;
+  userName: string;
+  currentStatus: BookingStatus;
+}
+
+/**
+ * Get project with its assignments for cascade dialog
+ */
+export async function getProjectAssignmentsForCascade(
+  projectId: string
+): Promise<ActionResult<{ projectName: string; assignments: AssignmentForCascade[] }>> {
+  const { error: authError, supabase } = await getAuthenticatedClient();
+  if (authError || !supabase) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  // Get project name
+  const { data: project, error: projectError } = await supabase
+    .from('projects')
+    .select('client_name')
+    .eq('id', projectId)
+    .single();
+
+  if (projectError) {
+    return { success: false, error: 'Failed to fetch project' };
+  }
+
+  // Get assignments with user info
+  const { data: assignments, error: assignmentsError } = await supabase
+    .from('project_assignments')
+    .select(`
+      id,
+      user_id,
+      booking_status
+    `)
+    .eq('project_id', projectId);
+
+  if (assignmentsError) {
+    return { success: false, error: 'Failed to fetch assignments' };
+  }
+
+  // Get user profiles separately
+  const userIds = [...new Set((assignments || []).map(a => a.user_id))];
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, full_name, email')
+    .in('id', userIds);
+
+  const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+
+  const formattedAssignments: AssignmentForCascade[] = (assignments || []).map((a) => {
+    const profile = profileMap.get(a.user_id);
+    return {
+      id: a.id,
+      userId: a.user_id,
+      userName: profile?.full_name || profile?.email || 'Unknown',
+      currentStatus: a.booking_status as BookingStatus,
+    };
+  });
+
+  return {
+    success: true,
+    data: {
+      projectName: project.client_name,
+      assignments: formattedAssignments,
+    },
+  };
+}
+
+/**
+ * Update project schedule status
+ */
+export async function updateProjectScheduleStatus(params: {
+  projectId: string;
+  newStatus: BookingStatus;
+}): Promise<ActionResult<{ previousStatus: BookingStatus | null }>> {
+  const { error: authError, supabase } = await getAuthenticatedClient();
+  if (authError || !supabase) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  // First get the current status
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: project, error: fetchError } = await (supabase as any)
+    .from('projects')
+    .select('schedule_status, start_date, end_date')
+    .eq('id', params.projectId)
+    .single();
+
+  if (fetchError || !project) {
+    return { success: false, error: 'Failed to fetch project' };
+  }
+
+  // Validate project has dates
+  if (!project.start_date || !project.end_date) {
+    return { success: false, error: 'Cannot set schedule status without project dates' };
+  }
+
+  // Update the status
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: updateError } = await (supabase as any)
+    .from('projects')
+    .update({ schedule_status: params.newStatus })
+    .eq('id', params.projectId);
+
+  if (updateError) {
+    console.error('Update project schedule status error:', updateError);
+    return { success: false, error: 'Failed to update schedule status' };
+  }
+
+  revalidatePath('/projects');
+  revalidatePath(`/projects/${params.projectId}`);
+  revalidatePath('/project-calendar');
+
+  return {
+    success: true,
+    data: { previousStatus: project.schedule_status as BookingStatus | null },
+  };
+}
+
+/**
+ * Cascade project schedule status to selected assignments
+ */
+export async function cascadeStatusToAssignments(params: {
+  projectId: string;
+  newStatus: BookingStatus;
+  assignmentIds: string[];
+  note?: string;
+}): Promise<ActionResult<{ updatedCount: number }>> {
+  const { error: authError, supabase, user } = await getAuthenticatedClient();
+  if (authError || !supabase || !user) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  if (params.assignmentIds.length === 0) {
+    return { success: true, data: { updatedCount: 0 } };
+  }
+
+  // Update all selected assignments
+  const { error: updateError, count } = await supabase
+    .from('project_assignments')
+    .update({ booking_status: params.newStatus })
+    .in('id', params.assignmentIds)
+    .eq('project_id', params.projectId);
+
+  if (updateError) {
+    console.error('Cascade status to assignments error:', updateError);
+    return { success: false, error: 'Failed to update assignments' };
+  }
+
+  // Record in booking status history for each assignment
+  const historyRecords = params.assignmentIds.map((assignmentId) => ({
+    assignment_id: assignmentId,
+    new_status: params.newStatus,
+    note: params.note || `Cascaded from project schedule status change`,
+    changed_by: user.id,
+  }));
+
+  await supabase.from('booking_status_history').insert(historyRecords);
+
+  revalidatePath('/projects');
+  revalidatePath(`/projects/${params.projectId}`);
+  revalidatePath('/calendar');
+  revalidatePath('/my-schedule');
+  revalidatePath('/project-calendar');
+
+  return { success: true, data: { updatedCount: count || params.assignmentIds.length } };
+}

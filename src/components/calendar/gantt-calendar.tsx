@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import { format, addDays, startOfWeek, addWeeks, subWeeks } from 'date-fns';
+import { format, addDays, startOfWeek, addWeeks, subWeeks, isWeekend } from 'date-fns';
 import { ChevronLeft, ChevronRight, Users, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { GanttRow } from './gantt-row';
@@ -34,11 +34,22 @@ export function GanttCalendar({ projectId, projectName, projectStartDate, projec
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<GanttAssignment | null>(null);
 
-  const viewEndDate = useMemo(() => {
-    return addDays(viewStartDate, 13); // 2 weeks (14 days)
+  // Get 10 weekdays (2 weeks of Mon-Fri)
+  const weekdayDates = useMemo(() => {
+    const dates: Date[] = [];
+    let currentDate = viewStartDate;
+    // Collect 10 weekdays
+    while (dates.length < 10) {
+      if (!isWeekend(currentDate)) {
+        dates.push(currentDate);
+      }
+      currentDate = addDays(currentDate, 1);
+    }
+    return dates;
   }, [viewStartDate]);
 
-  const totalDays = 14;
+  const viewEndDate = weekdayDates[weekdayDates.length - 1] || viewStartDate;
+  const totalDays = 10; // 2 weeks of weekdays only
 
   // Fetch Gantt data
   const { data: ganttAssignments = [], isLoading, refetch } = useProjectGanttData(projectId);
@@ -55,25 +66,18 @@ export function GanttCalendar({ projectId, projectName, projectStartDate, projec
     return grouped;
   }, [ganttAssignments]);
 
-  // Generate day headers
+  // Generate day headers (weekdays only)
   const dayHeaders = useMemo(() => {
-    const headers: { date: Date; label: string; dayOfWeek: string; isToday: boolean; isWeekend: boolean }[] = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    for (let i = 0; i < totalDays; i++) {
-      const date = addDays(viewStartDate, i);
-      const dayOfWeek = date.getDay();
-      headers.push({
-        date,
-        label: format(date, 'd'),
-        dayOfWeek: format(date, 'EEE'),
-        isToday: date.getTime() === today.getTime(),
-        isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
-      });
-    }
-    return headers;
-  }, [viewStartDate, totalDays]);
+    return weekdayDates.map((date) => ({
+      date,
+      label: format(date, 'd'),
+      dayOfWeek: format(date, 'EEE'),
+      isToday: date.getTime() === today.getTime(),
+    }));
+  }, [weekdayDates]);
 
   // Navigation handlers
   const handlePrevWeek = useCallback(() => {
@@ -161,13 +165,12 @@ export function GanttCalendar({ projectId, projectName, projectStartDate, projec
             Assigned
           </div>
 
-          {/* Day headers */}
+          {/* Day headers (weekdays only) */}
           {dayHeaders.map((day, i) => (
             <div
               key={i}
               className={cn(
                 'px-1 py-2 text-center border-r last:border-r-0',
-                day.isWeekend && 'bg-muted-foreground/5',
                 day.isToday && 'bg-primary/10'
               )}
             >
@@ -219,8 +222,7 @@ export function GanttCalendar({ projectId, projectName, projectStartDate, projec
                       <GanttRow
                         key={assignment.assignmentId}
                         assignment={assignment}
-                        viewStartDate={viewStartDate}
-                        viewEndDate={viewEndDate}
+                        weekdayDates={weekdayDates}
                         totalDays={totalDays}
                         onStatusClick={handleStatusClick}
                         onEditClick={handleEditClick}

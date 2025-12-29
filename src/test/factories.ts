@@ -84,6 +84,7 @@ export function createProject(overrides: Partial<Project> = {}): Project {
     updated_at: '2024-01-01T00:00:00Z',
     start_date: null,
     end_date: null,
+    schedule_status: null,
     ...overrides,
   };
 }

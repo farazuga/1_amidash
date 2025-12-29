@@ -20,6 +20,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
+  CalendarRange,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -46,6 +47,11 @@ const mainNavItems = [
     title: 'Projects',
     href: '/projects',
     icon: FolderKanban,
+  },
+  {
+    title: 'Project Calendar',
+    href: '/project-calendar',
+    icon: CalendarRange,
   },
   {
     title: 'My Schedule',

@@ -22,10 +22,26 @@ import type { CalendarAssignmentResult, CalendarEvent, BookingStatus, Assignment
 import { BOOKING_STATUS_ORDER } from './constants';
 
 /**
- * Get all days to display in a month calendar view
- * Includes days from previous/next months to fill the grid
+ * Get all days to display in a month calendar view (weekdays only)
+ * Returns Mon-Fri days, filtering out weekends
  */
 export function getCalendarDays(date: Date): Date[] {
+  const monthStart = startOfMonth(date);
+  const monthEnd = endOfMonth(date);
+  // Start from Monday of the week containing month start
+  const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+  // End on Friday of the week containing month end
+  const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+
+  const allDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
+  // Filter to weekdays only (Mon-Fri)
+  return allDays.filter((day) => !isWeekend(day));
+}
+
+/**
+ * Get all days including weekends (for legacy support if needed)
+ */
+export function getCalendarDaysWithWeekends(date: Date): Date[] {
   const monthStart = startOfMonth(date);
   const monthEnd = endOfMonth(date);
   const calendarStart = startOfWeek(monthStart);

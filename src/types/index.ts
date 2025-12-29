@@ -1,3 +1,5 @@
+import type { BookingStatus } from './calendar';
+
 export type UserRole = 'viewer' | 'editor' | 'admin' | 'customer';
 
 export type ContractType =
@@ -60,6 +62,7 @@ export interface Project {
   // Calendar scheduling fields
   start_date: string | null;
   end_date: string | null;
+  schedule_status: BookingStatus | null;
   current_status_id: string | null;
   project_type_id: string | null;
   salesperson_id: string | null;

@@ -14,6 +14,7 @@ interface DraggableAssignmentCardProps {
   onStatusClick?: (assignmentId: string) => void;
   onEditClick?: (event: CalendarEvent) => void;
   onSendConfirmation?: (event: CalendarEvent) => void;
+  onOptionClickDelete?: (dayId: string, event: CalendarEvent, date: string) => void;
   isUpdating?: boolean;
   showEditButton?: boolean;
   showMenu?: boolean;
@@ -26,6 +27,8 @@ export function DraggableAssignmentCard({
   dayId,
   currentDate,
   enableDrag = true,
+  onClick,
+  onOptionClickDelete,
   ...cardProps
 }: DraggableAssignmentCardProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -42,6 +45,17 @@ export function DraggableAssignmentCard({
     disabled: !enableDrag,
   });
 
+  const handleClick = (e: React.MouseEvent) => {
+    // Option+click (Mac) or Alt+click (Windows) to delete this day
+    if (e.altKey && onOptionClickDelete) {
+      e.stopPropagation();
+      e.preventDefault();
+      onOptionClickDelete(dayId, event, currentDate);
+      return;
+    }
+    onClick?.(e);
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -53,7 +67,7 @@ export function DraggableAssignmentCard({
         enableDrag && !isDragging && 'cursor-grab'
       )}
     >
-      <AssignmentCard event={event} {...cardProps} />
+      <AssignmentCard event={event} onClick={handleClick} {...cardProps} />
     </div>
   );
 }
