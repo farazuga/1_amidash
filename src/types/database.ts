@@ -199,6 +199,7 @@ export type Database = {
           sales_order_number: string | null
           sales_order_url: string | null
           salesperson_id: string | null
+          schedule_status: string | null
           scope_link: string | null
           start_date: string | null
           updated_at: string | null
@@ -225,6 +226,7 @@ export type Database = {
           sales_order_number?: string | null
           sales_order_url?: string | null
           salesperson_id?: string | null
+          schedule_status?: string | null
           scope_link?: string | null
           start_date?: string | null
           updated_at?: string | null
@@ -251,6 +253,7 @@ export type Database = {
           sales_order_number?: string | null
           sales_order_url?: string | null
           salesperson_id?: string | null
+          schedule_status?: string | null
           scope_link?: string | null
           start_date?: string | null
           updated_at?: string | null
