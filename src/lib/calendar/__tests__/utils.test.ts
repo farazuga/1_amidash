@@ -305,7 +305,7 @@ describe('Calendar Utils', () => {
       id: string,
       startDate: string,
       endDate: string,
-      excludedDates: string[] = []
+      scheduledDays: string[] = []
     ): CalendarEvent => ({
       id,
       title: 'Test',
@@ -317,13 +317,14 @@ describe('Calendar Utils', () => {
       userName: 'User',
       bookingStatus: 'confirmed',
       assignmentId: id,
-      excludedDates,
+      excludedDates: [],
+      scheduledDays,
     });
 
-    it('returns events that include the day', () => {
+    it('returns events with scheduled days that include the day', () => {
       const events = [
-        createEvent('e1', '2024-01-10', '2024-01-20'),
-        createEvent('e2', '2024-01-15', '2024-01-25'),
+        createEvent('e1', '2024-01-10', '2024-01-20', ['2024-01-15', '2024-01-16']),
+        createEvent('e2', '2024-01-15', '2024-01-25', ['2024-01-15']),
       ];
       const day = new Date(2024, 0, 15);
 
@@ -332,10 +333,10 @@ describe('Calendar Utils', () => {
       expect(result).toHaveLength(2);
     });
 
-    it('excludes events not on the day', () => {
+    it('excludes events when day is not in scheduledDays', () => {
       const events = [
-        createEvent('e1', '2024-01-10', '2024-01-14'),
-        createEvent('e2', '2024-01-20', '2024-01-25'),
+        createEvent('e1', '2024-01-10', '2024-01-20', ['2024-01-10', '2024-01-11']),
+        createEvent('e2', '2024-01-20', '2024-01-25', ['2024-01-20']),
       ];
       const day = new Date(2024, 0, 15);
 
@@ -344,15 +345,52 @@ describe('Calendar Utils', () => {
       expect(result).toHaveLength(0);
     });
 
-    it('excludes events with excluded dates', () => {
+    it('excludes events with no scheduled days (empty array)', () => {
       const events = [
-        createEvent('e1', '2024-01-10', '2024-01-20', ['2024-01-15']),
+        createEvent('e1', '2024-01-10', '2024-01-20', []),
       ];
       const day = new Date(2024, 0, 15);
 
       const result = getEventsForDay(day, events);
 
       expect(result).toHaveLength(0);
+    });
+
+    it('excludes events with undefined scheduled days', () => {
+      const events: CalendarEvent[] = [
+        {
+          id: 'e1',
+          title: 'Test',
+          start: new Date('2024-01-10'),
+          end: new Date('2024-01-20'),
+          projectId: 'p1',
+          projectName: 'Test',
+          userId: 'u1',
+          userName: 'User',
+          bookingStatus: 'confirmed',
+          assignmentId: 'e1',
+          excludedDates: [],
+          scheduledDays: undefined as unknown as string[],
+        },
+      ];
+      const day = new Date(2024, 0, 15);
+
+      const result = getEventsForDay(day, events);
+
+      expect(result).toHaveLength(0);
+    });
+
+    it('only returns events scheduled on specific day', () => {
+      const events = [
+        createEvent('e1', '2024-01-10', '2024-01-20', ['2024-01-15']),
+        createEvent('e2', '2024-01-10', '2024-01-20', ['2024-01-16']),
+      ];
+      const day = new Date(2024, 0, 15);
+
+      const result = getEventsForDay(day, events);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('e1');
     });
   });
 

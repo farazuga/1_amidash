@@ -139,22 +139,19 @@ export function isDateScheduled(date: Date, scheduledDays: string[]): boolean {
 
 /**
  * Get events for a specific day
- * Uses scheduledDays (assignment_days) when available, otherwise falls back to project date range
+ * Only shows events that have explicit scheduled days (from assignment_days table)
  */
 export function getEventsForDay(
   date: Date,
   events: CalendarEvent[]
 ): CalendarEvent[] {
   return events.filter((event) => {
-    // If scheduledDays is populated, use it as the source of truth
-    if (event.scheduledDays && event.scheduledDays.length > 0) {
-      return isDateScheduled(date, event.scheduledDays);
+    // Only show events on days that are explicitly scheduled
+    // If no days are scheduled, don't show the event on any day
+    if (!event.scheduledDays || event.scheduledDays.length === 0) {
+      return false;
     }
-
-    // Fall back to project date range check (legacy behavior)
-    const isInRange = isWithinInterval(date, { start: event.start, end: event.end });
-    const isExcluded = isDateExcluded(date, event.excludedDates);
-    return isInRange && !isExcluded;
+    return isDateScheduled(date, event.scheduledDays);
   });
 }
 

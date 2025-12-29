@@ -13,6 +13,7 @@ import {
 } from '@dnd-kit/core';
 import { CalendarHeader } from './calendar-header';
 import { CalendarHeaderWithDates } from './calendar-header-with-dates';
+import { AssignmentCard } from './assignment-card';
 import { useUser } from '@/hooks/use-user';
 import { CalendarDayCell } from './calendar-day-cell';
 import { DroppableDayCell } from './droppable-day-cell';
@@ -105,8 +106,10 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
     return 'calendar';
   });
   const [activeDragData, setActiveDragData] = useState<{
+    type: 'user' | 'move-assignment';
     userId: string;
     userName: string | null;
+    event?: CalendarEvent;
   } | null>(null);
   const [statusFilter, setStatusFilter] = useState<BookingStatus | 'all'>('all');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -267,8 +270,16 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
     const { active } = event;
     if (active.data.current?.type === 'user') {
       setActiveDragData({
+        type: 'user',
         userId: active.data.current.userId,
         userName: active.data.current.userName,
+      });
+    } else if (active.data.current?.type === 'move-assignment') {
+      setActiveDragData({
+        type: 'move-assignment',
+        userId: active.data.current.userId,
+        userName: active.data.current.userName,
+        event: active.data.current.event,
       });
     }
   }, []);
@@ -722,8 +733,16 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
       </div>
 
       <DragOverlay>
-        {activeDragData && (
+        {activeDragData?.type === 'user' && (
           <DraggingUserOverlay userName={activeDragData.userName} />
+        )}
+        {activeDragData?.type === 'move-assignment' && activeDragData.event && (
+          <div className="opacity-80 pointer-events-none">
+            <AssignmentCard
+              event={activeDragData.event}
+              compact
+            />
+          </div>
         )}
       </DragOverlay>
     </DndContext>
