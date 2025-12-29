@@ -22,20 +22,26 @@ import {
   formatDateRange,
   getUserInitials,
   formatAssignmentDates,
+  isWeekday,
+  getWeekViewDays,
+  getWeeksInRange,
+  getWeekNumber,
+  getNextWeek,
+  getPreviousWeek,
 } from '../utils';
 import type { CalendarAssignmentResult, CalendarEvent, AssignmentDay } from '@/types/calendar';
 
 describe('Calendar Utils', () => {
   describe('getCalendarDays', () => {
-    it('returns all days for a month calendar grid', () => {
+    it('returns all weekdays for a month calendar grid', () => {
       // January 2024 starts on Monday, ends on Wednesday
       const date = new Date(2024, 0, 15); // January 15, 2024
       const days = getCalendarDays(date);
 
-      // Should return at least 28 days (for January) + days to fill grid
-      expect(days.length).toBeGreaterThanOrEqual(28);
-      // Grid should be complete weeks (divisible by 7)
-      expect(days.length % 7).toBe(0);
+      // Should return at least 20 weekdays (4 weeks * 5 days)
+      expect(days.length).toBeGreaterThanOrEqual(20);
+      // Grid should be complete weeks (divisible by 5 - Mon-Fri)
+      expect(days.length % 5).toBe(0);
     });
 
     it('includes days from previous month to fill the grid', () => {
@@ -43,16 +49,16 @@ describe('Calendar Utils', () => {
       const date = new Date(2024, 1, 15); // February 15, 2024
       const days = getCalendarDays(date);
 
-      // First day should be a Sunday from January
-      expect(days[0].getDay()).toBe(0); // Sunday
+      // First day should be a Monday (weekStartsOn: 1)
+      expect(days[0].getDay()).toBe(1); // Monday
     });
 
     it('includes days from next month to fill the grid', () => {
       const date = new Date(2024, 0, 15);
       const days = getCalendarDays(date);
 
-      // Last day should be a Saturday
-      expect(days[days.length - 1].getDay()).toBe(6); // Saturday
+      // Last day should be a Friday (weekdays only)
+      expect(days[days.length - 1].getDay()).toBe(5); // Friday
     });
   });
 
@@ -804,6 +810,246 @@ describe('Calendar Utils', () => {
         createDay('2024-02-02'),
       ];
       expect(formatAssignmentDates(days)).toBe('Jan 30 - Feb 2 (4 days)');
+    });
+  });
+
+  describe('isWeekday', () => {
+    it('returns true for Monday', () => {
+      const monday = new Date(2024, 0, 15); // January 15, 2024 is Monday
+      expect(monday.getDay()).toBe(1); // Verify it's Monday
+      expect(isWeekday(monday)).toBe(true);
+    });
+
+    it('returns true for Friday', () => {
+      const friday = new Date(2024, 0, 19); // January 19, 2024 is Friday
+      expect(friday.getDay()).toBe(5); // Verify it's Friday
+      expect(isWeekday(friday)).toBe(true);
+    });
+
+    it('returns false for Saturday', () => {
+      const saturday = new Date(2024, 0, 20); // January 20, 2024 is Saturday
+      expect(saturday.getDay()).toBe(6); // Verify it's Saturday
+      expect(isWeekday(saturday)).toBe(false);
+    });
+
+    it('returns false for Sunday', () => {
+      const sunday = new Date(2024, 0, 21); // January 21, 2024 is Sunday
+      expect(sunday.getDay()).toBe(0); // Verify it's Sunday
+      expect(isWeekday(sunday)).toBe(false);
+    });
+
+    it('returns true for all weekdays in a week', () => {
+      // Week of Jan 15-19, 2024 (Mon-Fri)
+      const weekdays = [
+        new Date(2024, 0, 15), // Monday
+        new Date(2024, 0, 16), // Tuesday
+        new Date(2024, 0, 17), // Wednesday
+        new Date(2024, 0, 18), // Thursday
+        new Date(2024, 0, 19), // Friday
+      ];
+
+      weekdays.forEach((day) => {
+        expect(isWeekday(day)).toBe(true);
+      });
+    });
+  });
+
+  describe('getCalendarDays - weekend filtering', () => {
+    it('returns only weekdays (Mon-Fri)', () => {
+      const date = new Date(2024, 0, 15); // January 2024
+      const days = getCalendarDays(date);
+
+      // Every day should be a weekday (Mon=1, Tue=2, Wed=3, Thu=4, Fri=5)
+      days.forEach((day) => {
+        const dayOfWeek = day.getDay();
+        expect(dayOfWeek).toBeGreaterThanOrEqual(1);
+        expect(dayOfWeek).toBeLessThanOrEqual(5);
+      });
+    });
+
+    it('does not include Saturday (day 6)', () => {
+      const date = new Date(2024, 0, 15);
+      const days = getCalendarDays(date);
+
+      const saturdays = days.filter((day) => day.getDay() === 6);
+      expect(saturdays).toHaveLength(0);
+    });
+
+    it('does not include Sunday (day 0)', () => {
+      const date = new Date(2024, 0, 15);
+      const days = getCalendarDays(date);
+
+      const sundays = days.filter((day) => day.getDay() === 0);
+      expect(sundays).toHaveLength(0);
+    });
+
+    it('returns divisible by 5 (5 weekdays per week)', () => {
+      const date = new Date(2024, 0, 15);
+      const days = getCalendarDays(date);
+
+      expect(days.length % 5).toBe(0);
+    });
+
+    it('starts on Monday', () => {
+      const date = new Date(2024, 0, 15); // January 2024
+      const days = getCalendarDays(date);
+
+      // First day should be Monday (day 1)
+      expect(days[0].getDay()).toBe(1);
+    });
+
+    it('ends on Friday', () => {
+      const date = new Date(2024, 0, 15);
+      const days = getCalendarDays(date);
+
+      // Last day should be Friday (day 5)
+      expect(days[days.length - 1].getDay()).toBe(5);
+    });
+  });
+
+  describe('getWeekViewDays', () => {
+    it('returns only weekdays in the date range', () => {
+      // Week from Jan 15-21, 2024 (Mon-Sun)
+      const days = getWeekViewDays('2024-01-15', '2024-01-21');
+
+      // Should only return Mon-Fri (5 days)
+      expect(days).toHaveLength(5);
+
+      // All should be weekdays
+      days.forEach((day) => {
+        expect(day.getDay()).toBeGreaterThanOrEqual(1);
+        expect(day.getDay()).toBeLessThanOrEqual(5);
+      });
+    });
+
+    it('filters out weekend days from range', () => {
+      // Range includes Saturday Jan 20 and Sunday Jan 21
+      const days = getWeekViewDays('2024-01-15', '2024-01-21');
+
+      const hasWeekend = days.some((day) => day.getDay() === 0 || day.getDay() === 6);
+      expect(hasWeekend).toBe(false);
+    });
+
+    it('returns empty array for weekend-only range', () => {
+      // Only Saturday and Sunday
+      const days = getWeekViewDays('2024-01-20', '2024-01-21');
+
+      expect(days).toHaveLength(0);
+    });
+
+    it('handles single weekday', () => {
+      // Single Monday
+      const days = getWeekViewDays('2024-01-15', '2024-01-15');
+
+      expect(days).toHaveLength(1);
+      expect(days[0].getDay()).toBe(1); // Monday
+    });
+
+    it('handles multi-week range', () => {
+      // Two weeks: Jan 15-26, 2024
+      const days = getWeekViewDays('2024-01-15', '2024-01-26');
+
+      // 10 weekdays across 2 weeks
+      expect(days).toHaveLength(10);
+    });
+  });
+
+  describe('getWeeksInRange', () => {
+    it('returns array of week arrays', () => {
+      const weeks = getWeeksInRange('2024-01-15', '2024-01-26');
+
+      expect(Array.isArray(weeks)).toBe(true);
+      weeks.forEach((week) => {
+        expect(Array.isArray(week)).toBe(true);
+      });
+    });
+
+    it('each week contains only weekdays', () => {
+      const weeks = getWeeksInRange('2024-01-15', '2024-01-26');
+
+      weeks.forEach((week) => {
+        week.forEach((day) => {
+          const dayOfWeek = day.getDay();
+          expect(dayOfWeek).toBeGreaterThanOrEqual(1);
+          expect(dayOfWeek).toBeLessThanOrEqual(5);
+        });
+      });
+    });
+
+    it('each week has max 5 days', () => {
+      const weeks = getWeeksInRange('2024-01-15', '2024-01-26');
+
+      weeks.forEach((week) => {
+        expect(week.length).toBeLessThanOrEqual(5);
+      });
+    });
+
+    it('filters empty weeks', () => {
+      const weeks = getWeeksInRange('2024-01-15', '2024-01-26');
+
+      weeks.forEach((week) => {
+        expect(week.length).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  describe('getWeekNumber', () => {
+    it('returns 1 for first week of project', () => {
+      const projectStart = '2024-01-15'; // Monday
+      const date = new Date(2024, 0, 16); // Tuesday of same week
+
+      const weekNum = getWeekNumber(date, projectStart);
+      expect(weekNum).toBe(1);
+    });
+
+    it('returns 2 for second week', () => {
+      const projectStart = '2024-01-15'; // Monday
+      const date = new Date(2024, 0, 22); // Monday of next week
+
+      const weekNum = getWeekNumber(date, projectStart);
+      expect(weekNum).toBe(2);
+    });
+
+    it('handles project starting mid-week', () => {
+      const projectStart = '2024-01-17'; // Wednesday
+      const date = new Date(2024, 0, 19); // Friday of same week
+
+      const weekNum = getWeekNumber(date, projectStart);
+      expect(weekNum).toBe(1);
+    });
+  });
+
+  describe('getNextWeek and getPreviousWeek', () => {
+    it('getNextWeek returns date 7 days later', () => {
+      const date = new Date(2024, 0, 15); // Jan 15
+      const next = getNextWeek(date);
+
+      expect(next.getDate()).toBe(22); // Jan 22
+      expect(next.getMonth()).toBe(0); // January
+    });
+
+    it('getPreviousWeek returns date 7 days earlier', () => {
+      const date = new Date(2024, 0, 15); // Jan 15
+      const prev = getPreviousWeek(date);
+
+      expect(prev.getDate()).toBe(8); // Jan 8
+      expect(prev.getMonth()).toBe(0); // January
+    });
+
+    it('getNextWeek handles month boundary', () => {
+      const date = new Date(2024, 0, 29); // Jan 29
+      const next = getNextWeek(date);
+
+      expect(next.getMonth()).toBe(1); // February
+      expect(next.getDate()).toBe(5); // Feb 5
+    });
+
+    it('getPreviousWeek handles month boundary', () => {
+      const date = new Date(2024, 1, 5); // Feb 5
+      const prev = getPreviousWeek(date);
+
+      expect(prev.getMonth()).toBe(0); // January
+      expect(prev.getDate()).toBe(29); // Jan 29
     });
   });
 });

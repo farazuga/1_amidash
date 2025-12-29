@@ -120,30 +120,46 @@ describe('Calendar Constants', () => {
   });
 
   describe('WEEKDAYS', () => {
-    it('has 7 days', () => {
-      expect(WEEKDAYS).toHaveLength(7);
+    it('has 5 weekdays (no weekends)', () => {
+      expect(WEEKDAYS).toHaveLength(5);
     });
 
-    it('starts with Sunday', () => {
-      expect(WEEKDAYS[0]).toBe('Sun');
+    it('starts with Monday', () => {
+      expect(WEEKDAYS[0]).toBe('Mon');
     });
 
-    it('ends with Saturday', () => {
-      expect(WEEKDAYS[6]).toBe('Sat');
+    it('ends with Friday', () => {
+      expect(WEEKDAYS[4]).toBe('Fri');
+    });
+
+    it('does not include Saturday', () => {
+      expect(WEEKDAYS).not.toContain('Sat');
+    });
+
+    it('does not include Sunday', () => {
+      expect(WEEKDAYS).not.toContain('Sun');
     });
   });
 
   describe('WEEKDAYS_FULL', () => {
-    it('has 7 days', () => {
-      expect(WEEKDAYS_FULL).toHaveLength(7);
+    it('has 5 weekdays (no weekends)', () => {
+      expect(WEEKDAYS_FULL).toHaveLength(5);
     });
 
-    it('starts with Sunday', () => {
-      expect(WEEKDAYS_FULL[0]).toBe('Sunday');
+    it('starts with Monday', () => {
+      expect(WEEKDAYS_FULL[0]).toBe('Monday');
     });
 
-    it('ends with Saturday', () => {
-      expect(WEEKDAYS_FULL[6]).toBe('Saturday');
+    it('ends with Friday', () => {
+      expect(WEEKDAYS_FULL[4]).toBe('Friday');
+    });
+
+    it('does not include Saturday', () => {
+      expect(WEEKDAYS_FULL).not.toContain('Saturday');
+    });
+
+    it('does not include Sunday', () => {
+      expect(WEEKDAYS_FULL).not.toContain('Sunday');
     });
   });
 
