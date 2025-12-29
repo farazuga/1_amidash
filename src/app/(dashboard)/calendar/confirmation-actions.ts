@@ -2,6 +2,7 @@
 
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { headers } from 'next/headers';
 import { sendEmail } from '@/lib/email/send';
 import { confirmationEmailTemplate, pmConfirmationResponseEmailTemplate } from '@/lib/email/templates';
 import {
@@ -21,6 +22,53 @@ interface ActionResult<T = void> {
   success: boolean;
   data?: T;
   error?: string;
+}
+
+// ============================================
+// Rate Limiting for Public Confirmation Endpoints
+// ============================================
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT = 5; // Stricter limit for sensitive endpoint (5 per minute)
+const WINDOW_MS = 60 * 1000; // 1 minute window
+
+// Clean up old entries periodically to prevent memory leaks
+function cleanupRateLimitMap() {
+  const now = Date.now();
+  for (const [key, value] of rateLimitMap.entries()) {
+    if (now > value.resetTime) {
+      rateLimitMap.delete(key);
+    }
+  }
+}
+
+function checkRateLimit(key: string): { allowed: boolean; remaining: number } {
+  // Periodic cleanup (run when map exceeds threshold)
+  if (rateLimitMap.size > 1000) {
+    cleanupRateLimitMap();
+  }
+
+  const now = Date.now();
+  const record = rateLimitMap.get(key);
+
+  if (!record || now > record.resetTime) {
+    rateLimitMap.set(key, { count: 1, resetTime: now + WINDOW_MS });
+    return { allowed: true, remaining: RATE_LIMIT - 1 };
+  }
+
+  if (record.count >= RATE_LIMIT) {
+    return { allowed: false, remaining: 0 };
+  }
+
+  record.count++;
+  return { allowed: true, remaining: RATE_LIMIT - record.count };
+}
+
+// Get client IP for rate limiting
+async function getClientIp(): Promise<string> {
+  const headersList = await headers();
+  return headersList.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+         headersList.get('x-real-ip') ||
+         'unknown';
 }
 
 // Type for assignment query result (used before types are regenerated)
@@ -219,6 +267,14 @@ export async function handleConfirmationResponse(
   params: ConfirmationResponseData
 ): Promise<ActionResult<void>> {
   try {
+    // Rate limit by IP + token combination to prevent brute force attacks
+    const clientIp = await getClientIp();
+    const rateLimitKey = `confirm:${clientIp}:${params.token}`;
+    const { allowed } = checkRateLimit(rateLimitKey);
+    if (!allowed) {
+      return { success: false, error: 'Too many attempts. Please try again in a minute.' };
+    }
+
     // Validate input
     const validated = confirmationResponseSchema.safeParse(params);
     if (!validated.success) {
@@ -343,6 +399,14 @@ export async function getConfirmationRequestByToken(
   try {
     if (!token) {
       return { success: false, error: 'Token required' };
+    }
+
+    // Rate limit by IP to prevent token enumeration
+    const clientIp = await getClientIp();
+    const rateLimitKey = `confirm-view:${clientIp}`;
+    const { allowed } = checkRateLimit(rateLimitKey);
+    if (!allowed) {
+      return { success: false, error: 'Too many requests. Please try again in a minute.' };
     }
 
     // Use service client for public access

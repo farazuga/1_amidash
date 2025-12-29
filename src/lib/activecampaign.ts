@@ -57,22 +57,21 @@ class ActiveCampaignClient {
       return [];
     }
 
-    // Get full contact details for each associated contact
+    // Get full contact details for each associated contact in parallel
     const contactIds = associationsData.accountContacts.map(ac => ac.contact);
-    const contacts: ACContact[] = [];
 
-    for (const contactId of contactIds) {
+    const contactPromises = contactIds.map(async (contactId) => {
       try {
         const contactData = await this.fetch<{ contact: ACContact }>(`/contacts/${contactId}`);
-        if (contactData.contact) {
-          contacts.push(contactData.contact);
-        }
+        return contactData.contact || null;
       } catch {
         // Skip contacts that fail to load
+        return null;
       }
-    }
+    });
 
-    return contacts;
+    const results = await Promise.all(contactPromises);
+    return results.filter((contact): contact is ACContact => contact !== null);
   }
 
   async searchContacts(searchTerm: string, limit: number = 20): Promise<ACContact[]> {

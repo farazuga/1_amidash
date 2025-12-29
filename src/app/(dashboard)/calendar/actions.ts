@@ -30,6 +30,8 @@ import {
   createAvailabilitySchema,
   updateAvailabilitySchema,
   calendarDataSchema,
+  ganttDataSchema,
+  updateProjectDatesSchema,
 } from '@/lib/calendar/validation';
 
 // ============================================
@@ -393,6 +395,7 @@ export async function updateAssignmentStatus(data: {
 /**
  * Bulk update status for multiple assignments at once
  * All assignments will receive the same new status and history entries
+ * Optimized: Uses batch operations (3 queries) instead of N+1 pattern
  */
 export async function bulkUpdateAssignmentStatus(data: {
   assignmentIds: string[];
@@ -429,57 +432,61 @@ export async function bulkUpdateAssignmentStatus(data: {
     return { success: false, error: 'No assignments found' };
   }
 
-  // Track which assignments we successfully update
-  const updatedIds: string[] = [];
-  const failedIds: string[] = [];
-  const projectIds = new Set<string>();
+  // Separate assignments: those already at target status vs those needing update
+  const alreadyAtStatus = assignments.filter(a => a.booking_status === data.newStatus);
+  const toUpdate = assignments.filter(a => a.booking_status !== data.newStatus);
+  const idsToUpdate = toUpdate.map(a => a.id);
 
-  // Update each assignment and record history
-  for (const assignment of assignments) {
-    // Skip if already at the target status
-    if (assignment.booking_status === data.newStatus) {
-      updatedIds.push(assignment.id);
-      projectIds.add(assignment.project_id);
-      continue;
-    }
+  // Collect all project IDs for revalidation
+  const projectIds = new Set(assignments.map(a => a.project_id));
 
+  // If there are assignments to update, do batch update
+  if (idsToUpdate.length > 0) {
+    // Batch update all assignments in a single query
     const { error: updateError } = await supabase
       .from('project_assignments')
       .update({ booking_status: data.newStatus })
-      .eq('id', assignment.id);
+      .in('id', idsToUpdate);
 
     if (updateError) {
-      console.error(`Failed to update assignment ${assignment.id}:`, updateError);
-      failedIds.push(assignment.id);
-      continue;
+      console.error('Bulk status update error:', updateError);
+      return { success: false, error: 'Failed to update assignments' };
     }
 
-    // Record in history
-    await supabase.from('booking_status_history').insert({
+    // Batch insert history records in a single query
+    const historyRecords = toUpdate.map(assignment => ({
       assignment_id: assignment.id,
       old_status: assignment.booking_status,
       new_status: data.newStatus,
       changed_by: user.id,
       note: data.note || 'Bulk status update',
-    });
+    }));
 
-    // Send status change email (fire and forget)
-    const assignedUser = assignment.user as { id: string; email: string; full_name: string | null } | null;
-    const assignedProject = assignment.project as { id: string; client_name: string } | null;
+    const { error: historyError } = await supabase
+      .from('booking_status_history')
+      .insert(historyRecords);
 
-    if (assignedUser?.email && assignedProject) {
-      sendStatusChangeEmail({
-        userEmail: assignedUser.email,
-        userName: assignedUser.full_name || assignedUser.email,
-        projectName: assignedProject.client_name,
-        oldStatus: assignment.booking_status,
-        newStatus: data.newStatus,
-        projectId: assignment.project_id,
-      });
+    if (historyError) {
+      console.error('Bulk history insert error:', historyError);
+      // Don't fail - the main update succeeded
     }
 
-    updatedIds.push(assignment.id);
-    projectIds.add(assignment.project_id);
+    // Fire status change emails in parallel (non-blocking)
+    toUpdate.forEach(assignment => {
+      const assignedUser = assignment.user as { id: string; email: string; full_name: string | null } | null;
+      const assignedProject = assignment.project as { id: string; client_name: string } | null;
+
+      if (assignedUser?.email && assignedProject) {
+        sendStatusChangeEmail({
+          userEmail: assignedUser.email,
+          userName: assignedUser.full_name || assignedUser.email,
+          projectName: assignedProject.client_name,
+          oldStatus: assignment.booking_status,
+          newStatus: data.newStatus,
+          projectId: assignment.project_id,
+        });
+      }
+    });
   }
 
   // Revalidate all affected paths
@@ -492,8 +499,8 @@ export async function bulkUpdateAssignmentStatus(data: {
   return {
     success: true,
     data: {
-      updatedCount: updatedIds.length,
-      failedIds,
+      updatedCount: alreadyAtStatus.length + idsToUpdate.length,
+      failedIds: [], // With batch operations, it's all-or-nothing
     },
   };
 }
@@ -636,18 +643,15 @@ export async function updateProjectDates(data: {
   startDate: string | null;
   endDate: string | null;
 }): Promise<ActionResult> {
+  // Validate input (includes date format and range validation)
+  const validation = validateInput(updateProjectDatesSchema, data);
+  if (!validation.success) {
+    return { success: false, error: validation.error };
+  }
+
   const { error: authError, supabase } = await requireAdmin();
   if (authError || !supabase) {
     return { success: false, error: authError || 'Authentication failed' };
-  }
-
-  // Validate dates
-  if (data.startDate && data.endDate) {
-    const start = new Date(data.startDate);
-    const end = new Date(data.endDate);
-    if (end < start) {
-      return { success: false, error: 'End date must be after start date' };
-    }
   }
 
   const { error: updateError } = await supabase
@@ -680,6 +684,12 @@ export async function checkConflicts(data: {
   endDate: string;
   excludeAssignmentId?: string;
 }): Promise<ConflictCheckResult> {
+  // Validate input
+  const validation = validateInput(checkConflictsSchema, data);
+  if (!validation.success) {
+    return { hasConflicts: false, conflicts: [], error: validation.error };
+  }
+
   const { error: authError, supabase } = await getAuthenticatedClient();
   if (authError || !supabase) {
     console.error('Conflict check auth error:', authError);
@@ -816,6 +826,12 @@ export async function getCalendarData(params: {
   limit?: number;
   offset?: number;
 }): Promise<ActionResult<CalendarDataResult>> {
+  // Validate input parameters
+  const validation = validateInput(calendarDataSchema, params);
+  if (!validation.success) {
+    return { success: false, error: validation.error };
+  }
+
   const { error: authError, supabase, user } = await getAuthenticatedClient();
   if (authError || !supabase || !user) {
     return { success: false, error: authError || 'Authentication failed' };
@@ -1200,13 +1216,15 @@ export async function addAssignmentDays(data: {
   assignmentId: string;
   days: { date: string; startTime: string; endTime: string }[];
 }): Promise<ActionResult<AssignmentDay[]>> {
+  // Validate input (includes date/time format and min/max array length)
+  const validation = validateInput(addAssignmentDaysSchema, data);
+  if (!validation.success) {
+    return { success: false, error: validation.error };
+  }
+
   const { error: authError, supabase, user } = await requireAdmin();
   if (authError || !supabase || !user) {
     return { success: false, error: authError || 'Authentication failed' };
-  }
-
-  if (data.days.length === 0) {
-    return { success: false, error: 'No days provided' };
   }
 
   // Validate time order for each day
@@ -1689,6 +1707,12 @@ export async function getGanttDataForRange(params: {
   endDate: string;
   userId?: string;
 }): Promise<ActionResult<GanttAssignment[]>> {
+  // Validate input
+  const validation = validateInput(ganttDataSchema, params);
+  if (!validation.success) {
+    return { success: false, error: validation.error };
+  }
+
   const { error: authError, supabase } = await getAuthenticatedClient();
   if (authError || !supabase) {
     return { success: false, error: authError || 'Authentication failed' };
