@@ -30,7 +30,7 @@ export function useProjectsWithDates() {
           assignments:project_assignments(
             id,
             user_id,
-            user:profiles(id, full_name)
+            user:profiles!project_assignments_user_id_fkey(id, full_name)
           )
         `)
         .not('start_date', 'is', null)
@@ -67,7 +67,7 @@ export function useProjectEngineers() {
         .from('project_assignments')
         .select(`
           user_id,
-          user:users(id, full_name)
+          user:profiles!project_assignments_user_id_fkey(id, full_name)
         `);
 
       if (error) {
