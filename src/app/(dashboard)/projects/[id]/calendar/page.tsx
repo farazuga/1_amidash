@@ -1,10 +1,12 @@
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Calendar } from 'lucide-react';
 import { ProjectCalendarContent } from './project-calendar-content';
+import { ScheduleStatusWithCascade } from './schedule-status-with-cascade';
 import type { Project } from '@/types';
+import type { BookingStatus } from '@/types/calendar';
 
 async function getProject(id: string) {
   const supabase = await createClient();
@@ -15,12 +17,13 @@ async function getProject(id: string) {
       id,
       client_name,
       start_date,
-      end_date
+      end_date,
+      schedule_status
     `)
     .eq('id', id)
     .single();
 
-  return project as Project | null;
+  return project as (Project & { schedule_status?: string }) | null;
 }
 
 async function getCurrentUser() {
@@ -54,27 +57,40 @@ export default async function ProjectCalendarPage({
   }
 
   const isAdmin = user?.role === 'admin';
+  const canEditSchedule = user?.role === 'admin' || user?.role === 'editor';
+  const hasProjectDates = Boolean(project.start_date && project.end_date);
 
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href={`/projects/${id}`}>
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-        </Button>
-        <div>
-          <div className="flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-muted-foreground" />
-            <h1 className="text-2xl font-bold tracking-tight">
-              {project.client_name} - Schedule
-            </h1>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild>
+            <Link href={`/projects/${id}`}>
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+          </Button>
+          <div>
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-muted-foreground" />
+              <h1 className="text-2xl font-bold tracking-tight">
+                {project.client_name} - Schedule
+              </h1>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Manage team assignments for this project
+            </p>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Manage team assignments for this project
-          </p>
         </div>
+
+        {canEditSchedule && (
+          <ScheduleStatusWithCascade
+            projectId={project.id}
+            projectName={project.client_name}
+            currentStatus={project.schedule_status as BookingStatus | null}
+            hasProjectDates={hasProjectDates}
+          />
+        )}
       </div>
 
       {/* Project dates info */}

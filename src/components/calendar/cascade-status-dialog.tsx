@@ -26,6 +26,7 @@ interface CascadeStatusDialogProps {
   newStatus: BookingStatus;
   assignments: AssignmentForCascade[];
   onConfirm: (selectedAssignmentIds: string[]) => Promise<void>;
+  onSkip?: () => Promise<void>;
   isLoading?: boolean;
 }
 
@@ -39,6 +40,7 @@ export function CascadeStatusDialog({
   newStatus,
   assignments,
   onConfirm,
+  onSkip,
   isLoading = false,
 }: CascadeStatusDialogProps) {
   // Start with all assignments selected
@@ -151,10 +153,20 @@ export function CascadeStatusDialog({
           </p>
         )}
 
-        <AlertDialogFooter>
+        <AlertDialogFooter className="flex-col sm:flex-row gap-2">
           <AlertDialogCancel disabled={isLoading}>
-            {assignments.length > 0 ? 'Skip' : 'Close'}
+            Cancel
           </AlertDialogCancel>
+          {assignments.length > 0 && onSkip && (
+            <AlertDialogAction
+              onClick={onSkip}
+              disabled={isLoading}
+              className="gap-2 bg-background text-foreground border border-input hover:bg-accent hover:text-accent-foreground"
+            >
+              {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+              Project Only
+            </AlertDialogAction>
+          )}
           {assignments.length > 0 && (
             <AlertDialogAction
               onClick={handleConfirm}
@@ -163,6 +175,16 @@ export function CascadeStatusDialog({
             >
               {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
               Update {selectedIds.size} Engineer{selectedIds.size !== 1 ? 's' : ''}
+            </AlertDialogAction>
+          )}
+          {assignments.length === 0 && onSkip && (
+            <AlertDialogAction
+              onClick={onSkip}
+              disabled={isLoading}
+              className="gap-2"
+            >
+              {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+              Update Status
             </AlertDialogAction>
           )}
         </AlertDialogFooter>
