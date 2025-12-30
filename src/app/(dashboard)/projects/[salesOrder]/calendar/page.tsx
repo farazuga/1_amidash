@@ -8,7 +8,7 @@ import { ScheduleStatusWithCascade } from './schedule-status-with-cascade';
 import type { Project } from '@/types';
 import type { BookingStatus } from '@/types/calendar';
 
-async function getProject(id: string) {
+async function getProjectBySalesOrder(salesOrder: string) {
   const supabase = await createClient();
 
   const { data: project } = await supabase
@@ -16,14 +16,15 @@ async function getProject(id: string) {
     .select(`
       id,
       client_name,
+      sales_order_number,
       start_date,
       end_date,
       schedule_status
     `)
-    .eq('id', id)
+    .eq('sales_order_number', salesOrder)
     .single();
 
-  return project as (Project & { schedule_status?: string }) | null;
+  return project as (Project & { schedule_status?: string; sales_order_number: string }) | null;
 }
 
 async function getCurrentUser() {
@@ -44,11 +45,11 @@ async function getCurrentUser() {
 export default async function ProjectCalendarPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ salesOrder: string }>;
 }) {
-  const { id } = await params;
+  const { salesOrder } = await params;
   const [project, user] = await Promise.all([
-    getProject(id),
+    getProjectBySalesOrder(salesOrder),
     getCurrentUser(),
   ]);
 
@@ -66,7 +67,7 @@ export default async function ProjectCalendarPage({
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
-            <Link href={`/projects/${id}`}>
+            <Link href={`/projects/${project.sales_order_number}`}>
               <ArrowLeft className="h-5 w-5" />
             </Link>
           </Button>
@@ -98,7 +99,7 @@ export default async function ProjectCalendarPage({
         <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
           <p className="text-sm text-amber-800 dark:text-amber-200">
             <strong>Note:</strong> This project doesn&apos;t have dates set yet.{' '}
-            <Link href={`/projects/${id}`} className="underline hover:no-underline">
+            <Link href={`/projects/${project.sales_order_number}`} className="underline hover:no-underline">
               Edit project
             </Link>{' '}
             to set start and end dates before assigning team members.
