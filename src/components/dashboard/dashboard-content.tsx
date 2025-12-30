@@ -676,18 +676,13 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
   };
 
   return (
-    <div className="space-y-4 md:space-y-6">
+    <div className="space-y-3">
       {/* Header with Period Selector */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-sm sm:text-base text-muted-foreground">
-            Overview of your projects and revenue
-          </p>
-        </div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Dashboard</h1>
         <div className="flex items-center gap-2">
           <Select value={periodType} onValueChange={(v) => setPeriodType(v as PeriodType)}>
-            <SelectTrigger className="w-[120px]">
+            <SelectTrigger className="w-[100px] h-8 text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -697,7 +692,7 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
             </SelectContent>
           </Select>
           <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[140px] h-8 text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -711,630 +706,403 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
         </div>
       </div>
 
-      {/* Current Month Revenue Highlight */}
-      <Card className="border-[#023A2D] bg-gradient-to-r from-[#023A2D]/5 to-transparent">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-[#023A2D]">
-            <DollarSign className="h-5 w-5" />
-            {periodType === 'month' ? 'Monthly' : periodType === 'quarter' ? 'Quarterly' : 'Yearly'} Revenue Progress
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* POs Received Progress */}
-            <div className="space-y-3">
-              <div className="flex justify-between items-baseline">
-                <span className="text-3xl font-bold text-[#023A2D]">
-                  ${posReceivedRevenue.toLocaleString()}
-                </span>
-                <span className="text-sm text-muted-foreground">
-                  of ${periodGoal.revenue.toLocaleString()} goal
-                </span>
-              </div>
-              <Progress value={posReceivedProgress} className="h-3" />
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">POs Received</span>
-                <div className="flex items-center gap-3">
-                  <TrendIndicator current={posReceivedRevenue} previous={previousPeriodData.posReceived} />
-                  <span className="font-medium">{posReceivedProgress.toFixed(1)}%</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Projects Invoiced Revenue Progress */}
-            <div className="space-y-3">
-              <div className="flex justify-between items-baseline">
-                <span className="text-3xl font-bold text-[#023A2D]">
-                  ${invoicedRevenue.toLocaleString()}
-                </span>
-                <span className="text-sm text-muted-foreground">
-                  of ${periodGoal.invoicedRevenue.toLocaleString()} goal
-                </span>
-              </div>
-              <Progress value={invoicedRevenueProgress} className="h-3" />
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Projects Invoiced</span>
-                <div className="flex items-center gap-3">
-                  <TrendIndicator current={invoicedRevenue} previous={previousPeriodData.invoiced} />
-                  <span className="font-medium">{invoicedRevenueProgress.toFixed(1)}%</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Overdue Projects - moved up */}
-      {overdueProjects.length > 0 && (
-        <OverdueProjects
-          projects={overdueProjects.map(p => ({
-            id: p.id,
-            client_name: p.client_name,
-            goal_completion_date: p.goal_completion_date || '',
-            sales_amount: p.sales_amount,
-            current_status: p.current_status,
-          }))}
-        />
-      )}
-
-      {/* Stats Cards - Row 1 */}
-      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Projects Completed</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{projectsCompletedCount}</div>
-            <TrendIndicator current={projectsCompletedCount} previous={projectsCompletedPrevCount} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Projects In Progress</CardTitle>
-            <FolderKanban className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{projectsInProgress.length}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Pipeline</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              ${pipelineRevenue.toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Days to Invoice</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {avgDaysToInvoice || '-'}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Stats Cards - Row 2 (Tier 1 Metrics) */}
-      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Backlog Depth</CardTitle>
-            <Layers className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{backlogDepth.monthsOfWork} mo</div>
-            <p className="text-xs text-muted-foreground">of work in queue</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">On-Time Completion</CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${onTimeCompletion.percentage >= thresholds.ontimeGoodThreshold ? 'text-green-600' : onTimeCompletion.percentage >= thresholds.ontimeWarningThreshold ? 'text-amber-600' : 'text-red-600'}`}>
-              {onTimeCompletion.percentage.toFixed(0)}%
-            </div>
-            <p className="text-xs text-muted-foreground">{onTimeCompletion.onTime} of {onTimeCompletion.total} on time</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Stuck Projects</CardTitle>
-            <Timer className="h-4 w-4 text-amber-600" />
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${wipAgingData.totalStuck > 0 ? 'text-amber-600' : 'text-green-600'}`}>
-              {wipAgingData.totalStuck}
-            </div>
-            <p className="text-xs text-muted-foreground">&gt;{wipAgingData.thresholdDays} days in status</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Client Concentration</CardTitle>
-            <Users className={`h-4 w-4 ${customerConcentration.riskLevel === 'high' ? 'text-red-600' : customerConcentration.riskLevel === 'medium' ? 'text-amber-600' : 'text-green-600'}`} />
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${customerConcentration.riskLevel === 'high' ? 'text-red-600' : customerConcentration.riskLevel === 'medium' ? 'text-amber-600' : 'text-green-600'}`}>
-              {customerConcentration.concentrationPercent.toFixed(0)}%
-            </div>
-            <p className="text-xs text-muted-foreground">top 3 of {customerConcentration.totalClients} clients</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Activity */}
-      <div className="grid gap-4 md:grid-cols-2">
-        {/* Last 3 Invoiced */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600" />
-              Recently Invoiced
+      {/* ROW 1: Revenue Progress + 8 Mini Metrics */}
+      <div className="grid gap-3 lg:grid-cols-5">
+        {/* Revenue Progress - spans 3 cols */}
+        <Card className="lg:col-span-3 border-[#023A2D]">
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-sm font-medium flex items-center gap-2 text-[#023A2D]">
+              <DollarSign className="h-4 w-4" />
+              {periodType === 'month' ? 'Monthly' : periodType === 'quarter' ? 'Quarterly' : 'Yearly'} Revenue
             </CardTitle>
-            <CardDescription>Last 3 projects invoiced</CardDescription>
           </CardHeader>
-          <CardContent>
-            {lastInvoiced.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No invoiced projects yet</p>
-            ) : (
-              <div className="space-y-3">
-                {lastInvoiced.map(h => (
-                  <Link
-                    key={h.id}
-                    href={`/projects/${h.project_id}`}
-                    className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
-                  >
-                    <div>
-                      <p className="font-medium">{h.project?.client_name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {format(new Date(h.changed_at), 'MMM d, yyyy')}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-green-600">
-                        ${(h.project?.sales_amount || 0).toLocaleString()}
-                      </span>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Last 3 Created */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-blue-600" />
-              Newly Added
-            </CardTitle>
-            <CardDescription>Last 3 projects entered</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {lastCreated.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No projects yet</p>
-            ) : (
-              <div className="space-y-3">
-                {lastCreated.map(p => (
-                  <Link
-                    key={p.id}
-                    href={`/projects/${p.id}`}
-                    className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
-                  >
-                    <div>
-                      <p className="font-medium">{p.client_name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {p.created_at ? format(new Date(p.created_at), 'MMM d, yyyy') : '-'}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {p.current_status && (
-                        <Badge variant="outline">{p.current_status.name}</Badge>
-                      )}
-                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Sales vs Operations Diagnostic */}
-      <Card className={`border-l-4 ${
-        diagnosticData.diagnosis === 'healthy' ? 'border-l-green-500' :
-        diagnosticData.diagnosis === 'sales' ? 'border-l-amber-500' :
-        diagnosticData.diagnosis === 'operations' ? 'border-l-red-500' :
-        'border-l-red-600'
-      }`}>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className={`h-5 w-5 ${
-              diagnosticData.diagnosis === 'healthy' ? 'text-green-500' :
-              diagnosticData.diagnosis === 'sales' ? 'text-amber-500' :
-              'text-red-500'
-            }`} />
-            Health Diagnostic: {
-              diagnosticData.diagnosis === 'healthy' ? 'Healthy' :
-              diagnosticData.diagnosis === 'sales' ? 'Sales Attention Needed' :
-              diagnosticData.diagnosis === 'operations' ? 'Operations Bottleneck' :
-              'Both Need Attention'
-            }
-          </CardTitle>
-          <CardDescription>{diagnosticData.message}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* Sales Health */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <ShoppingCart className="h-4 w-4 text-amber-600" />
-                <span className="font-medium">Sales Health (POs vs Goal)</span>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className={`text-2xl font-bold ${diagnosticData.salesHealth >= diagnosticData.salesThreshold ? 'text-green-600' : diagnosticData.salesHealth >= diagnosticData.salesThreshold / 2 ? 'text-amber-600' : 'text-red-600'}`}>
-                  {diagnosticData.salesHealth.toFixed(0)}%
-                </span>
-                <span className="text-sm text-muted-foreground">of goal (threshold: {diagnosticData.salesThreshold}%)</span>
-              </div>
-              <Progress
-                value={Math.min(diagnosticData.salesHealth, 100)}
-                className={`h-2 ${diagnosticData.salesHealth >= diagnosticData.salesThreshold ? '[&>div]:bg-green-500' : diagnosticData.salesHealth >= diagnosticData.salesThreshold / 2 ? '[&>div]:bg-amber-500' : '[&>div]:bg-red-500'}`}
-              />
-            </div>
-
-            {/* Operations Health */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Wrench className="h-4 w-4 text-blue-600" />
-                <span className="font-medium">Operations Health (Invoiced vs POs)</span>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className={`text-2xl font-bold ${diagnosticData.completionRatio >= diagnosticData.salesThreshold ? 'text-green-600' : diagnosticData.completionRatio >= diagnosticData.opsThreshold ? 'text-amber-600' : 'text-red-600'}`}>
-                  {diagnosticData.completionRatio.toFixed(0)}%
-                </span>
-                <span className="text-sm text-muted-foreground">completion rate (threshold: {diagnosticData.opsThreshold}%)</span>
-              </div>
-              <Progress
-                value={Math.min(diagnosticData.completionRatio, 100)}
-                className={`h-2 ${diagnosticData.completionRatio >= diagnosticData.salesThreshold ? '[&>div]:bg-green-500' : diagnosticData.completionRatio >= diagnosticData.opsThreshold ? '[&>div]:bg-amber-500' : '[&>div]:bg-red-500'}`}
-              />
-            </div>
-          </div>
-
-          {/* Bottleneck Details */}
-          {(diagnosticData.projectsInProcurement > 0 || diagnosticData.projectsInEngineering > 0) && (
-            <div className="mt-6 pt-4 border-t">
-              <p className="text-sm font-medium mb-3">Bottleneck Areas:</p>
-              <div className="grid grid-cols-2 gap-4">
-                {diagnosticData.projectsInProcurement > 0 && (
-                  <div className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg">
-                    <div>
-                      <p className="font-medium text-amber-700 dark:text-amber-400">Procurement</p>
-                      <p className="text-sm text-muted-foreground">{diagnosticData.projectsInProcurement} projects</p>
-                    </div>
-                    <span className="font-semibold text-amber-700 dark:text-amber-400">
-                      ${diagnosticData.revenueInProcurement.toLocaleString()}
-                    </span>
+          <CardContent className="px-4 pb-3">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-xl font-bold text-[#023A2D]">${posReceivedRevenue.toLocaleString()}</span>
+                  <span className="text-xs text-muted-foreground">/ ${periodGoal.revenue.toLocaleString()}</span>
+                </div>
+                <Progress value={posReceivedProgress} className="h-2" />
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">POs Received</span>
+                  <div className="flex items-center gap-2">
+                    <TrendIndicator current={posReceivedRevenue} previous={previousPeriodData.posReceived} />
+                    <span className="font-medium">{posReceivedProgress.toFixed(0)}%</span>
                   </div>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-xl font-bold text-[#023A2D]">${invoicedRevenue.toLocaleString()}</span>
+                  <span className="text-xs text-muted-foreground">/ ${periodGoal.invoicedRevenue.toLocaleString()}</span>
+                </div>
+                <Progress value={invoicedRevenueProgress} className="h-2" />
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Invoiced</span>
+                  <div className="flex items-center gap-2">
+                    <TrendIndicator current={invoicedRevenue} previous={previousPeriodData.invoiced} />
+                    <span className="font-medium">{invoicedRevenueProgress.toFixed(0)}%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 8 Mini Metric Cards - 2x4 grid in 2 cols */}
+        <div className="lg:col-span-2 grid grid-cols-4 gap-2">
+          <Card className="p-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-muted-foreground uppercase">Done</span>
+              <CheckCircle className="h-3 w-3 text-green-600" />
+            </div>
+            <p className="text-lg font-bold">{projectsCompletedCount}</p>
+            <TrendIndicator current={projectsCompletedCount} previous={projectsCompletedPrevCount} />
+          </Card>
+          <Card className="p-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-muted-foreground uppercase">Active</span>
+              <FolderKanban className="h-3 w-3 text-muted-foreground" />
+            </div>
+            <p className="text-lg font-bold">{projectsInProgress.length}</p>
+          </Card>
+          <Card className="p-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-muted-foreground uppercase">Pipeline</span>
+              <DollarSign className="h-3 w-3 text-muted-foreground" />
+            </div>
+            <p className="text-lg font-bold">${(pipelineRevenue / 1000).toFixed(0)}K</p>
+          </Card>
+          <Card className="p-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-muted-foreground uppercase">DTI</span>
+              <Clock className="h-3 w-3 text-muted-foreground" />
+            </div>
+            <p className="text-lg font-bold">{avgDaysToInvoice || '-'}d</p>
+          </Card>
+          <Card className="p-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-muted-foreground uppercase">Backlog</span>
+              <Layers className="h-3 w-3 text-muted-foreground" />
+            </div>
+            <p className="text-lg font-bold">{backlogDepth.monthsOfWork}mo</p>
+          </Card>
+          <Card className="p-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-muted-foreground uppercase">On-Time</span>
+              <Target className="h-3 w-3 text-muted-foreground" />
+            </div>
+            <p className={`text-lg font-bold ${onTimeCompletion.percentage >= thresholds.ontimeGoodThreshold ? 'text-green-600' : onTimeCompletion.percentage >= thresholds.ontimeWarningThreshold ? 'text-amber-600' : 'text-red-600'}`}>
+              {onTimeCompletion.percentage.toFixed(0)}%
+            </p>
+          </Card>
+          <Card className="p-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-muted-foreground uppercase">Stuck</span>
+              <Timer className="h-3 w-3 text-amber-600" />
+            </div>
+            <p className={`text-lg font-bold ${wipAgingData.totalStuck > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+              {wipAgingData.totalStuck}
+            </p>
+          </Card>
+          <Card className="p-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-muted-foreground uppercase">Conc.</span>
+              <Users className={`h-3 w-3 ${customerConcentration.riskLevel === 'high' ? 'text-red-600' : customerConcentration.riskLevel === 'medium' ? 'text-amber-600' : 'text-green-600'}`} />
+            </div>
+            <p className={`text-lg font-bold ${customerConcentration.riskLevel === 'high' ? 'text-red-600' : customerConcentration.riskLevel === 'medium' ? 'text-amber-600' : 'text-green-600'}`}>
+              {customerConcentration.concentrationPercent.toFixed(0)}%
+            </p>
+          </Card>
+        </div>
+      </div>
+
+      {/* ROW 2: Health Diagnostic + Overdue/WIP Alerts */}
+      <div className="grid gap-3 lg:grid-cols-3">
+        {/* Health Diagnostic - Compact */}
+        <Card className={`border-l-4 ${
+          diagnosticData.diagnosis === 'healthy' ? 'border-l-green-500' :
+          diagnosticData.diagnosis === 'sales' ? 'border-l-amber-500' :
+          diagnosticData.diagnosis === 'operations' ? 'border-l-red-500' :
+          'border-l-red-600'
+        }`}>
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <AlertTriangle className={`h-4 w-4 ${
+                diagnosticData.diagnosis === 'healthy' ? 'text-green-500' :
+                diagnosticData.diagnosis === 'sales' ? 'text-amber-500' :
+                'text-red-500'
+              }`} />
+              Health: {diagnosticData.diagnosis === 'healthy' ? 'OK' : diagnosticData.diagnosis === 'sales' ? 'Sales ⚠' : diagnosticData.diagnosis === 'operations' ? 'Ops ⚠' : 'Both ⚠'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3 space-y-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-muted-foreground">Sales</span>
+                  <span className={`font-bold ${diagnosticData.salesHealth >= diagnosticData.salesThreshold ? 'text-green-600' : 'text-amber-600'}`}>
+                    {diagnosticData.salesHealth.toFixed(0)}%
+                  </span>
+                </div>
+                <Progress value={Math.min(diagnosticData.salesHealth, 100)} className={`h-1.5 ${diagnosticData.salesHealth >= diagnosticData.salesThreshold ? '[&>div]:bg-green-500' : '[&>div]:bg-amber-500'}`} />
+              </div>
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-muted-foreground">Ops</span>
+                  <span className={`font-bold ${diagnosticData.completionRatio >= diagnosticData.opsThreshold ? 'text-green-600' : 'text-amber-600'}`}>
+                    {diagnosticData.completionRatio.toFixed(0)}%
+                  </span>
+                </div>
+                <Progress value={Math.min(diagnosticData.completionRatio, 100)} className={`h-1.5 ${diagnosticData.completionRatio >= diagnosticData.opsThreshold ? '[&>div]:bg-green-500' : '[&>div]:bg-amber-500'}`} />
+              </div>
+            </div>
+            {(diagnosticData.projectsInProcurement > 0 || diagnosticData.projectsInEngineering > 0) && (
+              <div className="flex gap-2 text-xs pt-1">
+                {diagnosticData.projectsInProcurement > 0 && (
+                  <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 rounded">
+                    Proc: {diagnosticData.projectsInProcurement}
+                  </span>
                 )}
                 {diagnosticData.projectsInEngineering > 0 && (
-                  <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
-                    <div>
-                      <p className="font-medium text-blue-700 dark:text-blue-400">Engineering</p>
-                      <p className="text-sm text-muted-foreground">{diagnosticData.projectsInEngineering} projects</p>
-                    </div>
-                    <span className="font-semibold text-blue-700 dark:text-blue-400">
-                      ${diagnosticData.revenueInEngineering.toLocaleString()}
-                    </span>
-                  </div>
+                  <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 rounded">
+                    Eng: {diagnosticData.projectsInEngineering}
+                  </span>
                 )}
               </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* WIP Aging Alert - Stuck Projects Detail */}
-      {wipAgingData.totalStuck > 0 && (
-        <Card className="border-l-4 border-l-amber-500">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Timer className="h-5 w-5 text-amber-600" />
-              Stuck Projects Alert
-            </CardTitle>
-            <CardDescription>
-              {wipAgingData.totalStuck} projects stuck for &gt;{wipAgingData.thresholdDays} days (${wipAgingData.totalStuckRevenue.toLocaleString()} at risk)
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {Object.entries(wipAgingData.stuckByStatus).map(([status, data]) => (
-                <div key={status}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium">{status}</span>
-                    <span className="text-sm text-muted-foreground">
-                      {data.count} projects · ${data.revenue.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    {data.projects.slice(0, 3).map(project => (
-                      <div key={project.id} className="flex items-center justify-between p-2 bg-amber-50 dark:bg-amber-950/20 rounded text-sm">
-                        <span className="font-medium">{project.client_name}</span>
-                        <div className="flex items-center gap-3">
-                          <span className="text-muted-foreground">${(project.sales_amount || 0).toLocaleString()}</span>
-                          <Badge variant="outline" className="text-amber-700 border-amber-300">
-                            {project.daysInStatus} days
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
-                    {data.projects.length > 3 && (
-                      <p className="text-xs text-muted-foreground text-center">
-                        +{data.projects.length - 3} more projects
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+            )}
           </CardContent>
         </Card>
-      )}
 
-      {/* Cycle Time Breakdown */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            Cycle Time by Status
-          </CardTitle>
-          <CardDescription>Average days projects spend in each status</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {cycleTimeBreakdown.map(status => {
-              const maxDays = Math.max(...cycleTimeBreakdown.map(s => s.avgDays), 1);
-              const widthPercent = (status.avgDays / maxDays) * 100;
-              const isBottleneck = status.name.toLowerCase().includes('procurement') ||
-                                   status.name.toLowerCase().includes('engineering');
-              return (
-                <div key={status.name} className="space-y-1">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className={isBottleneck ? 'font-medium' : ''}>{status.name}</span>
-                    <span className={`font-mono ${isBottleneck ? 'font-bold text-amber-600' : ''}`}>
-                      {status.avgDays} days
-                    </span>
-                  </div>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        isBottleneck ? 'bg-amber-500' : 'bg-[#023A2D]'
-                      }`}
-                      style={{ width: `${widthPercent}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="mt-4 pt-4 border-t">
-            <div className="flex items-center justify-between text-sm">
-              <span className="font-medium">Total Avg Cycle Time</span>
-              <span className="font-mono font-bold">
-                {cycleTimeBreakdown.reduce((sum, s) => sum + s.avgDays, 0)} days
+        {/* Overdue Projects - Compact */}
+        <Card className={overdueProjects.length > 0 ? 'border-l-4 border-l-red-500' : ''}>
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <AlertTriangle className={`h-4 w-4 ${overdueProjects.length > 0 ? 'text-red-500' : 'text-green-500'}`} />
+              Overdue: {overdueProjects.length}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3">
+            {overdueProjects.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No overdue projects</p>
+            ) : (
+              <div className="space-y-1.5">
+                {overdueProjects.slice(0, 3).map(p => (
+                  <Link key={p.id} href={`/projects/${p.id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
+                    <span className="font-medium truncate max-w-[120px]">{p.client_name}</span>
+                    <span className="text-red-600">${(p.sales_amount || 0).toLocaleString()}</span>
+                  </Link>
+                ))}
+                {overdueProjects.length > 3 && (
+                  <p className="text-[10px] text-muted-foreground">+{overdueProjects.length - 3} more</p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* WIP Aging - Compact */}
+        <Card className={wipAgingData.totalStuck > 0 ? 'border-l-4 border-l-amber-500' : ''}>
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Timer className={`h-4 w-4 ${wipAgingData.totalStuck > 0 ? 'text-amber-600' : 'text-green-500'}`} />
+              Stuck (&gt;{wipAgingData.thresholdDays}d): {wipAgingData.totalStuck}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3">
+            {wipAgingData.totalStuck === 0 ? (
+              <p className="text-xs text-muted-foreground">No stuck projects</p>
+            ) : (
+              <div className="space-y-1.5">
+                {wipAgingData.stuckProjects.slice(0, 3).map(p => (
+                  <Link key={p.id} href={`/projects/${p.id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
+                    <span className="font-medium truncate max-w-[100px]">{p.client_name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">{p.statusName}</span>
+                      <Badge variant="outline" className="text-amber-700 border-amber-300 text-[10px] px-1 py-0">
+                        {p.daysInStatus}d
+                      </Badge>
+                    </div>
+                  </Link>
+                ))}
+                {wipAgingData.totalStuck > 3 && (
+                  <p className="text-[10px] text-muted-foreground">+{wipAgingData.totalStuck - 3} more (${wipAgingData.totalStuckRevenue.toLocaleString()})</p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ROW 3: Velocity + Status Distribution */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        {/* Velocity Chart - Compact */}
+        <Card>
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-sm font-medium flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Activity className="h-4 w-4" />
+                Velocity (6mo)
               </span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Velocity Comparison - POs vs Invoiced */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5" />
-              PO vs Invoice Velocity
+              <span className={`text-xs ${velocityComparison.netChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                Net: {velocityComparison.netChange >= 0 ? '+' : ''}{velocityComparison.netChange}
+              </span>
             </CardTitle>
-            <CardDescription>
-              Are you keeping up? Net: {velocityComparison.netChange > 0 ? '+' : ''}{velocityComparison.netChange} projects
-            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
+          <CardContent className="px-4 pb-3">
+            <div className="grid grid-cols-6 gap-1">
               {velocityComparison.monthly.map(month => (
-                <div key={month.month} className="space-y-1">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>{month.month}</span>
-                    <div className="flex items-center gap-4">
-                      <span className="text-blue-600">{month.posReceived} POs</span>
-                      <span className="text-green-600">{month.invoiced} Inv</span>
+                <div key={month.month} className="text-center">
+                  <p className="text-[10px] text-muted-foreground mb-1">{month.month}</p>
+                  <div className="space-y-0.5">
+                    <div className="h-8 bg-muted rounded-sm flex flex-col justify-end overflow-hidden">
+                      <div className="bg-blue-500" style={{ height: `${Math.min((month.posReceived / Math.max(...velocityComparison.monthly.map(m => Math.max(m.posReceived, m.invoiced)), 1)) * 100, 100)}%` }} />
                     </div>
-                  </div>
-                  <div className="flex gap-1 h-2">
-                    <div className="flex-1 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-blue-500 rounded-full"
-                        style={{ width: `${Math.min((month.posReceived / Math.max(month.posReceived, month.invoiced, 1)) * 100, 100)}%` }}
-                      />
-                    </div>
-                    <div className="flex-1 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-green-500 rounded-full"
-                        style={{ width: `${Math.min((month.invoiced / Math.max(month.posReceived, month.invoiced, 1)) * 100, 100)}%` }}
-                      />
+                    <div className="h-8 bg-muted rounded-sm flex flex-col justify-end overflow-hidden">
+                      <div className="bg-green-500" style={{ height: `${Math.min((month.invoiced / Math.max(...velocityComparison.monthly.map(m => Math.max(m.posReceived, m.invoiced)), 1)) * 100, 100)}%` }} />
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-            <div className="mt-4 pt-4 border-t flex justify-between text-sm">
-              <span className="text-blue-600 font-medium">{velocityComparison.totalPOs} total POs</span>
-              <span className="text-green-600 font-medium">{velocityComparison.totalInvoiced} invoiced</span>
+            <div className="flex justify-center gap-4 mt-2 text-xs">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 bg-blue-500 rounded-full" /> POs: {velocityComparison.totalPOs}</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 bg-green-500 rounded-full" /> Inv: {velocityComparison.totalInvoiced}</span>
             </div>
           </CardContent>
         </Card>
 
+        {/* Status Distribution - Compact */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Throughput Trend
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Status Distribution
             </CardTitle>
-            <CardDescription>Projects completed per month (last 6 months)</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {throughputTrend.map(month => {
-                const maxCompleted = Math.max(...throughputTrend.map(m => m.completed), 1);
+          <CardContent className="px-4 pb-3">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+              {statusDistribution.slice(0, 6).map(status => (
+                <div key={status.name} className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: status.color }} />
+                    <span className="truncate max-w-[80px]">{status.name}</span>
+                  </div>
+                  <span className="font-medium">{status.count}</span>
+                </div>
+              ))}
+            </div>
+            {statusDistribution.length > 0 && (
+              <div className="mt-2 pt-2 border-t flex justify-between text-xs">
+                <span className="text-muted-foreground">Total Active</span>
+                <span className="font-bold">{statusDistribution.reduce((sum, s) => sum + s.count, 0)} projects</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ROW 4: Cycle Time + Recently Invoiced + Customer Concentration */}
+      <div className="grid gap-3 lg:grid-cols-3">
+        {/* Cycle Time - Compact */}
+        <Card>
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-sm font-medium flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                Cycle Time
+              </span>
+              <span className="text-xs font-bold">{cycleTimeBreakdown.reduce((sum, s) => sum + s.avgDays, 0)}d avg</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3">
+            <div className="space-y-1">
+              {cycleTimeBreakdown.slice(0, 5).map(status => {
+                const maxDays = Math.max(...cycleTimeBreakdown.map(s => s.avgDays), 1);
+                const isBottleneck = status.name.toLowerCase().includes('procurement') || status.name.toLowerCase().includes('engineering');
                 return (
-                  <div key={month.month} className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <span>{month.month}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{month.completed} projects</span>
-                        <span className="text-muted-foreground">${month.revenue.toLocaleString()}</span>
-                      </div>
+                  <div key={status.name} className="flex items-center gap-2 text-xs">
+                    <span className={`w-20 truncate ${isBottleneck ? 'font-medium' : ''}`}>{status.name}</span>
+                    <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${isBottleneck ? 'bg-amber-500' : 'bg-[#023A2D]'}`} style={{ width: `${(status.avgDays / maxDays) * 100}%` }} />
                     </div>
-                    <div className="h-2 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-green-500 rounded-full"
-                        style={{ width: `${(month.completed / maxCompleted) * 100}%` }}
-                      />
-                    </div>
+                    <span className={`w-8 text-right font-mono ${isBottleneck ? 'font-bold text-amber-600' : ''}`}>{status.avgDays}d</span>
                   </div>
                 );
               })}
             </div>
-            <div className="mt-4 pt-4 border-t">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">6-Month Total</span>
-                <span className="font-mono font-bold">
-                  {throughputTrend.reduce((sum, m) => sum + m.completed, 0)} projects · ${throughputTrend.reduce((sum, m) => sum + m.revenue, 0).toLocaleString()}
-                </span>
-              </div>
-            </div>
           </CardContent>
         </Card>
-      </div>
 
-      {/* Customer Concentration Risk Detail */}
-      {customerConcentration.totalClients > 0 && (
+        {/* Recently Invoiced - Compact */}
+        <Card>
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              Recently Invoiced
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3">
+            {lastInvoiced.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No invoiced projects yet</p>
+            ) : (
+              <div className="space-y-1.5">
+                {lastInvoiced.map(h => (
+                  <Link key={h.id} href={`/projects/${h.project_id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
+                    <span className="font-medium truncate max-w-[120px]">{h.project?.client_name}</span>
+                    <span className="text-green-600 font-medium">${(h.project?.sales_amount || 0).toLocaleString()}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Customer Concentration - Compact */}
         <Card className={`border-l-4 ${
           customerConcentration.riskLevel === 'high' ? 'border-l-red-500' :
           customerConcentration.riskLevel === 'medium' ? 'border-l-amber-500' :
           'border-l-green-500'
         }`}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Customer Concentration: {customerConcentration.riskLevel === 'high' ? 'High Risk' : customerConcentration.riskLevel === 'medium' ? 'Medium Risk' : 'Healthy'}
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-sm font-medium flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Top Clients
+              </span>
+              <Badge variant={customerConcentration.riskLevel === 'high' ? 'destructive' : customerConcentration.riskLevel === 'medium' ? 'secondary' : 'outline'} className="text-[10px]">
+                {customerConcentration.concentrationPercent.toFixed(0)}%
+              </Badge>
             </CardTitle>
-            <CardDescription>
-              Top 3 clients represent {customerConcentration.concentrationPercent.toFixed(0)}% of pipeline revenue
-            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
+          <CardContent className="px-4 pb-3">
+            <div className="space-y-1.5">
               {customerConcentration.top3.map((client, i) => {
-                const percent = customerConcentration.totalRevenue > 0
-                  ? (client.revenue / customerConcentration.totalRevenue) * 100
-                  : 0;
+                const percent = customerConcentration.totalRevenue > 0 ? (client.revenue / customerConcentration.totalRevenue) * 100 : 0;
                 return (
-                  <div key={client.name} className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-muted-foreground">#{i + 1}</span>
-                        <span className="font-medium">{client.name}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span>${client.revenue.toLocaleString()}</span>
-                        <span className="text-muted-foreground">({percent.toFixed(0)}%)</span>
-                      </div>
-                    </div>
-                    <div className="h-2 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${
-                          i === 0 ? 'bg-red-500' : i === 1 ? 'bg-amber-500' : 'bg-yellow-500'
-                        }`}
-                        style={{ width: `${percent}%` }}
-                      />
-                    </div>
+                  <div key={client.name} className="flex items-center gap-2 text-xs">
+                    <span className="text-muted-foreground">#{i + 1}</span>
+                    <span className="flex-1 truncate font-medium">{client.name}</span>
+                    <span>{percent.toFixed(0)}%</span>
                   </div>
                 );
               })}
             </div>
-            <div className="mt-4 pt-4 border-t text-sm text-muted-foreground">
-              {customerConcentration.riskLevel === 'high' && (
-                <p>High concentration risk: Consider diversifying client base to reduce dependency.</p>
-              )}
-              {customerConcentration.riskLevel === 'medium' && (
-                <p>Moderate concentration: Monitor top client relationships closely.</p>
-              )}
-              {customerConcentration.riskLevel === 'low' && (
-                <p>Healthy distribution across {customerConcentration.totalClients} clients.</p>
-              )}
-            </div>
+            <p className="text-[10px] text-muted-foreground mt-2">{customerConcentration.totalClients} total clients</p>
           </CardContent>
         </Card>
-      )}
+      </div>
 
-      {/* Status Distribution Chart */}
-      {statusDistribution.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Projects by Status</CardTitle>
-            <CardDescription>Where projects are currently in the pipeline (excludes invoiced)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-2 gap-6">
-              <LazyStatusChart data={statusDistribution} />
-              <div className="space-y-3">
-                {statusDistribution.map(status => (
-                  <div key={status.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                    <div className="flex items-center gap-3">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: status.color }} />
-                      <div>
-                        <p className="font-medium">{status.name}</p>
-                        <p className="text-sm text-muted-foreground">{status.count} projects</p>
-                      </div>
-                    </div>
-                    <span className="font-semibold">${status.revenue.toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Revenue Pipeline Chart */}
+      {/* ROW 5: Revenue Pipeline - Compact */}
       <Card>
-        <CardHeader>
-          <CardTitle>Revenue Pipeline</CardTitle>
-          <CardDescription>Expected revenue by month (based on goal dates)</CardDescription>
+        <CardHeader className="pb-2 pt-3 px-4">
+          <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Revenue Pipeline (Next 6 Months)
+          </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 pb-3">
           <LazyRevenueChart data={revenueByMonth} />
         </CardContent>
       </Card>
