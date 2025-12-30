@@ -6,8 +6,9 @@ import { Calendar, DollarSign, User, Info, ExternalLink, Mail, Phone, FileText, 
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { InlineEditField } from './inline-edit-field';
+import { InlineDateRangePicker } from './inline-date-range-picker';
 import { ProjectScheduleStatus, ProjectScheduleStatusDisplay } from './project-schedule-status';
-import { inlineEditProjectField } from '@/app/(dashboard)/projects/actions';
+import { inlineEditProjectField, updateProjectDates } from '@/app/(dashboard)/projects/actions';
 import { toast } from 'sonner';
 import type { BookingStatus } from '@/types/calendar';
 
@@ -63,6 +64,25 @@ export function QuickInfo({
       throw new Error(result.error);
     }
     toast.success('Updated successfully');
+  };
+
+  const handleDateRangeSave = async (startDate: string | null, endDate: string | null) => {
+    if (!startDate || !endDate) {
+      toast.error('Both start and end dates are required');
+      throw new Error('Both dates required');
+    }
+
+    const result = await updateProjectDates({
+      projectId: project.id,
+      startDate,
+      endDate,
+    });
+
+    if (!result.success) {
+      toast.error(result.error || 'Failed to update dates');
+      throw new Error(result.error);
+    }
+    toast.success('Project dates updated');
   };
 
   const formatDateForDisplay = (date: string | null) => {
@@ -150,40 +170,16 @@ export function QuickInfo({
               </div>
               <span className="text-sm text-muted-foreground">Project Dates</span>
             </div>
-            <div className="flex items-center gap-2 text-sm">
+            <div className="text-sm">
               {canEdit ? (
-                <>
-                  <InlineEditField
-                    value={formatDateForInput(project.start_date)}
-                    displayValue={
-                      project.start_date ? (
-                        <span className="font-medium">
-                          {format(new Date(project.start_date), 'MMM d')}
-                        </span>
-                      ) : undefined
-                    }
-                    type="date"
-                    onSave={(v) => handleFieldSave('start_date', v)}
-                    placeholder="Start"
-                  />
-                  <span className="text-muted-foreground">—</span>
-                  <InlineEditField
-                    value={formatDateForInput(project.end_date)}
-                    displayValue={
-                      project.end_date ? (
-                        <span className="font-medium">
-                          {format(new Date(project.end_date), 'MMM d, yyyy')}
-                        </span>
-                      ) : undefined
-                    }
-                    type="date"
-                    onSave={(v) => handleFieldSave('end_date', v)}
-                    placeholder="End"
-                  />
-                </>
+                <InlineDateRangePicker
+                  startDate={project.start_date}
+                  endDate={project.end_date}
+                  onSave={handleDateRangeSave}
+                />
               ) : project.start_date && project.end_date ? (
                 <span className="font-medium">
-                  {format(new Date(project.start_date), 'MMM d')} - {format(new Date(project.end_date), 'MMM d, yyyy')}
+                  {format(new Date(project.start_date), 'MMM d')} — {format(new Date(project.end_date), 'MMM d, yyyy')}
                 </span>
               ) : project.start_date ? (
                 <span className="font-medium">

@@ -52,79 +52,78 @@ export default async function ProjectDetailPage({
     project.current_status?.name !== 'Invoiced';
 
   return (
-    <div className="space-y-4 md:space-y-6">
-      {/* Hero Header */}
-      <ProjectHeader
-        project={{
-          ...project,
-          client_portal_views: (project as { client_portal_views?: number }).client_portal_views,
-          schedule_status: (project as { schedule_status?: string }).schedule_status as BookingStatus | null | undefined,
-        }}
-        statuses={statuses}
-        projectTypeStatuses={projectTypeStatuses}
-        isOverdue={!!isOverdue}
-        isAdmin={isAdmin}
-      />
+    <div className="grid gap-4 md:gap-6 lg:grid-cols-5">
+      {/* Left Column - 60% (3/5) */}
+      <div className="lg:col-span-3 space-y-4 md:space-y-6">
+        {/* Hero Header */}
+        <ProjectHeader
+          project={{
+            ...project,
+            client_portal_views: (project as { client_portal_views?: number }).client_portal_views,
+            schedule_status: (project as { schedule_status?: string }).schedule_status as BookingStatus | null | undefined,
+          }}
+          statuses={statuses}
+          projectTypeStatuses={projectTypeStatuses}
+          isOverdue={!!isOverdue}
+          isAdmin={isAdmin}
+        />
 
-      {/* Quick Info - Full width, right after header */}
-      <QuickInfo
-        project={{
-          id: project.id,
-          goal_completion_date: project.goal_completion_date,
-          start_date: project.start_date,
-          end_date: project.end_date,
-          sales_amount: project.sales_amount,
-          sales_order_number: project.sales_order_number,
-          sales_order_url: project.sales_order_url,
-          schedule_status: (project as { schedule_status?: string }).schedule_status as BookingStatus | null,
-          salesperson: project.salesperson,
-          salesperson_id: project.salesperson_id,
-          poc_name: project.poc_name,
-          poc_email: project.poc_email,
-          poc_phone: project.poc_phone,
-          scope_link: project.scope_link,
-        }}
-        salespeople={salespeople}
-        isOverdue={!!isOverdue}
-        canEdit={isAdmin}
-        canEditSchedule={canEditSchedule}
-      />
+        {/* Project Details Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Project Information</CardTitle>
+            <CardDescription>Edit project details below</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ProjectForm
+              project={{ ...project, email_notifications_enabled: (project as { email_notifications_enabled?: boolean | null }).email_notifications_enabled ?? true } as Project}
+              statuses={statuses}
+              tags={tags}
+              projectTags={project.tags?.map((t: { tag: { id: string } }) => t.tag.id) || []}
+              salespeople={salespeople}
+              projectTypes={projectTypes}
+              projectTypeStatuses={projectTypeStatuses}
+            />
+          </CardContent>
+        </Card>
 
-      <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
-        {/* Main Content */}
-        <div className="lg:col-span-2 space-y-4 md:space-y-6">
-          {/* Project Details Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Project Information</CardTitle>
-              <CardDescription>Edit project details below</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ProjectForm
-                project={{ ...project, email_notifications_enabled: (project as { email_notifications_enabled?: boolean | null }).email_notifications_enabled ?? true } as Project}
-                statuses={statuses}
-                tags={tags}
-                projectTags={project.tags?.map((t: { tag: { id: string } }) => t.tag.id) || []}
-                salespeople={salespeople}
-                projectTypes={projectTypes}
-                projectTypeStatuses={projectTypeStatuses}
-              />
-            </CardContent>
-          </Card>
-        </div>
+        {/* Status History */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Status History</CardTitle>
+            <CardDescription>Timeline of status changes</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <StatusHistory history={statusHistory} />
+          </CardContent>
+        </Card>
+      </div>
 
-        {/* Sidebar */}
-        <div className="space-y-4 md:space-y-6">
-          {/* Status History */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Status History</CardTitle>
-              <CardDescription>Timeline of status changes</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <StatusHistory history={statusHistory} />
-            </CardContent>
-          </Card>
+      {/* Right Column - 40% (2/5) - Quick Info */}
+      <div className="lg:col-span-2">
+        <div className="lg:sticky lg:top-4">
+          <QuickInfo
+            project={{
+              id: project.id,
+              goal_completion_date: project.goal_completion_date,
+              start_date: project.start_date,
+              end_date: project.end_date,
+              sales_amount: project.sales_amount,
+              sales_order_number: project.sales_order_number,
+              sales_order_url: project.sales_order_url,
+              schedule_status: (project as { schedule_status?: string }).schedule_status as BookingStatus | null,
+              salesperson: project.salesperson,
+              salesperson_id: project.salesperson_id,
+              poc_name: project.poc_name,
+              poc_email: project.poc_email,
+              poc_phone: project.poc_phone,
+              scope_link: project.scope_link,
+            }}
+            salespeople={salespeople}
+            isOverdue={!!isOverdue}
+            canEdit={isAdmin}
+            canEditSchedule={canEditSchedule}
+          />
         </div>
       </div>
     </div>
