@@ -54,10 +54,5 @@ export async function GET(request: NextRequest) {
 
   // Redirect to Microsoft OAuth
   const authUrl = getAuthUrl(state);
-
-  // Debug: log the full auth URL to see redirect_uri
-  console.log('[Microsoft OAuth] Auth URL:', authUrl);
-  console.log('[Microsoft OAuth] REDIRECT_URI env:', process.env.MICROSOFT_REDIRECT_URI);
-
   return NextResponse.redirect(authUrl);
 }

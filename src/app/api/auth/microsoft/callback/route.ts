@@ -14,13 +14,37 @@ import {
 import { getUserInfo } from '@/lib/microsoft-graph/client';
 import { fullSyncForUser } from '@/lib/microsoft-graph/sync';
 
+/**
+ * Get the external origin for redirects.
+ * Railway proxies requests, so origin shows internal localhost:8080.
+ * We need to use forwarded headers or env var to get the real external URL.
+ */
+function getExternalOrigin(request: NextRequest): string {
+  // Check x-forwarded-host header (set by Railway/proxies)
+  const forwardedHost = request.headers.get('x-forwarded-host');
+  const forwardedProto = request.headers.get('x-forwarded-proto') || 'https';
+
+  if (forwardedHost) {
+    return `${forwardedProto}://${forwardedHost}`;
+  }
+
+  // Fall back to extracting origin from MICROSOFT_REDIRECT_URI
+  const redirectUri = process.env.MICROSOFT_REDIRECT_URI;
+  if (redirectUri) {
+    try {
+      const url = new URL(redirectUri);
+      return url.origin;
+    } catch {
+      // Invalid URL, continue to fallback
+    }
+  }
+
+  // Last resort: use request origin (may be localhost in containerized environments)
+  return request.nextUrl.origin;
+}
+
 export async function GET(request: NextRequest) {
-  // Debug: log request URL info
-  console.log('[Microsoft OAuth Callback] request.url:', request.url);
-  console.log('[Microsoft OAuth Callback] request.nextUrl.origin:', request.nextUrl.origin);
-  console.log('[Microsoft OAuth Callback] request.nextUrl.href:', request.nextUrl.href);
-  console.log('[Microsoft OAuth Callback] x-forwarded-host:', request.headers.get('x-forwarded-host'));
-  console.log('[Microsoft OAuth Callback] host:', request.headers.get('host'));
+  const origin = getExternalOrigin(request);
 
   const searchParams = request.nextUrl.searchParams;
   const code = searchParams.get('code');
@@ -39,7 +63,7 @@ export async function GET(request: NextRequest) {
   // Handle errors from Microsoft
   if (error) {
     console.error('Microsoft OAuth error:', error, errorDescription);
-    const url = new URL(returnUrl, request.nextUrl.origin);
+    const url = new URL(returnUrl, origin);
     url.searchParams.set('outlook_error', errorDescription || error);
     return NextResponse.redirect(url);
   }
@@ -47,14 +71,14 @@ export async function GET(request: NextRequest) {
   // Verify state for CSRF protection
   if (!state || state !== storedState) {
     console.error('State mismatch:', { state, storedState });
-    const url = new URL(returnUrl, request.nextUrl.origin);
+    const url = new URL(returnUrl, origin);
     url.searchParams.set('outlook_error', 'Invalid state parameter');
     return NextResponse.redirect(url);
   }
 
   // Verify code is present
   if (!code) {
-    const url = new URL(returnUrl, request.nextUrl.origin);
+    const url = new URL(returnUrl, origin);
     url.searchParams.set('outlook_error', 'No authorization code received');
     return NextResponse.redirect(url);
   }
@@ -66,7 +90,7 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    const url = new URL('/login', request.nextUrl.origin);
+    const url = new URL('/login', origin);
     url.searchParams.set('redirect', returnUrl);
     return NextResponse.redirect(url);
   }
@@ -98,7 +122,7 @@ export async function GET(request: NextRequest) {
 
     if (dbError) {
       console.error('Failed to store calendar connection:', dbError);
-      const url = new URL(returnUrl, request.nextUrl.origin);
+      const url = new URL(returnUrl, origin);
       url.searchParams.set('outlook_error', 'Failed to save connection');
       return NextResponse.redirect(url);
     }
@@ -110,12 +134,12 @@ export async function GET(request: NextRequest) {
     });
 
     // Redirect with success
-    const url = new URL(returnUrl, request.nextUrl.origin);
+    const url = new URL(returnUrl, origin);
     url.searchParams.set('outlook_connected', 'true');
     return NextResponse.redirect(url);
   } catch (err) {
     console.error('Microsoft OAuth callback error:', err);
-    const url = new URL(returnUrl, request.nextUrl.origin);
+    const url = new URL(returnUrl, origin);
     url.searchParams.set(
       'outlook_error',
       err instanceof Error ? err.message : 'Failed to connect'
