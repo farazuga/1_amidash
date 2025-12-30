@@ -273,8 +273,13 @@ export function ProjectCalendarView() {
   };
 
   // Detect engineer conflicts (same engineer on overlapping projects)
+  interface ConflictInfo {
+    dates: Set<string>;
+    engineers: Map<string, { dates: string[]; conflictingProjects: Set<string> }>;
+  }
+
   const projectConflicts = useMemo(() => {
-    const conflicts = new Map<string, { dates: Set<string>; engineers: Map<string, string[]> }>();
+    const conflicts = new Map<string, ConflictInfo>();
 
     // Build a map: engineer -> date -> [projectIds]
     const engineerDateMap = new Map<string, Map<string, string[]>>();
@@ -316,13 +321,19 @@ export function ProjectCalendarView() {
             const projectConflict = conflicts.get(projectId)!;
             projectConflict.dates.add(dateStr);
 
-            // Track which engineers have conflicts
-            const engineer = engineers.find(e => e.id === engineerId);
-            const engineerName = engineer?.full_name || 'Unknown';
+            // Track which engineers have conflicts and with which projects
             if (!projectConflict.engineers.has(engineerId)) {
-              projectConflict.engineers.set(engineerId, []);
+              projectConflict.engineers.set(engineerId, { dates: [], conflictingProjects: new Set() });
             }
-            projectConflict.engineers.get(engineerId)!.push(dateStr);
+            const engineerConflict = projectConflict.engineers.get(engineerId)!;
+            engineerConflict.dates.push(dateStr);
+
+            // Add other conflicting project IDs
+            for (const otherProjectId of projectIds) {
+              if (otherProjectId !== projectId) {
+                engineerConflict.conflictingProjects.add(otherProjectId);
+              }
+            }
           }
         }
       }
@@ -802,16 +813,33 @@ export function ProjectCalendarView() {
             const conflict = projectConflicts.get(project.id);
             const hasConflict = !!conflict;
 
-            // Get conflict tooltip content
-            const conflictTooltip = hasConflict ? (() => {
-              const engineerConflicts: string[] = [];
-              for (const [engineerId, dates] of conflict.engineers) {
+            // Get conflict tooltip content - now with more details
+            const conflictDetails = hasConflict ? (() => {
+              const details: { engineer: string; days: number; projects: string[]; dates: string[] }[] = [];
+              for (const [engineerId, engineerConflict] of conflict.engineers) {
                 const engineer = engineers.find(e => e.id === engineerId);
                 const name = engineer?.full_name || 'Unknown';
-                engineerConflicts.push(`${name}: ${dates.length} day${dates.length > 1 ? 's' : ''}`);
+
+                // Get conflicting project names
+                const conflictingProjectNames = Array.from(engineerConflict.conflictingProjects)
+                  .map(pId => filteredProjects.find(p => p.id === pId)?.client_name || 'Unknown')
+                  .slice(0, 5); // Limit to 5 projects
+
+                // Get unique dates and format them
+                const uniqueDates = [...new Set(engineerConflict.dates)]
+                  .sort()
+                  .slice(0, 5) // Show first 5 dates
+                  .map(d => format(parseISO(d), 'MMM d'));
+
+                details.push({
+                  engineer: name,
+                  days: [...new Set(engineerConflict.dates)].length,
+                  projects: conflictingProjectNames,
+                  dates: uniqueDates,
+                });
               }
-              return engineerConflicts.join('\n');
-            })() : '';
+              return details;
+            })() : [];
 
             const isSelected = selectedProjects.has(project.id);
 
@@ -838,14 +866,39 @@ export function ProjectCalendarView() {
                     {hasConflict && (
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <div className="flex-shrink-0">
+                          <div className="flex-shrink-0 cursor-help">
                             <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-500" />
                           </div>
                         </TooltipTrigger>
-                        <TooltipContent side="right" className="max-w-xs">
-                          <div className="text-xs">
-                            <div className="font-medium mb-1">Engineer Conflicts:</div>
-                            <div className="whitespace-pre-line">{conflictTooltip}</div>
+                        <TooltipContent side="right" className="max-w-sm p-3">
+                          <div className="text-xs space-y-2">
+                            <div className="font-semibold text-amber-600 dark:text-amber-500">
+                              Scheduling Conflicts
+                            </div>
+                            {conflictDetails.map((detail, idx) => (
+                              <div key={idx} className="border-t pt-2 first:border-t-0 first:pt-0">
+                                <div className="font-medium">{detail.engineer}</div>
+                                <div className="text-muted-foreground mt-0.5">
+                                  {detail.days} conflicting day{detail.days !== 1 ? 's' : ''} with:
+                                </div>
+                                <div className="mt-1 space-y-0.5">
+                                  {detail.projects.map((proj, pIdx) => (
+                                    <div key={pIdx} className="text-amber-700 dark:text-amber-400">
+                                      • {proj}
+                                    </div>
+                                  ))}
+                                  {detail.projects.length < [...new Set(conflictDetails.flatMap(d => d.projects))].length && (
+                                    <div className="text-muted-foreground italic">
+                                      + more projects...
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="text-muted-foreground mt-1">
+                                  Dates: {detail.dates.join(', ')}
+                                  {detail.days > 5 && ` + ${detail.days - 5} more`}
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </TooltipContent>
                       </Tooltip>
