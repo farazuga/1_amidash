@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { sendEmail } from '@/lib/email/send';
 import { assignmentCreatedEmail, assignmentStatusChangedEmail } from '@/lib/email/templates';
 import { checkEmailEnabled } from '@/lib/email/settings';
+import { triggerAssignmentSync, triggerAssignmentDelete } from '@/lib/microsoft-graph';
 import type {
   BookingStatus,
   ProjectAssignment,
@@ -306,6 +307,21 @@ export async function createAssignment(data: {
       bookingStatus: data.bookingStatus || 'draft',
       projectId: data.projectId,
     });
+
+    // Sync to Outlook calendar (fire and forget)
+    triggerAssignmentSync({
+      id: assignment.id,
+      user_id: data.userId,
+      project_id: data.projectId,
+      booking_status: data.bookingStatus || 'draft',
+      notes: data.notes || null,
+      project: {
+        id: assignedProject.id,
+        client_name: assignedProject.client_name,
+        start_date: assignedProject.start_date,
+        end_date: assignedProject.end_date,
+      },
+    }).catch((err) => console.error('Outlook sync error:', err));
   }
 
   revalidatePath('/calendar');
@@ -335,13 +351,13 @@ export async function updateAssignmentStatus(data: {
     return { success: false, error: authError || 'Authentication failed' };
   }
 
-  // Get current assignment with user and project details for email
+  // Get current assignment with user and project details for email and sync
   const { data: currentAssignment } = await supabase
     .from('project_assignments')
     .select(`
-      id, booking_status, project_id,
+      id, booking_status, project_id, user_id, notes,
       user:profiles!user_id(id, email, full_name),
-      project:projects(id, client_name)
+      project:projects(id, client_name, start_date, end_date)
     `)
     .eq('id', data.assignmentId)
     .single();
@@ -372,7 +388,7 @@ export async function updateAssignmentStatus(data: {
 
   // Send status change email (fire and forget)
   const assignedUser = currentAssignment.user as { id: string; email: string; full_name: string | null } | null;
-  const assignedProject = currentAssignment.project as { id: string; client_name: string } | null;
+  const assignedProject = currentAssignment.project as { id: string; client_name: string; start_date: string | null; end_date: string | null } | null;
 
   if (assignedUser?.email && assignedProject) {
     sendStatusChangeEmail({
@@ -383,6 +399,23 @@ export async function updateAssignmentStatus(data: {
       newStatus: data.newStatus,
       projectId: currentAssignment.project_id,
     });
+  }
+
+  // Sync to Outlook calendar (fire and forget)
+  if (assignedProject?.start_date && assignedProject?.end_date) {
+    triggerAssignmentSync({
+      id: currentAssignment.id,
+      user_id: currentAssignment.user_id,
+      project_id: currentAssignment.project_id,
+      booking_status: data.newStatus,
+      notes: currentAssignment.notes,
+      project: {
+        id: assignedProject.id,
+        client_name: assignedProject.client_name,
+        start_date: assignedProject.start_date,
+        end_date: assignedProject.end_date,
+      },
+    }).catch((err) => console.error('Outlook sync error:', err));
   }
 
   revalidatePath('/calendar');
@@ -417,9 +450,9 @@ export async function bulkUpdateAssignmentStatus(data: {
   const { data: assignments, error: fetchError } = await supabase
     .from('project_assignments')
     .select(`
-      id, booking_status, project_id,
+      id, booking_status, project_id, user_id, notes,
       user:profiles!user_id(id, email, full_name),
-      project:projects(id, client_name)
+      project:projects(id, client_name, start_date, end_date)
     `)
     .in('id', data.assignmentIds);
 
@@ -471,10 +504,10 @@ export async function bulkUpdateAssignmentStatus(data: {
       // Don't fail - the main update succeeded
     }
 
-    // Fire status change emails in parallel (non-blocking)
+    // Fire status change emails and calendar syncs in parallel (non-blocking)
     toUpdate.forEach(assignment => {
       const assignedUser = assignment.user as { id: string; email: string; full_name: string | null } | null;
-      const assignedProject = assignment.project as { id: string; client_name: string } | null;
+      const assignedProject = assignment.project as { id: string; client_name: string; start_date: string | null; end_date: string | null } | null;
 
       if (assignedUser?.email && assignedProject) {
         sendStatusChangeEmail({
@@ -485,6 +518,23 @@ export async function bulkUpdateAssignmentStatus(data: {
           newStatus: data.newStatus,
           projectId: assignment.project_id,
         });
+      }
+
+      // Sync to Outlook calendar
+      if (assignedProject?.start_date && assignedProject?.end_date) {
+        triggerAssignmentSync({
+          id: assignment.id,
+          user_id: assignment.user_id,
+          project_id: assignment.project_id,
+          booking_status: data.newStatus,
+          notes: assignment.notes,
+          project: {
+            id: assignedProject.id,
+            client_name: assignedProject.client_name,
+            start_date: assignedProject.start_date,
+            end_date: assignedProject.end_date,
+          },
+        }).catch((err) => console.error('Outlook sync error:', err));
       }
     });
   }
@@ -511,16 +561,21 @@ export async function removeAssignment(assignmentId: string): Promise<ActionResu
     return { success: false, error: authError || 'Authentication failed' };
   }
 
-  // Get project ID before deleting for cache invalidation
+  // Get project ID and user ID before deleting for cache invalidation and calendar sync
   const { data: assignment } = await supabase
     .from('project_assignments')
-    .select('project_id')
+    .select('project_id, user_id')
     .eq('id', assignmentId)
     .single();
 
   if (!assignment) {
     return { success: false, error: 'Assignment not found' };
   }
+
+  // Trigger Outlook calendar delete before removing from DB (fire and forget)
+  triggerAssignmentDelete(assignmentId, assignment.user_id).catch((err) =>
+    console.error('Outlook delete error:', err)
+  );
 
   const { error: deleteError } = await supabase
     .from('project_assignments')
@@ -1451,13 +1506,13 @@ export async function cycleAssignmentStatus(assignmentId: string): Promise<Actio
     return { success: false, error: authError || 'Authentication failed' };
   }
 
-  // Get current assignment with user and project details for email
+  // Get current assignment with user and project details for email and sync
   const { data: currentAssignment } = await supabase
     .from('project_assignments')
     .select(`
-      id, booking_status, project_id,
+      id, booking_status, project_id, user_id, notes,
       user:profiles!user_id(id, email, full_name),
-      project:projects(id, client_name)
+      project:projects(id, client_name, start_date, end_date)
     `)
     .eq('id', assignmentId)
     .single();
@@ -1500,7 +1555,7 @@ export async function cycleAssignmentStatus(assignmentId: string): Promise<Actio
 
   // Send status change email (fire and forget)
   const assignedUser = currentAssignment.user as { id: string; email: string; full_name: string | null } | null;
-  const assignedProject = currentAssignment.project as { id: string; client_name: string } | null;
+  const assignedProject = currentAssignment.project as { id: string; client_name: string; start_date: string | null; end_date: string | null } | null;
 
   if (assignedUser?.email && assignedProject) {
     sendStatusChangeEmail({
@@ -1511,6 +1566,23 @@ export async function cycleAssignmentStatus(assignmentId: string): Promise<Actio
       newStatus: newStatus,
       projectId: currentAssignment.project_id,
     });
+  }
+
+  // Sync to Outlook calendar (fire and forget)
+  if (assignedProject?.start_date && assignedProject?.end_date) {
+    triggerAssignmentSync({
+      id: currentAssignment.id,
+      user_id: currentAssignment.user_id,
+      project_id: currentAssignment.project_id,
+      booking_status: newStatus,
+      notes: currentAssignment.notes,
+      project: {
+        id: assignedProject.id,
+        client_name: assignedProject.client_name,
+        start_date: assignedProject.start_date,
+        end_date: assignedProject.end_date,
+      },
+    }).catch((err) => console.error('Outlook sync error:', err));
   }
 
   revalidatePath('/calendar');
@@ -2181,6 +2253,16 @@ export async function cascadeStatusToAssignments(params: {
     return { success: true, data: { updatedCount: 0 } };
   }
 
+  // Fetch assignments with project data for sync
+  const { data: assignments } = await supabase
+    .from('project_assignments')
+    .select(`
+      id, user_id, notes, project_id,
+      project:projects(id, client_name, start_date, end_date)
+    `)
+    .in('id', params.assignmentIds)
+    .eq('project_id', params.projectId);
+
   // Update all selected assignments
   const { error: updateError, count } = await supabase
     .from('project_assignments')
@@ -2202,6 +2284,28 @@ export async function cascadeStatusToAssignments(params: {
   }));
 
   await supabase.from('booking_status_history').insert(historyRecords);
+
+  // Sync to Outlook calendar for each assignment (fire and forget)
+  if (assignments) {
+    assignments.forEach((assignment) => {
+      const project = assignment.project as { id: string; client_name: string; start_date: string | null; end_date: string | null } | null;
+      if (project?.start_date && project?.end_date) {
+        triggerAssignmentSync({
+          id: assignment.id,
+          user_id: assignment.user_id,
+          project_id: assignment.project_id,
+          booking_status: params.newStatus,
+          notes: assignment.notes,
+          project: {
+            id: project.id,
+            client_name: project.client_name,
+            start_date: project.start_date,
+            end_date: project.end_date,
+          },
+        }).catch((err) => console.error('Outlook sync error:', err));
+      }
+    });
+  }
 
   revalidatePath('/projects');
   revalidatePath(`/projects/${params.projectId}`);
