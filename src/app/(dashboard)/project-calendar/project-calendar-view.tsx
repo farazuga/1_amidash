@@ -27,7 +27,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { ChevronLeft, ChevronRight, Loader2, Filter, X, AlertTriangle, GripVertical, Printer, Download, CheckSquare } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Filter, X, AlertTriangle, GripVertical, Printer, Download, CheckSquare, CalendarDays, LayoutList } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -59,7 +59,10 @@ import { cn } from '@/lib/utils';
 import { useProjectsWithDates, useProjectEngineers, useAllTags, type ProjectWithDetails } from './use-projects-with-dates';
 import { useUpdateProjectDates } from './use-update-project-dates';
 import { useBulkUpdateScheduleStatus } from './use-bulk-update-status';
+import { ProjectCalendarMonthView } from './project-calendar-month-view';
 import type { BookingStatus } from '@/types/calendar';
+
+type ViewType = 'timeline' | 'month';
 
 // Number of months to show
 const MONTHS_TO_DISPLAY = 3;
@@ -142,6 +145,7 @@ function DraggableProjectBar({
 
 export function ProjectCalendarView() {
   const [startMonth, setStartMonth] = useState(() => startOfMonth(new Date()));
+  const [viewType, setViewType] = useState<ViewType>('timeline');
   const [statusFilter, setStatusFilter] = useState<BookingStatus | 'all'>('all');
   const [tagFilter, setTagFilter] = useState<string | 'all'>('all');
   const [engineerFilter, setEngineerFilter] = useState<string | 'all'>('all');
@@ -499,13 +503,48 @@ export function ProjectCalendarView() {
           <Button variant="outline" size="sm" onClick={handleToday}>
             Today
           </Button>
+          <div className="h-6 w-px bg-border mx-2" />
+          <div className="flex items-center rounded-md border">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={viewType === 'timeline' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewType('timeline')}
+                  className="rounded-r-none h-8 px-3"
+                >
+                  <LayoutList className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Timeline View</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={viewType === 'month' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewType('month')}
+                  className="rounded-l-none h-8 px-3"
+                >
+                  <CalendarDays className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Month View</TooltipContent>
+            </Tooltip>
+          </div>
         </div>
         <div className="flex items-center gap-4">
-          {months.map((month, i) => (
-            <span key={i} className="text-sm font-medium">
-              {format(month, 'MMMM yyyy')}
+          {viewType === 'timeline' ? (
+            months.map((month, i) => (
+              <span key={i} className="text-sm font-medium">
+                {format(month, 'MMMM yyyy')}
+              </span>
+            ))
+          ) : (
+            <span className="text-sm font-medium">
+              {format(startMonth, 'MMMM yyyy')}
             </span>
-          ))}
+          )}
         </div>
         <div className="flex items-center gap-4">
           {totalConflicts > 0 && (
@@ -678,7 +717,14 @@ export function ProjectCalendarView() {
         })}
       </div>
 
-      {/* Calendar Grid */}
+      {/* Calendar View */}
+      {viewType === 'month' ? (
+        <ProjectCalendarMonthView
+          projects={filteredProjects}
+          currentMonth={startMonth}
+          engineers={engineers}
+        />
+      ) : (
       <DndContext
         sensors={sensors}
         onDragStart={handleDragStart}
@@ -844,6 +890,7 @@ export function ProjectCalendarView() {
         )}
       </div>
       </DndContext>
+      )}
     </div>
 
     {/* Bulk Status Update Confirmation Dialog */}
