@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { uploadFile } from '@/app/(dashboard)/projects/[id]/files/actions';
+import { uploadFile } from '@/app/(dashboard)/projects/[salesOrder]/files/actions';
 import type { FileCategory, ProjectPhase } from '@/types';
 
 /**

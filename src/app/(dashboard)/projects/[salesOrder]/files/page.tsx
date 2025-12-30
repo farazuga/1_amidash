@@ -5,32 +5,32 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
-import { getProject } from '@/lib/data/cached-queries';
+import { getProjectBySalesOrder } from '@/lib/data/cached-queries';
 import { ProjectFilesClient } from './client';
 import { getProjectFiles } from './actions';
 
 export default async function ProjectFilesPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ salesOrder: string }>;
 }) {
-  const { id } = await params;
+  const { salesOrder } = await params;
 
-  const project = await getProject(id);
+  const project = await getProjectBySalesOrder(salesOrder);
 
   if (!project) {
     notFound();
   }
 
   // Get initial file data
-  const filesResult = await getProjectFiles(id);
+  const filesResult = await getProjectFiles(project.id);
 
   return (
     <div className="space-y-4 md:space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="sm" asChild>
-          <Link href={`/projects/${id}`}>
+          <Link href={`/projects/${salesOrder}`}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Project
           </Link>
@@ -47,7 +47,7 @@ export default async function ProjectFilesPage({
       {/* Files Browser */}
       <Suspense fallback={<FilesLoadingSkeleton />}>
         <ProjectFilesClient
-          projectId={id}
+          projectId={project.id}
           projectName={project.client_name}
           initialFiles={filesResult.files || []}
           initialCounts={filesResult.counts || []}
