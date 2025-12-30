@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { format } from 'date-fns';
-import { ArrowLeft, Calendar, Eye } from 'lucide-react';
+import { ArrowLeft, Calendar, Eye, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -148,6 +148,13 @@ export function ProjectHeader({
               <Link href={`/projects/${project.id}/calendar`}>
                 <Calendar className="mr-2 h-4 w-4" />
                 Schedule
+              </Link>
+            </Button>
+
+            <Button variant="outline" asChild>
+              <Link href={`/projects/${project.id}/files`}>
+                <FolderOpen className="mr-2 h-4 w-4" />
+                Files
               </Link>
             </Button>
 

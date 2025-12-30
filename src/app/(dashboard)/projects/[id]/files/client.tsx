@@ -1,0 +1,260 @@
+'use client';
+
+import { useState, useCallback, useTransition } from 'react';
+import { toast } from 'sonner';
+import { FileBrowser } from '@/components/files/file-browser';
+import { SharePointConnectDialog, SharePointFolderSelection } from '@/components/files/sharepoint-connect-dialog';
+import { CameraCapture, CapturedFileData } from '@/components/files/camera-capture';
+import { FileUploadData } from '@/components/files/file-upload-dialog';
+import type { ProjectFile, FileCategoryCount, ProjectSharePointConnection } from '@/types';
+import {
+  connectSharePointFolder,
+  uploadFile,
+  syncFilesFromSharePoint,
+  deleteFile,
+  getDownloadUrl,
+  createShareLink,
+  getProjectFiles,
+} from './actions';
+
+interface ProjectFilesClientProps {
+  projectId: string;
+  projectName: string;
+  initialFiles: ProjectFile[];
+  initialCounts: FileCategoryCount[];
+  initialConnection: ProjectSharePointConnection | null;
+}
+
+export function ProjectFilesClient({
+  projectId,
+  projectName,
+  initialFiles,
+  initialCounts,
+  initialConnection,
+}: ProjectFilesClientProps) {
+  const [files, setFiles] = useState<ProjectFile[]>(initialFiles);
+  const [counts, setCounts] = useState<FileCategoryCount[]>(initialCounts);
+  const [connection, setConnection] = useState<ProjectSharePointConnection | null>(initialConnection);
+  const [showConnectDialog, setShowConnectDialog] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  // Get pending upload count for floating button badge
+  const pendingCount = files.filter(f => f.upload_status !== 'uploaded').length;
+
+  // Refresh files from server
+  const refreshFiles = useCallback(async () => {
+    const result = await getProjectFiles(projectId);
+    if (result.success) {
+      setFiles(result.files || []);
+      setCounts(result.counts || []);
+      setConnection(result.connection || null);
+    }
+  }, [projectId]);
+
+  // Handle SharePoint connection
+  const handleConnect = useCallback(async (selection: SharePointFolderSelection) => {
+    startTransition(async () => {
+      const result = await connectSharePointFolder({
+        projectId,
+        siteId: selection.siteId,
+        driveId: selection.driveId,
+        folderId: selection.folderId,
+        folderPath: selection.folderPath,
+        folderUrl: selection.folderUrl,
+        createSubfolders: true,
+      });
+
+      if (result.success && result.connection) {
+        setConnection(result.connection);
+        toast.success('SharePoint folder connected successfully');
+        // Sync files from the connected folder
+        await handleSync();
+      } else {
+        toast.error(result.error || 'Failed to connect SharePoint');
+      }
+    });
+  }, [projectId]);
+
+  // Handle file upload
+  const handleUpload = useCallback(async (uploadData: FileUploadData[]) => {
+    for (const data of uploadData) {
+      const arrayBuffer = await data.file.arrayBuffer();
+
+      const result = await uploadFile({
+        projectId,
+        fileName: data.file.name,
+        fileContent: arrayBuffer,
+        contentType: data.file.type,
+        category: data.category,
+        phase: data.phase,
+        notes: data.notes,
+      });
+
+      if (result.success && result.file) {
+        setFiles(prev => [result.file!, ...prev]);
+        // Update counts
+        setCounts(prev => {
+          const existing = prev.find(c => c.category === data.category);
+          if (existing) {
+            return prev.map(c =>
+              c.category === data.category
+                ? { ...c, count: c.count + 1 }
+                : c
+            );
+          }
+          return [...prev, { category: data.category, count: 1 }];
+        });
+        toast.success(`Uploaded ${data.file.name}`);
+      } else {
+        toast.error(result.error || `Failed to upload ${data.file.name}`);
+      }
+    }
+  }, [projectId]);
+
+  // Handle camera capture
+  const handleCapture = useCallback(async (data: CapturedFileData) => {
+    const arrayBuffer = await data.file.arrayBuffer();
+
+    startTransition(async () => {
+      const result = await uploadFile({
+        projectId,
+        fileName: data.file.name,
+        fileContent: arrayBuffer,
+        contentType: data.file.type,
+        category: data.category,
+        phase: data.phase,
+        notes: data.notes,
+        capturedOffline: data.capturedOffline,
+        capturedOnDevice: data.deviceType,
+      });
+
+      if (result.success && result.file) {
+        setFiles(prev => [result.file!, ...prev]);
+        setCounts(prev => {
+          const existing = prev.find(c => c.category === data.category);
+          if (existing) {
+            return prev.map(c =>
+              c.category === data.category
+                ? { ...c, count: c.count + 1 }
+                : c
+            );
+          }
+          return [...prev, { category: data.category, count: 1 }];
+        });
+        toast.success('Photo saved');
+      } else {
+        toast.error(result.error || 'Failed to save photo');
+      }
+    });
+  }, [projectId]);
+
+  // Handle sync from SharePoint
+  const handleSync = useCallback(async () => {
+    startTransition(async () => {
+      const result = await syncFilesFromSharePoint(projectId);
+
+      if (result.success) {
+        toast.success(`Synced ${result.syncedCount || 0} files from SharePoint`);
+        await refreshFiles();
+      } else {
+        toast.error(result.error || 'Sync failed');
+      }
+    });
+  }, [projectId, refreshFiles]);
+
+  // Handle file download
+  const handleDownload = useCallback(async (file: ProjectFile) => {
+    const result = await getDownloadUrl(file.id);
+
+    if (result.success && result.url) {
+      // Open download URL in new tab
+      window.open(result.url, '_blank');
+    } else {
+      toast.error(result.error || 'Failed to get download link');
+    }
+  }, []);
+
+  // Handle file delete
+  const handleDelete = useCallback(async (file: ProjectFile) => {
+    if (!confirm(`Delete "${file.file_name}"? This cannot be undone.`)) {
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await deleteFile(file.id);
+
+      if (result.success) {
+        setFiles(prev => prev.filter(f => f.id !== file.id));
+        setCounts(prev =>
+          prev.map(c =>
+            c.category === file.category
+              ? { ...c, count: Math.max(0, c.count - 1) }
+              : c
+          ).filter(c => c.count > 0)
+        );
+        toast.success('File deleted');
+      } else {
+        toast.error(result.error || 'Failed to delete file');
+      }
+    });
+  }, []);
+
+  // Handle file share
+  const handleShare = useCallback(async (file: ProjectFile) => {
+    const result = await createShareLink(file.id);
+
+    if (result.success && result.url) {
+      await navigator.clipboard.writeText(result.url);
+      toast.success('Share link copied to clipboard');
+    } else {
+      toast.error(result.error || 'Failed to create share link');
+    }
+  }, []);
+
+  // Handle file preview
+  const handlePreview = useCallback((file: ProjectFile) => {
+    if (file.web_url) {
+      window.open(file.web_url, '_blank');
+    } else {
+      toast.error('Preview not available');
+    }
+  }, []);
+
+  return (
+    <>
+      <FileBrowser
+        projectId={projectId}
+        projectName={projectName}
+        files={files}
+        counts={counts}
+        connection={connection}
+        isLoading={isPending}
+        onUpload={handleUpload}
+        onSync={handleSync}
+        onConnect={() => setShowConnectDialog(true)}
+        onDownload={handleDownload}
+        onDelete={handleDelete}
+        onShare={handleShare}
+        onPreview={handlePreview}
+      />
+
+      {/* SharePoint Connect Dialog */}
+      <SharePointConnectDialog
+        open={showConnectDialog}
+        onOpenChange={setShowConnectDialog}
+        projectId={projectId}
+        projectName={projectName}
+        onConnect={handleConnect}
+        isConnected={!!connection}
+      />
+
+      {/* Floating camera capture button (mobile) */}
+      <CameraCapture
+        projectId={projectId}
+        onCapture={handleCapture}
+        defaultCategory="photos"
+        pendingCount={pendingCount}
+      />
+    </>
+  );
+}
