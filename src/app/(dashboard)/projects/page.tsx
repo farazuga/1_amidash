@@ -98,7 +98,11 @@ async function getProjects(searchParams: SearchParams, invoicedStatusId: string 
       *,
       current_status:statuses(*),
       tags:project_tags(tag:tags(*)),
-      salesperson:profiles!projects_salesperson_id_fkey(id, full_name, email)
+      salesperson:profiles!projects_salesperson_id_fkey(id, full_name, email),
+      assignments:project_assignments(
+        id,
+        user:profiles!project_assignments_user_id_fkey(id, full_name)
+      )
     `);
 
   // Apply active/archived filter (default to active)

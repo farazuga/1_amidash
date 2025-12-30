@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Table,
   TableBody,
@@ -17,10 +18,30 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuCheckboxItem,
 } from '@/components/ui/dropdown-menu';
-import { ExternalLink, MoreHorizontal, ArrowUpDown, Copy, Eye, Trash2, Globe } from 'lucide-react';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  ExternalLink,
+  MoreHorizontal,
+  ArrowUpDown,
+  Copy,
+  Eye,
+  Trash2,
+  Globe,
+  Settings2,
+  GripVertical,
+  RotateCcw,
+} from 'lucide-react';
 import { format } from 'date-fns';
 import { StatusBadge } from './status-badge';
+import { ScheduleStatusBadge } from './schedule-status-badge';
 import { toast } from 'sonner';
 import { useUser } from '@/hooks/use-user';
 import { createClient } from '@/lib/supabase/client';
@@ -34,7 +55,75 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useState } from 'react';
+import { cn } from '@/lib/utils';
+import type { BookingStatus } from '@/types/calendar';
+
+// Column configuration
+interface ColumnConfig {
+  id: string;
+  label: string;
+  defaultVisible: boolean;
+  defaultWidth: number;
+  minWidth: number;
+  sortable: boolean;
+  sortKey?: string;
+}
+
+const COLUMNS: ColumnConfig[] = [
+  { id: 'client', label: 'Client', defaultVisible: true, defaultWidth: 200, minWidth: 120, sortable: true, sortKey: 'client_name' },
+  { id: 'created_date', label: 'Created Date', defaultVisible: true, defaultWidth: 120, minWidth: 100, sortable: true, sortKey: 'created_date' },
+  { id: 'status', label: 'Status', defaultVisible: true, defaultWidth: 130, minWidth: 100, sortable: true, sortKey: 'status' },
+  { id: 'schedule_status', label: 'Schedule Status', defaultVisible: false, defaultWidth: 140, minWidth: 100, sortable: false },
+  { id: 'engineers', label: 'Engineers', defaultVisible: false, defaultWidth: 180, minWidth: 100, sortable: false },
+  { id: 'project_dates', label: 'Project Dates', defaultVisible: false, defaultWidth: 160, minWidth: 120, sortable: true, sortKey: 'start_date' },
+  { id: 'amount', label: 'Amount', defaultVisible: true, defaultWidth: 100, minWidth: 80, sortable: true, sortKey: 'sales_amount' },
+  { id: 'goal_date', label: 'Goal Date', defaultVisible: true, defaultWidth: 120, minWidth: 100, sortable: true, sortKey: 'goal_completion_date' },
+  { id: 'sales_order', label: 'Sales Order', defaultVisible: true, defaultWidth: 120, minWidth: 80, sortable: false },
+  { id: 'poc', label: 'POC', defaultVisible: true, defaultWidth: 150, minWidth: 100, sortable: false },
+  { id: 'client_portal', label: 'Client Portal', defaultVisible: true, defaultWidth: 100, minWidth: 80, sortable: false },
+];
+
+const STORAGE_KEY = 'projects-table-columns';
+
+interface ColumnPreferences {
+  visibility: Record<string, boolean>;
+  widths: Record<string, number>;
+}
+
+function getDefaultPreferences(): ColumnPreferences {
+  return {
+    visibility: COLUMNS.reduce((acc, col) => ({ ...acc, [col.id]: col.defaultVisible }), {}),
+    widths: COLUMNS.reduce((acc, col) => ({ ...acc, [col.id]: col.defaultWidth }), {}),
+  };
+}
+
+function loadPreferences(): ColumnPreferences {
+  if (typeof window === 'undefined') return getDefaultPreferences();
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Merge with defaults to handle new columns
+      const defaults = getDefaultPreferences();
+      return {
+        visibility: { ...defaults.visibility, ...parsed.visibility },
+        widths: { ...defaults.widths, ...parsed.widths },
+      };
+    }
+  } catch (e) {
+    console.error('Failed to load column preferences:', e);
+  }
+  return getDefaultPreferences();
+}
+
+function savePreferences(prefs: ColumnPreferences) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+  } catch (e) {
+    console.error('Failed to save column preferences:', e);
+  }
+}
 
 interface ProjectWithTags {
   id: string;
@@ -52,9 +141,13 @@ interface ProjectWithTags {
   scope_link: string | null;
   client_token: string | null;
   client_portal_url?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  schedule_status?: string | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   current_status?: any;
   tags?: { tag: { id: string; name: string; color: string | null } }[];
+  assignments?: { id: string; user: { id: string; full_name: string | null } | null }[];
 }
 
 interface ProjectsTableProps {
@@ -71,20 +164,100 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
   const [projectToDelete, setProjectToDelete] = useState<ProjectWithTags | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Column preferences state
+  const [preferences, setPreferences] = useState<ColumnPreferences>(getDefaultPreferences);
+  const [isResizing, setIsResizing] = useState(false);
+  const [resizingColumn, setResizingColumn] = useState<string | null>(null);
+  const resizeStartX = useRef(0);
+  const resizeStartWidth = useRef(0);
+
+  // Load preferences from localStorage on mount
+  useEffect(() => {
+    setPreferences(loadPreferences());
+  }, []);
+
+  // Save preferences when they change
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      savePreferences(preferences);
+    }
+  }, [preferences]);
+
+  const visibleColumns = COLUMNS.filter(col => preferences.visibility[col.id]);
+
   const handleSort = (column: string) => {
+    const col = COLUMNS.find(c => c.id === column);
+    if (!col?.sortable || !col.sortKey) return;
+
     const params = new URLSearchParams(searchParams.toString());
     const currentSort = params.get('sort_by');
     const currentOrder = params.get('sort_order');
 
-    if (currentSort === column) {
+    if (currentSort === col.sortKey) {
       params.set('sort_order', currentOrder === 'asc' ? 'desc' : 'asc');
     } else {
-      params.set('sort_by', column);
+      params.set('sort_by', col.sortKey);
       params.set('sort_order', 'desc');
     }
 
     router.push(`${pathname}?${params.toString()}`);
   };
+
+  const toggleColumn = (columnId: string) => {
+    setPreferences(prev => ({
+      ...prev,
+      visibility: {
+        ...prev.visibility,
+        [columnId]: !prev.visibility[columnId],
+      },
+    }));
+  };
+
+  const resetPreferences = () => {
+    setPreferences(getDefaultPreferences());
+    toast.success('Column preferences reset');
+  };
+
+  // Resize handlers
+  const handleResizeStart = useCallback((e: React.MouseEvent, columnId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizing(true);
+    setResizingColumn(columnId);
+    resizeStartX.current = e.clientX;
+    resizeStartWidth.current = preferences.widths[columnId];
+  }, [preferences.widths]);
+
+  useEffect(() => {
+    if (!isResizing || !resizingColumn) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const delta = e.clientX - resizeStartX.current;
+      const column = COLUMNS.find(c => c.id === resizingColumn);
+      const newWidth = Math.max(column?.minWidth || 50, resizeStartWidth.current + delta);
+
+      setPreferences(prev => ({
+        ...prev,
+        widths: {
+          ...prev.widths,
+          [resizingColumn]: newWidth,
+        },
+      }));
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      setResizingColumn(null);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, resizingColumn]);
 
   const copyClientPortalLink = (token: string) => {
     const url = `${window.location.origin}/status/${token}`;
@@ -133,6 +306,157 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
       setIsDeleting(false);
       setDeleteDialogOpen(false);
       setProjectToDelete(null);
+    }
+  };
+
+  const renderCell = (project: ProjectWithTags, columnId: string) => {
+    switch (columnId) {
+      case 'client':
+        return (
+          <div className="space-y-1">
+            <p className="font-medium">{project.client_name}</p>
+            {project.tags && project.tags.length > 0 && (
+              <div className="flex gap-1">
+                {project.tags.slice(0, 2).map(({ tag }) => (
+                  <Badge
+                    key={tag.id}
+                    variant="outline"
+                    className="text-xs"
+                    style={{ borderColor: tag.color ?? '#888888', color: tag.color ?? '#888888' }}
+                  >
+                    {tag.name}
+                  </Badge>
+                ))}
+                {project.tags.length > 2 && (
+                  <Badge variant="outline" className="text-xs">
+                    +{project.tags.length - 2}
+                  </Badge>
+                )}
+              </div>
+            )}
+          </div>
+        );
+
+      case 'created_date':
+        return format(new Date(project.created_date), 'MMM d, yyyy');
+
+      case 'status':
+        return <StatusBadge status={project.current_status} />;
+
+      case 'schedule_status':
+        return (
+          <ScheduleStatusBadge
+            status={project.schedule_status as BookingStatus | null}
+            size="sm"
+          />
+        );
+
+      case 'engineers':
+        if (!project.assignments || project.assignments.length === 0) {
+          return <span className="text-muted-foreground text-sm">—</span>;
+        }
+        const engineers = project.assignments
+          .map(a => a.user?.full_name)
+          .filter(Boolean);
+        if (engineers.length === 0) {
+          return <span className="text-muted-foreground text-sm">—</span>;
+        }
+        return (
+          <div className="space-y-0.5">
+            {engineers.slice(0, 2).map((name, i) => (
+              <div key={i} className="text-sm truncate">{name}</div>
+            ))}
+            {engineers.length > 2 && (
+              <span className="text-xs text-muted-foreground">
+                +{engineers.length - 2} more
+              </span>
+            )}
+          </div>
+        );
+
+      case 'project_dates':
+        if (!project.start_date && !project.end_date) {
+          return <span className="text-muted-foreground text-sm">—</span>;
+        }
+        return (
+          <div className="text-sm">
+            {project.start_date && format(new Date(project.start_date), 'MMM d')}
+            {project.start_date && project.end_date && ' – '}
+            {project.end_date && format(new Date(project.end_date), 'MMM d')}
+          </div>
+        );
+
+      case 'amount':
+        return project.sales_amount
+          ? `$${project.sales_amount.toLocaleString()}`
+          : '-';
+
+      case 'goal_date':
+        return project.goal_completion_date ? (
+          <span
+            className={
+              isOverdue(project.goal_completion_date) &&
+              project.current_status?.name !== 'Invoiced'
+                ? 'text-destructive font-medium'
+                : ''
+            }
+          >
+            {format(new Date(project.goal_completion_date), 'MMM d, yyyy')}
+          </span>
+        ) : (
+          '-'
+        );
+
+      case 'sales_order':
+        return project.sales_order_url ? (
+          <Button
+            variant="link"
+            size="sm"
+            className="h-auto p-0"
+            onClick={(e) => {
+              e.stopPropagation();
+              window.open(project.sales_order_url!, '_blank');
+            }}
+          >
+            {project.sales_order_number || 'View'}
+            <ExternalLink className="ml-1 h-3 w-3" />
+          </Button>
+        ) : (
+          project.sales_order_number || '-'
+        );
+
+      case 'poc':
+        return (
+          <div className="text-sm">
+            <p>{project.poc_name || '-'}</p>
+            {project.poc_email && (
+              <p className="text-muted-foreground text-xs">
+                {project.poc_email}
+              </p>
+            )}
+          </div>
+        );
+
+      case 'client_portal':
+        return project.client_token ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={(e) => {
+              e.stopPropagation();
+              window.open(`/status/${project.client_token}`, '_blank');
+            }}
+            title="Open Client Portal"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </Button>
+        ) : (
+          <span className="text-muted-foreground text-sm">-</span>
+        );
+
+      default:
+        return null;
     }
   };
 
@@ -325,229 +649,172 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
       </div>
 
       {/* Desktop Table View */}
-      <div className="hidden md:block rounded-lg border overflow-x-auto">
-        <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>
-              <Button
-                variant="ghost"
-                onClick={() => handleSort('client_name')}
-                className="h-8 px-2"
-              >
-                Client
-                <ArrowUpDown className="ml-2 h-4 w-4" />
+      <div className="hidden md:block space-y-2">
+        {/* Column Settings */}
+        <div className="flex justify-end">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2">
+                <Settings2 className="h-4 w-4" />
+                Columns
               </Button>
-            </TableHead>
-            <TableHead>
-              <Button
-                variant="ghost"
-                onClick={() => handleSort('created_date')}
-                className="h-8 px-2"
-              >
-                Created Date
-                <ArrowUpDown className="ml-2 h-4 w-4" />
-              </Button>
-            </TableHead>
-            <TableHead>
-              <Button
-                variant="ghost"
-                onClick={() => handleSort('status')}
-                className="h-8 px-2"
-              >
-                Status
-                <ArrowUpDown className="ml-2 h-4 w-4" />
-              </Button>
-            </TableHead>
-            <TableHead>
-              <Button
-                variant="ghost"
-                onClick={() => handleSort('sales_amount')}
-                className="h-8 px-2"
-              >
-                Amount
-                <ArrowUpDown className="ml-2 h-4 w-4" />
-              </Button>
-            </TableHead>
-            <TableHead>
-              <Button
-                variant="ghost"
-                onClick={() => handleSort('goal_completion_date')}
-                className="h-8 px-2"
-              >
-                Goal Date
-                <ArrowUpDown className="ml-2 h-4 w-4" />
-              </Button>
-            </TableHead>
-            <TableHead>Sales Order</TableHead>
-            <TableHead>POC</TableHead>
-            <TableHead>Client Portal</TableHead>
-            <TableHead className="w-[50px]"></TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {projects.map((project) => (
-            <TableRow
-              key={project.id}
-              className="cursor-pointer hover:bg-muted/50"
-              onClick={() => router.push(`/projects/${project.id}`)}
-            >
-              <TableCell>
-                <div className="space-y-1">
-                  <p className="font-medium">{project.client_name}</p>
-                  {project.tags && project.tags.length > 0 && (
-                    <div className="flex gap-1">
-                      {project.tags.slice(0, 2).map(({ tag }) => (
-                        <Badge
-                          key={tag.id}
-                          variant="outline"
-                          className="text-xs"
-                          style={{ borderColor: tag.color ?? '#888888', color: tag.color ?? '#888888' }}
-                        >
-                          {tag.name}
-                        </Badge>
-                      ))}
-                      {project.tags.length > 2 && (
-                        <Badge variant="outline" className="text-xs">
-                          +{project.tags.length - 2}
-                        </Badge>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </TableCell>
-              <TableCell>
-                {format(new Date(project.created_date), 'MMM d, yyyy')}
-              </TableCell>
-              <TableCell>
-                <StatusBadge status={project.current_status} />
-              </TableCell>
-              <TableCell>
-                {project.sales_amount
-                  ? `$${project.sales_amount.toLocaleString()}`
-                  : '-'}
-              </TableCell>
-              <TableCell>
-                {project.goal_completion_date ? (
-                  <span
-                    className={
-                      isOverdue(project.goal_completion_date) &&
-                      project.current_status?.name !== 'Invoiced'
-                        ? 'text-destructive font-medium'
-                        : ''
-                    }
-                  >
-                    {format(new Date(project.goal_completion_date), 'MMM d, yyyy')}
-                  </span>
-                ) : (
-                  '-'
-                )}
-              </TableCell>
-              <TableCell>
-                {project.sales_order_url ? (
-                  <Button
-                    variant="link"
-                    size="sm"
-                    className="h-auto p-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      window.open(project.sales_order_url!, '_blank');
-                    }}
-                  >
-                    {project.sales_order_number || 'View'}
-                    <ExternalLink className="ml-1 h-3 w-3" />
-                  </Button>
-                ) : (
-                  project.sales_order_number || '-'
-                )}
-              </TableCell>
-              <TableCell>
-                <div className="text-sm">
-                  <p>{project.poc_name || '-'}</p>
-                  {project.poc_email && (
-                    <p className="text-muted-foreground text-xs">
-                      {project.poc_email}
-                    </p>
-                  )}
-                </div>
-              </TableCell>
-              <TableCell>
-                {project.client_token ? (
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-56">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium text-sm">Toggle Columns</h4>
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      window.open(`/status/${project.client_token}`, '_blank');
-                    }}
-                    title="Open Client Portal"
+                    size="sm"
+                    onClick={resetPreferences}
+                    className="h-8 px-2 text-xs"
                   >
-                    <ExternalLink className="h-4 w-4" />
+                    <RotateCcw className="h-3 w-3 mr-1" />
+                    Reset
                   </Button>
-                ) : (
-                  <span className="text-muted-foreground text-sm">-</span>
-                )}
-              </TableCell>
-              <TableCell>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        router.push(`/projects/${project.id}`);
-                      }}
+                </div>
+                <div className="space-y-2">
+                  {COLUMNS.map((column) => (
+                    <div key={column.id} className="flex items-center gap-2">
+                      <Checkbox
+                        id={column.id}
+                        checked={preferences.visibility[column.id]}
+                        onCheckedChange={() => toggleColumn(column.id)}
+                      />
+                      <label
+                        htmlFor={column.id}
+                        className="text-sm cursor-pointer flex-1"
+                      >
+                        {column.label}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        {/* Table */}
+        <div
+          className={cn(
+            'rounded-lg border overflow-x-auto',
+            isResizing && 'select-none'
+          )}
+        >
+          <Table style={{ tableLayout: 'fixed', width: 'auto', minWidth: '100%' }}>
+            <TableHeader>
+              <TableRow>
+                {visibleColumns.map((column) => (
+                  <TableHead
+                    key={column.id}
+                    className="relative group"
+                    style={{ width: preferences.widths[column.id] }}
+                  >
+                    <div className="flex items-center">
+                      {column.sortable ? (
+                        <Button
+                          variant="ghost"
+                          onClick={() => handleSort(column.id)}
+                          className="h-8 px-2 -ml-2"
+                        >
+                          {column.label}
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <span className="px-2">{column.label}</span>
+                      )}
+                    </div>
+                    {/* Resize handle */}
+                    <div
+                      className={cn(
+                        'absolute right-0 top-0 h-full w-1 cursor-col-resize',
+                        'opacity-0 group-hover:opacity-100 hover:bg-primary/50',
+                        'transition-opacity',
+                        resizingColumn === column.id && 'opacity-100 bg-primary'
+                      )}
+                      onMouseDown={(e) => handleResizeStart(e, column.id)}
+                    />
+                  </TableHead>
+                ))}
+                <TableHead className="w-[50px]"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {projects.map((project) => (
+                <TableRow
+                  key={project.id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => router.push(`/projects/${project.id}`)}
+                >
+                  {visibleColumns.map((column) => (
+                    <TableCell
+                      key={column.id}
+                      style={{ width: preferences.widths[column.id] }}
                     >
-                      <Eye className="mr-2 h-4 w-4" />
-                      View Details
-                    </DropdownMenuItem>
-                    {project.client_token && (
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          copyClientPortalLink(project.client_token!);
-                        }}
-                      >
-                        <Copy className="mr-2 h-4 w-4" />
-                        Copy Client Link
-                      </DropdownMenuItem>
-                    )}
-                    {project.scope_link && (
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          window.open(project.scope_link!, '_blank');
-                        }}
-                      >
-                        <ExternalLink className="mr-2 h-4 w-4" />
-                        View Scope
-                      </DropdownMenuItem>
-                    )}
-                    {isAdmin && (
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setProjectToDelete(project);
-                          setDeleteDialogOpen(true);
-                        }}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete Project
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+                      {renderCell(project, column.id)}
+                    </TableCell>
+                  ))}
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/projects/${project.id}`);
+                          }}
+                        >
+                          <Eye className="mr-2 h-4 w-4" />
+                          View Details
+                        </DropdownMenuItem>
+                        {project.client_token && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              copyClientPortalLink(project.client_token!);
+                            }}
+                          >
+                            <Copy className="mr-2 h-4 w-4" />
+                            Copy Client Link
+                          </DropdownMenuItem>
+                        )}
+                        {project.scope_link && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(project.scope_link!, '_blank');
+                            }}
+                          >
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            View Scope
+                          </DropdownMenuItem>
+                        )}
+                        {isAdmin && (
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setProjectToDelete(project);
+                              setDeleteDialogOpen(true);
+                            }}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete Project
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       {/* Delete Confirmation Dialog */}
