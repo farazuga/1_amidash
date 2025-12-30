@@ -232,22 +232,6 @@ export function ProjectCalendarView() {
   const handleNext = () => setStartMonth(prev => addMonths(prev, 1));
   const handleToday = () => setStartMonth(startOfMonth(new Date()));
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-[500px]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-[500px] text-destructive">
-        Failed to load projects: {error.message}
-      </div>
-    );
-  }
-
   // Filter projects
   const filteredProjects = useMemo(() => {
     let result = (projects || []).filter(p => p.start_date && p.end_date);
@@ -481,6 +465,24 @@ export function ProjectCalendarView() {
 
   // Count total conflicts
   const totalConflicts = projectConflicts.size;
+
+  // Handle loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-[500px]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // Handle error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-[500px] text-destructive">
+        Failed to load projects: {error.message}
+      </div>
+    );
+  }
 
   return (
     <TooltipProvider>
