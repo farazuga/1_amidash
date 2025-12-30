@@ -184,3 +184,203 @@ export interface RevenueGoal {
   created_at: string | null;
   updated_at: string | null;
 }
+
+// Project Files types
+export type FileCategory = 'schematics' | 'sow' | 'photos' | 'videos' | 'other';
+
+export type ProjectPhase = 'quoting' | 'engineering' | 'onsite' | 'complete' | 'other';
+
+export type UploadStatus = 'pending' | 'uploading' | 'uploaded' | 'failed';
+
+export interface ProjectSharePointConnection {
+  id: string;
+  project_id: string;
+  site_id: string;
+  drive_id: string;
+  folder_id: string;
+  folder_path: string;
+  folder_url: string;
+  connected_by: string;
+  last_synced_at: string | null;
+  sync_error: string | null;
+  auto_created: boolean;  // True if auto-created from global config
+  created_at: string;
+  updated_at: string;
+  // Joined relations
+  connected_by_profile?: Profile | null;
+}
+
+// Global SharePoint configuration (admin-only, stored in app_settings)
+export interface SharePointGlobalConfig {
+  site_id: string;
+  site_name: string;
+  drive_id: string;
+  drive_name: string;
+  base_folder_id: string;
+  base_folder_path: string;
+  base_folder_url: string;
+  configured_by: string;
+  configured_at: string;
+}
+
+// Pre-sales files: Captured BEFORE project exists (linked to ActiveCampaign deal)
+export interface PresalesFile {
+  id: string;
+  activecampaign_deal_id: string;
+  activecampaign_deal_name: string | null;
+  project_id: string | null;  // Linked after project creation
+  file_name: string;
+  sharepoint_item_id: string | null;
+  category: FileCategory;
+  file_size: number | null;
+  mime_type: string | null;
+  file_extension: string | null;
+  web_url: string | null;
+  download_url: string | null;
+  thumbnail_url: string | null;
+  sharepoint_folder_path: string | null;
+  uploaded_by: string | null;
+  upload_status: UploadStatus;
+  upload_error: string | null;
+  captured_on_device: string | null;
+  captured_offline: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined relations
+  uploaded_by_profile?: Profile | null;
+  project?: Project | null;
+}
+
+export interface ProjectFile {
+  id: string;
+  project_id: string;
+  connection_id: string | null;
+  presales_file_id: string | null;  // Link to original presales file if migrated
+  file_name: string;
+  sharepoint_item_id: string | null;
+  category: FileCategory;
+  file_size: number | null;
+  mime_type: string | null;
+  file_extension: string | null;
+  web_url: string | null;
+  download_url: string | null;
+  thumbnail_url: string | null;
+  uploaded_by: string | null;
+  sharepoint_modified_by: string | null;
+  sharepoint_modified_at: string | null;
+  project_phase: ProjectPhase | null;
+  notes: string | null;
+  upload_status: UploadStatus;
+  upload_error: string | null;
+  is_synced: boolean;
+  sync_error: string | null;
+  captured_on_device: string | null;
+  captured_offline: boolean;
+  offline_id: string | null;  // Client-generated ID for offline tracking
+  created_at: string;
+  updated_at: string;
+  // Joined relations
+  uploaded_by_profile?: Profile | null;
+  presales_file?: PresalesFile | null;
+}
+
+export interface ProjectFileAccessLog {
+  id: string;
+  file_id: string;
+  user_id: string;
+  action: 'view' | 'download' | 'share';
+  created_at: string;
+  // Joined relations
+  user?: Profile | null;
+  file?: ProjectFile | null;
+}
+
+export interface FileCategoryCount {
+  category: FileCategory;
+  count: number;
+}
+
+// File category display configuration
+export const FILE_CATEGORY_CONFIG: Record<FileCategory, { label: string; icon: string; description: string }> = {
+  schematics: {
+    label: 'Schematics',
+    icon: 'FileCode',
+    description: 'CAD drawings, diagrams, engineering documents',
+  },
+  sow: {
+    label: 'SOW',
+    icon: 'FileText',
+    description: 'Scope of Work, proposals, contracts',
+  },
+  photos: {
+    label: 'Photos',
+    icon: 'Image',
+    description: 'Site photos, installation images',
+  },
+  videos: {
+    label: 'Videos',
+    icon: 'Video',
+    description: 'Site videos, recordings',
+  },
+  other: {
+    label: 'Other',
+    icon: 'File',
+    description: 'Miscellaneous files',
+  },
+};
+
+export const PROJECT_PHASE_CONFIG: Record<ProjectPhase, { label: string }> = {
+  quoting: { label: 'Quoting' },
+  engineering: { label: 'Engineering Review' },
+  onsite: { label: 'Onsite' },
+  complete: { label: 'Complete' },
+  other: { label: 'Other' },
+};
+
+// Offline file capture types (stored in IndexedDB until synced)
+export interface OfflineFileCapture {
+  id: string;  // Client-generated UUID
+  // Context: either project or presales deal
+  project_id?: string;
+  activecampaign_deal_id?: string;
+  // File data
+  file_name: string;
+  file_blob: Blob;  // The actual file data
+  file_size: number;
+  mime_type: string;
+  file_extension: string;
+  // Metadata
+  category: FileCategory;
+  project_phase?: ProjectPhase;
+  notes?: string;
+  // Capture context
+  captured_at: string;  // ISO timestamp
+  captured_by_user_id: string;
+  captured_on_device: string;
+  // Location (if available)
+  latitude?: number;
+  longitude?: number;
+  // Sync status
+  sync_status: 'pending' | 'syncing' | 'synced' | 'failed';
+  sync_attempts: number;
+  last_sync_error?: string;
+  last_sync_attempt?: string;
+}
+
+// Device detection helper type
+export type DeviceType = 'iPhone' | 'iPad' | 'Android' | 'Desktop' | 'Unknown';
+
+// PWA sync event types
+export interface FileSyncEvent {
+  type: 'sync_started' | 'sync_progress' | 'sync_complete' | 'sync_failed';
+  file_id: string;
+  progress?: number;  // 0-100 for upload progress
+  error?: string;
+}
+
+// SharePoint folder structure for auto-creation
+export interface SharePointFolderStructure {
+  root: string;  // e.g., "/Projects/ClientName" or "/PreSales/DealID"
+  subfolders: FileCategory[];  // Categories to create as subfolders
+}
