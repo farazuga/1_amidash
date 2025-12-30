@@ -15,6 +15,13 @@ import { getUserInfo } from '@/lib/microsoft-graph/client';
 import { fullSyncForUser } from '@/lib/microsoft-graph/sync';
 
 export async function GET(request: NextRequest) {
+  // Debug: log request URL info
+  console.log('[Microsoft OAuth Callback] request.url:', request.url);
+  console.log('[Microsoft OAuth Callback] request.nextUrl.origin:', request.nextUrl.origin);
+  console.log('[Microsoft OAuth Callback] request.nextUrl.href:', request.nextUrl.href);
+  console.log('[Microsoft OAuth Callback] x-forwarded-host:', request.headers.get('x-forwarded-host'));
+  console.log('[Microsoft OAuth Callback] host:', request.headers.get('host'));
+
   const searchParams = request.nextUrl.searchParams;
   const code = searchParams.get('code');
   const state = searchParams.get('state');
