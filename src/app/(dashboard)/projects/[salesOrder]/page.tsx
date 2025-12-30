@@ -120,8 +120,10 @@ export default async function ProjectDetailPage({
               client_name: project.client_name,
               client_token: project.client_token,
               client_portal_views: (project as { client_portal_views?: number }).client_portal_views,
+              project_type_id: project.project_type_id,
             }}
             statuses={statuses}
+            projectTypeStatuses={projectTypeStatuses}
             salespeople={salespeople}
             isOverdue={!!isOverdue}
             canEdit={isAdmin}

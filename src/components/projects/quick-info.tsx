@@ -44,10 +44,15 @@ interface QuickInfoProps {
     client_name: string;
     client_token: string | null;
     client_portal_views?: number;
+    project_type_id: string | null;
   };
   statuses?: Array<{
     id: string;
     name: string;
+  }>;
+  projectTypeStatuses?: Array<{
+    project_type_id: string;
+    status_id: string;
   }>;
   salespeople: Array<{
     id: string;
@@ -64,6 +69,7 @@ interface QuickInfoProps {
 export function QuickInfo({
   project,
   statuses = [],
+  projectTypeStatuses = [],
   salespeople,
   isOverdue = false,
   canEdit = false,
@@ -72,6 +78,15 @@ export function QuickInfo({
   onStatusChange,
 }: QuickInfoProps) {
   const hasProjectDates = Boolean(project.start_date && project.end_date);
+
+  // Filter statuses based on project type
+  const availableStatuses = project.project_type_id
+    ? statuses.filter(s =>
+        projectTypeStatuses.some(pts =>
+          pts.project_type_id === project.project_type_id && pts.status_id === s.id
+        )
+      )
+    : statuses;
 
   const handleFieldSave = async (field: string, value: string) => {
     const result = await inlineEditProjectField({
@@ -165,7 +180,7 @@ export function QuickInfo({
           {/* Project Status */}
           <div className="flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors">
             <span className="text-sm text-muted-foreground">Status</span>
-            {canEdit && statuses.length > 0 ? (
+            {canEdit && availableStatuses.length > 0 ? (
               <InlineEditField
                 value={project.current_status?.id || ''}
                 displayValue={
@@ -174,7 +189,7 @@ export function QuickInfo({
                   ) : undefined
                 }
                 type="select"
-                options={statuses.map(s => ({
+                options={availableStatuses.map(s => ({
                   value: s.id,
                   label: s.name,
                 }))}
