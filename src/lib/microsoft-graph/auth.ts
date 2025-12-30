@@ -21,6 +21,13 @@ function getConfig(): MicrosoftOAuthConfig {
   const redirectUri = process.env.MICROSOFT_REDIRECT_URI;
   const tenantId = process.env.MICROSOFT_TENANT_ID || 'common';
 
+  // Debug logging - remove after troubleshooting
+  console.log('[Microsoft OAuth Config]', {
+    clientId: clientId ? `${clientId.substring(0, 8)}...` : 'NOT SET',
+    redirectUri: redirectUri || 'NOT SET',
+    tenantId: tenantId,
+  });
+
   if (!clientId || !clientSecret || !redirectUri) {
     throw new Error(
       'Missing Microsoft OAuth configuration. Please set MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET, and MICROSOFT_REDIRECT_URI environment variables.'
