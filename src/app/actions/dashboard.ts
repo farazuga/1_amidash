@@ -1,6 +1,8 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { DEFAULT_THRESHOLDS } from '@/lib/dashboard-thresholds';
+import type { DashboardThresholds } from '@/lib/dashboard-thresholds';
 
 export interface DashboardProject {
   id: string;
@@ -40,23 +42,51 @@ export interface DashboardData {
   statuses: DashboardStatus[];
   statusHistory: DashboardStatusHistoryItem[];
   goals: DashboardRevenueGoal[];
+  thresholds: DashboardThresholds;
 }
 
 export async function getDashboardData(): Promise<DashboardData> {
   const supabase = await createClient();
 
-  const [projectsRes, statusesRes, historyRes, goalsRes] = await Promise.all([
+  const [projectsRes, statusesRes, historyRes, goalsRes, settingsRes] = await Promise.all([
     supabase.from('projects').select(`*, current_status:statuses(*)`),
     supabase.from('statuses').select('*').order('display_order'),
     supabase.from('status_history').select(`*, status:statuses(*), project:projects(id, client_name, sales_amount)`).order('changed_at', { ascending: false }),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase.from as any)('revenue_goals').select('*'),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase.from as any)('app_settings').select('*').like('key', 'dashboard_%'),
   ]);
+
+  // Parse threshold settings
+  const thresholds = { ...DEFAULT_THRESHOLDS };
+  const settingKeyMap: Record<string, keyof DashboardThresholds> = {
+    'dashboard_wip_aging_days': 'wipAgingDays',
+    'dashboard_sales_health_threshold': 'salesHealthThreshold',
+    'dashboard_operations_health_threshold': 'operationsHealthThreshold',
+    'dashboard_ontime_good_threshold': 'ontimeGoodThreshold',
+    'dashboard_ontime_warning_threshold': 'ontimeWarningThreshold',
+    'dashboard_concentration_high_threshold': 'concentrationHighThreshold',
+    'dashboard_concentration_medium_threshold': 'concentrationMediumThreshold',
+    'dashboard_backlog_warning_months': 'backlogWarningMonths',
+  };
+
+  if (settingsRes.data) {
+    settingsRes.data.forEach((setting: { key: string; value: number | string }) => {
+      const key = settingKeyMap[setting.key];
+      if (key) {
+        thresholds[key] = typeof setting.value === 'number'
+          ? setting.value
+          : Number(setting.value) || DEFAULT_THRESHOLDS[key];
+      }
+    });
+  }
 
   return {
     projects: (projectsRes.data || []) as DashboardProject[],
     statuses: (statusesRes.data || []) as DashboardStatus[],
     statusHistory: (historyRes.data || []) as DashboardStatusHistoryItem[],
     goals: (goalsRes.data || []) as DashboardRevenueGoal[],
+    thresholds,
   };
 }

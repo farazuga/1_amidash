@@ -64,7 +64,7 @@ export const getCachedSalespeople = cache(async () => {
 });
 
 /**
- * Query for project - request-scoped via cache() for deduplication
+ * Query for project by ID - request-scoped via cache() for deduplication
  */
 export const getProject = cache(async (id: string) => {
   const supabase = await createClient();
@@ -79,6 +79,27 @@ export const getProject = cache(async (id: string) => {
       salesperson:profiles!projects_salesperson_id_fkey(*)
     `)
     .eq('id', id)
+    .single();
+
+  return project;
+});
+
+/**
+ * Query for project by sales order number - request-scoped via cache() for deduplication
+ */
+export const getProjectBySalesOrder = cache(async (salesOrder: string) => {
+  const supabase = await createClient();
+
+  const { data: project } = await supabase
+    .from('projects')
+    .select(`
+      *,
+      current_status:statuses(*),
+      tags:project_tags(tag:tags(*)),
+      created_by_profile:profiles!projects_created_by_fkey(*),
+      salesperson:profiles!projects_salesperson_id_fkey(*)
+    `)
+    .eq('sales_order_number', salesOrder)
     .single();
 
   return project;

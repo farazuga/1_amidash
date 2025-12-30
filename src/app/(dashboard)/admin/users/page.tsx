@@ -47,9 +47,8 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { Plus, Trash2, Loader2, KeyRound, Calendar } from 'lucide-react';
+import { Plus, Trash2, Loader2, KeyRound } from 'lucide-react';
 import type { Profile, UserRole } from '@/types';
-import { createCalendarSubscriptionForUser } from '@/app/(dashboard)/calendar/actions';
 
 const roleColors: Record<UserRole, string> = {
   admin: 'bg-primary text-primary-foreground',
@@ -85,9 +84,6 @@ export default function UsersAdminPage() {
   const [userToResetPassword, setUserToResetPassword] = useState<Profile | null>(null);
   const [resetPassword, setResetPassword] = useState('');
   const [isResettingPassword, setIsResettingPassword] = useState(false);
-
-  // iCal link generation state
-  const [generatingICalForUser, setGeneratingICalForUser] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -295,24 +291,6 @@ export default function UsersAdminPage() {
       toast.error('Failed to delete user');
     } finally {
       setIsDeleting(false);
-    }
-  };
-
-  const handleGetUserICalLink = async (userId: string, userName: string) => {
-    setGeneratingICalForUser(userId);
-    try {
-      const result = await createCalendarSubscriptionForUser(userId);
-      if (!result.success) {
-        toast.error(result.error || 'Failed to generate calendar link');
-        return;
-      }
-      await navigator.clipboard.writeText(result.data!.url);
-      toast.success(`Calendar link for ${userName} copied to clipboard!`);
-    } catch (error) {
-      console.error('Error generating iCal link:', error);
-      toast.error('Failed to generate calendar link');
-    } finally {
-      setGeneratingICalForUser(null);
     }
   };
 
@@ -560,21 +538,6 @@ export default function UsersAdminPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
-                      {user.role !== 'customer' && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleGetUserICalLink(user.id, user.full_name || user.email)}
-                          disabled={generatingICalForUser === user.id}
-                          title="Copy personal calendar link"
-                        >
-                          {generatingICalForUser === user.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Calendar className="h-4 w-4" />
-                          )}
-                        </Button>
-                      )}
                       <Button
                         variant="ghost"
                         size="icon"
