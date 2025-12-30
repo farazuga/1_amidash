@@ -420,6 +420,8 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
       if (over.data.current?.type === 'day' && active.data.current?.type === 'user') {
         const userId = active.data.current.userId;
         const userName = active.data.current.userName;
+        const droppedDate = over.data.current.date;
+        const droppedDateStr = droppedDate.toISOString().split('T')[0];
 
         // Check if project has dates set
         if (!project.start_date || !project.end_date) {
@@ -436,13 +438,30 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
             bookingStatus: 'draft' as BookingStatus,
           });
 
+          // Add the dropped date as a scheduled day so it appears on the calendar
+          if (result.assignment) {
+            try {
+              await addAssignmentDays.mutateAsync({
+                assignmentId: result.assignment.id,
+                days: [{
+                  date: droppedDateStr,
+                  startTime: '08:00:00',
+                  endTime: '17:00:00',
+                }],
+              });
+            } catch (dayError) {
+              // Log but don't fail - assignment was created successfully
+              console.error('Failed to add initial scheduled day:', dayError);
+            }
+          }
+
           if (result.conflicts?.hasConflicts) {
             toast.warning(`${userName} assigned with conflicts`, {
               description: `There are scheduling conflicts. Review in the assignment details.`,
             });
           } else {
             toast.success(`${userName} assigned`, {
-              description: `Added to ${project.client_name}`,
+              description: `Added to ${project.client_name} on ${droppedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`,
             });
           }
         } catch (error) {

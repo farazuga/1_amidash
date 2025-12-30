@@ -145,7 +145,7 @@ function DraggableProjectBar({
 
 export function ProjectCalendarView() {
   const [startMonth, setStartMonth] = useState(() => startOfMonth(new Date()));
-  const [viewType, setViewType] = useState<ViewType>('timeline');
+  const [viewType, setViewType] = useState<ViewType>('month');
   const [statusFilter, setStatusFilter] = useState<BookingStatus | 'all'>('all');
   const [tagFilter, setTagFilter] = useState<string | 'all'>('all');
   const [engineerFilter, setEngineerFilter] = useState<string | 'all'>('all');
