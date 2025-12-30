@@ -1,5 +1,4 @@
 import { notFound } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -8,7 +7,6 @@ import {
   Phone,
   Calendar,
   DollarSign,
-  FileText,
   User,
   Info,
 } from 'lucide-react';
@@ -20,95 +18,16 @@ import { StatusHistory } from '@/components/projects/status-history';
 import { ProjectScheduleStatus, ProjectScheduleStatusDisplay } from '@/components/projects/project-schedule-status';
 import type { Project } from '@/types';
 import type { BookingStatus } from '@/types/calendar';
-
-async function getCurrentUser() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  return profile;
-}
-
-async function getProject(id: string) {
-  const supabase = await createClient();
-
-  const { data: project } = await supabase
-    .from('projects')
-    .select(`
-      *,
-      current_status:statuses(*),
-      tags:project_tags(tag:tags(*)),
-      created_by_profile:profiles!projects_created_by_fkey(*),
-      salesperson:profiles!projects_salesperson_id_fkey(*)
-    `)
-    .eq('id', id)
-    .single();
-
-  return project;
-}
-
-async function getStatuses() {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from('statuses')
-    .select('*')
-    .eq('is_active', true)
-    .order('display_order');
-  return data || [];
-}
-
-async function getTags() {
-  const supabase = await createClient();
-  const { data } = await supabase.from('tags').select('*').order('name');
-  return data || [];
-}
-
-async function getStatusHistory(projectId: string) {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from('status_history')
-    .select(`
-      *,
-      status:statuses(*),
-      changed_by_profile:profiles(*)
-    `)
-    .eq('project_id', projectId)
-    .order('changed_at', { ascending: false });
-  return data || [];
-}
-
-async function getSalespeople() {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('is_salesperson', true)
-    .order('full_name');
-  return data || [];
-}
-
-async function getProjectTypes() {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from('project_types')
-    .select('*')
-    .order('display_order');
-  return data || [];
-}
-
-async function getProjectTypeStatuses() {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from('project_type_statuses')
-    .select('*');
-  return data || [];
-}
+import {
+  getCachedStatuses,
+  getCachedTags,
+  getCachedProjectTypes,
+  getCachedProjectTypeStatuses,
+  getCachedSalespeople,
+  getProject,
+  getStatusHistory,
+  getCurrentUser,
+} from '@/lib/data/cached-queries';
 
 export default async function ProjectDetailPage({
   params,
@@ -116,15 +35,16 @@ export default async function ProjectDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  // Use cached queries for static data, non-cached for dynamic data
   const [project, statuses, tags, statusHistory, salespeople, projectTypes, projectTypeStatuses, currentUser] = await Promise.all([
-    getProject(id),
-    getStatuses(),
-    getTags(),
-    getStatusHistory(id),
-    getSalespeople(),
-    getProjectTypes(),
-    getProjectTypeStatuses(),
-    getCurrentUser(),
+    getProject(id),              // Non-cached: project-specific, changes often
+    getCachedStatuses(),         // Cached: rarely changes
+    getCachedTags(),             // Cached: rarely changes
+    getStatusHistory(id),        // Non-cached: project-specific
+    getCachedSalespeople(),      // Cached: changes occasionally
+    getCachedProjectTypes(),     // Cached: rarely changes
+    getCachedProjectTypeStatuses(), // Cached: rarely changes
+    getCurrentUser(),            // Non-cached: session-specific
   ]);
 
   const isAdmin = currentUser?.role === 'admin';
@@ -180,60 +100,47 @@ export default async function ProjectDetailPage({
 
         {/* Sidebar */}
         <div className="space-y-4 md:space-y-6">
-          {/* Quick Info - Enhanced */}
-          <Card className="overflow-hidden">
-            <CardHeader className="bg-gradient-to-b from-muted/50 to-transparent pb-4">
+          {/* Quick Info - Enhanced with Blue Accent */}
+          <Card className="overflow-hidden border-primary/20 bg-gradient-to-b from-primary/5 to-background">
+            <CardHeader className="bg-primary/10 pb-4 border-b border-primary/10">
               <CardTitle className="text-base flex items-center gap-2">
-                <Info className="h-4 w-4 text-muted-foreground" />
+                <Info className="h-4 w-4 text-primary" />
                 Quick Info
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="divide-y">
-                {/* Sales Amount */}
-                {project.sales_amount && (
-                  <div className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                        <DollarSign className="h-4 w-4 text-primary" />
-                      </div>
-                      <span className="text-sm text-muted-foreground">Sales Amount</span>
-                    </div>
-                    <span className="text-lg font-semibold tabular-nums">
-                      ${project.sales_amount.toLocaleString()}
-                    </span>
-                  </div>
-                )}
-
-                {/* Goal Date */}
-                {project.goal_completion_date && (
-                  <div className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div
+              <div className="divide-y divide-primary/10">
+                {/* Goal Date - Always show */}
+                <div className="flex items-center justify-between p-4 hover:bg-primary/5 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={cn(
+                        'h-8 w-8 rounded-full flex items-center justify-center',
+                        isOverdue ? 'bg-destructive/10' : 'bg-primary/10'
+                      )}
+                    >
+                      <Calendar
                         className={cn(
-                          'h-8 w-8 rounded-full flex items-center justify-center',
-                          isOverdue ? 'bg-destructive/10' : 'bg-primary/10'
+                          'h-4 w-4',
+                          isOverdue ? 'text-destructive' : 'text-primary'
                         )}
-                      >
-                        <Calendar
-                          className={cn(
-                            'h-4 w-4',
-                            isOverdue ? 'text-destructive' : 'text-primary'
-                          )}
-                        />
-                      </div>
-                      <span className="text-sm text-muted-foreground">Goal Date</span>
+                      />
                     </div>
+                    <span className="text-sm text-muted-foreground">Goal Date</span>
+                  </div>
+                  {project.goal_completion_date ? (
                     <span
                       className={cn('font-medium', isOverdue && 'text-destructive')}
                     >
                       {format(new Date(project.goal_completion_date), 'MMM d, yyyy')}
                     </span>
-                  </div>
-                )}
+                  ) : (
+                    <span className="text-sm text-muted-foreground italic">Not set</span>
+                  )}
+                </div>
 
-                {/* Schedule Status */}
-                <div className="p-4 hover:bg-muted/30 transition-colors">
+                {/* Schedule Status - No bottom border (removed line) */}
+                <div className="p-4 hover:bg-primary/5 transition-colors border-b-0">
                   {canEditSchedule ? (
                     <ProjectScheduleStatus
                       projectId={project.id}
@@ -248,22 +155,51 @@ export default async function ProjectDetailPage({
                   )}
                 </div>
 
-                {/* Contract Type */}
-                {project.contract_type && (
-                  <div className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                        <FileText className="h-4 w-4 text-primary" />
-                      </div>
-                      <span className="text-sm text-muted-foreground">Contract Type</span>
+                {/* Project Dates - Always show */}
+                <div className="flex items-center justify-between p-4 hover:bg-primary/5 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Calendar className="h-4 w-4 text-primary" />
                     </div>
-                    <span className="font-medium">{project.contract_type}</span>
+                    <span className="text-sm text-muted-foreground">Project Dates</span>
                   </div>
-                )}
+                  {project.start_date && project.end_date ? (
+                    <span className="font-medium text-sm">
+                      {format(new Date(project.start_date), 'MMM d')} - {format(new Date(project.end_date), 'MMM d, yyyy')}
+                    </span>
+                  ) : project.start_date ? (
+                    <span className="font-medium text-sm">
+                      Starts {format(new Date(project.start_date), 'MMM d, yyyy')}
+                    </span>
+                  ) : project.end_date ? (
+                    <span className="font-medium text-sm">
+                      Ends {format(new Date(project.end_date), 'MMM d, yyyy')}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-muted-foreground italic">Not set</span>
+                  )}
+                </div>
+
+                {/* Sales Amount */}
+                <div className="flex items-center justify-between p-4 hover:bg-primary/5 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <DollarSign className="h-4 w-4 text-primary" />
+                    </div>
+                    <span className="text-sm text-muted-foreground">Sales Amount</span>
+                  </div>
+                  {project.sales_amount ? (
+                    <span className="text-lg font-semibold tabular-nums">
+                      ${project.sales_amount.toLocaleString()}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-muted-foreground italic">Not set</span>
+                  )}
+                </div>
 
                 {/* Salesperson */}
                 {project.salesperson && (
-                  <div className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors">
+                  <div className="flex items-center justify-between p-4 hover:bg-primary/5 transition-colors">
                     <div className="flex items-center gap-3">
                       <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                         <User className="h-4 w-4 text-primary" />
@@ -278,7 +214,7 @@ export default async function ProjectDetailPage({
 
                 {/* POC Info */}
                 {project.poc_name && (
-                  <div className="p-4 hover:bg-muted/30 transition-colors">
+                  <div className="p-4 hover:bg-primary/5 transition-colors">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                         <User className="h-4 w-4 text-primary" />
@@ -311,12 +247,12 @@ export default async function ProjectDetailPage({
 
                 {/* Links */}
                 {(project.sales_order_url || project.scope_link) && (
-                  <div className="p-4 space-y-2">
+                  <div className="p-4 space-y-2 bg-primary/5">
                     {project.sales_order_url && (
                       <Button
                         variant="outline"
                         size="sm"
-                        className="w-full justify-start hover:bg-primary/5 hover:border-primary/30"
+                        className="w-full justify-start hover:bg-primary/10 hover:border-primary/30 border-primary/20"
                         asChild
                       >
                         <a
@@ -333,7 +269,7 @@ export default async function ProjectDetailPage({
                       <Button
                         variant="outline"
                         size="sm"
-                        className="w-full justify-start hover:bg-primary/5 hover:border-primary/30"
+                        className="w-full justify-start hover:bg-primary/10 hover:border-primary/30 border-primary/20"
                         asChild
                       >
                         <a
