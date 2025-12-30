@@ -82,7 +82,7 @@ const COLUMNS: ColumnConfig[] = [
   { id: 'goal_date', label: 'Goal Date', defaultVisible: true, defaultWidth: 120, minWidth: 100, sortable: true, sortKey: 'goal_completion_date' },
   { id: 'sales_order', label: 'Sales Order', defaultVisible: true, defaultWidth: 120, minWidth: 80, sortable: false },
   { id: 'poc', label: 'POC', defaultVisible: true, defaultWidth: 150, minWidth: 100, sortable: false },
-  { id: 'client_portal', label: 'Client Portal', defaultVisible: true, defaultWidth: 100, minWidth: 80, sortable: false },
+  { id: 'client_portal', label: '', defaultVisible: true, defaultWidth: 50, minWidth: 50, sortable: false },
 ];
 
 const STORAGE_KEY = 'projects-table-columns';
@@ -714,6 +714,8 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
                           {column.label}
                           <ArrowUpDown className="ml-2 h-4 w-4" />
                         </Button>
+                      ) : column.id === 'client_portal' ? (
+                        <Globe className="h-4 w-4 mx-auto text-muted-foreground" />
                       ) : (
                         <span className="px-2">{column.label}</span>
                       )}
@@ -721,10 +723,9 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
                     {/* Resize handle */}
                     <div
                       className={cn(
-                        'absolute right-0 top-0 h-full w-1 cursor-col-resize',
-                        'opacity-0 group-hover:opacity-100 hover:bg-primary/50',
-                        'transition-opacity',
-                        resizingColumn === column.id && 'opacity-100 bg-primary'
+                        'absolute right-0 top-0 h-full w-2 cursor-col-resize',
+                        'bg-transparent hover:bg-primary/30',
+                        resizingColumn === column.id && 'bg-primary/50'
                       )}
                       onMouseDown={(e) => handleResizeStart(e, column.id)}
                     />
