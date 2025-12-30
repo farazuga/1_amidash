@@ -1,8 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { MyScheduleContent } from './my-schedule-content';
-import { OutlookConnection } from '@/components/settings/outlook-connection';
-import { isMicrosoftConfigured } from '@/lib/microsoft-graph/auth';
 
 export const metadata = {
   title: 'My Schedule | Amitrace',
@@ -30,21 +28,6 @@ export default async function MySchedulePage() {
     redirect('/');
   }
 
-  // Get user's Outlook calendar connection if Microsoft is configured
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let calendarConnection: any = null;
-  if (isMicrosoftConfigured()) {
-    // Type cast needed until types are regenerated with new calendar_connections table
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: connection } = await (supabase as any)
-      .from('calendar_connections')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('provider', 'microsoft')
-      .maybeSingle();
-    calendarConnection = connection;
-  }
-
   return (
     <div className="container mx-auto py-6">
       <div className="mb-6">
@@ -54,24 +37,10 @@ export default async function MySchedulePage() {
         </p>
       </div>
 
-      <div className="space-y-6">
-        <MyScheduleContent
-          userId={user.id}
-          userName={profile.full_name || undefined}
-        />
-
-        {isMicrosoftConfigured() && (
-          <div className="mt-8 border-t pt-8">
-            <h2 className="mb-4 text-lg font-semibold">Calendar Integration</h2>
-            <div className="max-w-md">
-              <OutlookConnection
-                connection={calendarConnection}
-                returnUrl="/my-schedule"
-              />
-            </div>
-          </div>
-        )}
-      </div>
+      <MyScheduleContent
+        userId={user.id}
+        userName={profile.full_name || undefined}
+      />
     </div>
   );
 }

@@ -16,6 +16,7 @@ import type { BookingStatus } from '@/types/calendar';
 interface ProjectHeaderProps {
   project: {
     id: string;
+    sales_order_number: string | null;
     client_name: string;
     client_token: string | null;
     client_portal_views?: number;
@@ -145,7 +146,7 @@ export function ProjectHeader({
             />
 
             <Button variant="outline" asChild>
-              <Link href={`/projects/${project.id}/calendar`}>
+              <Link href={`/projects/${project.sales_order_number || project.id}/calendar`}>
                 <Calendar className="mr-2 h-4 w-4" />
                 Schedule
               </Link>

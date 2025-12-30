@@ -36,14 +36,16 @@ import {
   Trash2,
   Globe,
   Settings2,
-  GripVertical,
   RotateCcw,
+  Save,
+  Loader2,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { StatusBadge } from './status-badge';
 import { ScheduleStatusBadge } from './schedule-status-badge';
 import { toast } from 'sonner';
 import { useUser } from '@/hooks/use-user';
+import { useUserPreferences } from '@/hooks/use-user-preferences';
 import { createClient } from '@/lib/supabase/client';
 import {
   AlertDialog,
@@ -159,29 +161,65 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { isAdmin } = useUser();
+  const { preferences: userPrefs, updatePreferences, isSaving: isSavingToDb } = useUserPreferences();
   const supabase = createClient();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<ProjectWithTags | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
 
-  // Column preferences state
+  // Column preferences state (local working copy)
   const [preferences, setPreferences] = useState<ColumnPreferences>(getDefaultPreferences);
   const [isResizing, setIsResizing] = useState(false);
   const [resizingColumn, setResizingColumn] = useState<string | null>(null);
   const resizeStartX = useRef(0);
   const resizeStartWidth = useRef(0);
+  const hasLoadedFromDb = useRef(false);
 
-  // Load preferences from localStorage on mount
+  // Load preferences from localStorage first, then override with DB preferences when available
   useEffect(() => {
-    setPreferences(loadPreferences());
+    const localPrefs = loadPreferences();
+    setPreferences(localPrefs);
   }, []);
 
-  // Save preferences when they change
+  // When user preferences load from DB, use them if available
+  useEffect(() => {
+    if (userPrefs?.projects_table && !hasLoadedFromDb.current) {
+      hasLoadedFromDb.current = true;
+      const dbPrefs: ColumnPreferences = {
+        visibility: userPrefs.projects_table.columns || getDefaultPreferences().visibility,
+        widths: userPrefs.projects_table.column_widths || getDefaultPreferences().widths,
+      };
+      // Merge with defaults to handle new columns
+      const defaults = getDefaultPreferences();
+      setPreferences({
+        visibility: { ...defaults.visibility, ...dbPrefs.visibility },
+        widths: { ...defaults.widths, ...dbPrefs.widths },
+      });
+    }
+  }, [userPrefs]);
+
+  // Save preferences to localStorage when they change (for instant feedback)
   useEffect(() => {
     if (typeof window !== 'undefined') {
       savePreferences(preferences);
     }
   }, [preferences]);
+
+  // Save current preferences to database as default
+  const saveAsDefault = async () => {
+    try {
+      await updatePreferences({
+        projects_table: {
+          columns: preferences.visibility,
+          column_widths: preferences.widths,
+        },
+      });
+      toast.success('View saved as default');
+    } catch {
+      toast.error('Failed to save default view');
+    }
+  };
 
   const visibleColumns = COLUMNS.filter(col => preferences.visibility[col.id]);
 
@@ -484,7 +522,7 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
           <div
             key={project.id}
             className="rounded-lg border bg-card p-4 space-y-3 cursor-pointer hover:bg-muted/50 transition-colors"
-            onClick={() => router.push(`/projects/${project.id}`)}
+            onClick={() => router.push(`/projects/${project.sales_order_number || project.id}`)}
           >
             {/* Header with Client and Actions */}
             <div className="flex items-start justify-between gap-2">
@@ -649,52 +687,7 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
       </div>
 
       {/* Desktop Table View */}
-      <div className="hidden md:block space-y-2">
-        {/* Column Settings */}
-        <div className="flex justify-end">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                <Settings2 className="h-4 w-4" />
-                Columns
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-56">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-medium text-sm">Toggle Columns</h4>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={resetPreferences}
-                    className="h-8 px-2 text-xs"
-                  >
-                    <RotateCcw className="h-3 w-3 mr-1" />
-                    Reset
-                  </Button>
-                </div>
-                <div className="space-y-2">
-                  {COLUMNS.map((column) => (
-                    <div key={column.id} className="flex items-center gap-2">
-                      <Checkbox
-                        id={column.id}
-                        checked={preferences.visibility[column.id]}
-                        onCheckedChange={() => toggleColumn(column.id)}
-                      />
-                      <label
-                        htmlFor={column.id}
-                        className="text-sm cursor-pointer flex-1"
-                      >
-                        {column.label}
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-        </div>
-
+      <div className="hidden md:block">
         {/* Table */}
         <div
           className={cn(
@@ -737,7 +730,69 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
                     />
                   </TableHead>
                 ))}
-                <TableHead className="w-[50px]"></TableHead>
+                {/* Column Settings Gear Icon */}
+                <TableHead className="w-[50px] text-center">
+                  <Popover open={columnSettingsOpen} onOpenChange={setColumnSettingsOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        title="Column Settings"
+                      >
+                        <Settings2 className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-64">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-medium text-sm">Columns</h4>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={resetPreferences}
+                            className="h-7 px-2 text-xs"
+                          >
+                            <RotateCcw className="h-3 w-3 mr-1" />
+                            Reset
+                          </Button>
+                        </div>
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                          {COLUMNS.map((column) => (
+                            <div key={column.id} className="flex items-center gap-2">
+                              <Checkbox
+                                id={`col-${column.id}`}
+                                checked={preferences.visibility[column.id]}
+                                onCheckedChange={() => toggleColumn(column.id)}
+                              />
+                              <label
+                                htmlFor={`col-${column.id}`}
+                                className="text-sm cursor-pointer flex-1"
+                              >
+                                {column.label}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="border-t pt-3">
+                          <Button
+                            onClick={saveAsDefault}
+                            disabled={isSavingToDb}
+                            size="sm"
+                            className="w-full"
+                          >
+                            {isSavingToDb ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Save className="h-4 w-4 mr-2" />
+                            )}
+                            Save as Default
+                          </Button>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -745,7 +800,7 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
                 <TableRow
                   key={project.id}
                   className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => router.push(`/projects/${project.id}`)}
+                  onClick={() => router.push(`/projects/${project.sales_order_number || project.id}`)}
                 >
                   {visibleColumns.map((column) => (
                     <TableCell

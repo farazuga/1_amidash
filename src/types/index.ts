@@ -8,6 +8,24 @@ export type ContractType =
   | 'TIPs Contract'
   | 'State of Georgia Purchasing Agreement';
 
+export interface UserPreferences {
+  projects_table?: {
+    columns?: Record<string, boolean>;
+    column_widths?: Record<string, number>;
+  };
+  projects_filter?: {
+    statuses?: string[];
+    contract_type?: string;
+    salesperson_id?: string;
+    project_type_id?: string;
+    tags?: string[];
+    date_type?: 'created' | 'goal';
+    date_presets?: string[];
+    date_years?: string[];
+    overdue?: boolean;
+  };
+}
+
 export interface Profile {
   id: string;
   email: string;
@@ -15,6 +33,8 @@ export interface Profile {
   role: string | null;
   is_salesperson: boolean | null;
   is_assignable?: boolean | null;  // Optional until migration runs
+  user_preferences?: UserPreferences | null;
+  timezone?: string | null;
   created_at: string | null;
   updated_at: string | null;
 }

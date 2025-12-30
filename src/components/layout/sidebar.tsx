@@ -58,6 +58,11 @@ const mainNavItems = [
     href: '/my-schedule',
     icon: CalendarDays,
   },
+  {
+    title: 'Settings',
+    href: '/settings',
+    icon: Settings,
+  },
 ];
 
 const adminNavItems = [
@@ -90,11 +95,6 @@ const adminNavItems = [
     title: 'Audit Log',
     href: '/admin/audit',
     icon: FileText,
-  },
-  {
-    title: 'Settings',
-    href: '/admin/settings',
-    icon: Settings,
   },
 ];
 

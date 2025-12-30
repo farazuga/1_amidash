@@ -501,25 +501,27 @@ export function ProjectForm({
           </Select>
         </div>
 
-        {/* Salesperson */}
-        <div className="space-y-2">
-          <Label htmlFor="salesperson">Salesperson *</Label>
-          <Select
-            value={selectedSalesperson}
-            onValueChange={setSelectedSalesperson}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select salesperson" />
-            </SelectTrigger>
-            <SelectContent>
-              {salespeople.map((person) => (
-                <SelectItem key={person.id} value={person.id}>
-                  {person.full_name || person.email}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {/* Salesperson - hidden when editing (editable in Quick Info) */}
+        {!isEditing && (
+          <div className="space-y-2">
+            <Label htmlFor="salesperson">Salesperson *</Label>
+            <Select
+              value={selectedSalesperson}
+              onValueChange={setSelectedSalesperson}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select salesperson" />
+              </SelectTrigger>
+              <SelectContent>
+                {salespeople.map((person) => (
+                  <SelectItem key={person.id} value={person.id}>
+                    {person.full_name || person.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {/* PO Number */}
         <div className="space-y-2">
@@ -531,68 +533,73 @@ export function ProjectForm({
           />
         </div>
 
-        {/* Sales Amount */}
-        <div className="space-y-2">
-          <Label htmlFor="sales_amount">Sales Amount w/o Tax ($)</Label>
-          <Input
-            id="sales_amount"
-            name="sales_amount"
-            type="text"
-            inputMode="decimal"
-            placeholder="0.00"
-            value={salesAmount}
-            onChange={(e) => {
-              // Allow digits, commas, dollar signs, and decimal point
-              const value = e.target.value;
-              setSalesAmount(value);
-            }}
-            onBlur={() => {
-              // Auto-clean on blur: remove $ and , and format
-              const cleaned = cleanSalesAmount(salesAmount);
-              if (cleaned && !isNaN(parseFloat(cleaned))) {
-                setSalesAmount(cleaned);
-              }
-            }}
-          />
-          <p className="text-xs text-muted-foreground">
-            You can enter values like $1,234.56 - they will be cleaned automatically
-          </p>
-        </div>
+        {/* Sales Amount - hidden when editing (editable in Quick Info) */}
+        {!isEditing && (
+          <div className="space-y-2">
+            <Label htmlFor="sales_amount">Sales Amount w/o Tax ($)</Label>
+            <Input
+              id="sales_amount"
+              name="sales_amount"
+              type="text"
+              inputMode="decimal"
+              placeholder="0.00"
+              value={salesAmount}
+              onChange={(e) => {
+                // Allow digits, commas, dollar signs, and decimal point
+                const value = e.target.value;
+                setSalesAmount(value);
+              }}
+              onBlur={() => {
+                // Auto-clean on blur: remove $ and , and format
+                const cleaned = cleanSalesAmount(salesAmount);
+                if (cleaned && !isNaN(parseFloat(cleaned))) {
+                  setSalesAmount(cleaned);
+                }
+              }}
+            />
+            <p className="text-xs text-muted-foreground">
+              You can enter values like $1,234.56 - they will be cleaned automatically
+            </p>
+          </div>
+        )}
 
-        {/* Sales Order Number */}
-        <div className="space-y-2">
-          <Label htmlFor="sales_order_number">Sales Order # *</Label>
-          <Input
-            id="sales_order_number"
-            name="sales_order_number"
-            value={salesOrderNumber}
-            onChange={(e) => {
-              setSalesOrderNumber(e.target.value.toUpperCase());
-              setSalesOrderError(null);
-            }}
-            placeholder="S1XXXX"
-            maxLength={6}
-            className={salesOrderError ? 'border-destructive' : ''}
-          />
-          <p className="text-xs text-muted-foreground">
-            Must start with &quot;S1&quot; and be exactly 6 characters (e.g., S12345)
-          </p>
-          {salesOrderError && (
-            <p className="text-xs text-destructive">{salesOrderError}</p>
-          )}
-        </div>
+        {/* Sales Order Number - hidden when editing (editable in Quick Info) */}
+        {!isEditing && (
+          <div className="space-y-2">
+            <Label htmlFor="sales_order_number">Sales Order # *</Label>
+            <Input
+              id="sales_order_number"
+              name="sales_order_number"
+              value={salesOrderNumber}
+              onChange={(e) => {
+                setSalesOrderNumber(e.target.value.toUpperCase());
+                setSalesOrderError(null);
+              }}
+              placeholder="S1XXXX"
+              maxLength={6}
+              className={salesOrderError ? 'border-destructive' : ''}
+            />
+            <p className="text-xs text-muted-foreground">
+              Must start with &quot;S1&quot; and be exactly 6 characters (e.g., S12345)
+            </p>
+            {salesOrderError && (
+              <p className="text-xs text-destructive">{salesOrderError}</p>
+            )}
+          </div>
+        )}
 
-        {/* Sales Order URL (Odoo) */}
-        <div className="space-y-2">
-          <Label htmlFor="sales_order_url">Sales Order URL (Odoo)</Label>
-          <Input
-            id="sales_order_url"
-            name="sales_order_url"
-            type="url"
-            placeholder="https://odoo.example.com/..."
-            defaultValue={project?.sales_order_url || ''}
-          />
-        </div>
+        {/* Sales Order URL (Odoo) - hidden when editing (editable in Quick Info) */}
+        {!isEditing && (
+          <div className="space-y-2">
+            <Label htmlFor="sales_order_url">Sales Order URL (Odoo)</Label>
+            <Input
+              id="sales_order_url"
+              name="sales_order_url"
+              type="url"
+              placeholder="https://odoo.example.com/..."
+            />
+          </div>
+        )}
 
         {/* Scope Link */}
         <div className="space-y-2">
@@ -608,53 +615,55 @@ export function ProjectForm({
 
       </div>
 
-      {/* Project Schedule Section */}
-      <div className="border-t pt-4">
-        <h3 className="text-sm font-medium mb-3">Project Schedule</h3>
-        <p className="text-xs text-muted-foreground mb-4">
-          Set the goal date and schedule for this project. These dates are used for calendar scheduling and customer visibility.
-        </p>
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* Goal Completion Date */}
-          <div className="space-y-2">
-            <Label htmlFor="goal_completion_date">Goal Completion Date</Label>
-            <Input
-              id="goal_completion_date"
-              name="goal_completion_date"
-              type="date"
-              min="2024-01-01"
-              max="2030-12-31"
-              value={goalCompletionDate}
-              onChange={(e) => setGoalCompletionDate(e.target.value)}
-            />
-            {!isEditing && selectedProjectType && goalCompletionDate && (
-              <p className="text-xs text-muted-foreground">
-                Auto-calculated based on {projectTypes.find(t => t.id === selectedProjectType)?.name || 'project type'}
-              </p>
-            )}
-            {!selectedProjectType && !isEditing && (
-              <p className="text-xs text-muted-foreground">
-                Select a project type to auto-calculate
-              </p>
-            )}
-          </div>
+      {/* Project Schedule Section - hidden when editing (editable in Quick Info) */}
+      {!isEditing && (
+        <div className="border-t pt-4">
+          <h3 className="text-sm font-medium mb-3">Project Schedule</h3>
+          <p className="text-xs text-muted-foreground mb-4">
+            Set the goal date and schedule for this project. These dates are used for calendar scheduling and customer visibility.
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Goal Completion Date */}
+            <div className="space-y-2">
+              <Label htmlFor="goal_completion_date">Goal Completion Date</Label>
+              <Input
+                id="goal_completion_date"
+                name="goal_completion_date"
+                type="date"
+                min="2024-01-01"
+                max="2030-12-31"
+                value={goalCompletionDate}
+                onChange={(e) => setGoalCompletionDate(e.target.value)}
+              />
+              {selectedProjectType && goalCompletionDate && (
+                <p className="text-xs text-muted-foreground">
+                  Auto-calculated based on {projectTypes.find(t => t.id === selectedProjectType)?.name || 'project type'}
+                </p>
+              )}
+              {!selectedProjectType && (
+                <p className="text-xs text-muted-foreground">
+                  Select a project type to auto-calculate
+                </p>
+              )}
+            </div>
 
-          {/* Placeholder for grid alignment */}
-          <div className="hidden md:block" />
+            {/* Placeholder for grid alignment */}
+            <div className="hidden md:block" />
 
-          {/* Project Date Range Picker */}
-          <div className="md:col-span-2">
-            <ProjectDatePicker
-              startDate={startDate || null}
-              endDate={endDate || null}
-              onDateChange={(newStart, newEnd) => {
-                setStartDate(newStart || '');
-                setEndDate(newEnd || '');
-              }}
-            />
+            {/* Project Date Range Picker */}
+            <div className="md:col-span-2">
+              <ProjectDatePicker
+                startDate={startDate || null}
+                endDate={endDate || null}
+                onDateChange={(newStart, newEnd) => {
+                  setStartDate(newStart || '');
+                  setEndDate(newEnd || '');
+                }}
+              />
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Primary Point of Contact with AC Integration */}
       <ContactSelector
