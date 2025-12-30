@@ -120,19 +120,25 @@ function DraggableProjectBar({
       {...attributes}
       className={cn(
         'absolute top-2 bottom-2 rounded-md',
+        'border shadow-sm transition-all duration-150',
+        // Depth effect with gradient overlay
+        'before:absolute before:inset-0 before:rounded-md',
+        'before:bg-gradient-to-b before:from-white/20 before:to-transparent',
+        'before:pointer-events-none',
         config.bgColor,
         config.borderColor,
-        'border hover:opacity-80 transition-opacity',
-        position.isClippedStart && 'rounded-l-none',
-        position.isClippedEnd && 'rounded-r-none',
+        // Enhanced hover state
+        'hover:shadow-md hover:scale-[1.02] hover:-translate-y-0.5',
+        position.isClippedStart && 'rounded-l-none before:rounded-l-none',
+        position.isClippedEnd && 'rounded-r-none before:rounded-r-none',
         hasConflict && 'ring-2 ring-amber-500 ring-offset-1',
-        isDragging && 'shadow-lg'
+        isDragging && 'shadow-lg opacity-90 z-50'
       )}
       style={style}
       title={`${project.client_name}: ${project.start_date} to ${project.end_date}${hasConflict ? ' (has scheduling conflicts)' : ''} - Drag to move`}
     >
       <div className={cn(
-        'px-2 py-1 text-xs font-medium truncate flex items-center gap-1',
+        'relative z-10 px-2 py-1 text-xs font-medium truncate flex items-center gap-1',
         config.textColor
       )}>
         <GripVertical className="h-3 w-3 flex-shrink-0 opacity-50 print:hidden" />
@@ -581,12 +587,18 @@ export function ProjectCalendarView() {
         </div>
       </div>
 
-      {/* Filters - hidden when printing */}
-      <div className="flex flex-wrap items-center gap-4 print:hidden">
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium">Filters:</span>
+      {/* Filters - Enhanced styling, hidden when printing */}
+      <div className={cn(
+        "flex flex-wrap items-center gap-4 p-4",
+        "bg-gradient-to-r from-muted/60 via-muted/40 to-transparent",
+        "rounded-xl border border-dashed",
+        "print:hidden"
+      )}>
+        <div className="flex items-center gap-2 text-primary">
+          <Filter className="h-4 w-4" />
+          <span className="text-sm font-semibold uppercase tracking-wide">Filters</span>
         </div>
+        <div className="h-6 w-px bg-border" />
 
         {/* Status Filter */}
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as BookingStatus | 'all')}>
@@ -707,16 +719,31 @@ export function ProjectCalendarView() {
         </div>
       )}
 
-      {/* Legend */}
-      <div className="flex items-center gap-4 text-sm">
-        <span className="text-muted-foreground">Status:</span>
+      {/* Legend - Interactive status filter pills */}
+      <div className="flex items-center gap-2 bg-muted/50 rounded-full px-4 py-2 border">
+        <span className="text-xs font-medium text-muted-foreground mr-2 uppercase tracking-wide">Status:</span>
         {BOOKING_STATUS_ORDER.map(status => {
           const config = BOOKING_STATUS_CONFIG[status];
+          const isActive = statusFilter === status;
           return (
-            <div key={status} className="flex items-center gap-1.5">
-              <span className={cn('h-3 w-3 rounded', config.dotColor)} />
+            <button
+              key={status}
+              onClick={() => setStatusFilter(isActive ? 'all' : status)}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-full',
+                'text-xs font-medium transition-all duration-200',
+                isActive
+                  ? `${config.bgColor} ${config.textColor} shadow-sm ring-2 ${config.ringColor}`
+                  : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <span className={cn(
+                'h-2 w-2 rounded-full transition-transform',
+                config.dotColor,
+                isActive && 'scale-125'
+              )} />
               <span>{config.label}</span>
-            </div>
+            </button>
           );
         })}
       </div>

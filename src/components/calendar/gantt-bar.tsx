@@ -62,10 +62,16 @@ export function GanttBar({
         <TooltipTrigger asChild>
           <div
             className={cn(
-              'absolute top-1 bottom-1 rounded-md border-2 px-2 py-0.5',
+              'absolute top-1 bottom-1 rounded-md border px-2 py-0.5',
               'flex items-center justify-between gap-1 overflow-hidden',
               'cursor-pointer transition-all duration-150 group',
-              'hover:brightness-95 hover:shadow-sm',
+              'shadow-sm',
+              // Depth effect with gradient overlay
+              'before:absolute before:inset-0 before:rounded-md',
+              'before:bg-gradient-to-b before:from-white/20 before:to-transparent',
+              'before:pointer-events-none',
+              // Enhanced hover state
+              'hover:shadow-md hover:scale-[1.02] hover:-translate-y-0.5',
               isLoading && 'opacity-50 cursor-not-allowed',
               colors.bg,
               colors.text,
@@ -80,7 +86,7 @@ export function GanttBar({
             title={`${userName} - ${statusLabel}`}
             onClick={isLoading ? undefined : onClick}
           >
-            <span className="truncate text-xs font-medium flex-1">
+            <span className="relative z-10 truncate text-xs font-medium flex-1">
               {userName}
             </span>
             {onEditClick && (
@@ -88,8 +94,8 @@ export function GanttBar({
                 onClick={handleEditClick}
                 disabled={isLoading}
                 className={cn(
-                  'flex-shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100',
-                  'hover:bg-black/10 transition-opacity',
+                  'relative z-10 flex-shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100',
+                  'hover:bg-black/10 transition-all',
                   'focus:outline-none focus:opacity-100'
                 )}
                 title="Edit days & times"
