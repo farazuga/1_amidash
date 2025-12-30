@@ -35,8 +35,8 @@ function mapBookingStatusToICalStatus(status: BookingStatus): ICalEventStatus {
     case 'confirmed':
       return ICalEventStatus.CONFIRMED;
     case 'pending_confirm':
-      return ICalEventStatus.TENTATIVE;
-    case 'pencil':
+    case 'tentative':
+    case 'draft':
       return ICalEventStatus.TENTATIVE;
     default:
       return ICalEventStatus.TENTATIVE;
@@ -50,8 +50,10 @@ function getStatusLabel(status: BookingStatus): string {
       return 'Confirmed';
     case 'pending_confirm':
       return 'Pending Confirm';
-    case 'pencil':
-      return 'Pencil';
+    case 'tentative':
+      return 'Tentative';
+    case 'draft':
+      return 'Draft';
     default:
       return status;
   }

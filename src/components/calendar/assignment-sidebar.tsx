@@ -7,7 +7,9 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DraggableUser } from './draggable-user';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { getUserInitials } from '@/lib/calendar/utils';
 
 interface AdminUser {
   id: string;
@@ -20,6 +22,7 @@ interface AssignmentSidebarProps {
   isLoading?: boolean;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  assignedUserIds?: Set<string>;
 }
 
 export function AssignmentSidebar({
@@ -27,6 +30,7 @@ export function AssignmentSidebar({
   isLoading,
   collapsed = false,
   onToggleCollapse,
+  assignedUserIds = new Set(),
 }: AssignmentSidebarProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -99,9 +103,14 @@ export function AssignmentSidebar({
               <p className="text-xs text-muted-foreground mb-2">
                 Drag to assign
               </p>
-              {filteredUsers.map((user) => (
-                <DraggableUser key={user.id} user={user} />
-              ))}
+              {filteredUsers.map((user) => {
+                const isAssigned = assignedUserIds.has(user.id);
+                return (
+                  <div key={user.id} className="relative">
+                    <DraggableUser user={user} isAssigned={isAssigned} />
+                  </div>
+                );
+              })}
             </>
           )}
         </div>

@@ -4,7 +4,7 @@ import { BOOKING_STATUS_CONFIG } from '@/lib/calendar/constants';
 import type { BookingStatus } from '@/types/calendar';
 
 export function CalendarLegend() {
-  const statuses: BookingStatus[] = ['pencil', 'pending_confirm', 'confirmed'];
+  const statuses: BookingStatus[] = ['draft', 'tentative', 'pending_confirm', 'confirmed'];
 
   return (
     <div className="flex items-center gap-4 text-sm">

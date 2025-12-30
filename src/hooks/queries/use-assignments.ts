@@ -11,6 +11,7 @@ import type {
 import {
   createAssignment,
   updateAssignmentStatus,
+  bulkUpdateAssignmentStatus,
   removeAssignment,
   addExcludedDates,
   removeExcludedDate,
@@ -25,14 +26,29 @@ import {
   // New actions for Gantt/day management
   addAssignmentDays,
   updateAssignmentDay,
+  moveAssignmentDay,
   removeAssignmentDays,
   getAssignmentDays,
   cycleAssignmentStatus,
   getAssignableUsers,
   updateUserAssignable,
+  getProjectAssignments,
   getProjectAssignmentsForGantt,
   getGanttDataForRange,
+  // Calendar data server action
+  getCalendarData,
+  getUnresolvedConflicts,
+  // Availability actions
+  getTeamAvailability,
+  getUserAvailability,
 } from '@/app/(dashboard)/calendar/actions';
+import {
+  createConfirmationRequest,
+  getPendingConfirmations,
+  resendConfirmationEmail,
+  cancelConfirmationRequest,
+} from '@/app/(dashboard)/calendar/confirmation-actions';
+import type { UserAvailability } from '@/types/calendar';
 
 // Query keys
 export const ASSIGNMENTS_KEY = ['assignments'];
@@ -43,6 +59,10 @@ export const SUBSCRIPTIONS_KEY = ['calendarSubscriptions'];
 export const ASSIGNABLE_USERS_KEY = ['assignableUsers'];
 export const ASSIGNMENT_DAYS_KEY = ['assignmentDays'];
 export const GANTT_KEY = ['gantt'];
+export const CONFLICTS_KEY = ['bookingConflicts'];
+export const TEAM_AVAILABILITY_KEY = ['team-availability'];
+export const USER_AVAILABILITY_KEY = ['user-availability'];
+export const CONFIRMATION_REQUESTS_KEY = ['confirmation-requests'];
 
 const ONE_MINUTE = 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -52,23 +72,13 @@ const THIRTY_SECONDS = 30 * 1000;
 // ============================================
 
 export function useProjectAssignments(projectId: string) {
-  const supabase = createClient();
-
   return useQuery({
     queryKey: [...ASSIGNMENTS_KEY, 'project', projectId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('project_assignments')
-        .select(`
-          *,
-          user:profiles!user_id(id, email, full_name),
-          excluded_dates:assignment_excluded_dates(*)
-        `)
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-      return data as unknown as ProjectAssignment[];
+      // Use server action for reliable authentication
+      const result = await getProjectAssignments(projectId);
+      if (!result.success) throw new Error(result.error);
+      return result.data || [];
     },
     staleTime: THIRTY_SECONDS,
     enabled: !!projectId,
@@ -102,37 +112,46 @@ export function useUserAssignments(userId: string) {
 export function useCalendarData(
   startDate: Date,
   endDate: Date,
-  filters?: { projectId?: string; userId?: string }
+  filters?: { projectId?: string; userId?: string; limit?: number; offset?: number }
 ) {
-  const supabase = createClient();
+  // Format dates safely
+  const startStr = startDate instanceof Date && !isNaN(startDate.getTime())
+    ? startDate.toISOString().split('T')[0]
+    : null;
+  const endStr = endDate instanceof Date && !isNaN(endDate.getTime())
+    ? endDate.toISOString().split('T')[0]
+    : null;
 
   return useQuery({
     queryKey: [
       ...CALENDAR_KEY,
-      startDate.toISOString().split('T')[0],
-      endDate.toISOString().split('T')[0],
+      startStr,
+      endStr,
       filters?.projectId,
       filters?.userId,
+      filters?.limit,
+      filters?.offset,
     ],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_calendar_assignments', {
-        p_start_date: startDate.toISOString().split('T')[0],
-        p_end_date: endDate.toISOString().split('T')[0],
-        p_project_id: filters?.projectId || null,
-      });
-
-      if (error) throw error;
-
-      let result = data as CalendarAssignmentResult[];
-
-      // Filter by user if specified
-      if (filters?.userId) {
-        result = result.filter(a => a.user_id === filters.userId);
+      if (!startStr || !endStr) {
+        return { data: [], total: 0, hasMore: false, scheduledDaysMap: {}, scheduledDaysWithIds: {} };
       }
 
-      return result;
+      // Use server action for proper authentication
+      const result = await getCalendarData({
+        startDate: startStr,
+        endDate: endStr,
+        projectId: filters?.projectId,
+        userId: filters?.userId,
+        limit: filters?.limit,
+        offset: filters?.offset,
+      });
+
+      if (!result.success) throw new Error(result.error);
+      return result.data || { data: [], total: 0, hasMore: false, scheduledDaysMap: {}, scheduledDaysWithIds: {} };
     },
     staleTime: THIRTY_SECONDS,
+    enabled: !!startStr && !!endStr,
   });
 }
 
@@ -232,6 +251,7 @@ export function useCreateAssignment() {
       queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
       queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
       queryClient.invalidateQueries({ queryKey: USER_SCHEDULE_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
       queryClient.invalidateQueries({ queryKey: ['project', variables.projectId] });
     },
   });
@@ -254,6 +274,7 @@ export function useUpdateAssignmentStatus() {
       queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
       queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
       queryClient.invalidateQueries({ queryKey: USER_SCHEDULE_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
     },
   });
 }
@@ -271,6 +292,7 @@ export function useRemoveAssignment() {
       queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
       queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
       queryClient.invalidateQueries({ queryKey: USER_SCHEDULE_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
     },
   });
 }
@@ -292,6 +314,7 @@ export function useAddExcludedDates() {
       queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
       queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
       queryClient.invalidateQueries({ queryKey: USER_SCHEDULE_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
     },
   });
 }
@@ -309,6 +332,7 @@ export function useRemoveExcludedDate() {
       queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
       queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
       queryClient.invalidateQueries({ queryKey: USER_SCHEDULE_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
     },
   });
 }
@@ -326,6 +350,7 @@ export function useBulkRemoveExcludedDates() {
       queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
       queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
       queryClient.invalidateQueries({ queryKey: USER_SCHEDULE_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
     },
   });
 }
@@ -345,6 +370,7 @@ export function useUpdateProjectDates() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
       queryClient.invalidateQueries({ queryKey: ['project', variables.projectId] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
@@ -379,6 +405,8 @@ export function useOverrideConflict() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
       queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
+      queryClient.invalidateQueries({ queryKey: CONFLICTS_KEY });
     },
   });
 }
@@ -548,6 +576,31 @@ export function useUpdateAssignmentDay() {
 }
 
 /**
+ * Move an assignment day to a new date
+ */
+export function useMoveAssignmentDay() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      dayId: string;
+      newDate: string;
+    }) => {
+      const result = await moveAssignmentDay(data);
+      if (!result.success) throw new Error(result.error);
+      return result.data!;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
+      queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
+      queryClient.invalidateQueries({ queryKey: USER_SCHEDULE_KEY });
+      queryClient.invalidateQueries({ queryKey: ASSIGNMENT_DAYS_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
+    },
+  });
+}
+
+/**
  * Remove specific days from an assignment
  */
 export function useRemoveAssignmentDays() {
@@ -609,6 +662,195 @@ export function useUpdateUserAssignable() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ASSIGNABLE_USERS_KEY });
       queryClient.invalidateQueries({ queryKey: ADMIN_USERS_KEY });
+    },
+  });
+}
+
+// ============================================
+// Conflict Management hooks
+// ============================================
+
+/**
+ * Get unresolved booking conflicts
+ */
+export function useUnresolvedConflicts(userId?: string) {
+  return useQuery({
+    queryKey: [...CONFLICTS_KEY, 'unresolved', userId],
+    queryFn: async () => {
+      const result = await getUnresolvedConflicts(userId);
+      if (!result.success) throw new Error(result.error);
+      return result.data || [];
+    },
+    staleTime: THIRTY_SECONDS,
+  });
+}
+
+// ============================================
+// Availability Management hooks
+// ============================================
+
+/**
+ * Get team availability for a date range
+ */
+export function useTeamAvailability(
+  startDate: Date,
+  endDate: Date,
+  userIds?: string[]
+) {
+  const startStr = startDate.toISOString().split('T')[0];
+  const endStr = endDate.toISOString().split('T')[0];
+
+  return useQuery({
+    queryKey: [...TEAM_AVAILABILITY_KEY, startStr, endStr, userIds],
+    queryFn: async () => {
+      const result = await getTeamAvailability({
+        startDate: startStr,
+        endDate: endStr,
+        userIds,
+      });
+      if (!result.success) throw new Error(result.error);
+      return result.data || [];
+    },
+    staleTime: THIRTY_SECONDS,
+  });
+}
+
+/**
+ * Get availability for a specific user in a date range
+ */
+export function useUserAvailabilityRange(
+  userId: string,
+  startDate: Date,
+  endDate: Date
+) {
+  const startStr = startDate.toISOString().split('T')[0];
+  const endStr = endDate.toISOString().split('T')[0];
+
+  return useQuery({
+    queryKey: [...USER_AVAILABILITY_KEY, userId, startStr, endStr],
+    queryFn: async () => {
+      const result = await getUserAvailability({
+        userId,
+        startDate: startStr,
+        endDate: endStr,
+      });
+      if (!result.success) throw new Error(result.error);
+      return result.data || [];
+    },
+    staleTime: THIRTY_SECONDS,
+    enabled: !!userId,
+  });
+}
+
+// ============================================
+// Bulk Status Update hooks
+// ============================================
+
+/**
+ * Bulk update status for multiple assignments at once
+ */
+export function useBulkUpdateAssignmentStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      assignmentIds: string[];
+      newStatus: BookingStatus;
+      note?: string;
+    }) => {
+      const result = await bulkUpdateAssignmentStatus(data);
+      if (!result.success) throw new Error(result.error);
+      return result.data!;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
+      queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
+      queryClient.invalidateQueries({ queryKey: USER_SCHEDULE_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
+    },
+  });
+}
+
+// ============================================
+// Confirmation Request hooks
+// ============================================
+
+/**
+ * Get pending confirmation requests
+ */
+export function usePendingConfirmations() {
+  return useQuery({
+    queryKey: [...CONFIRMATION_REQUESTS_KEY, 'pending'],
+    queryFn: async () => {
+      const result = await getPendingConfirmations();
+      if (!result.success) throw new Error(result.error);
+      return result.data || [];
+    },
+    staleTime: THIRTY_SECONDS,
+  });
+}
+
+/**
+ * Create a confirmation request to send to customer
+ */
+export function useCreateConfirmationRequest() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      projectId: string;
+      assignmentIds: string[];
+      sendToEmail: string;
+      sendToName?: string;
+    }) => {
+      const result = await createConfirmationRequest(data);
+      if (!result.success) throw new Error(result.error);
+      return result.data!;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
+      queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
+      queryClient.invalidateQueries({ queryKey: CONFIRMATION_REQUESTS_KEY });
+    },
+  });
+}
+
+/**
+ * Resend a confirmation email
+ */
+export function useResendConfirmationEmail() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (requestId: string) => {
+      const result = await resendConfirmationEmail(requestId);
+      if (!result.success) throw new Error(result.error);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: CONFIRMATION_REQUESTS_KEY });
+    },
+  });
+}
+
+/**
+ * Cancel a pending confirmation request
+ */
+export function useCancelConfirmationRequest() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (requestId: string) => {
+      const result = await cancelConfirmationRequest(requestId);
+      if (!result.success) throw new Error(result.error);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
+      queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
+      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
+      queryClient.invalidateQueries({ queryKey: CONFIRMATION_REQUESTS_KEY });
     },
   });
 }

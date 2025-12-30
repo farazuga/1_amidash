@@ -58,14 +58,16 @@ export function MultiUserAssignmentDialog({
     }
   }, [open, refetch]);
 
-  // Generate all project dates
+  // Generate all project dates (weekdays only - no weekends)
   const projectDates = useMemo(() => {
     if (!projectStartDate || !projectEndDate) return [];
     try {
-      return eachDayOfInterval({
+      const allDates = eachDayOfInterval({
         start: parseISO(projectStartDate),
         end: parseISO(projectEndDate),
       });
+      // Filter to weekdays only (Mon-Fri)
+      return allDates.filter(d => !isWeekend(d));
     } catch {
       return [];
     }
@@ -157,6 +159,89 @@ export function MultiUserAssignmentDialog({
     }
     return count;
   }, [pendingChanges]);
+
+  // Toggle all days for an assignment (skip weekends)
+  const handleToggleAllForAssignment = (assignmentId: string) => {
+    // Check if all weekdays are currently scheduled
+    const weekdayDates = projectDates.filter(d => !isWeekend(d));
+    const allScheduled = weekdayDates.every(date =>
+      isDateScheduled(assignmentId, format(date, 'yyyy-MM-dd'))
+    );
+
+    setPendingChanges((prev) => {
+      const newChanges = new Map(prev);
+      const existingDays = existingDaysMap.get(assignmentId) || new Set();
+      const assignmentChanges = new Map<string, ChangeAction>();
+
+      weekdayDates.forEach(date => {
+        const dateStr = format(date, 'yyyy-MM-dd');
+        const hasExisting = existingDays.has(dateStr);
+
+        if (allScheduled) {
+          // All are scheduled, so we want to remove all
+          if (hasExisting) {
+            assignmentChanges.set(dateStr, 'remove');
+          }
+          // If not existing, no need to add a remove action
+        } else {
+          // Not all scheduled, so we want to add all
+          if (!hasExisting) {
+            assignmentChanges.set(dateStr, 'add');
+          }
+          // If already existing, no need to add an add action
+        }
+      });
+
+      if (assignmentChanges.size === 0) {
+        newChanges.delete(assignmentId);
+      } else {
+        newChanges.set(assignmentId, assignmentChanges);
+      }
+      return newChanges;
+    });
+  };
+
+  // Toggle all engineers for a specific date
+  const handleToggleAllForDate = (dateStr: string) => {
+    // Check if ALL engineers are scheduled for this date
+    const allScheduled = assignments.every(assignment =>
+      isDateScheduled(assignment.id, dateStr)
+    );
+
+    setPendingChanges((prev) => {
+      const newChanges = new Map(prev);
+
+      assignments.forEach(assignment => {
+        const existingDays = existingDaysMap.get(assignment.id) || new Set();
+        const hasExisting = existingDays.has(dateStr);
+        const assignmentChanges = new Map(newChanges.get(assignment.id) || new Map<string, ChangeAction>());
+
+        if (allScheduled) {
+          // All are scheduled, so we want to remove this date for all
+          if (hasExisting) {
+            assignmentChanges.set(dateStr, 'remove');
+          } else {
+            assignmentChanges.delete(dateStr);
+          }
+        } else {
+          // Not all scheduled, so we want to add this date for all
+          if (!hasExisting) {
+            assignmentChanges.set(dateStr, 'add');
+          } else {
+            assignmentChanges.delete(dateStr);
+          }
+        }
+
+        if (assignmentChanges.size === 0) {
+          newChanges.delete(assignment.id);
+        } else {
+          newChanges.set(assignment.id, assignmentChanges);
+        }
+      });
+
+      return newChanges;
+    });
+  };
 
   // Save all pending changes
   const handleSave = async () => {
@@ -273,7 +358,11 @@ export function MultiUserAssignmentDialog({
                         key={assignment.id}
                         className="p-2 border-b text-center font-medium min-w-[100px]"
                       >
-                        <div className="truncate">
+                        <div
+                          className="truncate cursor-pointer hover:text-primary hover:underline transition-colors"
+                          onClick={() => handleToggleAllForAssignment(assignment.id)}
+                          title="Click to toggle all days for this person"
+                        >
                           {assignment.user?.full_name || 'Unknown'}
                         </div>
                       </th>
@@ -283,25 +372,20 @@ export function MultiUserAssignmentDialog({
                 <tbody>
                   {projectDates.map((date) => {
                     const dateStr = format(date, 'yyyy-MM-dd');
-                    const isWeekendDay = isWeekend(date);
 
                     return (
                       <tr
                         key={dateStr}
-                        className={cn(
-                          'hover:bg-muted/50',
-                          isWeekendDay && 'bg-muted/30'
-                        )}
+                        className="hover:bg-muted/50"
                       >
-                        <td className="sticky left-0 bg-background p-2 border-b border-r">
-                          <span className="font-medium">
+                        <td
+                          className="sticky left-0 bg-background p-2 border-b border-r cursor-pointer hover:bg-muted/50 transition-colors"
+                          onClick={() => handleToggleAllForDate(dateStr)}
+                          title="Click to toggle all engineers for this day"
+                        >
+                          <span className="font-medium hover:text-primary hover:underline">
                             {format(date, 'EEE, MMM d')}
                           </span>
-                          {isWeekendDay && (
-                            <span className="text-xs text-muted-foreground ml-1">
-                              (weekend)
-                            </span>
-                          )}
                         </td>
                         {assignments.map((assignment) => {
                           const isScheduled = isDateScheduled(assignment.id, dateStr);

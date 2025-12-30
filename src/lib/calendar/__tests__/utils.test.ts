@@ -21,20 +21,27 @@ import {
   doRangesOverlap,
   formatDateRange,
   getUserInitials,
+  formatAssignmentDates,
+  isWeekday,
+  getWeekViewDays,
+  getWeeksInRange,
+  getWeekNumber,
+  getNextWeek,
+  getPreviousWeek,
 } from '../utils';
-import type { CalendarAssignmentResult, CalendarEvent } from '@/types/calendar';
+import type { CalendarAssignmentResult, CalendarEvent, AssignmentDay } from '@/types/calendar';
 
 describe('Calendar Utils', () => {
   describe('getCalendarDays', () => {
-    it('returns all days for a month calendar grid', () => {
+    it('returns all weekdays for a month calendar grid', () => {
       // January 2024 starts on Monday, ends on Wednesday
       const date = new Date(2024, 0, 15); // January 15, 2024
       const days = getCalendarDays(date);
 
-      // Should return at least 28 days (for January) + days to fill grid
-      expect(days.length).toBeGreaterThanOrEqual(28);
-      // Grid should be complete weeks (divisible by 7)
-      expect(days.length % 7).toBe(0);
+      // Should return at least 20 weekdays (4 weeks * 5 days)
+      expect(days.length).toBeGreaterThanOrEqual(20);
+      // Grid should be complete weeks (divisible by 5 - Mon-Fri)
+      expect(days.length % 5).toBe(0);
     });
 
     it('includes days from previous month to fill the grid', () => {
@@ -42,16 +49,16 @@ describe('Calendar Utils', () => {
       const date = new Date(2024, 1, 15); // February 15, 2024
       const days = getCalendarDays(date);
 
-      // First day should be a Sunday from January
-      expect(days[0].getDay()).toBe(0); // Sunday
+      // First day should be a Monday (weekStartsOn: 1)
+      expect(days[0].getDay()).toBe(1); // Monday
     });
 
     it('includes days from next month to fill the grid', () => {
       const date = new Date(2024, 0, 15);
       const days = getCalendarDays(date);
 
-      // Last day should be a Saturday
-      expect(days[days.length - 1].getDay()).toBe(6); // Saturday
+      // Last day should be a Friday (weekdays only)
+      expect(days[days.length - 1].getDay()).toBe(5); // Friday
     });
   });
 
@@ -288,7 +295,7 @@ describe('Calendar Utils', () => {
           project_end_date: '2024-01-20',
           user_id: 'u1',
           user_name: null,
-          booking_status: 'pencil',
+          booking_status: 'draft',
         },
       ];
       const excludedDatesMap = new Map<string, string[]>();
@@ -304,7 +311,7 @@ describe('Calendar Utils', () => {
       id: string,
       startDate: string,
       endDate: string,
-      excludedDates: string[] = []
+      scheduledDays: string[] = []
     ): CalendarEvent => ({
       id,
       title: 'Test',
@@ -316,13 +323,14 @@ describe('Calendar Utils', () => {
       userName: 'User',
       bookingStatus: 'confirmed',
       assignmentId: id,
-      excludedDates,
+      excludedDates: [],
+      scheduledDays,
     });
 
-    it('returns events that include the day', () => {
+    it('returns events with scheduled days that include the day', () => {
       const events = [
-        createEvent('e1', '2024-01-10', '2024-01-20'),
-        createEvent('e2', '2024-01-15', '2024-01-25'),
+        createEvent('e1', '2024-01-10', '2024-01-20', ['2024-01-15', '2024-01-16']),
+        createEvent('e2', '2024-01-15', '2024-01-25', ['2024-01-15']),
       ];
       const day = new Date(2024, 0, 15);
 
@@ -331,10 +339,10 @@ describe('Calendar Utils', () => {
       expect(result).toHaveLength(2);
     });
 
-    it('excludes events not on the day', () => {
+    it('excludes events when day is not in scheduledDays', () => {
       const events = [
-        createEvent('e1', '2024-01-10', '2024-01-14'),
-        createEvent('e2', '2024-01-20', '2024-01-25'),
+        createEvent('e1', '2024-01-10', '2024-01-20', ['2024-01-10', '2024-01-11']),
+        createEvent('e2', '2024-01-20', '2024-01-25', ['2024-01-20']),
       ];
       const day = new Date(2024, 0, 15);
 
@@ -343,20 +351,57 @@ describe('Calendar Utils', () => {
       expect(result).toHaveLength(0);
     });
 
-    it('excludes events with excluded dates', () => {
+    it('excludes events with no scheduled days (empty array)', () => {
       const events = [
-        createEvent('e1', '2024-01-10', '2024-01-20', ['2024-01-15']),
+        createEvent('e1', '2024-01-10', '2024-01-20', []),
       ];
       const day = new Date(2024, 0, 15);
 
       const result = getEventsForDay(day, events);
 
       expect(result).toHaveLength(0);
+    });
+
+    it('excludes events with undefined scheduled days', () => {
+      const events: CalendarEvent[] = [
+        {
+          id: 'e1',
+          title: 'Test',
+          start: new Date('2024-01-10'),
+          end: new Date('2024-01-20'),
+          projectId: 'p1',
+          projectName: 'Test',
+          userId: 'u1',
+          userName: 'User',
+          bookingStatus: 'confirmed',
+          assignmentId: 'e1',
+          excludedDates: [],
+          scheduledDays: undefined as unknown as string[],
+        },
+      ];
+      const day = new Date(2024, 0, 15);
+
+      const result = getEventsForDay(day, events);
+
+      expect(result).toHaveLength(0);
+    });
+
+    it('only returns events scheduled on specific day', () => {
+      const events = [
+        createEvent('e1', '2024-01-10', '2024-01-20', ['2024-01-15']),
+        createEvent('e2', '2024-01-10', '2024-01-20', ['2024-01-16']),
+      ];
+      const day = new Date(2024, 0, 15);
+
+      const result = getEventsForDay(day, events);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('e1');
     });
   });
 
   describe('sortEventsByStatus', () => {
-    it('sorts confirmed first, then pending, then pencil', () => {
+    it('sorts confirmed first, then pending, then tentative, then draft', () => {
       const events: CalendarEvent[] = [
         {
           id: '1',
@@ -367,9 +412,10 @@ describe('Calendar Utils', () => {
           projectName: 'Test',
           userId: 'u1',
           userName: 'User',
-          bookingStatus: 'pencil',
+          bookingStatus: 'draft',
           assignmentId: '1',
           excludedDates: [],
+          scheduledDays: [],
         },
         {
           id: '2',
@@ -383,6 +429,7 @@ describe('Calendar Utils', () => {
           bookingStatus: 'confirmed',
           assignmentId: '2',
           excludedDates: [],
+          scheduledDays: [],
         },
         {
           id: '3',
@@ -396,6 +443,21 @@ describe('Calendar Utils', () => {
           bookingStatus: 'pending_confirm',
           assignmentId: '3',
           excludedDates: [],
+          scheduledDays: [],
+        },
+        {
+          id: '4',
+          title: 'Test',
+          start: new Date(),
+          end: new Date(),
+          projectId: 'p1',
+          projectName: 'Test',
+          userId: 'u1',
+          userName: 'User',
+          bookingStatus: 'tentative',
+          assignmentId: '4',
+          excludedDates: [],
+          scheduledDays: [],
         },
       ];
 
@@ -403,7 +465,8 @@ describe('Calendar Utils', () => {
 
       expect(sorted[0].bookingStatus).toBe('confirmed');
       expect(sorted[1].bookingStatus).toBe('pending_confirm');
-      expect(sorted[2].bookingStatus).toBe('pencil');
+      expect(sorted[2].bookingStatus).toBe('tentative');
+      expect(sorted[3].bookingStatus).toBe('draft');
     });
 
     it('does not mutate original array', () => {
@@ -417,9 +480,10 @@ describe('Calendar Utils', () => {
           projectName: 'Test',
           userId: 'u1',
           userName: 'User',
-          bookingStatus: 'pencil',
+          bookingStatus: 'draft',
           assignmentId: '1',
           excludedDates: [],
+          scheduledDays: [],
         },
       ];
 
@@ -674,6 +738,318 @@ describe('Calendar Utils', () => {
 
     it('handles empty string', () => {
       expect(getUserInitials('')).toBe('?');
+    });
+  });
+
+  describe('formatAssignmentDates', () => {
+    const createDay = (date: string): AssignmentDay => ({
+      id: `day-${date}`,
+      assignment_id: 'assignment-1',
+      work_date: date,
+      start_time: '07:00:00',
+      end_time: '16:00:00',
+      created_by: null,
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00Z',
+    });
+
+    it('returns "No dates scheduled" for undefined', () => {
+      expect(formatAssignmentDates(undefined)).toBe('No dates scheduled');
+    });
+
+    it('returns "No dates scheduled" for empty array', () => {
+      expect(formatAssignmentDates([])).toBe('No dates scheduled');
+    });
+
+    it('formats single day correctly', () => {
+      const days = [createDay('2024-01-15')];
+      expect(formatAssignmentDates(days)).toBe('Jan 15');
+    });
+
+    it('formats two days with range', () => {
+      const days = [createDay('2024-01-15'), createDay('2024-01-16')];
+      expect(formatAssignmentDates(days)).toBe('Jan 15 - Jan 16 (2 days)');
+    });
+
+    it('formats multiple days with count', () => {
+      const days = [
+        createDay('2024-01-15'),
+        createDay('2024-01-16'),
+        createDay('2024-01-17'),
+        createDay('2024-01-18'),
+        createDay('2024-01-19'),
+      ];
+      expect(formatAssignmentDates(days)).toBe('Jan 15 - Jan 19 (5 days)');
+    });
+
+    it('sorts days chronologically', () => {
+      // Days passed in wrong order
+      const days = [
+        createDay('2024-01-20'),
+        createDay('2024-01-15'),
+        createDay('2024-01-18'),
+      ];
+      expect(formatAssignmentDates(days)).toBe('Jan 15 - Jan 20 (3 days)');
+    });
+
+    it('handles non-consecutive days', () => {
+      // Days with gaps - still shows first to last
+      const days = [
+        createDay('2024-01-15'),
+        createDay('2024-01-18'),
+        createDay('2024-01-22'),
+      ];
+      expect(formatAssignmentDates(days)).toBe('Jan 15 - Jan 22 (3 days)');
+    });
+
+    it('handles days across months', () => {
+      const days = [
+        createDay('2024-01-30'),
+        createDay('2024-01-31'),
+        createDay('2024-02-01'),
+        createDay('2024-02-02'),
+      ];
+      expect(formatAssignmentDates(days)).toBe('Jan 30 - Feb 2 (4 days)');
+    });
+  });
+
+  describe('isWeekday', () => {
+    it('returns true for Monday', () => {
+      const monday = new Date(2024, 0, 15); // January 15, 2024 is Monday
+      expect(monday.getDay()).toBe(1); // Verify it's Monday
+      expect(isWeekday(monday)).toBe(true);
+    });
+
+    it('returns true for Friday', () => {
+      const friday = new Date(2024, 0, 19); // January 19, 2024 is Friday
+      expect(friday.getDay()).toBe(5); // Verify it's Friday
+      expect(isWeekday(friday)).toBe(true);
+    });
+
+    it('returns false for Saturday', () => {
+      const saturday = new Date(2024, 0, 20); // January 20, 2024 is Saturday
+      expect(saturday.getDay()).toBe(6); // Verify it's Saturday
+      expect(isWeekday(saturday)).toBe(false);
+    });
+
+    it('returns false for Sunday', () => {
+      const sunday = new Date(2024, 0, 21); // January 21, 2024 is Sunday
+      expect(sunday.getDay()).toBe(0); // Verify it's Sunday
+      expect(isWeekday(sunday)).toBe(false);
+    });
+
+    it('returns true for all weekdays in a week', () => {
+      // Week of Jan 15-19, 2024 (Mon-Fri)
+      const weekdays = [
+        new Date(2024, 0, 15), // Monday
+        new Date(2024, 0, 16), // Tuesday
+        new Date(2024, 0, 17), // Wednesday
+        new Date(2024, 0, 18), // Thursday
+        new Date(2024, 0, 19), // Friday
+      ];
+
+      weekdays.forEach((day) => {
+        expect(isWeekday(day)).toBe(true);
+      });
+    });
+  });
+
+  describe('getCalendarDays - weekend filtering', () => {
+    it('returns only weekdays (Mon-Fri)', () => {
+      const date = new Date(2024, 0, 15); // January 2024
+      const days = getCalendarDays(date);
+
+      // Every day should be a weekday (Mon=1, Tue=2, Wed=3, Thu=4, Fri=5)
+      days.forEach((day) => {
+        const dayOfWeek = day.getDay();
+        expect(dayOfWeek).toBeGreaterThanOrEqual(1);
+        expect(dayOfWeek).toBeLessThanOrEqual(5);
+      });
+    });
+
+    it('does not include Saturday (day 6)', () => {
+      const date = new Date(2024, 0, 15);
+      const days = getCalendarDays(date);
+
+      const saturdays = days.filter((day) => day.getDay() === 6);
+      expect(saturdays).toHaveLength(0);
+    });
+
+    it('does not include Sunday (day 0)', () => {
+      const date = new Date(2024, 0, 15);
+      const days = getCalendarDays(date);
+
+      const sundays = days.filter((day) => day.getDay() === 0);
+      expect(sundays).toHaveLength(0);
+    });
+
+    it('returns divisible by 5 (5 weekdays per week)', () => {
+      const date = new Date(2024, 0, 15);
+      const days = getCalendarDays(date);
+
+      expect(days.length % 5).toBe(0);
+    });
+
+    it('starts on Monday', () => {
+      const date = new Date(2024, 0, 15); // January 2024
+      const days = getCalendarDays(date);
+
+      // First day should be Monday (day 1)
+      expect(days[0].getDay()).toBe(1);
+    });
+
+    it('ends on Friday', () => {
+      const date = new Date(2024, 0, 15);
+      const days = getCalendarDays(date);
+
+      // Last day should be Friday (day 5)
+      expect(days[days.length - 1].getDay()).toBe(5);
+    });
+  });
+
+  describe('getWeekViewDays', () => {
+    it('returns only weekdays in the date range', () => {
+      // Week from Jan 15-21, 2024 (Mon-Sun)
+      const days = getWeekViewDays('2024-01-15', '2024-01-21');
+
+      // Should only return Mon-Fri (5 days)
+      expect(days).toHaveLength(5);
+
+      // All should be weekdays
+      days.forEach((day) => {
+        expect(day.getDay()).toBeGreaterThanOrEqual(1);
+        expect(day.getDay()).toBeLessThanOrEqual(5);
+      });
+    });
+
+    it('filters out weekend days from range', () => {
+      // Range includes Saturday Jan 20 and Sunday Jan 21
+      const days = getWeekViewDays('2024-01-15', '2024-01-21');
+
+      const hasWeekend = days.some((day) => day.getDay() === 0 || day.getDay() === 6);
+      expect(hasWeekend).toBe(false);
+    });
+
+    it('returns empty array for weekend-only range', () => {
+      // Only Saturday and Sunday
+      const days = getWeekViewDays('2024-01-20', '2024-01-21');
+
+      expect(days).toHaveLength(0);
+    });
+
+    it('handles single weekday', () => {
+      // Single Monday
+      const days = getWeekViewDays('2024-01-15', '2024-01-15');
+
+      expect(days).toHaveLength(1);
+      expect(days[0].getDay()).toBe(1); // Monday
+    });
+
+    it('handles multi-week range', () => {
+      // Two weeks: Jan 15-26, 2024
+      const days = getWeekViewDays('2024-01-15', '2024-01-26');
+
+      // 10 weekdays across 2 weeks
+      expect(days).toHaveLength(10);
+    });
+  });
+
+  describe('getWeeksInRange', () => {
+    it('returns array of week arrays', () => {
+      const weeks = getWeeksInRange('2024-01-15', '2024-01-26');
+
+      expect(Array.isArray(weeks)).toBe(true);
+      weeks.forEach((week) => {
+        expect(Array.isArray(week)).toBe(true);
+      });
+    });
+
+    it('each week contains only weekdays', () => {
+      const weeks = getWeeksInRange('2024-01-15', '2024-01-26');
+
+      weeks.forEach((week) => {
+        week.forEach((day) => {
+          const dayOfWeek = day.getDay();
+          expect(dayOfWeek).toBeGreaterThanOrEqual(1);
+          expect(dayOfWeek).toBeLessThanOrEqual(5);
+        });
+      });
+    });
+
+    it('each week has max 5 days', () => {
+      const weeks = getWeeksInRange('2024-01-15', '2024-01-26');
+
+      weeks.forEach((week) => {
+        expect(week.length).toBeLessThanOrEqual(5);
+      });
+    });
+
+    it('filters empty weeks', () => {
+      const weeks = getWeeksInRange('2024-01-15', '2024-01-26');
+
+      weeks.forEach((week) => {
+        expect(week.length).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  describe('getWeekNumber', () => {
+    it('returns 1 for first week of project', () => {
+      const projectStart = '2024-01-15'; // Monday
+      const date = new Date(2024, 0, 16); // Tuesday of same week
+
+      const weekNum = getWeekNumber(date, projectStart);
+      expect(weekNum).toBe(1);
+    });
+
+    it('returns 2 for second week', () => {
+      const projectStart = '2024-01-15'; // Monday
+      const date = new Date(2024, 0, 22); // Monday of next week
+
+      const weekNum = getWeekNumber(date, projectStart);
+      expect(weekNum).toBe(2);
+    });
+
+    it('handles project starting mid-week', () => {
+      const projectStart = '2024-01-17'; // Wednesday
+      const date = new Date(2024, 0, 19); // Friday of same week
+
+      const weekNum = getWeekNumber(date, projectStart);
+      expect(weekNum).toBe(1);
+    });
+  });
+
+  describe('getNextWeek and getPreviousWeek', () => {
+    it('getNextWeek returns date 7 days later', () => {
+      const date = new Date(2024, 0, 15); // Jan 15
+      const next = getNextWeek(date);
+
+      expect(next.getDate()).toBe(22); // Jan 22
+      expect(next.getMonth()).toBe(0); // January
+    });
+
+    it('getPreviousWeek returns date 7 days earlier', () => {
+      const date = new Date(2024, 0, 15); // Jan 15
+      const prev = getPreviousWeek(date);
+
+      expect(prev.getDate()).toBe(8); // Jan 8
+      expect(prev.getMonth()).toBe(0); // January
+    });
+
+    it('getNextWeek handles month boundary', () => {
+      const date = new Date(2024, 0, 29); // Jan 29
+      const next = getNextWeek(date);
+
+      expect(next.getMonth()).toBe(1); // February
+      expect(next.getDate()).toBe(5); // Feb 5
+    });
+
+    it('getPreviousWeek handles month boundary', () => {
+      const date = new Date(2024, 1, 5); // Feb 5
+      const prev = getPreviousWeek(date);
+
+      expect(prev.getMonth()).toBe(0); // January
+      expect(prev.getDate()).toBe(29); // Jan 29
     });
   });
 });

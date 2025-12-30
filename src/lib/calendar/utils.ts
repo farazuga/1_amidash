@@ -18,14 +18,30 @@ import {
   getDay,
   isWeekend,
 } from 'date-fns';
-import type { CalendarAssignmentResult, CalendarEvent, BookingStatus } from '@/types/calendar';
+import type { CalendarAssignmentResult, CalendarEvent, BookingStatus, AssignmentDay } from '@/types/calendar';
 import { BOOKING_STATUS_ORDER } from './constants';
 
 /**
- * Get all days to display in a month calendar view
- * Includes days from previous/next months to fill the grid
+ * Get all days to display in a month calendar view (weekdays only)
+ * Returns Mon-Fri days, filtering out weekends
  */
 export function getCalendarDays(date: Date): Date[] {
+  const monthStart = startOfMonth(date);
+  const monthEnd = endOfMonth(date);
+  // Start from Monday of the week containing month start
+  const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+  // End on Friday of the week containing month end
+  const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+
+  const allDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
+  // Filter to weekdays only (Mon-Fri)
+  return allDays.filter((day) => !isWeekend(day));
+}
+
+/**
+ * Get all days including weekends (for legacy support if needed)
+ */
+export function getCalendarDaysWithWeekends(date: Date): Date[] {
   const monthStart = startOfMonth(date);
   const monthEnd = endOfMonth(date);
   const calendarStart = startOfWeek(monthStart);
@@ -104,10 +120,14 @@ export function isDateExcluded(date: Date, excludedDates: string[]): boolean {
 
 /**
  * Convert database assignment results to calendar events
+ * @param assignments - Assignment data from database
+ * @param excludedDatesMap - Map of assignment_id to excluded dates (legacy)
+ * @param scheduledDaysMap - Map of assignment_id to scheduled work_dates (new model)
  */
 export function convertToCalendarEvents(
   assignments: CalendarAssignmentResult[],
-  excludedDatesMap: Map<string, string[]>
+  excludedDatesMap: Map<string, string[]>,
+  scheduledDaysMap?: Map<string, string[]>
 ): CalendarEvent[] {
   return assignments.map((assignment) => ({
     id: assignment.assignment_id,
@@ -121,20 +141,33 @@ export function convertToCalendarEvents(
     bookingStatus: assignment.booking_status,
     assignmentId: assignment.assignment_id,
     excludedDates: excludedDatesMap.get(assignment.assignment_id) || [],
+    scheduledDays: scheduledDaysMap?.get(assignment.assignment_id) || [],
   }));
 }
 
 /**
+ * Check if a date is in the scheduled days array
+ */
+export function isDateScheduled(date: Date, scheduledDays: string[]): boolean {
+  const dateStr = format(date, 'yyyy-MM-dd');
+  return scheduledDays.includes(dateStr);
+}
+
+/**
  * Get events for a specific day
+ * Only shows events that have explicit scheduled days (from assignment_days table)
  */
 export function getEventsForDay(
   date: Date,
   events: CalendarEvent[]
 ): CalendarEvent[] {
   return events.filter((event) => {
-    const isInRange = isWithinInterval(date, { start: event.start, end: event.end });
-    const isExcluded = isDateExcluded(date, event.excludedDates);
-    return isInRange && !isExcluded;
+    // Only show events on days that are explicitly scheduled
+    // If no days are scheduled, don't show the event on any day
+    if (!event.scheduledDays || event.scheduledDays.length === 0) {
+      return false;
+    }
+    return isDateScheduled(date, event.scheduledDays);
   });
 }
 
@@ -331,4 +364,20 @@ export function getPreviousWeek(date: Date): Date {
  */
 export function isWeekday(date: Date): boolean {
   return !isWeekend(date);
+}
+
+/**
+ * Format assignment dates for display
+ * Returns a human-readable string like "Jan 15" or "Jan 15 - Jan 20 (5 days)"
+ */
+export function formatAssignmentDates(days?: AssignmentDay[]): string {
+  if (!days?.length) return 'No dates scheduled';
+
+  const sorted = [...days].sort((a, b) => a.work_date.localeCompare(b.work_date));
+
+  if (days.length === 1) {
+    return format(parseISO(sorted[0].work_date), 'MMM d');
+  }
+
+  return `${format(parseISO(sorted[0].work_date), 'MMM d')} - ${format(parseISO(sorted[sorted.length - 1].work_date), 'MMM d')} (${days.length} days)`;
 }

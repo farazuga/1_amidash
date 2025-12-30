@@ -1,14 +1,24 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BookingStatusBadge } from './booking-status-badge';
 import { useUserSchedule } from '@/hooks/queries/use-assignments';
-import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns';
-import { Loader2, Calendar } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns';
+import { Loader2, Calendar, Filter } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { UserScheduleResult, BookingStatus } from '@/types/calendar';
 import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { BOOKING_STATUS_CONFIG } from '@/lib/calendar/constants';
 
 interface UserScheduleViewProps {
   userId: string;
@@ -16,25 +26,48 @@ interface UserScheduleViewProps {
   currentDate: Date;
 }
 
+const ALL_STATUSES: BookingStatus[] = ['draft', 'tentative', 'pending_confirm', 'confirmed'];
+
 export function UserScheduleView({ userId, userName, currentDate }: UserScheduleViewProps) {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<BookingStatus>>(
+    new Set(['tentative', 'pending_confirm', 'confirmed'])
+  );
 
   const { data: schedule, isLoading } = useUserSchedule(userId, monthStart, monthEnd);
 
+  const toggleStatus = (status: BookingStatus) => {
+    setSelectedStatuses((prev) => {
+      const next = new Set(prev);
+      if (next.has(status)) {
+        next.delete(status);
+      } else {
+        next.add(status);
+      }
+      return next;
+    });
+  };
+
+  // Filter schedule by selected statuses
+  const filteredSchedule = useMemo(() => {
+    if (!schedule) return [];
+    return schedule.filter((item) =>
+      selectedStatuses.has(item.booking_status as BookingStatus)
+    );
+  }, [schedule, selectedStatuses]);
+
   // Group schedule by date
   const scheduleByDate = useMemo(() => {
-    if (!schedule) return new Map<string, UserScheduleResult[]>();
-
     const grouped = new Map<string, UserScheduleResult[]>();
-    schedule.forEach((item) => {
+    filteredSchedule.forEach((item) => {
       const dateKey = item.schedule_date;
       const existing = grouped.get(dateKey) || [];
       grouped.set(dateKey, [...existing, item]);
     });
 
     return grouped;
-  }, [schedule]);
+  }, [filteredSchedule]);
 
   // Get days with assignments in the current month
   const daysWithAssignments = useMemo(() => {
@@ -74,9 +107,36 @@ export function UserScheduleView({ userId, userName, currentDate }: UserSchedule
         <h2 className="text-lg font-semibold">
           {userName ? `${userName}'s Schedule` : 'My Schedule'}
         </h2>
-        <p className="text-sm text-muted-foreground">
-          {daysWithAssignments.length} day(s) scheduled
-        </p>
+        <div className="flex items-center gap-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Filter className="mr-2 h-4 w-4" />
+                Filter ({selectedStatuses.size})
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Show statuses</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {ALL_STATUSES.map((status) => {
+                const config = BOOKING_STATUS_CONFIG[status];
+                return (
+                  <DropdownMenuCheckboxItem
+                    key={status}
+                    checked={selectedStatuses.has(status)}
+                    onCheckedChange={() => toggleStatus(status)}
+                  >
+                    <span className={`mr-2 h-2 w-2 rounded-full ${config.dotColor}`} />
+                    {config.label}
+                  </DropdownMenuCheckboxItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <p className="text-sm text-muted-foreground">
+            {daysWithAssignments.length} day(s) scheduled
+          </p>
+        </div>
       </div>
 
       <div className="space-y-3">

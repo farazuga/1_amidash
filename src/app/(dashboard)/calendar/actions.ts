@@ -2,6 +2,9 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { sendEmail } from '@/lib/email/send';
+import { assignmentCreatedEmail, assignmentStatusChangedEmail } from '@/lib/email/templates';
+import { checkEmailEnabled } from '@/lib/email/settings';
 import type {
   BookingStatus,
   ProjectAssignment,
@@ -13,7 +16,23 @@ import type {
   ConflictCheckResult,
   CalendarAssignmentResult,
   UserScheduleResult,
+  UserAvailability,
+  AvailabilityType,
 } from '@/types/calendar';
+import {
+  validateInput,
+  createAssignmentSchema,
+  updateAssignmentStatusSchema,
+  bulkUpdateStatusSchema,
+  addAssignmentDaysSchema,
+  updateAssignmentDaySchema,
+  checkConflictsSchema,
+  createAvailabilitySchema,
+  updateAvailabilitySchema,
+  calendarDataSchema,
+  ganttDataSchema,
+  updateProjectDatesSchema,
+} from '@/lib/calendar/validation';
 
 // ============================================
 // Result types
@@ -35,6 +54,107 @@ export interface CreateAssignmentResult {
 // ============================================
 // Helper functions
 // ============================================
+
+/**
+ * Compare two time strings properly (handles "9:00" vs "09:00")
+ * Returns true if endTime is after startTime
+ */
+function isEndTimeAfterStartTime(startTime: string, endTime: string): boolean {
+  // Parse times to comparable numbers (minutes since midnight)
+  const parseTime = (time: string): number => {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + (minutes || 0);
+  };
+  return parseTime(endTime) > parseTime(startTime);
+}
+
+// Helper to format dates for email display
+function formatDateForEmail(dateStr: string): string {
+  const date = new Date(dateStr + 'T00:00:00');
+  return date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+// Send assignment notification email (fire and forget, don't block on errors)
+async function sendAssignmentEmail(params: {
+  userEmail: string;
+  userName: string;
+  projectName: string;
+  startDate: string;
+  endDate: string;
+  bookingStatus: string;
+  projectId: string;
+}): Promise<void> {
+  try {
+    // Check if emails are enabled
+    const { canSendEmail } = await checkEmailEnabled(params.projectId, params.userEmail);
+    if (!canSendEmail) {
+      return;
+    }
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const calendarUrl = `${baseUrl}/my-schedule`;
+
+    const html = assignmentCreatedEmail({
+      userName: params.userName,
+      projectName: params.projectName,
+      startDate: formatDateForEmail(params.startDate),
+      endDate: formatDateForEmail(params.endDate),
+      bookingStatus: params.bookingStatus,
+      calendarUrl,
+    });
+
+    await sendEmail({
+      to: params.userEmail,
+      subject: `You've been assigned to ${params.projectName}`,
+      html,
+    });
+  } catch (error) {
+    // Log but don't throw - email sending shouldn't block assignment creation
+    console.error('Failed to send assignment email:', error);
+  }
+}
+
+// Send status change notification email
+async function sendStatusChangeEmail(params: {
+  userEmail: string;
+  userName: string;
+  projectName: string;
+  oldStatus: string;
+  newStatus: string;
+  projectId: string;
+}): Promise<void> {
+  try {
+    // Check if emails are enabled
+    const { canSendEmail } = await checkEmailEnabled(params.projectId, params.userEmail);
+    if (!canSendEmail) {
+      return;
+    }
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const calendarUrl = `${baseUrl}/my-schedule`;
+
+    const html = assignmentStatusChangedEmail({
+      userName: params.userName,
+      projectName: params.projectName,
+      oldStatus: params.oldStatus,
+      newStatus: params.newStatus,
+      calendarUrl,
+    });
+
+    await sendEmail({
+      to: params.userEmail,
+      subject: `Assignment status updated: ${params.projectName}`,
+      html,
+    });
+  } catch (error) {
+    console.error('Failed to send status change email:', error);
+  }
+}
 
 async function requireAdmin() {
   const supabase = await createClient();
@@ -78,6 +198,12 @@ export async function createAssignment(data: {
   bookingStatus?: BookingStatus;
   notes?: string;
 }): Promise<CreateAssignmentResult> {
+  // Validate input
+  const validation = validateInput(createAssignmentSchema, data);
+  if (!validation.success) {
+    return { success: false, error: validation.error };
+  }
+
   const { error: authError, supabase, user } = await requireAdmin();
   if (authError || !supabase || !user) {
     return { success: false, error: authError || 'Authentication failed' };
@@ -113,13 +239,18 @@ export async function createAssignment(data: {
     endDate: project.end_date,
   });
 
+  // If conflict check failed, abort assignment creation
+  if (conflictCheck.error) {
+    return { success: false, error: conflictCheck.error, conflicts: conflictCheck };
+  }
+
   // Create the assignment
   const { data: assignment, error: insertError } = await supabase
     .from('project_assignments')
     .insert({
       project_id: data.projectId,
       user_id: data.userId,
-      booking_status: data.bookingStatus || 'pencil',
+      booking_status: data.bookingStatus || 'draft',
       notes: data.notes || null,
       created_by: user.id,
     })
@@ -142,7 +273,7 @@ export async function createAssignment(data: {
   await supabase.from('booking_status_history').insert({
     assignment_id: assignment.id,
     old_status: null,
-    new_status: data.bookingStatus || 'pencil',
+    new_status: data.bookingStatus || 'draft',
     changed_by: user.id,
     note: 'Initial assignment',
   });
@@ -158,6 +289,23 @@ export async function createAssignment(data: {
         is_resolved: false,
       });
     }
+  }
+
+  // Send assignment notification email (fire and forget)
+  const assignedUser = assignment.user as { id: string; email: string; full_name: string | null } | null;
+  const assignedProject = assignment.project as { id: string; client_name: string; start_date: string | null; end_date: string | null } | null;
+
+  if (assignedUser?.email && assignedProject?.start_date && assignedProject?.end_date) {
+    // Don't await - let email send in background
+    sendAssignmentEmail({
+      userEmail: assignedUser.email,
+      userName: assignedUser.full_name || assignedUser.email,
+      projectName: assignedProject.client_name,
+      startDate: assignedProject.start_date,
+      endDate: assignedProject.end_date,
+      bookingStatus: data.bookingStatus || 'draft',
+      projectId: data.projectId,
+    });
   }
 
   revalidatePath('/calendar');
@@ -176,15 +324,25 @@ export async function updateAssignmentStatus(data: {
   newStatus: BookingStatus;
   note?: string;
 }): Promise<ActionResult> {
+  // Validate input
+  const validation = validateInput(updateAssignmentStatusSchema, data);
+  if (!validation.success) {
+    return { success: false, error: validation.error };
+  }
+
   const { error: authError, supabase, user } = await requireAdmin();
   if (authError || !supabase || !user) {
     return { success: false, error: authError || 'Authentication failed' };
   }
 
-  // Get current assignment
+  // Get current assignment with user and project details for email
   const { data: currentAssignment } = await supabase
     .from('project_assignments')
-    .select('id, booking_status, project_id')
+    .select(`
+      id, booking_status, project_id,
+      user:profiles!user_id(id, email, full_name),
+      project:projects(id, client_name)
+    `)
     .eq('id', data.assignmentId)
     .single();
 
@@ -212,11 +370,139 @@ export async function updateAssignmentStatus(data: {
     note: data.note || null,
   });
 
+  // Send status change email (fire and forget)
+  const assignedUser = currentAssignment.user as { id: string; email: string; full_name: string | null } | null;
+  const assignedProject = currentAssignment.project as { id: string; client_name: string } | null;
+
+  if (assignedUser?.email && assignedProject) {
+    sendStatusChangeEmail({
+      userEmail: assignedUser.email,
+      userName: assignedUser.full_name || assignedUser.email,
+      projectName: assignedProject.client_name,
+      oldStatus: currentAssignment.booking_status,
+      newStatus: data.newStatus,
+      projectId: currentAssignment.project_id,
+    });
+  }
+
   revalidatePath('/calendar');
   revalidatePath(`/projects/${currentAssignment.project_id}`);
   revalidatePath('/my-schedule');
 
   return { success: true };
+}
+
+/**
+ * Bulk update status for multiple assignments at once
+ * All assignments will receive the same new status and history entries
+ * Optimized: Uses batch operations (3 queries) instead of N+1 pattern
+ */
+export async function bulkUpdateAssignmentStatus(data: {
+  assignmentIds: string[];
+  newStatus: BookingStatus;
+  note?: string;
+}): Promise<ActionResult<{ updatedCount: number; failedIds: string[] }>> {
+  // Validate input
+  const validation = validateInput(bulkUpdateStatusSchema, data);
+  if (!validation.success) {
+    return { success: false, error: validation.error };
+  }
+
+  const { error: authError, supabase, user } = await requireAdmin();
+  if (authError || !supabase || !user) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  // Get current assignments with their current statuses
+  const { data: assignments, error: fetchError } = await supabase
+    .from('project_assignments')
+    .select(`
+      id, booking_status, project_id,
+      user:profiles!user_id(id, email, full_name),
+      project:projects(id, client_name)
+    `)
+    .in('id', data.assignmentIds);
+
+  if (fetchError) {
+    console.error('Bulk status fetch error:', fetchError);
+    return { success: false, error: 'Failed to fetch assignments' };
+  }
+
+  if (!assignments || assignments.length === 0) {
+    return { success: false, error: 'No assignments found' };
+  }
+
+  // Separate assignments: those already at target status vs those needing update
+  const alreadyAtStatus = assignments.filter(a => a.booking_status === data.newStatus);
+  const toUpdate = assignments.filter(a => a.booking_status !== data.newStatus);
+  const idsToUpdate = toUpdate.map(a => a.id);
+
+  // Collect all project IDs for revalidation
+  const projectIds = new Set(assignments.map(a => a.project_id));
+
+  // If there are assignments to update, do batch update
+  if (idsToUpdate.length > 0) {
+    // Batch update all assignments in a single query
+    const { error: updateError } = await supabase
+      .from('project_assignments')
+      .update({ booking_status: data.newStatus })
+      .in('id', idsToUpdate);
+
+    if (updateError) {
+      console.error('Bulk status update error:', updateError);
+      return { success: false, error: 'Failed to update assignments' };
+    }
+
+    // Batch insert history records in a single query
+    const historyRecords = toUpdate.map(assignment => ({
+      assignment_id: assignment.id,
+      old_status: assignment.booking_status,
+      new_status: data.newStatus,
+      changed_by: user.id,
+      note: data.note || 'Bulk status update',
+    }));
+
+    const { error: historyError } = await supabase
+      .from('booking_status_history')
+      .insert(historyRecords);
+
+    if (historyError) {
+      console.error('Bulk history insert error:', historyError);
+      // Don't fail - the main update succeeded
+    }
+
+    // Fire status change emails in parallel (non-blocking)
+    toUpdate.forEach(assignment => {
+      const assignedUser = assignment.user as { id: string; email: string; full_name: string | null } | null;
+      const assignedProject = assignment.project as { id: string; client_name: string } | null;
+
+      if (assignedUser?.email && assignedProject) {
+        sendStatusChangeEmail({
+          userEmail: assignedUser.email,
+          userName: assignedUser.full_name || assignedUser.email,
+          projectName: assignedProject.client_name,
+          oldStatus: assignment.booking_status,
+          newStatus: data.newStatus,
+          projectId: assignment.project_id,
+        });
+      }
+    });
+  }
+
+  // Revalidate all affected paths
+  revalidatePath('/calendar');
+  revalidatePath('/my-schedule');
+  for (const projectId of projectIds) {
+    revalidatePath(`/projects/${projectId}`);
+  }
+
+  return {
+    success: true,
+    data: {
+      updatedCount: alreadyAtStatus.length + idsToUpdate.length,
+      failedIds: [], // With batch operations, it's all-or-nothing
+    },
+  };
 }
 
 export async function removeAssignment(assignmentId: string): Promise<ActionResult> {
@@ -254,9 +540,14 @@ export async function removeAssignment(assignmentId: string): Promise<ActionResu
 }
 
 // ============================================
-// Excluded dates operations
+// Excluded dates operations (DEPRECATED - use assignment_days instead)
+// These functions are kept for backward compatibility but new code should
+// use addAssignmentDays/removeAssignmentDays instead.
 // ============================================
 
+/**
+ * @deprecated Use addAssignmentDays instead. The excluded_dates model is being phased out.
+ */
 export async function addExcludedDates(data: {
   assignmentId: string;
   dates: string[];
@@ -293,6 +584,9 @@ export async function addExcludedDates(data: {
   return { success: true, data: inserted as AssignmentExcludedDate[] };
 }
 
+/**
+ * @deprecated Use removeAssignmentDays instead. The excluded_dates model is being phased out.
+ */
 export async function removeExcludedDate(excludedDateId: string): Promise<ActionResult> {
   const { error: authError, supabase } = await requireAdmin();
   if (authError || !supabase) {
@@ -315,6 +609,9 @@ export async function removeExcludedDate(excludedDateId: string): Promise<Action
   return { success: true };
 }
 
+/**
+ * @deprecated Use removeAssignmentDays instead. The excluded_dates model is being phased out.
+ */
 export async function bulkRemoveExcludedDates(excludedDateIds: string[]): Promise<ActionResult> {
   const { error: authError, supabase } = await requireAdmin();
   if (authError || !supabase) {
@@ -346,18 +643,15 @@ export async function updateProjectDates(data: {
   startDate: string | null;
   endDate: string | null;
 }): Promise<ActionResult> {
+  // Validate input (includes date format and range validation)
+  const validation = validateInput(updateProjectDatesSchema, data);
+  if (!validation.success) {
+    return { success: false, error: validation.error };
+  }
+
   const { error: authError, supabase } = await requireAdmin();
   if (authError || !supabase) {
     return { success: false, error: authError || 'Authentication failed' };
-  }
-
-  // Validate dates
-  if (data.startDate && data.endDate) {
-    const start = new Date(data.startDate);
-    const end = new Date(data.endDate);
-    if (end < start) {
-      return { success: false, error: 'End date must be after start date' };
-    }
   }
 
   const { error: updateError } = await supabase
@@ -390,9 +684,16 @@ export async function checkConflicts(data: {
   endDate: string;
   excludeAssignmentId?: string;
 }): Promise<ConflictCheckResult> {
+  // Validate input
+  const validation = validateInput(checkConflictsSchema, data);
+  if (!validation.success) {
+    return { hasConflicts: false, conflicts: [], error: validation.error };
+  }
+
   const { error: authError, supabase } = await getAuthenticatedClient();
   if (authError || !supabase) {
-    return { hasConflicts: false, conflicts: [] };
+    console.error('Conflict check auth error:', authError);
+    return { hasConflicts: false, conflicts: [], error: 'Authentication failed for conflict check' };
   }
 
   const { data: conflicts, error } = await supabase.rpc('check_user_conflicts', {
@@ -404,7 +705,7 @@ export async function checkConflicts(data: {
 
   if (error) {
     console.error('Conflict check error:', error);
-    return { hasConflicts: false, conflicts: [] };
+    return { hasConflicts: false, conflicts: [], error: 'Failed to check for conflicts' };
   }
 
   const conflictList = (conflicts || []).map((c: {
@@ -499,16 +800,54 @@ export async function getUnresolvedConflicts(userId?: string): Promise<ActionRes
 // Calendar data queries
 // ============================================
 
+// Default max assignments to return
+const DEFAULT_CALENDAR_LIMIT = 500;
+
+// Scheduled day info with ID for drag-drop support
+export interface ScheduledDayInfo {
+  date: string;
+  dayId: string;
+}
+
+// Extended return type for calendar data with scheduled days
+export interface CalendarDataResult {
+  data: CalendarAssignmentResult[];
+  total: number;
+  hasMore: boolean;
+  scheduledDaysMap: Record<string, string[]>; // assignment_id -> work_dates[] (for backwards compat)
+  scheduledDaysWithIds: Record<string, ScheduledDayInfo[]>; // assignment_id -> {date, dayId}[]
+}
+
 export async function getCalendarData(params: {
   startDate: string;
   endDate: string;
   projectId?: string;
   userId?: string;
-}): Promise<ActionResult<CalendarAssignmentResult[]>> {
-  const { error: authError, supabase } = await getAuthenticatedClient();
-  if (authError || !supabase) {
+  limit?: number;
+  offset?: number;
+}): Promise<ActionResult<CalendarDataResult>> {
+  // Validate input parameters
+  const validation = validateInput(calendarDataSchema, params);
+  if (!validation.success) {
+    return { success: false, error: validation.error };
+  }
+
+  const { error: authError, supabase, user } = await getAuthenticatedClient();
+  if (authError || !supabase || !user) {
     return { success: false, error: authError || 'Authentication failed' };
   }
+
+  // Get current user's role to determine if they can see draft assignments
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  const canSeeDrafts = profile?.role === 'admin' || profile?.role === 'editor';
+
+  const limit = params.limit ?? DEFAULT_CALENDAR_LIMIT;
+  const offset = params.offset ?? 0;
 
   const { data, error } = await supabase.rpc('get_calendar_assignments', {
     p_start_date: params.startDate,
@@ -523,12 +862,64 @@ export async function getCalendarData(params: {
 
   let result = data as CalendarAssignmentResult[];
 
+  // Filter out draft assignments for non-admin/non-editor users
+  if (!canSeeDrafts) {
+    result = result.filter(a => a.booking_status !== 'draft');
+  }
+
   // Filter by user if specified
   if (params.userId) {
     result = result.filter(a => a.user_id === params.userId);
   }
 
-  return { success: true, data: result };
+  const total = result.length;
+  const paginatedResult = result.slice(offset, offset + limit);
+  const hasMore = offset + limit < total;
+
+  // Fetch assignment_days for all assignments to get actual scheduled days
+  const assignmentIds = paginatedResult.map(a => a.assignment_id);
+  const scheduledDaysMap: Record<string, string[]> = {};
+  const scheduledDaysWithIds: Record<string, ScheduledDayInfo[]> = {};
+
+  if (assignmentIds.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: daysData, error: daysError } = await (supabase as any)
+      .from('assignment_days')
+      .select('id, assignment_id, work_date')
+      .in('assignment_id', assignmentIds)
+      .order('work_date', { ascending: true });
+
+    if (!daysError && daysData) {
+      // Build maps
+      for (const day of daysData as { id: string; assignment_id: string; work_date: string }[]) {
+        // Legacy map: assignment_id -> work_dates[]
+        if (!scheduledDaysMap[day.assignment_id]) {
+          scheduledDaysMap[day.assignment_id] = [];
+        }
+        scheduledDaysMap[day.assignment_id].push(day.work_date);
+
+        // New map with IDs for drag-drop: assignment_id -> {date, dayId}[]
+        if (!scheduledDaysWithIds[day.assignment_id]) {
+          scheduledDaysWithIds[day.assignment_id] = [];
+        }
+        scheduledDaysWithIds[day.assignment_id].push({
+          date: day.work_date,
+          dayId: day.id,
+        });
+      }
+    }
+  }
+
+  return {
+    success: true,
+    data: {
+      data: paginatedResult,
+      total,
+      hasMore,
+      scheduledDaysMap,
+      scheduledDaysWithIds,
+    }
+  };
 }
 
 export async function getUserSchedule(params: {
@@ -536,10 +927,19 @@ export async function getUserSchedule(params: {
   startDate: string;
   endDate: string;
 }): Promise<ActionResult<UserScheduleResult[]>> {
-  const { error: authError, supabase } = await getAuthenticatedClient();
-  if (authError || !supabase) {
+  const { error: authError, supabase, user } = await getAuthenticatedClient();
+  if (authError || !supabase || !user) {
     return { success: false, error: authError || 'Authentication failed' };
   }
+
+  // Get current user's role to determine if they can see draft assignments
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  const canSeeDrafts = profile?.role === 'admin' || profile?.role === 'editor';
 
   const { data, error } = await supabase.rpc('get_user_schedule', {
     p_user_id: params.userId,
@@ -552,7 +952,14 @@ export async function getUserSchedule(params: {
     return { success: false, error: 'Failed to fetch user schedule' };
   }
 
-  return { success: true, data: data as UserScheduleResult[] };
+  let result = data as UserScheduleResult[];
+
+  // Filter out draft assignments for non-admin/non-editor users
+  if (!canSeeDrafts) {
+    result = result.filter(r => r.booking_status !== 'draft');
+  }
+
+  return { success: true, data: result };
 }
 
 export async function getProjectAssignments(projectId: string): Promise<ActionResult<ProjectAssignment[]>> {
@@ -566,7 +973,8 @@ export async function getProjectAssignments(projectId: string): Promise<ActionRe
     .select(`
       *,
       user:profiles!user_id(id, email, full_name),
-      excluded_dates:assignment_excluded_dates(*)
+      excluded_dates:assignment_excluded_dates(*),
+      days:assignment_days(*)
     `)
     .eq('project_id', projectId)
     .order('created_at', { ascending: true });
@@ -808,18 +1216,20 @@ export async function addAssignmentDays(data: {
   assignmentId: string;
   days: { date: string; startTime: string; endTime: string }[];
 }): Promise<ActionResult<AssignmentDay[]>> {
+  // Validate input (includes date/time format and min/max array length)
+  const validation = validateInput(addAssignmentDaysSchema, data);
+  if (!validation.success) {
+    return { success: false, error: validation.error };
+  }
+
   const { error: authError, supabase, user } = await requireAdmin();
   if (authError || !supabase || !user) {
     return { success: false, error: authError || 'Authentication failed' };
   }
 
-  if (data.days.length === 0) {
-    return { success: false, error: 'No days provided' };
-  }
-
   // Validate time order for each day
   for (const day of data.days) {
-    if (day.endTime <= day.startTime) {
+    if (!isEndTimeAfterStartTime(day.startTime, day.endTime)) {
       return { success: false, error: `End time must be after start time for ${day.date}` };
     }
   }
@@ -866,7 +1276,7 @@ export async function updateAssignmentDay(data: {
     return { success: false, error: authError || 'Authentication failed' };
   }
 
-  if (data.endTime <= data.startTime) {
+  if (!isEndTimeAfterStartTime(data.startTime, data.endTime)) {
     return { success: false, error: 'End time must be after start time' };
   }
 
@@ -888,6 +1298,69 @@ export async function updateAssignmentDay(data: {
   revalidatePath('/my-schedule');
 
   return { success: true };
+}
+
+/**
+ * Move an assignment day to a new date
+ */
+export async function moveAssignmentDay(data: {
+  dayId: string;
+  newDate: string; // YYYY-MM-DD format
+}): Promise<ActionResult<{ dayId: string; newDate: string }>> {
+  const { error: authError, supabase } = await requireAdmin();
+  if (authError || !supabase) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  // Validate date format
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data.newDate)) {
+    return { success: false, error: 'Invalid date format' };
+  }
+
+  // Get the day to check assignment info
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: day, error: fetchError } = await (supabase as any)
+    .from('assignment_days')
+    .select('*, assignment:project_assignments(id, user_id, project_id)')
+    .eq('id', data.dayId)
+    .single();
+
+  if (fetchError || !day) {
+    console.error('Fetch assignment day error:', fetchError);
+    return { success: false, error: 'Assignment day not found' };
+  }
+
+  // Check if the new date already exists for this assignment
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: existingDay } = await (supabase as any)
+    .from('assignment_days')
+    .select('id')
+    .eq('assignment_id', day.assignment_id)
+    .eq('work_date', data.newDate)
+    .neq('id', data.dayId)
+    .maybeSingle();
+
+  if (existingDay) {
+    return { success: false, error: 'This person is already scheduled for this date' };
+  }
+
+  // Update the work_date
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: updateError } = await (supabase as any)
+    .from('assignment_days')
+    .update({ work_date: data.newDate })
+    .eq('id', data.dayId);
+
+  if (updateError) {
+    console.error('Move assignment day error:', updateError);
+    return { success: false, error: 'Failed to move assignment day' };
+  }
+
+  revalidatePath('/calendar');
+  revalidatePath('/my-schedule');
+  revalidatePath('/projects');
+
+  return { success: true, data: { dayId: data.dayId, newDate: data.newDate } };
 }
 
 /**
@@ -948,10 +1421,13 @@ export async function getAssignmentDays(assignmentId: string): Promise<ActionRes
 // Status cycling (click-to-toggle)
 // ============================================
 
-const STATUS_CYCLE: BookingStatus[] = ['pencil', 'pending_confirm', 'confirmed'];
+// Status cycle for PM manual cycling - skips pending_confirm (requires confirmation flow)
+// Workflow: draft → tentative → confirmed → draft
+const STATUS_CYCLE: BookingStatus[] = ['draft', 'tentative', 'confirmed'];
 
 /**
- * Cycle assignment status: pencil → pending_confirm → confirmed → pencil
+ * Cycle assignment status: draft → tentative → confirmed → draft
+ * Note: pending_confirm is NOT in the cycle - it's only reached via the customer confirmation flow
  */
 export async function cycleAssignmentStatus(assignmentId: string): Promise<ActionResult<{ newStatus: BookingStatus }>> {
   const { error: authError, supabase, user } = await requireAdmin();
@@ -959,10 +1435,14 @@ export async function cycleAssignmentStatus(assignmentId: string): Promise<Actio
     return { success: false, error: authError || 'Authentication failed' };
   }
 
-  // Get current assignment
+  // Get current assignment with user and project details for email
   const { data: currentAssignment } = await supabase
     .from('project_assignments')
-    .select('id, booking_status, project_id')
+    .select(`
+      id, booking_status, project_id,
+      user:profiles!user_id(id, email, full_name),
+      project:projects(id, client_name)
+    `)
     .eq('id', assignmentId)
     .single();
 
@@ -971,9 +1451,16 @@ export async function cycleAssignmentStatus(assignmentId: string): Promise<Actio
   }
 
   // Calculate next status
-  const currentIndex = STATUS_CYCLE.indexOf(currentAssignment.booking_status as BookingStatus);
-  const nextIndex = (currentIndex + 1) % STATUS_CYCLE.length;
-  const newStatus = STATUS_CYCLE[nextIndex];
+  // Special case: if current status is pending_confirm (from confirmation flow), cycle to confirmed
+  let newStatus: BookingStatus;
+  if (currentAssignment.booking_status === 'pending_confirm') {
+    newStatus = 'confirmed';
+  } else {
+    const currentIndex = STATUS_CYCLE.indexOf(currentAssignment.booking_status as BookingStatus);
+    // If status not in cycle (shouldn't happen), default to draft
+    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % STATUS_CYCLE.length;
+    newStatus = STATUS_CYCLE[nextIndex];
+  }
 
   // Update the assignment
   const { error: updateError } = await supabase
@@ -994,6 +1481,21 @@ export async function cycleAssignmentStatus(assignmentId: string): Promise<Actio
     changed_by: user.id,
     note: 'Status cycled via click',
   });
+
+  // Send status change email (fire and forget)
+  const assignedUser = currentAssignment.user as { id: string; email: string; full_name: string | null } | null;
+  const assignedProject = currentAssignment.project as { id: string; client_name: string } | null;
+
+  if (assignedUser?.email && assignedProject) {
+    sendStatusChangeEmail({
+      userEmail: assignedUser.email,
+      userName: assignedUser.full_name || assignedUser.email,
+      projectName: assignedProject.client_name,
+      oldStatus: currentAssignment.booking_status,
+      newStatus: newStatus,
+      projectId: currentAssignment.project_id,
+    });
+  }
 
   revalidatePath('/calendar');
   revalidatePath(`/projects/${currentAssignment.project_id}`);
@@ -1166,9 +1668,18 @@ export async function getProjectAssignmentsForGantt(projectId: string): Promise<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ganttAssignments: GanttAssignment[] = (data || []).map((assignment: any) => {
     const days = (assignment.days || []) as AssignmentDay[];
-    const blocks = groupDaysIntoBlocks(days);
+    let blocks = groupDaysIntoBlocks(days);
     const user = assignment.user as { id: string; email: string; full_name: string | null } | null;
     const project = assignment.project as { id: string; client_name: string; start_date: string | null; end_date: string | null } | null;
+
+    // If no explicit days, fall back to project date range
+    if (blocks.length === 0 && project?.start_date && project?.end_date) {
+      blocks = [{
+        startDate: project.start_date,
+        endDate: project.end_date,
+        days: [], // No specific day records
+      }];
+    }
 
     return {
       id: `gantt-${assignment.id}`,
@@ -1196,6 +1707,12 @@ export async function getGanttDataForRange(params: {
   endDate: string;
   userId?: string;
 }): Promise<ActionResult<GanttAssignment[]>> {
+  // Validate input
+  const validation = validateInput(ganttDataSchema, params);
+  if (!validation.success) {
+    return { success: false, error: validation.error };
+  }
+
   const { error: authError, supabase } = await getAuthenticatedClient();
   if (authError || !supabase) {
     return { success: false, error: authError || 'Authentication failed' };
@@ -1275,4 +1792,406 @@ export async function getGanttDataForRange(params: {
   });
 
   return { success: true, data: ganttAssignments };
+}
+
+// ============================================
+// User Availability operations
+// ============================================
+
+/**
+ * Create a new availability block (time off, unavailable period)
+ */
+export async function createUserAvailability(data: {
+  userId: string;
+  startDate: string;
+  endDate: string;
+  availabilityType: AvailabilityType;
+  reason?: string;
+}): Promise<ActionResult<UserAvailability>> {
+  // Validate input (includes date range validation)
+  const validation = validateInput(createAvailabilitySchema, data);
+  if (!validation.success) {
+    return { success: false, error: validation.error };
+  }
+
+  const { error: authError, supabase, user } = await requireAdmin();
+  if (authError || !supabase || !user) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: availability, error: insertError } = await (supabase as any)
+    .from('user_availability')
+    .insert({
+      user_id: data.userId,
+      start_date: data.startDate,
+      end_date: data.endDate,
+      availability_type: data.availabilityType,
+      reason: data.reason || null,
+      created_by: user.id,
+    })
+    .select(`
+      *,
+      user:profiles!user_id(id, email, full_name)
+    `)
+    .single();
+
+  if (insertError) {
+    console.error('Create availability error:', insertError);
+    return { success: false, error: 'Failed to create availability block' };
+  }
+
+  revalidatePath('/calendar');
+  revalidatePath('/my-schedule');
+
+  return { success: true, data: availability as UserAvailability };
+}
+
+/**
+ * Update an existing availability block
+ */
+export async function updateUserAvailability(data: {
+  id: string;
+  startDate?: string;
+  endDate?: string;
+  availabilityType?: AvailabilityType;
+  reason?: string;
+}): Promise<ActionResult> {
+  const { error: authError, supabase } = await requireAdmin();
+  if (authError || !supabase) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  // Build update object
+  const updates: Record<string, string | null> = {};
+  if (data.startDate) updates.start_date = data.startDate;
+  if (data.endDate) updates.end_date = data.endDate;
+  if (data.availabilityType) updates.availability_type = data.availabilityType;
+  if (data.reason !== undefined) updates.reason = data.reason || null;
+
+  if (Object.keys(updates).length === 0) {
+    return { success: false, error: 'No updates provided' };
+  }
+
+  // Validate dates if both provided
+  if (data.startDate && data.endDate && new Date(data.endDate) < new Date(data.startDate)) {
+    return { success: false, error: 'End date must be after start date' };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: updateError } = await (supabase as any)
+    .from('user_availability')
+    .update(updates)
+    .eq('id', data.id);
+
+  if (updateError) {
+    console.error('Update availability error:', updateError);
+    return { success: false, error: 'Failed to update availability block' };
+  }
+
+  revalidatePath('/calendar');
+  revalidatePath('/my-schedule');
+
+  return { success: true };
+}
+
+/**
+ * Delete an availability block
+ */
+export async function deleteUserAvailability(id: string): Promise<ActionResult> {
+  const { error: authError, supabase } = await requireAdmin();
+  if (authError || !supabase) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: deleteError } = await (supabase as any)
+    .from('user_availability')
+    .delete()
+    .eq('id', id);
+
+  if (deleteError) {
+    console.error('Delete availability error:', deleteError);
+    return { success: false, error: 'Failed to delete availability block' };
+  }
+
+  revalidatePath('/calendar');
+  revalidatePath('/my-schedule');
+
+  return { success: true };
+}
+
+/**
+ * Get availability blocks for a user within a date range
+ */
+export async function getUserAvailability(params: {
+  userId: string;
+  startDate: string;
+  endDate: string;
+}): Promise<ActionResult<UserAvailability[]>> {
+  const { error: authError, supabase } = await getAuthenticatedClient();
+  if (authError || !supabase) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any).rpc('get_user_availability_range', {
+    p_user_id: params.userId,
+    p_start_date: params.startDate,
+    p_end_date: params.endDate,
+  });
+
+  if (error) {
+    console.error('Get user availability error:', error);
+    return { success: false, error: 'Failed to fetch user availability' };
+  }
+
+  return { success: true, data: (data || []) as UserAvailability[] };
+}
+
+/**
+ * Get all availability blocks for multiple users within a date range
+ */
+export async function getTeamAvailability(params: {
+  startDate: string;
+  endDate: string;
+  userIds?: string[];
+}): Promise<ActionResult<UserAvailability[]>> {
+  const { error: authError, supabase } = await getAuthenticatedClient();
+  if (authError || !supabase) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query = (supabase as any)
+    .from('user_availability')
+    .select(`
+      *,
+      user:profiles!user_id(id, email, full_name)
+    `)
+    .lte('start_date', params.endDate)
+    .gte('end_date', params.startDate)
+    .order('start_date', { ascending: true });
+
+  if (params.userIds && params.userIds.length > 0) {
+    query = query.in('user_id', params.userIds);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('Get team availability error:', error);
+    return { success: false, error: 'Failed to fetch team availability' };
+  }
+
+  return { success: true, data: (data || []) as UserAvailability[] };
+}
+
+/**
+ * Check if a specific user is available on a specific date
+ */
+export async function checkUserAvailabilityOnDate(params: {
+  userId: string;
+  date: string;
+}): Promise<ActionResult<{ isAvailable: boolean; availabilityType: string | null; reason: string | null }>> {
+  const { error: authError, supabase } = await getAuthenticatedClient();
+  if (authError || !supabase) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any).rpc('check_user_availability', {
+    p_user_id: params.userId,
+    p_date: params.date,
+  });
+
+  if (error) {
+    console.error('Check user availability error:', error);
+    return { success: false, error: 'Failed to check user availability' };
+  }
+
+  const result = data?.[0];
+  return {
+    success: true,
+    data: {
+      isAvailable: result?.is_available ?? true,
+      availabilityType: result?.availability_type || null,
+      reason: result?.reason || null,
+    },
+  };
+}
+
+// ============================================
+// Project Schedule Status Actions
+// ============================================
+
+export interface AssignmentForCascade {
+  id: string;
+  userId: string;
+  userName: string;
+  currentStatus: BookingStatus;
+}
+
+/**
+ * Get project with its assignments for cascade dialog
+ */
+export async function getProjectAssignmentsForCascade(
+  projectId: string
+): Promise<ActionResult<{ projectName: string; assignments: AssignmentForCascade[] }>> {
+  const { error: authError, supabase } = await getAuthenticatedClient();
+  if (authError || !supabase) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  // Get project name
+  const { data: project, error: projectError } = await supabase
+    .from('projects')
+    .select('client_name')
+    .eq('id', projectId)
+    .single();
+
+  if (projectError) {
+    return { success: false, error: 'Failed to fetch project' };
+  }
+
+  // Get assignments with user info
+  const { data: assignments, error: assignmentsError } = await supabase
+    .from('project_assignments')
+    .select(`
+      id,
+      user_id,
+      booking_status
+    `)
+    .eq('project_id', projectId);
+
+  if (assignmentsError) {
+    return { success: false, error: 'Failed to fetch assignments' };
+  }
+
+  // Get user profiles separately
+  const userIds = [...new Set((assignments || []).map(a => a.user_id))];
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, full_name, email')
+    .in('id', userIds);
+
+  const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+
+  const formattedAssignments: AssignmentForCascade[] = (assignments || []).map((a) => {
+    const profile = profileMap.get(a.user_id);
+    return {
+      id: a.id,
+      userId: a.user_id,
+      userName: profile?.full_name || profile?.email || 'Unknown',
+      currentStatus: a.booking_status as BookingStatus,
+    };
+  });
+
+  return {
+    success: true,
+    data: {
+      projectName: project.client_name,
+      assignments: formattedAssignments,
+    },
+  };
+}
+
+/**
+ * Update project schedule status
+ */
+export async function updateProjectScheduleStatus(params: {
+  projectId: string;
+  newStatus: BookingStatus;
+}): Promise<ActionResult<{ previousStatus: BookingStatus | null }>> {
+  const { error: authError, supabase } = await getAuthenticatedClient();
+  if (authError || !supabase) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  // First get the current status
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: project, error: fetchError } = await (supabase as any)
+    .from('projects')
+    .select('schedule_status, start_date, end_date')
+    .eq('id', params.projectId)
+    .single();
+
+  if (fetchError || !project) {
+    return { success: false, error: 'Failed to fetch project' };
+  }
+
+  // Validate project has dates
+  if (!project.start_date || !project.end_date) {
+    return { success: false, error: 'Cannot set schedule status without project dates' };
+  }
+
+  // Update the status
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: updateError } = await (supabase as any)
+    .from('projects')
+    .update({ schedule_status: params.newStatus })
+    .eq('id', params.projectId);
+
+  if (updateError) {
+    console.error('Update project schedule status error:', updateError);
+    return { success: false, error: 'Failed to update schedule status' };
+  }
+
+  revalidatePath('/projects');
+  revalidatePath(`/projects/${params.projectId}`);
+  revalidatePath('/project-calendar');
+
+  return {
+    success: true,
+    data: { previousStatus: project.schedule_status as BookingStatus | null },
+  };
+}
+
+/**
+ * Cascade project schedule status to selected assignments
+ */
+export async function cascadeStatusToAssignments(params: {
+  projectId: string;
+  newStatus: BookingStatus;
+  assignmentIds: string[];
+  note?: string;
+}): Promise<ActionResult<{ updatedCount: number }>> {
+  const { error: authError, supabase, user } = await getAuthenticatedClient();
+  if (authError || !supabase || !user) {
+    return { success: false, error: authError || 'Authentication failed' };
+  }
+
+  if (params.assignmentIds.length === 0) {
+    return { success: true, data: { updatedCount: 0 } };
+  }
+
+  // Update all selected assignments
+  const { error: updateError, count } = await supabase
+    .from('project_assignments')
+    .update({ booking_status: params.newStatus })
+    .in('id', params.assignmentIds)
+    .eq('project_id', params.projectId);
+
+  if (updateError) {
+    console.error('Cascade status to assignments error:', updateError);
+    return { success: false, error: 'Failed to update assignments' };
+  }
+
+  // Record in booking status history for each assignment
+  const historyRecords = params.assignmentIds.map((assignmentId) => ({
+    assignment_id: assignmentId,
+    new_status: params.newStatus,
+    note: params.note || `Cascaded from project schedule status change`,
+    changed_by: user.id,
+  }));
+
+  await supabase.from('booking_status_history').insert(historyRecords);
+
+  revalidatePath('/projects');
+  revalidatePath(`/projects/${params.projectId}`);
+  revalidatePath('/calendar');
+  revalidatePath('/my-schedule');
+  revalidatePath('/project-calendar');
+
+  return { success: true, data: { updatedCount: count || params.assignmentIds.length } };
 }

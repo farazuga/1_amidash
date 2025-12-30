@@ -1,14 +1,14 @@
 'use client';
 
 import { useMemo } from 'react';
+import { format } from 'date-fns';
 import { GanttBar } from './gantt-bar';
 import { cn } from '@/lib/utils';
 import type { GanttAssignment } from '@/types/calendar';
 
 interface GanttRowProps {
   assignment: GanttAssignment;
-  viewStartDate: Date;
-  viewEndDate: Date;
+  weekdayDates: Date[];
   totalDays: number;
   onStatusClick?: (assignmentId: string) => void;
   onEditClick?: (assignment: GanttAssignment) => void;
@@ -17,41 +17,53 @@ interface GanttRowProps {
 
 export function GanttRow({
   assignment,
-  viewStartDate,
-  viewEndDate,
+  weekdayDates,
   totalDays,
   onStatusClick,
   onEditClick,
   isUpdating,
 }: GanttRowProps) {
+  // Create a map of date string to column index for quick lookup
+  const dateToColumnMap = useMemo(() => {
+    const map = new Map<string, number>();
+    weekdayDates.forEach((date, index) => {
+      map.set(format(date, 'yyyy-MM-dd'), index + 1); // 1-based columns
+    });
+    return map;
+  }, [weekdayDates]);
+
   // Calculate column positions for each block
   const blockPositions = useMemo(() => {
-    const viewStart = viewStartDate.getTime();
-    const msPerDay = 24 * 60 * 60 * 1000;
-
     return assignment.blocks
       .map((block) => {
-        const blockStart = new Date(block.startDate + 'T00:00:00').getTime();
-        const blockEnd = new Date(block.endDate + 'T00:00:00').getTime();
+        // Find the column for start and end dates
+        const startCol = dateToColumnMap.get(block.startDate);
+        const endCol = dateToColumnMap.get(block.endDate);
 
-        // Calculate 1-based column positions
-        const startCol = Math.floor((blockStart - viewStart) / msPerDay) + 1;
-        const endCol = Math.floor((blockEnd - viewStart) / msPerDay) + 1;
+        // If block doesn't intersect with visible weekdays, skip
+        if (startCol === undefined && endCol === undefined) {
+          // Check if any days in the block are visible
+          const blockDays = block.days || [];
+          const visibleDays = blockDays.filter(d => dateToColumnMap.has(d.work_date));
+          if (visibleDays.length === 0) return null;
 
-        // Check if block is visible in the view
-        if (endCol < 1 || startCol > totalDays) {
-          return null;
+          // Find min and max columns for visible days
+          const cols = visibleDays.map(d => dateToColumnMap.get(d.work_date)!);
+          return {
+            block,
+            startCol: Math.min(...cols),
+            endCol: Math.max(...cols),
+          };
         }
 
-        // Clamp to view bounds
         return {
           block,
-          startCol: Math.max(1, startCol),
-          endCol: Math.min(totalDays, endCol),
+          startCol: startCol || 1,
+          endCol: endCol || totalDays,
         };
       })
       .filter(Boolean) as { block: typeof assignment.blocks[0]; startCol: number; endCol: number }[];
-  }, [assignment.blocks, viewStartDate, totalDays]);
+  }, [assignment.blocks, dateToColumnMap, totalDays]);
 
   if (blockPositions.length === 0) {
     return null;

@@ -171,6 +171,75 @@ export interface UpdateStatusResult {
   error?: string;
 }
 
+export interface UpdateProjectDatesData {
+  projectId: string;
+  startDate: string;
+  endDate: string;
+}
+
+export interface UpdateProjectDatesResult {
+  success: boolean;
+  error?: string;
+}
+
+export async function updateProjectDates(data: UpdateProjectDatesData): Promise<UpdateProjectDatesResult> {
+  const supabase = await createClient();
+
+  // Get current user
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    return { success: false, error: 'Authentication required' };
+  }
+
+  // Get current project dates for audit log
+  const { data: project, error: fetchError } = await supabase
+    .from('projects')
+    .select('start_date, end_date')
+    .eq('id', data.projectId)
+    .single();
+
+  if (fetchError) {
+    return { success: false, error: 'Project not found' };
+  }
+
+  // Update project dates
+  const { error: updateError } = await supabase
+    .from('projects')
+    .update({
+      start_date: data.startDate,
+      end_date: data.endDate,
+    })
+    .eq('id', data.projectId);
+
+  if (updateError) {
+    console.error('Date update error:', updateError);
+    return { success: false, error: 'Failed to update dates' };
+  }
+
+  // Add audit log
+  try {
+    await supabase.from('audit_logs').insert({
+      project_id: data.projectId,
+      user_id: user.id,
+      action: 'update',
+      field_name: 'dates',
+      old_value: project.start_date && project.end_date
+        ? `${project.start_date} to ${project.end_date}`
+        : null,
+      new_value: `${data.startDate} to ${data.endDate}`,
+    });
+  } catch (err) {
+    console.error('Audit log error:', err);
+    // Don't fail the whole operation
+  }
+
+  revalidatePath(`/projects/${data.projectId}`);
+  revalidatePath('/projects');
+  revalidatePath('/project-calendar');
+
+  return { success: true };
+}
+
 export async function updateProjectStatus(data: UpdateStatusData): Promise<UpdateStatusResult> {
   const supabase = await createClient();
 
@@ -218,4 +287,61 @@ export async function updateProjectStatus(data: UpdateStatusData): Promise<Updat
   revalidatePath('/projects');
 
   return { success: true };
+}
+
+export interface BulkUpdateScheduleStatusData {
+  projectIds: string[];
+  scheduleStatus: string;
+}
+
+export interface BulkUpdateScheduleStatusResult {
+  success: boolean;
+  updatedCount?: number;
+  error?: string;
+}
+
+export async function bulkUpdateScheduleStatus(data: BulkUpdateScheduleStatusData): Promise<BulkUpdateScheduleStatusResult> {
+  const supabase = await createClient();
+
+  // Get current user
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    return { success: false, error: 'Authentication required' };
+  }
+
+  if (!data.projectIds.length) {
+    return { success: false, error: 'No projects selected' };
+  }
+
+  // Update all projects
+  const { error: updateError, count } = await supabase
+    .from('projects')
+    .update({ schedule_status: data.scheduleStatus })
+    .in('id', data.projectIds);
+
+  if (updateError) {
+    console.error('Bulk status update error:', updateError);
+    return { success: false, error: 'Failed to update projects' };
+  }
+
+  // Add audit logs
+  try {
+    await supabase.from('audit_logs').insert(
+      data.projectIds.map(projectId => ({
+        project_id: projectId,
+        user_id: user.id,
+        action: 'update',
+        field_name: 'schedule_status',
+        new_value: data.scheduleStatus,
+      }))
+    );
+  } catch (err) {
+    console.error('Audit log error:', err);
+    // Don't fail the whole operation
+  }
+
+  revalidatePath('/projects');
+  revalidatePath('/project-calendar');
+
+  return { success: true, updatedCount: count || data.projectIds.length };
 }

@@ -32,12 +32,20 @@ export { ProjectDatePicker } from './project-date-picker';
 // View Components
 export { UserScheduleView } from './user-schedule-view';
 export { WeekViewCalendar } from './week-view-calendar';
+export { MyScheduleCalendarView } from './my-schedule-calendar-view';
 
 // Drag and Drop Components
 export { DraggableUser, DraggingUserOverlay } from './draggable-user';
+export { DraggableAssignmentCard } from './draggable-assignment-card';
 export { DroppableDayCell } from './droppable-day-cell';
 export { AssignmentSidebar } from './assignment-sidebar';
 
 // Bulk Operations Components
 export { BulkActionsToolbar } from './bulk-actions-toolbar';
 export { BulkAssignDialog } from './bulk-assign-dialog';
+
+// Availability Components
+export { AvailabilityDialog } from './availability-dialog';
+
+// Mobile Components
+export { MobileAssignSheet } from './mobile-assign-sheet';
