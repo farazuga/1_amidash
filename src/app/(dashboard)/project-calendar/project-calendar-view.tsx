@@ -512,6 +512,8 @@ export function ProjectCalendarView() {
                   size="sm"
                   onClick={() => setViewType('timeline')}
                   className="rounded-r-none h-8 px-3"
+                  aria-label="Timeline view"
+                  aria-pressed={viewType === 'timeline'}
                 >
                   <LayoutList className="h-4 w-4" />
                 </Button>
@@ -525,6 +527,8 @@ export function ProjectCalendarView() {
                   size="sm"
                   onClick={() => setViewType('month')}
                   className="rounded-l-none h-8 px-3"
+                  aria-label="Month view"
+                  aria-pressed={viewType === 'month'}
                 >
                   <CalendarDays className="h-4 w-4" />
                 </Button>
@@ -722,7 +726,6 @@ export function ProjectCalendarView() {
         <ProjectCalendarMonthView
           projects={filteredProjects}
           currentMonth={startMonth}
-          engineers={engineers}
         />
       ) : (
       <DndContext

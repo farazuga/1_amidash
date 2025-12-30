@@ -29,10 +29,15 @@ import { cn } from '@/lib/utils';
 import type { ProjectWithDetails } from './use-projects-with-dates';
 import type { BookingStatus } from '@/types/calendar';
 
+// Layout constants
+const BAR_HEIGHT = 22;
+const BAR_GAP = 4;
+const CONTAINER_PADDING = 4;
+const MAX_ROWS = 50; // Safety limit to prevent infinite loops
+
 interface ProjectCalendarMonthViewProps {
   projects: ProjectWithDetails[];
   currentMonth: Date;
-  engineers: { id: string; full_name: string }[];
 }
 
 interface ProjectBar {
@@ -47,7 +52,6 @@ interface ProjectBar {
 export function ProjectCalendarMonthView({
   projects,
   currentMonth,
-  engineers,
 }: ProjectCalendarMonthViewProps) {
   // Get all weeks in the month (starting Monday)
   const weeks = useMemo(() => {
@@ -116,79 +120,84 @@ export function ProjectCalendarMonthView({
     return conflicts;
   }, [projects]);
 
-  // Calculate project bars for a week
-  const getProjectBarsForWeek = (weekStart: Date): ProjectBar[] => {
-    const weekdays = getWeekdays(weekStart);
-    const bars: ProjectBar[] = [];
-    const rowOccupancy: boolean[][] = Array.from({ length: 5 }, () => []);
+  // Pre-calculate bars for all weeks (function moved inside useMemo to fix dependency)
+  const weekBars = useMemo(() => {
+    const getProjectBarsForWeek = (weekStart: Date): ProjectBar[] => {
+      const weekdays = getWeekdays(weekStart);
+      const bars: ProjectBar[] = [];
+      const rowOccupancy: boolean[][] = Array.from({ length: 5 }, () => []);
 
-    const sortedProjects = [...projects]
-      .filter(p => p.start_date && p.end_date)
-      .sort((a, b) => {
-        const aStart = parseISO(a.start_date!);
-        const bStart = parseISO(b.start_date!);
-        if (aStart < bStart) return -1;
-        if (aStart > bStart) return 1;
-        const aDuration = parseISO(a.end_date!).getTime() - aStart.getTime();
-        const bDuration = parseISO(b.end_date!).getTime() - bStart.getTime();
-        return bDuration - aDuration;
-      });
+      const sortedProjects = [...projects]
+        .filter(p => p.start_date && p.end_date)
+        .sort((a, b) => {
+          const aStart = parseISO(a.start_date!);
+          const bStart = parseISO(b.start_date!);
+          if (aStart < bStart) return -1;
+          if (aStart > bStart) return 1;
+          const aDuration = parseISO(a.end_date!).getTime() - aStart.getTime();
+          const bDuration = parseISO(b.end_date!).getTime() - bStart.getTime();
+          return bDuration - aDuration;
+        });
 
-    for (const project of sortedProjects) {
-      const projectStart = parseISO(project.start_date!);
-      const projectEnd = parseISO(project.end_date!);
+      for (const project of sortedProjects) {
+        const projectStart = parseISO(project.start_date!);
+        const projectEnd = parseISO(project.end_date!);
 
-      // Find overlap with this week's weekdays
-      let startIndex = -1;
-      let endIndex = -1;
+        // Find overlap with this week's weekdays
+        let startIndex = -1;
+        let endIndex = -1;
 
-      for (let i = 0; i < weekdays.length; i++) {
-        const day = weekdays[i];
-        if (isWithinInterval(day, { start: projectStart, end: projectEnd })) {
-          if (startIndex === -1) startIndex = i;
-          endIndex = i;
-        }
-      }
-
-      if (startIndex === -1) continue;
-
-      // Find available row
-      let row = 0;
-      while (true) {
-        let available = true;
-        for (let i = startIndex; i <= endIndex; i++) {
-          if (rowOccupancy[i][row]) {
-            available = false;
-            break;
+        for (let i = 0; i < weekdays.length; i++) {
+          const day = weekdays[i];
+          if (isWithinInterval(day, { start: projectStart, end: projectEnd })) {
+            if (startIndex === -1) startIndex = i;
+            endIndex = i;
           }
         }
-        if (available) break;
-        row++;
+
+        if (startIndex === -1) continue;
+
+        // Find available row with safety limit
+        let row = 0;
+        while (row < MAX_ROWS) {
+          let available = true;
+          for (let i = startIndex; i <= endIndex; i++) {
+            if (rowOccupancy[i][row]) {
+              available = false;
+              break;
+            }
+          }
+          if (available) break;
+          row++;
+        }
+
+        // Skip if we hit max rows (shouldn't happen in practice)
+        if (row >= MAX_ROWS) {
+          console.warn(`Max rows (${MAX_ROWS}) exceeded for project ${project.id}`);
+          continue;
+        }
+
+        // Mark row as occupied
+        for (let i = startIndex; i <= endIndex; i++) {
+          rowOccupancy[i][row] = true;
+        }
+
+        const isStart = isSameDay(weekdays[startIndex], projectStart);
+        const isEnd = isSameDay(weekdays[endIndex], projectEnd);
+
+        bars.push({
+          project,
+          startIndex,
+          endIndex,
+          isStart,
+          isEnd,
+          row,
+        });
       }
 
-      // Mark row as occupied
-      for (let i = startIndex; i <= endIndex; i++) {
-        rowOccupancy[i][row] = true;
-      }
+      return bars;
+    };
 
-      const isStart = isSameDay(weekdays[startIndex], projectStart);
-      const isEnd = isSameDay(weekdays[endIndex], projectEnd);
-
-      bars.push({
-        project,
-        startIndex,
-        endIndex,
-        isStart,
-        isEnd,
-        row,
-      });
-    }
-
-    return bars;
-  };
-
-  // Pre-calculate bars for all weeks
-  const weekBars = useMemo(() => {
     return weeks.map(weekStart => getProjectBarsForWeek(weekStart));
   }, [weeks, projects]);
 
@@ -211,7 +220,7 @@ export function ProjectCalendarMonthView({
         const weekdays = getWeekdays(weekStart);
         const bars = weekBars[weekIndex];
         const maxRow = bars.length > 0 ? Math.max(...bars.map(b => b.row)) + 1 : 0;
-        const barsHeight = maxRow * 26 + 4;
+        const barsHeight = maxRow * (BAR_HEIGHT + BAR_GAP) + CONTAINER_PADDING;
 
         return (
           <div key={weekIndex} className="border-b last:border-b-0">
