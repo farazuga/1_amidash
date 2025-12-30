@@ -487,11 +487,37 @@ export async function inlineEditProjectField(data: InlineEditData): Promise<Inli
     end_date: 'end_date',
     sales_order_number: 'sales_order_number',
     sales_order_url: 'sales_order_url',
+    status_id: 'current_status_id',
   };
 
   const dbField = fieldMap[data.field];
   if (!dbField) {
     return { success: false, error: 'Invalid field' };
+  }
+
+  // Special handling for status changes - need to update status history
+  if (data.field === 'status_id' && data.value) {
+    // Use the dedicated status update function for proper history tracking
+    const { data: currentProject } = await supabase
+      .from('projects')
+      .select('current_status:statuses(name)')
+      .eq('id', data.projectId)
+      .single();
+
+    const { data: newStatus } = await supabase
+      .from('statuses')
+      .select('name')
+      .eq('id', data.value)
+      .single();
+
+    const result = await updateProjectStatus({
+      projectId: data.projectId,
+      newStatusId: data.value,
+      currentStatusName: (currentProject?.current_status as { name: string } | null)?.name,
+      newStatusName: newStatus?.name,
+    });
+
+    return result;
   }
 
   // Get current project for audit log and sales order

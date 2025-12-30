@@ -702,33 +702,46 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
                   <TableHead
                     key={column.id}
                     className="relative group"
-                    style={{ width: preferences.widths[column.id] }}
+                    style={{
+                      width: preferences.widths[column.id],
+                      maxWidth: preferences.widths[column.id],
+                      minWidth: column.minWidth,
+                    }}
                   >
-                    <div className="flex items-center">
+                    <div className="flex items-center pr-4 overflow-hidden">
                       {column.sortable ? (
                         <Button
                           variant="ghost"
                           onClick={() => handleSort(column.id)}
-                          className="h-8 px-2 -ml-2"
+                          className="h-8 px-2 -ml-2 truncate"
                         >
-                          {column.label}
-                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                          <span className="truncate">{column.label}</span>
+                          <ArrowUpDown className="ml-2 h-4 w-4 shrink-0" />
                         </Button>
                       ) : column.id === 'client_portal' ? (
                         <Globe className="h-4 w-4 mx-auto text-muted-foreground" />
                       ) : (
-                        <span className="px-2">{column.label}</span>
+                        <span className="px-2 truncate">{column.label}</span>
                       )}
                     </div>
-                    {/* Resize handle */}
+                    {/* Resize handle - wider hit area for easier grabbing */}
                     <div
                       className={cn(
-                        'absolute right-0 top-0 h-full w-2 cursor-col-resize',
-                        'bg-transparent hover:bg-primary/30',
-                        resizingColumn === column.id && 'bg-primary/50'
+                        'absolute right-0 top-0 h-full w-4 cursor-col-resize',
+                        'flex items-center justify-center',
+                        'group-hover:opacity-100 opacity-0 transition-opacity',
+                        resizingColumn === column.id && 'opacity-100'
                       )}
                       onMouseDown={(e) => handleResizeStart(e, column.id)}
-                    />
+                    >
+                      <div
+                        className={cn(
+                          'w-1 h-6 rounded-full',
+                          'bg-border group-hover:bg-primary/50',
+                          resizingColumn === column.id && 'bg-primary'
+                        )}
+                      />
+                    </div>
                   </TableHead>
                 ))}
                 {/* Column Settings Gear Icon */}
@@ -806,9 +819,16 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
                   {visibleColumns.map((column) => (
                     <TableCell
                       key={column.id}
-                      style={{ width: preferences.widths[column.id] }}
+                      style={{
+                        width: preferences.widths[column.id],
+                        maxWidth: preferences.widths[column.id],
+                        minWidth: column.minWidth,
+                      }}
+                      className="overflow-hidden"
                     >
-                      {renderCell(project, column.id)}
+                      <div className="break-words">
+                        {renderCell(project, column.id)}
+                      </div>
                     </TableCell>
                   ))}
                   <TableCell>
