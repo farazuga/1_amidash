@@ -467,6 +467,18 @@ export function ProjectCalendarView() {
     );
   }, [bulkUpdateStatus, selectedProjects, newBulkStatus, clearSelection]);
 
+  // Cycle a single project's status
+  const handleCycleStatus = useCallback((projectId: string, currentStatus: BookingStatus) => {
+    const currentIndex = BOOKING_STATUS_ORDER.indexOf(currentStatus);
+    const nextIndex = (currentIndex + 1) % BOOKING_STATUS_ORDER.length;
+    const nextStatus = BOOKING_STATUS_ORDER[nextIndex];
+
+    bulkUpdateStatus.mutate({
+      projectIds: [projectId],
+      scheduleStatus: nextStatus,
+    });
+  }, [bulkUpdateStatus]);
+
   // Count total conflicts
   const totalConflicts = projectConflicts.size;
 
@@ -726,6 +738,7 @@ export function ProjectCalendarView() {
         <ProjectCalendarMonthView
           projects={filteredProjects}
           currentMonth={startMonth}
+          onStatusChange={handleCycleStatus}
         />
       ) : (
       <DndContext
@@ -839,7 +852,20 @@ export function ProjectCalendarView() {
                     )}
                   </div>
                   <div className="flex items-center gap-2 mt-1">
-                    <ScheduleStatusBadge status={status} size="sm" />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>
+                          <ScheduleStatusBadge
+                            status={status}
+                            size="sm"
+                            onClick={() => handleCycleStatus(project.id, status)}
+                          />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <span className="text-xs">Click to cycle status</span>
+                      </TooltipContent>
+                    </Tooltip>
                     <span className="text-xs text-muted-foreground">
                       {format(new Date(project.start_date!), 'MMM d')} - {format(new Date(project.end_date!), 'MMM d')}
                     </span>

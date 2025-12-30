@@ -22,7 +22,9 @@ import { StatusHistory } from '@/components/projects/status-history';
 import { StatusChangeButton } from '@/components/projects/status-change-button';
 import { CopyClientLink } from '@/components/projects/copy-client-link';
 import { DeleteProjectButton } from '@/components/projects/delete-project-button';
+import { ProjectScheduleStatus, ProjectScheduleStatusDisplay } from '@/components/projects/project-schedule-status';
 import type { Project } from '@/types';
+import type { BookingStatus } from '@/types/calendar';
 
 async function getCurrentUser() {
   const supabase = await createClient();
@@ -131,6 +133,8 @@ export default async function ProjectDetailPage({
   ]);
 
   const isAdmin = currentUser?.role === 'admin';
+  const canEditSchedule = currentUser?.role === 'admin' || currentUser?.role === 'editor';
+  const hasProjectDates = Boolean(project?.start_date && project?.end_date);
 
   if (!project) {
     notFound();
@@ -254,6 +258,19 @@ export default async function ProjectDetailPage({
                     </p>
                   </div>
                 </div>
+              )}
+
+              {canEditSchedule ? (
+                <ProjectScheduleStatus
+                  projectId={project.id}
+                  currentStatus={(project as { schedule_status?: string }).schedule_status as BookingStatus | null}
+                  hasProjectDates={hasProjectDates}
+                />
+              ) : (
+                <ProjectScheduleStatusDisplay
+                  status={(project as { schedule_status?: string }).schedule_status as BookingStatus | null}
+                  hasProjectDates={hasProjectDates}
+                />
               )}
 
               {project.contract_type && (

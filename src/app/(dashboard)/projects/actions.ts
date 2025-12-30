@@ -345,3 +345,79 @@ export async function bulkUpdateScheduleStatus(data: BulkUpdateScheduleStatusDat
 
   return { success: true, updatedCount: count || data.projectIds.length };
 }
+
+export interface UpdateScheduleStatusData {
+  projectId: string;
+  scheduleStatus: string;
+}
+
+export interface UpdateScheduleStatusResult {
+  success: boolean;
+  error?: string;
+}
+
+export async function updateProjectScheduleStatus(data: UpdateScheduleStatusData): Promise<UpdateScheduleStatusResult> {
+  const supabase = await createClient();
+
+  // Get current user
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    return { success: false, error: 'Authentication required' };
+  }
+
+  // Verify user has permission (admin or editor)
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile || !['admin', 'editor'].includes(profile.role || '')) {
+    return { success: false, error: 'Insufficient permissions' };
+  }
+
+  // Verify project exists and has dates
+  const { data: project } = await supabase
+    .from('projects')
+    .select('id, start_date, end_date')
+    .eq('id', data.projectId)
+    .single();
+
+  if (!project) {
+    return { success: false, error: 'Project not found' };
+  }
+
+  if (!project.start_date || !project.end_date) {
+    return { success: false, error: 'Project must have start and end dates to set schedule status' };
+  }
+
+  // Update the project
+  const { error: updateError } = await supabase
+    .from('projects')
+    .update({ schedule_status: data.scheduleStatus })
+    .eq('id', data.projectId);
+
+  if (updateError) {
+    console.error('Schedule status update error:', updateError);
+    return { success: false, error: 'Failed to update schedule status' };
+  }
+
+  // Add audit log
+  try {
+    await supabase.from('audit_logs').insert({
+      project_id: data.projectId,
+      user_id: user.id,
+      action: 'update',
+      field_name: 'schedule_status',
+      new_value: data.scheduleStatus,
+    });
+  } catch (err) {
+    console.error('Audit log error:', err);
+  }
+
+  revalidatePath(`/projects/${data.projectId}`);
+  revalidatePath('/projects');
+  revalidatePath('/project-calendar');
+
+  return { success: true };
+}

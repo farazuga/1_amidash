@@ -38,6 +38,7 @@ const MAX_ROWS = 50; // Safety limit to prevent infinite loops
 interface ProjectCalendarMonthViewProps {
   projects: ProjectWithDetails[];
   currentMonth: Date;
+  onStatusChange?: (projectId: string, currentStatus: BookingStatus) => void;
 }
 
 interface ProjectBar {
@@ -52,6 +53,7 @@ interface ProjectBar {
 export function ProjectCalendarMonthView({
   projects,
   currentMonth,
+  onStatusChange,
 }: ProjectCalendarMonthViewProps) {
   // Get all weeks in the month (starting Monday)
   const weeks = useMemo(() => {
@@ -301,6 +303,10 @@ export function ProjectCalendarMonthView({
                       <TooltipContent side="top">
                         <div className="text-xs">
                           <div className="font-medium">{bar.project.client_name}</div>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className={cn('h-1.5 w-1.5 rounded-full', config.dotColor)} />
+                            <span>{config.label}</span>
+                          </div>
                           <div className="text-muted-foreground">
                             {format(parseISO(bar.project.start_date!), 'MMM d')} –{' '}
                             {format(parseISO(bar.project.end_date!), 'MMM d')}
