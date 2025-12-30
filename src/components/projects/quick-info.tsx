@@ -1,18 +1,21 @@
 'use client';
 
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, DollarSign, User, Info, ExternalLink, Mail, Phone, FileText, Link as LinkIcon, CircleDot } from 'lucide-react';
+import { Calendar, ExternalLink, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { InlineEditField } from './inline-edit-field';
 import { InlineDateRangePicker } from './inline-date-range-picker';
-import { ScheduleStatusSelect } from './schedule-status-select';
 import { ScheduleStatusBadge } from './schedule-status-badge';
 import { StatusBadge } from './status-badge';
+import { CopyClientLink } from './copy-client-link';
+import { DeleteProjectButton } from './delete-project-button';
 import { inlineEditProjectField, updateProjectDates, updateProjectScheduleStatus } from '@/app/(dashboard)/projects/actions';
 import { toast } from 'sonner';
 import type { BookingStatus } from '@/types/calendar';
+import { BOOKING_STATUS_CONFIG, BOOKING_STATUS_ORDER } from '@/lib/calendar/constants';
 
 interface QuickInfoProps {
   project: {
@@ -38,6 +41,9 @@ interface QuickInfoProps {
     poc_phone: string | null;
     scope_link: string | null;
     salesperson_id: string | null;
+    client_name: string;
+    client_token: string | null;
+    client_portal_views?: number;
   };
   statuses?: Array<{
     id: string;
@@ -51,6 +57,7 @@ interface QuickInfoProps {
   isOverdue?: boolean;
   canEdit?: boolean;
   canEditSchedule?: boolean;
+  isAdmin?: boolean;
   onStatusChange?: (statusId: string) => void;
 }
 
@@ -61,6 +68,7 @@ export function QuickInfo({
   isOverdue = false,
   canEdit = false,
   canEditSchedule = false,
+  isAdmin = false,
   onStatusChange,
 }: QuickInfoProps) {
   const hasProjectDates = Boolean(project.start_date && project.end_date);
@@ -127,6 +135,32 @@ export function QuickInfo({
         <CardTitle className="text-sm font-medium">Quick Info</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
+        {/* Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b bg-muted/30">
+          <CopyClientLink token={project.client_token} />
+
+          {project.client_token && (
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground px-3 py-1.5 border rounded-md bg-background">
+              <Eye className="h-4 w-4" />
+              <span className="tabular-nums">{project.client_portal_views ?? 0}</span>
+            </div>
+          )}
+
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/projects/${project.sales_order_number || project.id}/calendar`}>
+              <Calendar className="mr-1.5 h-3.5 w-3.5" />
+              Schedule
+            </Link>
+          </Button>
+
+          {isAdmin && (
+            <DeleteProjectButton
+              projectId={project.id}
+              projectName={project.client_name}
+            />
+          )}
+        </div>
+
         <div className="divide-y">
           {/* Project Status */}
           <div className="flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors">
@@ -161,10 +195,21 @@ export function QuickInfo({
           <div className="flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors">
             <span className="text-sm text-muted-foreground">Schedule</span>
             {canEditSchedule && hasProjectDates ? (
-              <ScheduleStatusSelect
-                value={project.schedule_status ?? null}
-                onChange={handleScheduleStatusChange}
-                hasProjectDates={hasProjectDates}
+              <InlineEditField
+                value={project.schedule_status || ''}
+                displayValue={
+                  project.schedule_status ? (
+                    <ScheduleStatusBadge status={project.schedule_status} />
+                  ) : undefined
+                }
+                type="select"
+                options={BOOKING_STATUS_ORDER.map(status => ({
+                  value: status,
+                  label: BOOKING_STATUS_CONFIG[status].label,
+                }))}
+                onSave={async (v) => {
+                  await handleScheduleStatusChange(v as BookingStatus);
+                }}
               />
             ) : hasProjectDates ? (
               <ScheduleStatusBadge status={project.schedule_status ?? null} />

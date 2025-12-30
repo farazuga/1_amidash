@@ -58,14 +58,12 @@ export default async function ProjectDetailPage({
         {/* Hero Header */}
         <ProjectHeader
           project={{
-            ...project,
-            client_portal_views: (project as { client_portal_views?: number }).client_portal_views,
-            schedule_status: (project as { schedule_status?: string }).schedule_status as BookingStatus | null | undefined,
+            client_name: project.client_name,
+            created_at: project.created_at,
+            created_by_profile: project.created_by_profile,
+            salesperson: project.salesperson,
           }}
-          statuses={statuses}
-          projectTypeStatuses={projectTypeStatuses}
           isOverdue={!!isOverdue}
-          isAdmin={isAdmin}
         />
 
         {/* Project Details Card */}
@@ -119,12 +117,16 @@ export default async function ProjectDetailPage({
               poc_email: project.poc_email,
               poc_phone: project.poc_phone,
               scope_link: project.scope_link,
+              client_name: project.client_name,
+              client_token: project.client_token,
+              client_portal_views: (project as { client_portal_views?: number }).client_portal_views,
             }}
             statuses={statuses}
             salespeople={salespeople}
             isOverdue={!!isOverdue}
             canEdit={isAdmin}
             canEditSchedule={canEditSchedule}
+            isAdmin={isAdmin}
           />
         </div>
       </div>
