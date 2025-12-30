@@ -1,27 +1,22 @@
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
 import {
-  ArrowLeft,
   ExternalLink,
   Mail,
   Phone,
   Calendar,
   DollarSign,
   FileText,
-  Eye,
+  User,
+  Info,
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { StatusBadge } from '@/components/projects/status-badge';
+import { cn } from '@/lib/utils';
+import { ProjectHeader } from '@/components/projects/project-header';
 import { ProjectForm } from '@/components/projects/project-form';
 import { StatusHistory } from '@/components/projects/status-history';
-import { StatusChangeButton } from '@/components/projects/status-change-button';
-import { CopyClientLink } from '@/components/projects/copy-client-link';
-import { DeleteProjectButton } from '@/components/projects/delete-project-button';
 import { ProjectScheduleStatus, ProjectScheduleStatusDisplay } from '@/components/projects/project-schedule-status';
 import type { Project } from '@/types';
 import type { BookingStatus } from '@/types/calendar';
@@ -147,63 +142,18 @@ export default async function ProjectDetailPage({
 
   return (
     <div className="space-y-4 md:space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-start gap-2 md:gap-4">
-          <Button variant="ghost" size="icon" asChild className="shrink-0 h-10 w-10">
-            <Link href="/projects">
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-          </Button>
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2 mb-1">
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight break-words">
-                {project.client_name}
-              </h1>
-              <StatusBadge status={project.current_status} />
-              {isOverdue && (
-                <Badge variant="destructive">Overdue</Badge>
-              )}
-            </div>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              Created {project.created_at ? format(new Date(project.created_at), 'MMM d, yyyy') : '-'}
-              {project.created_by_profile &&
-                ` by ${project.created_by_profile.full_name || project.created_by_profile.email}`}
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <CopyClientLink token={project.client_token} />
-          {project.client_token && (
-            <div className="flex items-center gap-1.5 text-sm text-muted-foreground px-3 py-2 border rounded-md bg-muted/30">
-              <Eye className="h-4 w-4" />
-              <span>{(project as { client_portal_views?: number }).client_portal_views ?? 0} views</span>
-            </div>
-          )}
-          <StatusChangeButton
-            projectId={project.id}
-            currentStatusId={project.current_status_id}
-            statuses={statuses}
-            pocEmail={project.poc_email}
-            clientName={project.client_name}
-            clientToken={project.client_token}
-            projectTypeId={project.project_type_id}
-            projectTypeStatuses={projectTypeStatuses}
-          />
-          <Button variant="outline" asChild>
-            <Link href={`/projects/${project.id}/calendar`}>
-              <Calendar className="mr-2 h-4 w-4" />
-              Schedule
-            </Link>
-          </Button>
-          {isAdmin && (
-            <DeleteProjectButton
-              projectId={project.id}
-              projectName={project.client_name}
-            />
-          )}
-        </div>
-      </div>
+      {/* Hero Header */}
+      <ProjectHeader
+        project={{
+          ...project,
+          client_portal_views: (project as { client_portal_views?: number }).client_portal_views,
+          schedule_status: (project as { schedule_status?: string }).schedule_status as import('@/types/calendar').BookingStatus | null | undefined,
+        }}
+        statuses={statuses}
+        projectTypeStatuses={projectTypeStatuses}
+        isOverdue={!!isOverdue}
+        isAdmin={isAdmin}
+      />
 
       <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
         {/* Main Content */}
@@ -230,128 +180,173 @@ export default async function ProjectDetailPage({
 
         {/* Sidebar */}
         <div className="space-y-4 md:space-y-6">
-          {/* Quick Info */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Info</CardTitle>
+          {/* Quick Info - Enhanced */}
+          <Card className="overflow-hidden">
+            <CardHeader className="bg-gradient-to-b from-muted/50 to-transparent pb-4">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Info className="h-4 w-4 text-muted-foreground" />
+                Quick Info
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {project.sales_amount && (
-                <div className="flex items-center gap-3">
-                  <DollarSign className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Sales Amount</p>
-                    <p className="font-semibold text-lg">
+            <CardContent className="p-0">
+              <div className="divide-y">
+                {/* Sales Amount */}
+                {project.sales_amount && (
+                  <div className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <DollarSign className="h-4 w-4 text-primary" />
+                      </div>
+                      <span className="text-sm text-muted-foreground">Sales Amount</span>
+                    </div>
+                    <span className="text-lg font-semibold tabular-nums">
                       ${project.sales_amount.toLocaleString()}
-                    </p>
+                    </span>
                   </div>
-                </div>
-              )}
-
-              {project.goal_completion_date && (
-                <div className="flex items-center gap-3">
-                  <Calendar className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Goal Date</p>
-                    <p className={`font-semibold ${isOverdue ? 'text-destructive' : ''}`}>
-                      {format(new Date(project.goal_completion_date), 'MMM d, yyyy')}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {canEditSchedule ? (
-                <ProjectScheduleStatus
-                  projectId={project.id}
-                  currentStatus={(project as { schedule_status?: string }).schedule_status as BookingStatus | null}
-                  hasProjectDates={hasProjectDates}
-                />
-              ) : (
-                <ProjectScheduleStatusDisplay
-                  status={(project as { schedule_status?: string }).schedule_status as BookingStatus | null}
-                  hasProjectDates={hasProjectDates}
-                />
-              )}
-
-              {project.contract_type && (
-                <div className="flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Contract Type</p>
-                    <p className="font-medium">{project.contract_type}</p>
-                  </div>
-                </div>
-              )}
-
-              {project.salesperson && (
-                <div className="flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Salesperson</p>
-                    <p className="font-medium">
-                      {project.salesperson.full_name || project.salesperson.email}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              <Separator />
-
-              {/* POC Info */}
-              {project.poc_name && (
-                <div>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Point of Contact
-                  </p>
-                  <p className="font-medium">{project.poc_name}</p>
-                  {project.poc_email && (
-                    <a
-                      href={`mailto:${project.poc_email}`}
-                      className="flex items-center gap-1 text-sm text-primary hover:underline"
-                    >
-                      <Mail className="h-3 w-3" />
-                      {project.poc_email}
-                    </a>
-                  )}
-                  {project.poc_phone && (
-                    <a
-                      href={`tel:${project.poc_phone}`}
-                      className="flex items-center gap-1 text-sm text-muted-foreground"
-                    >
-                      <Phone className="h-3 w-3" />
-                      {project.poc_phone}
-                    </a>
-                  )}
-                </div>
-              )}
-
-              <Separator />
-
-              {/* Links */}
-              <div className="space-y-2">
-                {project.sales_order_url && (
-                  <Button variant="outline" size="sm" className="w-full" asChild>
-                    <a
-                      href={project.sales_order_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      Sales Order ({project.sales_order_number || 'View'})
-                    </a>
-                  </Button>
                 )}
-                {project.scope_link && (
-                  <Button variant="outline" size="sm" className="w-full" asChild>
-                    <a
-                      href={project.scope_link}
-                      target="_blank"
-                      rel="noopener noreferrer"
+
+                {/* Goal Date */}
+                {project.goal_completion_date && (
+                  <div className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={cn(
+                          'h-8 w-8 rounded-full flex items-center justify-center',
+                          isOverdue ? 'bg-destructive/10' : 'bg-primary/10'
+                        )}
+                      >
+                        <Calendar
+                          className={cn(
+                            'h-4 w-4',
+                            isOverdue ? 'text-destructive' : 'text-primary'
+                          )}
+                        />
+                      </div>
+                      <span className="text-sm text-muted-foreground">Goal Date</span>
+                    </div>
+                    <span
+                      className={cn('font-medium', isOverdue && 'text-destructive')}
                     >
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      View Scope Document
-                    </a>
-                  </Button>
+                      {format(new Date(project.goal_completion_date), 'MMM d, yyyy')}
+                    </span>
+                  </div>
+                )}
+
+                {/* Schedule Status */}
+                <div className="p-4 hover:bg-muted/30 transition-colors">
+                  {canEditSchedule ? (
+                    <ProjectScheduleStatus
+                      projectId={project.id}
+                      currentStatus={(project as { schedule_status?: string }).schedule_status as BookingStatus | null}
+                      hasProjectDates={hasProjectDates}
+                    />
+                  ) : (
+                    <ProjectScheduleStatusDisplay
+                      status={(project as { schedule_status?: string }).schedule_status as BookingStatus | null}
+                      hasProjectDates={hasProjectDates}
+                    />
+                  )}
+                </div>
+
+                {/* Contract Type */}
+                {project.contract_type && (
+                  <div className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <FileText className="h-4 w-4 text-primary" />
+                      </div>
+                      <span className="text-sm text-muted-foreground">Contract Type</span>
+                    </div>
+                    <span className="font-medium">{project.contract_type}</span>
+                  </div>
+                )}
+
+                {/* Salesperson */}
+                {project.salesperson && (
+                  <div className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <User className="h-4 w-4 text-primary" />
+                      </div>
+                      <span className="text-sm text-muted-foreground">Salesperson</span>
+                    </div>
+                    <span className="font-medium">
+                      {project.salesperson.full_name || project.salesperson.email}
+                    </span>
+                  </div>
+                )}
+
+                {/* POC Info */}
+                {project.poc_name && (
+                  <div className="p-4 hover:bg-muted/30 transition-colors">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <User className="h-4 w-4 text-primary" />
+                      </div>
+                      <span className="text-sm text-muted-foreground">Point of Contact</span>
+                    </div>
+                    <div className="ml-11 space-y-1">
+                      <p className="font-medium">{project.poc_name}</p>
+                      {project.poc_email && (
+                        <a
+                          href={`mailto:${project.poc_email}`}
+                          className="flex items-center gap-1.5 text-sm text-primary hover:underline"
+                        >
+                          <Mail className="h-3.5 w-3.5" />
+                          {project.poc_email}
+                        </a>
+                      )}
+                      {project.poc_phone && (
+                        <a
+                          href={`tel:${project.poc_phone}`}
+                          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+                        >
+                          <Phone className="h-3.5 w-3.5" />
+                          {project.poc_phone}
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Links */}
+                {(project.sales_order_url || project.scope_link) && (
+                  <div className="p-4 space-y-2">
+                    {project.sales_order_url && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start hover:bg-primary/5 hover:border-primary/30"
+                        asChild
+                      >
+                        <a
+                          href={project.sales_order_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          Sales Order ({project.sales_order_number || 'View'})
+                        </a>
+                      </Button>
+                    )}
+                    {project.scope_link && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start hover:bg-primary/5 hover:border-primary/30"
+                        asChild
+                      >
+                        <a
+                          href={project.scope_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          View Scope Document
+                        </a>
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
             </CardContent>

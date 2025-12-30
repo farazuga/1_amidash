@@ -52,6 +52,14 @@ export function AssignmentCard({
     onEditClick?.(event);
   };
 
+  // Left border color based on status
+  const borderLeftColor = {
+    draft: 'border-l-blue-500',
+    tentative: 'border-l-amber-500',
+    pending_confirm: 'border-l-purple-500',
+    confirmed: 'border-l-green-500',
+  }[event.bookingStatus];
+
   if (compact) {
     return (
       <div
@@ -60,17 +68,20 @@ export function AssignmentCard({
         onClick={onClick}
         onKeyDown={(e) => e.key === 'Enter' && onClick?.(e as unknown as React.MouseEvent)}
         className={cn(
-          'flex items-center gap-1 px-1.5 py-0.5 rounded text-xs truncate w-full text-left group cursor-pointer',
+          'group flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium truncate w-full text-left cursor-pointer',
+          'border-l-2 transition-all duration-150',
           config.bgColor,
           config.textColor,
-          'hover:opacity-80 transition-opacity',
-          isUpdating && 'opacity-50',
+          borderLeftColor,
+          // Enhanced hover state
+          'hover:shadow-sm hover:-translate-y-px',
+          isUpdating && 'opacity-50 pointer-events-none',
           className
         )}
         title={`${event.projectName} - ${event.userName}${onStatusClick ? ' • Click dot to change status' : ''}`}
       >
         {isUpdating ? (
-          <Loader2 className="h-2 w-2 animate-spin flex-shrink-0" />
+          <Loader2 className="h-3 w-3 animate-spin flex-shrink-0" />
         ) : (
           <button
             onClick={onStatusClick ? handleStatusClick : undefined}
@@ -89,7 +100,7 @@ export function AssignmentCard({
             onClick={handleEditClick}
             className={cn(
               'flex-shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100',
-              'hover:bg-black/10 transition-opacity',
+              'hover:bg-black/10 transition-all',
               'focus:outline-none focus:opacity-100'
             )}
             title="Edit days & times"
@@ -108,35 +119,45 @@ export function AssignmentCard({
       onClick={onClick}
       onKeyDown={(e) => e.key === 'Enter' && onClick?.(e as unknown as React.MouseEvent)}
       className={cn(
-        'flex items-center gap-2 px-2 py-1.5 rounded-md border w-full text-left group cursor-pointer',
+        'group relative flex items-center gap-3 px-3 py-2.5 rounded-lg border w-full text-left cursor-pointer',
+        'shadow-sm transition-all duration-200',
         config.bgColor,
         config.textColor,
         config.borderColor,
-        'hover:opacity-90 transition-opacity',
+        // Enhanced hover with lift effect
+        'hover:shadow-md hover:-translate-y-0.5',
+        // Shine effect overlay
+        'before:absolute before:inset-0 before:rounded-lg',
+        'before:bg-gradient-to-r before:from-white/0 before:via-white/10 before:to-white/0',
+        'before:opacity-0 hover:before:opacity-100 before:transition-opacity',
+        'before:pointer-events-none',
         isUpdating && 'opacity-50',
         className
       )}
     >
+      {/* Avatar */}
       <div
         className={cn(
-          'flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center text-xs font-medium',
+          'relative z-10 flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold',
           config.dotColor,
-          'text-white'
+          'text-white shadow-sm'
         )}
       >
         {getUserInitials(event.userName)}
       </div>
-      <div className="flex-1 min-w-0">
+      {/* Content */}
+      <div className="relative z-10 flex-1 min-w-0">
         <p className="font-medium text-sm truncate">{event.projectName}</p>
         <p className="text-xs opacity-75 truncate">{event.userName}</p>
       </div>
+      {/* Status dot */}
       {isUpdating ? (
-        <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
+        <Loader2 className="relative z-10 h-4 w-4 animate-spin flex-shrink-0" />
       ) : (
         <button
           onClick={onStatusClick ? handleStatusClick : undefined}
           className={cn(
-            'flex-shrink-0',
+            'relative z-10 flex-shrink-0',
             onStatusClick && 'hover:scale-110 transition-transform cursor-pointer'
           )}
           title={onStatusClick ? 'Click to change status' : undefined}
@@ -144,31 +165,35 @@ export function AssignmentCard({
           <BookingStatusDot status={event.bookingStatus} size="md" />
         </button>
       )}
+      {/* Edit button */}
       {showEditButton && onEditClick && (
         <button
           onClick={handleEditClick}
           className={cn(
-            'flex-shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100',
-            'hover:bg-black/10 transition-opacity',
+            'relative z-10 flex-shrink-0 p-1 rounded',
+            'opacity-0 group-hover:opacity-100',
+            'hover:bg-black/10 transition-all',
             'focus:outline-none focus:opacity-100'
           )}
           title="Edit days & times"
         >
-          <Pencil className="h-3 w-3" />
+          <Pencil className="h-3.5 w-3.5" />
         </button>
       )}
+      {/* Menu */}
       {showMenu && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               onClick={(e) => e.stopPropagation()}
               className={cn(
-                'flex-shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100',
-                'hover:bg-black/10 transition-opacity',
+                'relative z-10 flex-shrink-0 p-1 rounded',
+                'opacity-0 group-hover:opacity-100',
+                'hover:bg-black/10 transition-all',
                 'focus:outline-none focus:opacity-100'
               )}
             >
-              <MoreVertical className="h-3 w-3" />
+              <MoreVertical className="h-3.5 w-3.5" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>

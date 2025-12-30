@@ -10,6 +10,9 @@ export const BOOKING_STATUS_CONFIG: Record<
     textColor: string;
     borderColor: string;
     dotColor: string;
+    ringColor: string;
+    glowColor?: string;
+    pulse?: boolean;
     description: string;
     visibleToEngineers: boolean;
   }
@@ -17,40 +20,48 @@ export const BOOKING_STATUS_CONFIG: Record<
   draft: {
     label: 'Draft',
     shortLabel: 'D',
-    bgColor: 'bg-blue-100',
+    bgColor: 'bg-blue-50',
     textColor: 'text-blue-800',
-    borderColor: 'border-blue-300',
+    borderColor: 'border-blue-200',
     dotColor: 'bg-blue-500',
+    ringColor: 'ring-blue-200',
     description: 'PM planning - not visible to engineers',
     visibleToEngineers: false,
   },
   tentative: {
     label: 'Tentative',
     shortLabel: 'T',
-    bgColor: 'bg-amber-100',
+    bgColor: 'bg-amber-50',
     textColor: 'text-amber-800',
-    borderColor: 'border-amber-300',
+    borderColor: 'border-amber-200',
     dotColor: 'bg-amber-500',
+    ringColor: 'ring-amber-200',
+    glowColor: 'shadow-amber-200/50',
     description: 'Planned but not yet sent to customer',
     visibleToEngineers: true,
   },
   pending_confirm: {
-    label: 'Pending Confirmation',
+    label: 'Pending',
     shortLabel: 'PC',
-    bgColor: 'bg-purple-100',
+    bgColor: 'bg-purple-50',
     textColor: 'text-purple-800',
-    borderColor: 'border-purple-300',
+    borderColor: 'border-purple-200',
     dotColor: 'bg-purple-500',
+    ringColor: 'ring-purple-200',
+    glowColor: 'shadow-purple-200/50',
+    pulse: true,
     description: 'Awaiting customer confirmation',
     visibleToEngineers: true,
   },
   confirmed: {
     label: 'Confirmed',
     shortLabel: 'C',
-    bgColor: 'bg-green-100',
+    bgColor: 'bg-green-50',
     textColor: 'text-green-800',
-    borderColor: 'border-green-300',
+    borderColor: 'border-green-200',
     dotColor: 'bg-green-500',
+    ringColor: 'ring-green-200',
+    glowColor: 'shadow-green-200/50',
     description: 'Customer confirmed',
     visibleToEngineers: true,
   },

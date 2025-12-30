@@ -64,6 +64,15 @@
   --border: oklch(0.9 0 0);
   --input: oklch(0.9 0 0);
   --ring: oklch(0.35 0.05 165);
+
+  /* Enhanced borders for UI polish */
+  --border-subtle: oklch(0.92 0.005 165);
+  --border-strong: oklch(0.8 0.01 165);
+
+  /* Surface elevations */
+  --surface-raised: oklch(0.995 0.002 165);
+  --surface-sunken: oklch(0.97 0.005 165);
+
   /* Chart colors - Amitrace themed */
   --chart-1: oklch(0.25 0.05 165);
   --chart-2: oklch(0.45 0.08 165);
@@ -127,6 +136,176 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ============================================
+   UI IMPROVEMENT COMPONENT UTILITIES
+   ============================================ */
+
+@layer components {
+  /* Typography utilities */
+  .text-display {
+    @apply text-3xl sm:text-4xl font-bold tracking-tight;
+    letter-spacing: -0.025em;
+  }
+  .text-heading-1 {
+    @apply text-2xl sm:text-3xl font-bold tracking-tight;
+    letter-spacing: -0.02em;
+  }
+  .text-heading-2 {
+    @apply text-xl sm:text-2xl font-semibold tracking-tight;
+    letter-spacing: -0.015em;
+  }
+  .text-heading-3 {
+    @apply text-lg font-semibold;
+  }
+  .text-overline {
+    @apply text-[10px] font-semibold uppercase tracking-widest text-muted-foreground;
+  }
+
+  /* Card variants */
+  .card-elevated {
+    @apply bg-card rounded-xl border shadow-md;
+  }
+  .card-interactive {
+    @apply bg-card rounded-xl border shadow-sm cursor-pointer;
+    @apply hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5;
+    @apply transition-all duration-200;
+  }
+  .card-featured {
+    @apply bg-card rounded-xl border-2 border-primary/20 shadow-md;
+    @apply ring-1 ring-primary/5;
+  }
+  .card-muted {
+    @apply bg-muted/30 rounded-lg border border-dashed p-4;
+  }
+
+  /* Section divider with centered text */
+  .section-divider {
+    @apply flex items-center gap-3 my-6;
+  }
+  .section-divider::before,
+  .section-divider::after {
+    content: '';
+    @apply flex-1 h-px bg-border;
+  }
+
+  /* Focus ring utility */
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50;
+    @apply focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+
+  /* Status badge base */
+  .status-badge {
+    @apply inline-flex items-center gap-1.5 rounded-full font-medium;
+    @apply border shadow-sm transition-all duration-200;
+  }
+  .status-badge-sm {
+    @apply px-2 py-0.5 text-[10px];
+  }
+  .status-badge-md {
+    @apply px-2.5 py-1 text-xs;
+  }
+  .status-badge-lg {
+    @apply px-3 py-1.5 text-sm;
+  }
+
+  /* Filter pill group */
+  .filter-pills {
+    @apply flex items-center gap-1.5 bg-background/80 rounded-full p-1 border;
+  }
+  .filter-pill {
+    @apply px-3 py-1 rounded-full text-xs font-medium transition-all duration-200;
+  }
+  .filter-pill-active {
+    @apply bg-primary text-primary-foreground shadow-sm;
+  }
+}
+
+@layer utilities {
+  /* Hover lift effect */
+  .hover-lift {
+    @apply hover:-translate-y-0.5 hover:shadow-md transition-all duration-200;
+  }
+
+  /* Subtle pulse for pending states */
+  .animate-pulse-subtle {
+    animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* Glow effects for status emphasis */
+  .glow-sm {
+    box-shadow: 0 0 10px -3px currentColor;
+  }
+  .glow-md {
+    box-shadow: 0 0 20px -5px currentColor;
+  }
+
+  /* Gradient fade for overlays */
+  .gradient-fade-b {
+    @apply bg-gradient-to-b from-transparent to-background/80;
+  }
+  .gradient-fade-t {
+    @apply bg-gradient-to-t from-transparent to-background/80;
+  }
+
+  /* Card shine effect on hover */
+  .card-shine::before {
+    content: '';
+    @apply absolute inset-0 rounded-lg pointer-events-none;
+    @apply bg-gradient-to-r from-white/0 via-white/10 to-white/0;
+    @apply opacity-0 transition-opacity;
+  }
+  .card-shine:hover::before {
+    @apply opacity-100;
+  }
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+  will-change: transform;
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .animate-shimmer,
+  .animate-pulse-subtle {
+    animation: none;
+  }
+}
+
+/* Skeleton shimmer effect */
+.skeleton-shimmer {
+  @apply relative overflow-hidden;
+}
+.skeleton-shimmer::before {
+  content: '';
+  @apply absolute inset-0;
+  @apply bg-gradient-to-r from-transparent via-white/20 to-transparent;
+  animation: shimmer 2s infinite;
 }
 
 /* Print styles for calendar */
