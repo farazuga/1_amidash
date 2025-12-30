@@ -2,13 +2,15 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, DollarSign, User, Info, ExternalLink, Mail, Phone, FileText, Link as LinkIcon } from 'lucide-react';
+import { Calendar, DollarSign, User, Info, ExternalLink, Mail, Phone, FileText, Link as LinkIcon, CircleDot } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { InlineEditField } from './inline-edit-field';
 import { InlineDateRangePicker } from './inline-date-range-picker';
-import { ProjectScheduleStatus, ProjectScheduleStatusDisplay } from './project-schedule-status';
-import { inlineEditProjectField, updateProjectDates } from '@/app/(dashboard)/projects/actions';
+import { ScheduleStatusSelect } from './schedule-status-select';
+import { ScheduleStatusBadge } from './schedule-status-badge';
+import { StatusBadge } from './status-badge';
+import { inlineEditProjectField, updateProjectDates, updateProjectScheduleStatus } from '@/app/(dashboard)/projects/actions';
 import { toast } from 'sonner';
 import type { BookingStatus } from '@/types/calendar';
 
@@ -22,6 +24,10 @@ interface QuickInfoProps {
     sales_order_number: string | null;
     sales_order_url: string | null;
     schedule_status?: BookingStatus | null;
+    current_status?: {
+      id: string;
+      name: string;
+    } | null;
     salesperson?: {
       id: string;
       full_name: string | null;
@@ -33,6 +39,10 @@ interface QuickInfoProps {
     scope_link: string | null;
     salesperson_id: string | null;
   };
+  statuses?: Array<{
+    id: string;
+    name: string;
+  }>;
   salespeople: Array<{
     id: string;
     full_name: string | null;
@@ -41,14 +51,17 @@ interface QuickInfoProps {
   isOverdue?: boolean;
   canEdit?: boolean;
   canEditSchedule?: boolean;
+  onStatusChange?: (statusId: string) => void;
 }
 
 export function QuickInfo({
   project,
+  statuses = [],
   salespeople,
   isOverdue = false,
   canEdit = false,
   canEditSchedule = false,
+  onStatusChange,
 }: QuickInfoProps) {
   const hasProjectDates = Boolean(project.start_date && project.end_date);
 
@@ -85,6 +98,19 @@ export function QuickInfo({
     toast.success('Project dates updated');
   };
 
+  const handleScheduleStatusChange = async (newStatus: BookingStatus) => {
+    const result = await updateProjectScheduleStatus({
+      projectId: project.id,
+      scheduleStatus: newStatus,
+    });
+
+    if (!result.success) {
+      toast.error(result.error || 'Failed to update schedule status');
+      return;
+    }
+    toast.success('Schedule status updated');
+  };
+
   const formatDateForDisplay = (date: string | null) => {
     if (!date) return null;
     return format(new Date(date), 'MMM d, yyyy');
@@ -96,39 +122,66 @@ export function QuickInfo({
   };
 
   return (
-    <Card className="overflow-hidden border-primary/20 bg-gradient-to-b from-primary/5 to-background">
-      <CardHeader className="bg-primary/10 pb-4 border-b border-primary/10">
-        <CardTitle className="text-base flex items-center gap-2">
-          <Info className="h-4 w-4 text-primary" />
-          Quick Info
-        </CardTitle>
+    <Card className="overflow-hidden">
+      <CardHeader className="py-2 px-3 border-b">
+        <CardTitle className="text-sm font-medium">Quick Info</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="divide-y divide-primary/10">
+        <div className="divide-y">
+          {/* Project Status */}
+          <div className="flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors">
+            <span className="text-sm text-muted-foreground">Status</span>
+            {canEdit && statuses.length > 0 ? (
+              <InlineEditField
+                value={project.current_status?.id || ''}
+                displayValue={
+                  project.current_status ? (
+                    <StatusBadge status={project.current_status} />
+                  ) : undefined
+                }
+                type="select"
+                options={statuses.map(s => ({
+                  value: s.id,
+                  label: s.name,
+                }))}
+                onSave={async (v) => {
+                  await handleFieldSave('status_id', v);
+                  if (onStatusChange) {
+                    onStatusChange(v);
+                  }
+                }}
+              />
+            ) : project.current_status ? (
+              <StatusBadge status={project.current_status} />
+            ) : (
+              <span className="text-sm text-muted-foreground italic">Not set</span>
+            )}
+          </div>
+          {/* Schedule Status */}
+          <div className="flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors">
+            <span className="text-sm text-muted-foreground">Schedule</span>
+            {canEditSchedule && hasProjectDates ? (
+              <ScheduleStatusSelect
+                value={project.schedule_status ?? null}
+                onChange={handleScheduleStatusChange}
+                hasProjectDates={hasProjectDates}
+              />
+            ) : hasProjectDates ? (
+              <ScheduleStatusBadge status={project.schedule_status ?? null} />
+            ) : (
+              <span className="text-xs text-muted-foreground italic">Set dates first</span>
+            )}
+          </div>
+
           {/* Goal Date */}
-          <div className="flex items-center justify-between p-4 hover:bg-primary/5 transition-colors">
-            <div className="flex items-center gap-3">
-              <div
-                className={cn(
-                  'h-8 w-8 rounded-full flex items-center justify-center',
-                  isOverdue ? 'bg-destructive/10' : 'bg-primary/10'
-                )}
-              >
-                <Calendar
-                  className={cn(
-                    'h-4 w-4',
-                    isOverdue ? 'text-destructive' : 'text-primary'
-                  )}
-                />
-              </div>
-              <span className="text-sm text-muted-foreground">Goal Date</span>
-            </div>
+          <div className="flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors">
+            <span className="text-sm text-muted-foreground">Goal Date</span>
             {canEdit ? (
               <InlineEditField
                 value={formatDateForInput(project.goal_completion_date)}
                 displayValue={
                   project.goal_completion_date ? (
-                    <span className={cn('font-medium', isOverdue && 'text-destructive')}>
+                    <span className={cn('font-medium text-sm', isOverdue && 'text-destructive')}>
                       {formatDateForDisplay(project.goal_completion_date)}
                     </span>
                   ) : undefined
@@ -138,7 +191,7 @@ export function QuickInfo({
                 className={cn(isOverdue && 'text-destructive')}
               />
             ) : project.goal_completion_date ? (
-              <span className={cn('font-medium', isOverdue && 'text-destructive')}>
+              <span className={cn('font-medium text-sm', isOverdue && 'text-destructive')}>
                 {formatDateForDisplay(project.goal_completion_date)}
               </span>
             ) : (
@@ -146,30 +199,9 @@ export function QuickInfo({
             )}
           </div>
 
-          {/* Schedule Status */}
-          <div className="p-4 hover:bg-primary/5 transition-colors">
-            {canEditSchedule ? (
-              <ProjectScheduleStatus
-                projectId={project.id}
-                currentStatus={project.schedule_status ?? null}
-                hasProjectDates={hasProjectDates}
-              />
-            ) : (
-              <ProjectScheduleStatusDisplay
-                status={project.schedule_status ?? null}
-                hasProjectDates={hasProjectDates}
-              />
-            )}
-          </div>
-
           {/* Project Dates */}
-          <div className="flex items-center justify-between p-4 hover:bg-primary/5 transition-colors">
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <Calendar className="h-4 w-4 text-primary" />
-              </div>
-              <span className="text-sm text-muted-foreground">Project Dates</span>
-            </div>
+          <div className="flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors">
+            <span className="text-sm text-muted-foreground">Project Dates</span>
             <div className="text-sm">
               {canEdit ? (
                 <InlineDateRangePicker
@@ -196,29 +228,24 @@ export function QuickInfo({
           </div>
 
           {/* Sales Amount */}
-          <div className="flex items-center justify-between p-4 hover:bg-primary/5 transition-colors">
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <DollarSign className="h-4 w-4 text-primary" />
-              </div>
-              <span className="text-sm text-muted-foreground">Sales Amount</span>
-            </div>
+          <div className="flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors">
+            <span className="text-sm text-muted-foreground">Sales Amount</span>
             {canEdit ? (
               <InlineEditField
                 value={project.sales_amount?.toString() || ''}
                 displayValue={
                   project.sales_amount ? (
-                    <span className="text-lg font-semibold tabular-nums">
+                    <span className="font-semibold tabular-nums">
                       ${project.sales_amount.toLocaleString()}
                     </span>
                   ) : undefined
                 }
                 type="currency"
                 onSave={(v) => handleFieldSave('sales_amount', v)}
-                inputClassName="w-[120px]"
+                inputClassName="w-[100px]"
               />
             ) : project.sales_amount ? (
-              <span className="text-lg font-semibold tabular-nums">
+              <span className="font-semibold tabular-nums">
                 ${project.sales_amount.toLocaleString()}
               </span>
             ) : (
@@ -227,19 +254,14 @@ export function QuickInfo({
           </div>
 
           {/* Salesperson */}
-          <div className="flex items-center justify-between p-4 hover:bg-primary/5 transition-colors">
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <User className="h-4 w-4 text-primary" />
-              </div>
-              <span className="text-sm text-muted-foreground">Salesperson</span>
-            </div>
+          <div className="flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors">
+            <span className="text-sm text-muted-foreground">Salesperson</span>
             {canEdit ? (
               <InlineEditField
                 value={project.salesperson_id || ''}
                 displayValue={
                   project.salesperson ? (
-                    <span className="font-medium">
+                    <span className="font-medium text-sm">
                       {project.salesperson.full_name || project.salesperson.email}
                     </span>
                   ) : undefined
@@ -252,7 +274,7 @@ export function QuickInfo({
                 onSave={(v) => handleFieldSave('salesperson_id', v)}
               />
             ) : project.salesperson ? (
-              <span className="font-medium">
+              <span className="font-medium text-sm">
                 {project.salesperson.full_name || project.salesperson.email}
               </span>
             ) : (
@@ -260,20 +282,15 @@ export function QuickInfo({
             )}
           </div>
 
-          {/* Sales Order Number */}
-          <div className="flex items-center justify-between p-4 hover:bg-primary/5 transition-colors">
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <FileText className="h-4 w-4 text-primary" />
-              </div>
-              <span className="text-sm text-muted-foreground">Sales Order #</span>
-            </div>
+          {/* Sales Order # */}
+          <div className="flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors">
+            <span className="text-sm text-muted-foreground">Sales Order #</span>
             {canEdit ? (
               <InlineEditField
                 value={project.sales_order_number || ''}
                 displayValue={
                   project.sales_order_number ? (
-                    <span className="font-medium font-mono">{project.sales_order_number}</span>
+                    <span className="font-medium font-mono text-sm">{project.sales_order_number}</span>
                   ) : undefined
                 }
                 type="text"
@@ -281,20 +298,15 @@ export function QuickInfo({
                 inputClassName="w-[80px] font-mono uppercase"
               />
             ) : project.sales_order_number ? (
-              <span className="font-medium font-mono">{project.sales_order_number}</span>
+              <span className="font-medium font-mono text-sm">{project.sales_order_number}</span>
             ) : (
               <span className="text-sm text-muted-foreground italic">Not set</span>
             )}
           </div>
 
           {/* Sales Order URL */}
-          <div className="flex items-center justify-between p-4 hover:bg-primary/5 transition-colors">
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <LinkIcon className="h-4 w-4 text-primary" />
-              </div>
-              <span className="text-sm text-muted-foreground">Sales Order URL</span>
-            </div>
+          <div className="flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors">
+            <span className="text-sm text-muted-foreground">Odoo Link</span>
             {canEdit ? (
               <InlineEditField
                 value={project.sales_order_url || ''}
@@ -304,28 +316,28 @@ export function QuickInfo({
                       href={project.sales_order_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-primary hover:underline flex items-center gap-1"
+                      className="text-primary hover:underline flex items-center gap-1 text-sm"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      View in Odoo
+                      <ExternalLink className="h-3 w-3" />
+                      View
                     </a>
                   ) : undefined
                 }
                 type="text"
                 onSave={(v) => handleFieldSave('sales_order_url', v)}
-                placeholder="Odoo URL"
-                inputClassName="w-[200px]"
+                placeholder="URL"
+                inputClassName="w-[160px]"
               />
             ) : project.sales_order_url ? (
               <a
                 href={project.sales_order_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary hover:underline flex items-center gap-1"
+                className="text-primary hover:underline flex items-center gap-1 text-sm"
               >
-                <ExternalLink className="h-3.5 w-3.5" />
-                View in Odoo
+                <ExternalLink className="h-3 w-3" />
+                View
               </a>
             ) : (
               <span className="text-sm text-muted-foreground italic">Not set</span>
@@ -334,30 +346,25 @@ export function QuickInfo({
 
           {/* POC Info */}
           {project.poc_name && (
-            <div className="p-4 hover:bg-primary/5 transition-colors">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                  <User className="h-4 w-4 text-primary" />
-                </div>
-                <span className="text-sm text-muted-foreground">Point of Contact</span>
+            <div className="px-3 py-2 hover:bg-muted/50 transition-colors">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Contact</span>
+                <span className="font-medium text-sm">{project.poc_name}</span>
               </div>
-              <div className="ml-11 space-y-1">
-                <p className="font-medium">{project.poc_name}</p>
+              <div className="flex justify-end gap-3 mt-1">
                 {project.poc_email && (
                   <a
                     href={`mailto:${project.poc_email}`}
-                    className="flex items-center gap-1.5 text-sm text-primary hover:underline"
+                    className="text-xs text-primary hover:underline"
                   >
-                    <Mail className="h-3.5 w-3.5" />
                     {project.poc_email}
                   </a>
                 )}
                 {project.poc_phone && (
                   <a
                     href={`tel:${project.poc_phone}`}
-                    className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+                    className="text-xs text-muted-foreground hover:text-foreground"
                   >
-                    <Phone className="h-3.5 w-3.5" />
                     {project.poc_phone}
                   </a>
                 )}
@@ -367,22 +374,16 @@ export function QuickInfo({
 
           {/* Scope Link */}
           {project.scope_link && (
-            <div className="p-4 bg-primary/5">
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full justify-start hover:bg-primary/10 hover:border-primary/30 border-primary/20"
-                asChild
+            <div className="px-3 py-2">
+              <a
+                href={project.scope_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-primary hover:underline flex items-center justify-end gap-1"
               >
-                <a
-                  href={project.scope_link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  View Scope Document
-                </a>
-              </Button>
+                <ExternalLink className="h-3 w-3" />
+                View Scope Document
+              </a>
             </div>
           )}
         </div>

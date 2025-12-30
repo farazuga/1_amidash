@@ -112,6 +112,7 @@ export default async function ProjectDetailPage({
               sales_order_number: project.sales_order_number,
               sales_order_url: project.sales_order_url,
               schedule_status: (project as { schedule_status?: string }).schedule_status as BookingStatus | null,
+              current_status: project.current_status,
               salesperson: project.salesperson,
               salesperson_id: project.salesperson_id,
               poc_name: project.poc_name,
@@ -119,6 +120,7 @@ export default async function ProjectDetailPage({
               poc_phone: project.poc_phone,
               scope_link: project.scope_link,
             }}
+            statuses={statuses}
             salespeople={salespeople}
             isOverdue={!!isOverdue}
             canEdit={isAdmin}
