@@ -286,6 +286,15 @@
 
 .animate-shimmer {
   animation: shimmer 2s infinite;
+  will-change: transform;
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .animate-shimmer,
+  .animate-pulse-subtle {
+    animation: none;
+  }
 }
 
 /* Skeleton shimmer effect */

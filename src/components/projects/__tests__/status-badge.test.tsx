@@ -28,7 +28,7 @@ describe('StatusBadge', () => {
     render(<StatusBadge status={status} />);
 
     const badge = screen.getByText('PO Received');
-    expect(badge).toHaveClass('bg-blue-100', 'text-blue-800');
+    expect(badge).toHaveClass('bg-blue-50', 'text-blue-800');
   });
 
   it('applies correct color class for Engineering Review', () => {
@@ -36,7 +36,7 @@ describe('StatusBadge', () => {
     render(<StatusBadge status={status} />);
 
     const badge = screen.getByText('Engineering Review');
-    expect(badge).toHaveClass('bg-purple-100', 'text-purple-800');
+    expect(badge).toHaveClass('bg-purple-50', 'text-purple-800');
   });
 
   it('applies correct color class for In Procurement', () => {
@@ -44,7 +44,7 @@ describe('StatusBadge', () => {
     render(<StatusBadge status={status} />);
 
     const badge = screen.getByText('In Procurement');
-    expect(badge).toHaveClass('bg-cyan-100', 'text-cyan-800');
+    expect(badge).toHaveClass('bg-cyan-50', 'text-cyan-800');
   });
 
   it('applies correct color class for Pending Scheduling', () => {
@@ -52,7 +52,7 @@ describe('StatusBadge', () => {
     render(<StatusBadge status={status} />);
 
     const badge = screen.getByText('Pending Scheduling');
-    expect(badge).toHaveClass('bg-yellow-100', 'text-yellow-800');
+    expect(badge).toHaveClass('bg-yellow-50', 'text-yellow-800');
   });
 
   it('applies correct color class for Scheduled', () => {
@@ -60,7 +60,7 @@ describe('StatusBadge', () => {
     render(<StatusBadge status={status} />);
 
     const badge = screen.getByText('Scheduled');
-    expect(badge).toHaveClass('bg-orange-100', 'text-orange-800');
+    expect(badge).toHaveClass('bg-orange-50', 'text-orange-800');
   });
 
   it('applies correct color class for IP', () => {
@@ -68,7 +68,7 @@ describe('StatusBadge', () => {
     render(<StatusBadge status={status} />);
 
     const badge = screen.getByText('IP');
-    expect(badge).toHaveClass('bg-green-100', 'text-green-800');
+    expect(badge).toHaveClass('bg-green-50', 'text-green-800');
   });
 
   it('applies correct color class for Hold', () => {
@@ -76,7 +76,7 @@ describe('StatusBadge', () => {
     render(<StatusBadge status={status} />);
 
     const badge = screen.getByText('Hold');
-    expect(badge).toHaveClass('bg-red-100', 'text-red-800');
+    expect(badge).toHaveClass('bg-red-50', 'text-red-800');
   });
 
   it('applies correct color class for Invoiced', () => {
@@ -84,7 +84,7 @@ describe('StatusBadge', () => {
     render(<StatusBadge status={status} />);
 
     const badge = screen.getByText('Invoiced');
-    expect(badge).toHaveClass('bg-emerald-100', 'text-emerald-800');
+    expect(badge).toHaveClass('bg-emerald-50', 'text-emerald-800');
   });
 
   it('applies default gray color for unknown status', () => {
@@ -92,7 +92,7 @@ describe('StatusBadge', () => {
     render(<StatusBadge status={status} />);
 
     const badge = screen.getByText('Unknown Status');
-    expect(badge).toHaveClass('bg-gray-100', 'text-gray-800');
+    expect(badge).toHaveClass('bg-gray-50', 'text-gray-800');
   });
 
   it('has font-medium class', () => {

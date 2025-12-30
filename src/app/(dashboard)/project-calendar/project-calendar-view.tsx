@@ -602,7 +602,7 @@ export function ProjectCalendarView() {
 
         {/* Status Filter */}
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as BookingStatus | 'all')}>
-          <SelectTrigger className="w-[150px] h-8">
+          <SelectTrigger className="w-full sm:w-[150px] h-8">
             <SelectValue placeholder="All Statuses" />
           </SelectTrigger>
           <SelectContent>
@@ -623,7 +623,7 @@ export function ProjectCalendarView() {
 
         {/* Tag Filter */}
         <Select value={tagFilter} onValueChange={setTagFilter}>
-          <SelectTrigger className="w-[150px] h-8">
+          <SelectTrigger className="w-full sm:w-[150px] h-8">
             <SelectValue placeholder="All Tags" />
           </SelectTrigger>
           <SelectContent>
@@ -644,7 +644,7 @@ export function ProjectCalendarView() {
 
         {/* Engineer Filter */}
         <Select value={engineerFilter} onValueChange={setEngineerFilter}>
-          <SelectTrigger className="w-[180px] h-8">
+          <SelectTrigger className="w-full sm:w-[180px] h-8">
             <SelectValue placeholder="All Engineers" />
           </SelectTrigger>
           <SelectContent>
@@ -673,16 +673,16 @@ export function ProjectCalendarView() {
 
       {/* Bulk Actions Bar */}
       {selectedProjects.size > 0 && (
-        <div className="flex items-center gap-4 p-3 bg-muted/50 border rounded-lg print:hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 bg-muted/50 border rounded-lg print:hidden">
           <div className="flex items-center gap-2">
             <CheckSquare className="h-4 w-4 text-primary" />
             <span className="text-sm font-medium">
               {selectedProjects.size} project{selectedProjects.size !== 1 ? 's' : ''} selected
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Select value={newBulkStatus} onValueChange={(v) => setNewBulkStatus(v as BookingStatus)}>
-              <SelectTrigger className="w-[150px] h-8">
+              <SelectTrigger className="w-full sm:w-[150px] h-8">
                 <SelectValue placeholder="Select status" />
               </SelectTrigger>
               <SelectContent>
@@ -707,20 +707,20 @@ export function ProjectCalendarView() {
               Update Status
             </Button>
           </div>
-          <div className="flex-1" />
+          <div className="hidden sm:block flex-1" />
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={selectAllProjects} className="h-8">
+            <Button variant="ghost" size="sm" onClick={selectAllProjects} className="h-8 text-xs sm:text-sm">
               Select All ({filteredProjects.length})
             </Button>
-            <Button variant="ghost" size="sm" onClick={clearSelection} className="h-8">
-              Clear Selection
+            <Button variant="ghost" size="sm" onClick={clearSelection} className="h-8 text-xs sm:text-sm">
+              Clear
             </Button>
           </div>
         </div>
       )}
 
       {/* Legend - Interactive status filter pills */}
-      <div className="flex items-center gap-2 bg-muted/50 rounded-full px-4 py-2 border">
+      <div className="flex flex-wrap items-center gap-2 bg-muted/50 rounded-lg sm:rounded-full px-3 sm:px-4 py-2 border">
         <span className="text-xs font-medium text-muted-foreground mr-2 uppercase tracking-wide">Status:</span>
         {BOOKING_STATUS_ORDER.map(status => {
           const config = BOOKING_STATUS_CONFIG[status];
@@ -760,10 +760,10 @@ export function ProjectCalendarView() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-      <div className="border rounded-lg overflow-hidden">
+      <div className="border rounded-lg overflow-x-auto">
         {/* Month headers */}
-        <div className="flex bg-muted border-b">
-          <div className="w-64 flex-shrink-0 p-2 font-medium border-r">
+        <div className="flex bg-muted border-b min-w-[800px]">
+          <div className="w-48 sm:w-64 flex-shrink-0 p-2 font-medium border-r">
             Project
           </div>
           <div className="flex-1 flex" ref={timelineContainerRef}>
@@ -784,8 +784,8 @@ export function ProjectCalendarView() {
         </div>
 
         {/* Day headers */}
-        <div className="flex bg-muted/50 border-b">
-          <div className="w-64 flex-shrink-0 p-1 text-xs text-muted-foreground border-r">
+        <div className="flex bg-muted/50 border-b min-w-[800px]">
+          <div className="w-48 sm:w-64 flex-shrink-0 p-1 text-xs text-muted-foreground border-r">
             &nbsp;
           </div>
           <div className="flex-1 flex">
@@ -831,12 +831,12 @@ export function ProjectCalendarView() {
 
             return (
               <div key={project.id} className={cn(
-                'flex border-b last:border-b-0 hover:bg-muted/30',
+                'flex border-b last:border-b-0 hover:bg-muted/30 min-w-[800px]',
                 hasConflict && 'bg-amber-50/50 dark:bg-amber-950/20',
                 isSelected && 'bg-primary/5'
               )}>
                 {/* Project name */}
-                <div className="w-64 flex-shrink-0 p-2 border-r">
+                <div className="w-48 sm:w-64 flex-shrink-0 p-2 border-r">
                   <div className="flex items-center gap-2">
                     <Checkbox
                       checked={isSelected}

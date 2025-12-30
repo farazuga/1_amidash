@@ -55,9 +55,17 @@ export function ScheduleStatusBadge({
 
   const config = BOOKING_STATUS_CONFIG[status];
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (isInteractive && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      onClick?.();
+    }
+  };
+
   return (
     <span
       onClick={onClick}
+      onKeyDown={isInteractive ? handleKeyDown : undefined}
       role={isInteractive ? 'button' : undefined}
       tabIndex={isInteractive ? 0 : undefined}
       className={cn(
