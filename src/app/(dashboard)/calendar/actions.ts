@@ -1,6 +1,6 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { sendEmail } from '@/lib/email/send';
 import { assignmentCreatedEmail, assignmentStatusChangedEmail } from '@/lib/email/templates';
@@ -1134,13 +1134,17 @@ export async function getMySubscriptions(): Promise<ActionResult<{
 export async function createCalendarSubscriptionForUser(
   targetUserId: string
 ): Promise<ActionResult<{ token: string; url: string }>> {
-  const { error: authError, supabase, user } = await requireAdmin();
-  if (authError || !supabase || !user) {
-    return { success: false, error: authError || 'Authentication failed' };
+  // First verify the caller is an admin
+  const { error: authError } = await requireAdmin();
+  if (authError) {
+    return { success: false, error: authError };
   }
 
+  // Use service client to bypass RLS for creating subscriptions for other users
+  const serviceClient = await createServiceClient();
+
   // Check if subscription already exists for target user
-  const { data: existing } = await supabase
+  const { data: existing } = await serviceClient
     .from('calendar_subscriptions')
     .select('id, token')
     .eq('user_id', targetUserId)
@@ -1160,7 +1164,7 @@ export async function createCalendarSubscriptionForUser(
   }
 
   // Create new subscription for target user
-  const { data: subscription, error: insertError } = await supabase
+  const { data: subscription, error: insertError } = await serviceClient
     .from('calendar_subscriptions')
     .insert({
       user_id: targetUserId,
@@ -1172,7 +1176,7 @@ export async function createCalendarSubscriptionForUser(
 
   if (insertError) {
     console.error('Create subscription for user error:', insertError);
-    return { success: false, error: 'Failed to create subscription' };
+    return { success: false, error: `Failed to create subscription: ${insertError.message}` };
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
