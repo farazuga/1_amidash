@@ -1,96 +1,72 @@
-import { unstable_cache } from 'next/cache';
+import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 
 /**
- * Cached query for statuses
- * Revalidates every hour since statuses rarely change
+ * Request-scoped cached query for statuses
+ * Uses React's cache() for request deduplication
  */
-export const getCachedStatuses = unstable_cache(
-  async () => {
-    const supabase = await createClient();
-    const { data } = await supabase
-      .from('statuses')
-      .select('*')
-      .eq('is_active', true)
-      .order('display_order');
-    return data || [];
-  },
-  ['statuses'],
-  { revalidate: 3600, tags: ['statuses'] } // Cache for 1 hour
-);
+export const getCachedStatuses = cache(async () => {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('statuses')
+    .select('*')
+    .eq('is_active', true)
+    .order('display_order');
+  return data || [];
+});
 
 /**
- * Cached query for tags
- * Revalidates every hour since tags rarely change
+ * Request-scoped cached query for tags
  */
-export const getCachedTags = unstable_cache(
-  async () => {
-    const supabase = await createClient();
-    const { data } = await supabase
-      .from('tags')
-      .select('*')
-      .order('name');
-    return data || [];
-  },
-  ['tags'],
-  { revalidate: 3600, tags: ['tags'] } // Cache for 1 hour
-);
+export const getCachedTags = cache(async () => {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('tags')
+    .select('*')
+    .order('name');
+  return data || [];
+});
 
 /**
- * Cached query for project types
- * Revalidates every hour since project types rarely change
+ * Request-scoped cached query for project types
  */
-export const getCachedProjectTypes = unstable_cache(
-  async () => {
-    const supabase = await createClient();
-    const { data } = await supabase
-      .from('project_types')
-      .select('*')
-      .order('display_order');
-    return data || [];
-  },
-  ['project-types'],
-  { revalidate: 3600, tags: ['project-types'] } // Cache for 1 hour
-);
+export const getCachedProjectTypes = cache(async () => {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('project_types')
+    .select('*')
+    .order('display_order');
+  return data || [];
+});
 
 /**
- * Cached query for project type statuses mapping
- * Revalidates every hour since mappings rarely change
+ * Request-scoped cached query for project type statuses mapping
  */
-export const getCachedProjectTypeStatuses = unstable_cache(
-  async () => {
-    const supabase = await createClient();
-    const { data } = await supabase
-      .from('project_type_statuses')
-      .select('*');
-    return data || [];
-  },
-  ['project-type-statuses'],
-  { revalidate: 3600, tags: ['project-type-statuses'] } // Cache for 1 hour
-);
+export const getCachedProjectTypeStatuses = cache(async () => {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('project_type_statuses')
+    .select('*');
+  return data || [];
+});
 
 /**
- * Cached query for salespeople
- * Revalidates every 30 minutes since sales team changes more frequently
+ * Request-scoped cached query for salespeople
  */
-export const getCachedSalespeople = unstable_cache(
-  async () => {
-    const supabase = await createClient();
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('is_salesperson', true)
-      .order('full_name');
-    return data || [];
-  },
-  ['salespeople'],
-  { revalidate: 1800, tags: ['salespeople'] } // Cache for 30 minutes
-);
+export const getCachedSalespeople = cache(async () => {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('is_salesperson', true)
+    .order('full_name');
+  return data || [];
+});
 
 /**
- * Non-cached query for project - projects change frequently
+ * Query for project - request-scoped via cache() for deduplication
  */
-export async function getProject(id: string) {
+export const getProject = cache(async (id: string) => {
   const supabase = await createClient();
 
   const { data: project } = await supabase
@@ -106,12 +82,12 @@ export async function getProject(id: string) {
     .single();
 
   return project;
-}
+});
 
 /**
- * Non-cached query for status history - specific to project and changes often
+ * Query for status history - request-scoped via cache() for deduplication
  */
-export async function getStatusHistory(projectId: string) {
+export const getStatusHistory = cache(async (projectId: string) => {
   const supabase = await createClient();
   const { data } = await supabase
     .from('status_history')
@@ -123,12 +99,12 @@ export async function getStatusHistory(projectId: string) {
     .eq('project_id', projectId)
     .order('changed_at', { ascending: false });
   return data || [];
-}
+});
 
 /**
- * Non-cached query for current user - session-specific
+ * Query for current user - request-scoped via cache() for deduplication
  */
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async () => {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -140,4 +116,4 @@ export async function getCurrentUser() {
     .single();
 
   return profile;
-}
+});
