@@ -11,6 +11,7 @@ import type {
   FileCategory,
   ProjectPhase,
   FileCategoryCount,
+  SharePointGlobalConfig,
 } from '@/types';
 
 // Note: The new tables (project_sharepoint_connections, project_files, presales_files)
@@ -62,6 +63,7 @@ export interface GetFilesResult {
   files?: ProjectFile[];
   counts?: FileCategoryCount[];
   connection?: ProjectSharePointConnection | null;
+  globalSharePointConfigured?: boolean;
   error?: string;
 }
 
@@ -111,6 +113,122 @@ async function getTypedClient(): Promise<AnySupabaseClient> {
 
 async function getTypedServiceClient(): Promise<AnySupabaseClient> {
   return await createServiceClient() as AnySupabaseClient;
+}
+
+/**
+ * Get the global SharePoint configuration
+ */
+async function getGlobalSharePointConfig(): Promise<SharePointGlobalConfig | null> {
+  const db = await getTypedClient();
+  const { data } = await db
+    .from('app_settings')
+    .select('value')
+    .eq('key', 'sharepoint_config')
+    .maybeSingle();
+
+  if (!data || !data.value) {
+    return null;
+  }
+
+  return data.value as SharePointGlobalConfig;
+}
+
+/**
+ * Check if global SharePoint is configured
+ */
+export async function isSharePointConfigured(): Promise<boolean> {
+  const config = await getGlobalSharePointConfig();
+  return config !== null;
+}
+
+/**
+ * Ensure a project has a SharePoint folder (auto-create if needed)
+ * Uses the global SharePoint configuration
+ */
+async function ensureProjectFolder(
+  projectId: string,
+  projectName: string,
+  userId: string,
+  msConnection: CalendarConnection
+): Promise<{ success: boolean; connection?: ProjectSharePointConnection; error?: string }> {
+  const db = await getTypedClient();
+
+  // Check if project already has a connection
+  const { data: existingConnection } = await db
+    .from('project_sharepoint_connections')
+    .select('*')
+    .eq('project_id', projectId)
+    .maybeSingle();
+
+  if (existingConnection) {
+    return { success: true, connection: existingConnection as ProjectSharePointConnection };
+  }
+
+  // Get global SharePoint config
+  const globalConfig = await getGlobalSharePointConfig();
+  if (!globalConfig) {
+    return { success: false, error: 'SharePoint not configured. Contact your administrator.' };
+  }
+
+  try {
+    // Sanitize project name for folder name
+    const folderName = projectName.replace(/[<>:"/\\|?*]/g, '-').trim();
+
+    // Create project folder under the base folder
+    const projectFolder = await sharepoint.createFolder(
+      msConnection,
+      globalConfig.drive_id,
+      globalConfig.base_folder_id,
+      folderName
+    );
+
+    // Create category subfolders
+    const categories: FileCategory[] = ['schematics', 'sow', 'photos', 'videos', 'other'];
+    for (const category of categories) {
+      const categoryFolderName = sharepoint.getCategoryFolderName(category);
+      try {
+        await sharepoint.createFolder(msConnection, globalConfig.drive_id, projectFolder.id, categoryFolderName);
+      } catch {
+        // Folder may already exist
+        console.log(`Category folder ${categoryFolderName} may already exist`);
+      }
+    }
+
+    // Save connection to database
+    const folderPath = globalConfig.base_folder_path === '/' || globalConfig.base_folder_path === 'Root'
+      ? `/${folderName}`
+      : `${globalConfig.base_folder_path}/${folderName}`;
+
+    const { data: connection, error: insertError } = await db
+      .from('project_sharepoint_connections')
+      .insert({
+        project_id: projectId,
+        site_id: globalConfig.site_id,
+        drive_id: globalConfig.drive_id,
+        folder_id: projectFolder.id,
+        folder_path: folderPath,
+        folder_url: projectFolder.webUrl,
+        connected_by: userId,
+        auto_created: true,
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Failed to save auto-created SharePoint connection:', insertError);
+      return { success: false, error: 'Failed to save connection' };
+    }
+
+    revalidatePath(`/projects/${projectId}`);
+
+    return { success: true, connection: connection as ProjectSharePointConnection };
+  } catch (error) {
+    console.error('Auto-create project folder error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to create project folder',
+    };
+  }
 }
 
 // ============================================================================
@@ -260,6 +378,9 @@ export async function getProjectFiles(projectId: string): Promise<GetFilesResult
     .eq('project_id', projectId)
     .maybeSingle();
 
+  // Check if global SharePoint is configured
+  const globalConfig = await getGlobalSharePointConfig();
+
   // Get files
   const { data: files, error: filesError } = await db
     .from('project_files')
@@ -287,6 +408,7 @@ export async function getProjectFiles(projectId: string): Promise<GetFilesResult
     files: (files || []) as ProjectFile[],
     counts,
     connection: connection as ProjectSharePointConnection | null,
+    globalSharePointConfigured: globalConfig !== null,
   };
 }
 
@@ -302,22 +424,36 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
     return { success: false, error: 'Authentication required' };
   }
 
-  // Get SharePoint connection for this project
-  const { data: connection } = await db
-    .from('project_sharepoint_connections')
-    .select('*')
-    .eq('project_id', data.projectId)
-    .single();
-
-  if (!connection) {
-    return { success: false, error: 'Project is not connected to SharePoint' };
-  }
-
-  // Get Microsoft connection
+  // Get Microsoft connection first
   const msConnection = await getMicrosoftConnection(user.id);
   if (!msConnection) {
     return { success: false, error: 'Please connect your Microsoft account' };
   }
+
+  // Get project name for folder creation
+  const { data: project } = await db
+    .from('projects')
+    .select('client_name')
+    .eq('id', data.projectId)
+    .single();
+
+  if (!project) {
+    return { success: false, error: 'Project not found' };
+  }
+
+  // Ensure project has a SharePoint folder (auto-create if needed)
+  const folderResult = await ensureProjectFolder(
+    data.projectId,
+    project.client_name,
+    user.id,
+    msConnection
+  );
+
+  if (!folderResult.success || !folderResult.connection) {
+    return { success: false, error: folderResult.error || 'Failed to setup project folder' };
+  }
+
+  const connection = folderResult.connection;
 
   try {
     // Get the category subfolder

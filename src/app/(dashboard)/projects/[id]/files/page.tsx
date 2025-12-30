@@ -52,6 +52,7 @@ export default async function ProjectFilesPage({
           initialFiles={filesResult.files || []}
           initialCounts={filesResult.counts || []}
           initialConnection={filesResult.connection || null}
+          globalSharePointConfigured={filesResult.globalSharePointConfigured ?? false}
         />
       </Suspense>
     </div>

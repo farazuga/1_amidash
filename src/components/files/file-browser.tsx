@@ -41,10 +41,10 @@ interface FileBrowserProps {
   files: ProjectFile[];
   counts: FileCategoryCount[];
   connection: ProjectSharePointConnection | null;
+  globalSharePointConfigured?: boolean;
   isLoading?: boolean;
   onUpload: (files: FileUploadData[]) => Promise<void>;
   onSync?: () => Promise<void>;
-  onConnect?: () => void;
   onDownload?: (file: ProjectFile) => void;
   onDelete?: (file: ProjectFile) => void;
   onShare?: (file: ProjectFile) => void;
@@ -61,10 +61,10 @@ export function FileBrowser({
   files,
   counts,
   connection,
+  globalSharePointConfigured = false,
   isLoading,
   onUpload,
   onSync,
-  onConnect,
   onDownload,
   onDelete,
   onShare,
@@ -150,9 +150,13 @@ export function FileBrowser({
                 <ExternalLink className="h-3 w-3" />
               </a>
             </div>
-          ) : (
+          ) : globalSharePointConfigured ? (
             <p className="text-sm text-gray-500">
-              Connect SharePoint to sync files
+              Files will sync to SharePoint on upload
+            </p>
+          ) : (
+            <p className="text-sm text-yellow-600">
+              SharePoint not configured. Contact admin.
             </p>
           )}
         </div>
@@ -174,29 +178,26 @@ export function FileBrowser({
             </div>
           )}
 
-          {/* Actions */}
-          {connection ? (
+          {/* Actions - show if connection exists OR if global config is set (auto-create on upload) */}
+          {(connection || globalSharePointConfigured) ? (
             <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSync}
-                disabled={isSyncing || !isOnline}
-              >
-                <RefreshCw className={cn('h-4 w-4 mr-2', isSyncing && 'animate-spin')} />
-                Sync
-              </Button>
+              {connection && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSync}
+                  disabled={isSyncing || !isOnline}
+                >
+                  <RefreshCw className={cn('h-4 w-4 mr-2', isSyncing && 'animate-spin')} />
+                  Sync
+                </Button>
+              )}
               <Button size="sm" onClick={() => setShowUploadDialog(true)}>
                 <Upload className="h-4 w-4 mr-2" />
                 Upload
               </Button>
             </>
-          ) : (
-            <Button onClick={onConnect}>
-              <FolderSync className="h-4 w-4 mr-2" />
-              Connect SharePoint
-            </Button>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -284,8 +285,8 @@ export function FileBrowser({
         <EmptyState
           hasFiles={files.length > 0}
           hasConnection={!!connection}
+          globalSharePointConfigured={globalSharePointConfigured}
           onUpload={() => setShowUploadDialog(true)}
-          onConnect={onConnect}
         />
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -363,13 +364,13 @@ function FileBrowserSkeleton({ viewMode }: { viewMode: ViewMode }) {
 function EmptyState({
   hasFiles,
   hasConnection,
+  globalSharePointConfigured,
   onUpload,
-  onConnect,
 }: {
   hasFiles: boolean;
   hasConnection: boolean;
+  globalSharePointConfigured?: boolean;
   onUpload: () => void;
-  onConnect?: () => void;
 }) {
   if (hasFiles) {
     // Has files but filter returned none
@@ -382,30 +383,28 @@ function EmptyState({
     );
   }
 
-  if (!hasConnection) {
+  // SharePoint not configured globally
+  if (!globalSharePointConfigured) {
     return (
       <div className="text-center py-12 border-2 border-dashed rounded-lg">
         <FolderSync className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-        <h3 className="font-medium text-gray-900 mb-1">Connect SharePoint</h3>
+        <h3 className="font-medium text-gray-900 mb-1">SharePoint Not Configured</h3>
         <p className="text-gray-500 mb-4">
-          Link a SharePoint folder to store and sync project files
+          Contact your administrator to configure SharePoint integration.
         </p>
-        {onConnect && (
-          <Button onClick={onConnect}>
-            <FolderSync className="h-4 w-4 mr-2" />
-            Connect SharePoint
-          </Button>
-        )}
       </div>
     );
   }
 
+  // SharePoint configured, ready to upload (folder will be created on first upload)
   return (
     <div className="text-center py-12 border-2 border-dashed rounded-lg">
       <Upload className="h-12 w-12 mx-auto text-gray-300 mb-4" />
       <h3 className="font-medium text-gray-900 mb-1">No files yet</h3>
       <p className="text-gray-500 mb-4">
-        Upload files or sync from SharePoint to get started
+        {hasConnection
+          ? 'Upload files or sync from SharePoint to get started'
+          : 'Upload files to create project folder in SharePoint'}
       </p>
       <Button onClick={onUpload}>
         <Upload className="h-4 w-4 mr-2" />

@@ -6,9 +6,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Loader2, Mail, AlertTriangle, Settings } from 'lucide-react';
+import { Loader2, Mail, AlertTriangle, Settings, FolderSync, ExternalLink, Unlink } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { SharePointConfigDialog } from '@/components/admin/sharepoint-config-dialog';
+import {
+  getSharePointConfig,
+  removeSharePointConfig,
+  checkAdminMicrosoftConnection,
+} from './sharepoint-actions';
+import type { SharePointGlobalConfig } from '@/types';
 
 interface AppSetting {
   key: string;
@@ -22,6 +29,14 @@ export default function AdminSettingsPage() {
   const [tableExists, setTableExists] = useState(true);
   const [isPending, startTransition] = useTransition();
   const supabase = createClient();
+
+  // SharePoint state
+  const [sharepointConfig, setSharepointConfig] = useState<SharePointGlobalConfig | null>(null);
+  const [sharepointLoading, setSharepointLoading] = useState(true);
+  const [msConnected, setMsConnected] = useState(false);
+  const [msEmail, setMsEmail] = useState<string | null>(null);
+  const [showSharepointDialog, setShowSharepointDialog] = useState(false);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -48,6 +63,48 @@ export default function AdminSettingsPage() {
 
     fetchSettings();
   }, [supabase]);
+
+  // Fetch SharePoint config and Microsoft connection status
+  useEffect(() => {
+    const fetchSharePointSettings = async () => {
+      setSharepointLoading(true);
+      try {
+        const [configResult, msResult] = await Promise.all([
+          getSharePointConfig(),
+          checkAdminMicrosoftConnection(),
+        ]);
+
+        if (configResult.success) {
+          setSharepointConfig(configResult.config || null);
+        }
+        setMsConnected(msResult.connected);
+        setMsEmail(msResult.email || null);
+      } catch (error) {
+        console.error('Error fetching SharePoint settings:', error);
+      } finally {
+        setSharepointLoading(false);
+      }
+    };
+
+    fetchSharePointSettings();
+  }, []);
+
+  const handleDisconnectSharePoint = async () => {
+    setIsDisconnecting(true);
+    try {
+      const result = await removeSharePointConfig();
+      if (result.success) {
+        setSharepointConfig(null);
+        toast.success('SharePoint disconnected');
+      } else {
+        toast.error(result.error || 'Failed to disconnect SharePoint');
+      }
+    } catch (error) {
+      toast.error('Failed to disconnect SharePoint');
+    } finally {
+      setIsDisconnecting(false);
+    }
+  };
 
   const handleToggleEmails = async (enabled: boolean) => {
     startTransition(async () => {
@@ -199,6 +256,139 @@ WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND pr
           </div>
         </CardContent>
       </Card>
+
+      {/* SharePoint Settings Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FolderSync className="h-5 w-5" />
+            SharePoint Integration
+          </CardTitle>
+          <CardDescription>
+            Configure the SharePoint location for all project files
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {sharepointLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : !msConnected ? (
+            /* Microsoft not connected */
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Microsoft Account Required</AlertTitle>
+              <AlertDescription>
+                <p className="mb-3">
+                  Connect your Microsoft account in the Calendar settings to configure SharePoint.
+                </p>
+                <Button variant="outline" size="sm" asChild>
+                  <a href="/calendar">
+                    Go to Calendar Settings
+                  </a>
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : sharepointConfig ? (
+            /* SharePoint configured */
+            <>
+              <div className="rounded-lg border p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Status</span>
+                  <span className="text-sm font-medium text-green-600 flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-full bg-green-500" />
+                    Connected
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Site</span>
+                  <span className="text-sm font-medium">{sharepointConfig.site_name}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Library</span>
+                  <span className="text-sm font-medium">{sharepointConfig.drive_name}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Base Folder</span>
+                  <a
+                    href={sharepointConfig.base_folder_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-medium text-primary hover:underline flex items-center gap-1"
+                  >
+                    {sharepointConfig.base_folder_path}
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowSharepointDialog(true)}
+                >
+                  Change Location
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleDisconnectSharePoint}
+                  disabled={isDisconnecting}
+                  className="text-red-600 hover:text-red-700"
+                >
+                  {isDisconnecting ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Unlink className="h-4 w-4 mr-2" />
+                  )}
+                  Disconnect
+                </Button>
+              </div>
+
+              <div className="rounded-lg bg-muted p-4">
+                <div className="flex items-start gap-3">
+                  <Settings className="h-5 w-5 text-muted-foreground mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium">How it works</p>
+                    <p className="text-sm text-muted-foreground">
+                      When files are uploaded to a project, a subfolder is automatically
+                      created (e.g., /Projects/ClientName) with category folders for
+                      Schematics, SOW, Photos, Videos, and Other.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            /* SharePoint not configured */
+            <>
+              <div className="text-center py-6 border-2 border-dashed rounded-lg">
+                <FolderSync className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
+                <h3 className="font-medium mb-1">SharePoint Not Configured</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Configure a SharePoint folder to store project files
+                </p>
+                <Button onClick={() => setShowSharepointDialog(true)}>
+                  <FolderSync className="h-4 w-4 mr-2" />
+                  Configure SharePoint
+                </Button>
+              </div>
+
+              {msEmail && (
+                <p className="text-sm text-muted-foreground text-center">
+                  Connected as: {msEmail}
+                </p>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* SharePoint Config Dialog */}
+      <SharePointConfigDialog
+        open={showSharepointDialog}
+        onOpenChange={setShowSharepointDialog}
+        onConfigured={(config) => setSharepointConfig(config)}
+      />
     </div>
   );
 }

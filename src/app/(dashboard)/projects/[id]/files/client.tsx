@@ -3,12 +3,10 @@
 import { useState, useCallback, useTransition } from 'react';
 import { toast } from 'sonner';
 import { FileBrowser } from '@/components/files/file-browser';
-import { SharePointConnectDialog, SharePointFolderSelection } from '@/components/files/sharepoint-connect-dialog';
 import { CameraCapture, CapturedFileData } from '@/components/files/camera-capture';
 import { FileUploadData } from '@/components/files/file-upload-dialog';
 import type { ProjectFile, FileCategoryCount, ProjectSharePointConnection } from '@/types';
 import {
-  connectSharePointFolder,
   uploadFile,
   syncFilesFromSharePoint,
   deleteFile,
@@ -23,6 +21,7 @@ interface ProjectFilesClientProps {
   initialFiles: ProjectFile[];
   initialCounts: FileCategoryCount[];
   initialConnection: ProjectSharePointConnection | null;
+  globalSharePointConfigured: boolean;
 }
 
 export function ProjectFilesClient({
@@ -31,11 +30,11 @@ export function ProjectFilesClient({
   initialFiles,
   initialCounts,
   initialConnection,
+  globalSharePointConfigured,
 }: ProjectFilesClientProps) {
   const [files, setFiles] = useState<ProjectFile[]>(initialFiles);
   const [counts, setCounts] = useState<FileCategoryCount[]>(initialCounts);
   const [connection, setConnection] = useState<ProjectSharePointConnection | null>(initialConnection);
-  const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   // Get pending upload count for floating button badge
@@ -49,30 +48,6 @@ export function ProjectFilesClient({
       setCounts(result.counts || []);
       setConnection(result.connection || null);
     }
-  }, [projectId]);
-
-  // Handle SharePoint connection
-  const handleConnect = useCallback(async (selection: SharePointFolderSelection) => {
-    startTransition(async () => {
-      const result = await connectSharePointFolder({
-        projectId,
-        siteId: selection.siteId,
-        driveId: selection.driveId,
-        folderId: selection.folderId,
-        folderPath: selection.folderPath,
-        folderUrl: selection.folderUrl,
-        createSubfolders: true,
-      });
-
-      if (result.success && result.connection) {
-        setConnection(result.connection);
-        toast.success('SharePoint folder connected successfully');
-        // Sync files from the connected folder
-        await handleSync();
-      } else {
-        toast.error(result.error || 'Failed to connect SharePoint');
-      }
-    });
   }, [projectId]);
 
   // Handle file upload
@@ -228,24 +203,14 @@ export function ProjectFilesClient({
         files={files}
         counts={counts}
         connection={connection}
+        globalSharePointConfigured={globalSharePointConfigured}
         isLoading={isPending}
         onUpload={handleUpload}
         onSync={handleSync}
-        onConnect={() => setShowConnectDialog(true)}
         onDownload={handleDownload}
         onDelete={handleDelete}
         onShare={handleShare}
         onPreview={handlePreview}
-      />
-
-      {/* SharePoint Connect Dialog */}
-      <SharePointConnectDialog
-        open={showConnectDialog}
-        onOpenChange={setShowConnectDialog}
-        projectId={projectId}
-        projectName={projectName}
-        onConnect={handleConnect}
-        isConnected={!!connection}
       />
 
       {/* Floating camera capture button (mobile) */}

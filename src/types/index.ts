@@ -183,10 +183,24 @@ export interface ProjectSharePointConnection {
   connected_by: string;
   last_synced_at: string | null;
   sync_error: string | null;
+  auto_created: boolean;  // True if auto-created from global config
   created_at: string;
   updated_at: string;
   // Joined relations
   connected_by_profile?: Profile | null;
+}
+
+// Global SharePoint configuration (admin-only, stored in app_settings)
+export interface SharePointGlobalConfig {
+  site_id: string;
+  site_name: string;
+  drive_id: string;
+  drive_name: string;
+  base_folder_id: string;
+  base_folder_path: string;
+  base_folder_url: string;
+  configured_by: string;
+  configured_at: string;
 }
 
 // Pre-sales files: Captured BEFORE project exists (linked to ActiveCampaign deal)
