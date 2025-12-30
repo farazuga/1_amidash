@@ -1135,22 +1135,34 @@ export async function createCalendarSubscriptionForUser(
   targetUserId: string
 ): Promise<ActionResult<{ token: string; url: string }>> {
   // First verify the caller is an admin
-  const { error: authError } = await requireAdmin();
-  if (authError) {
-    return { success: false, error: authError };
+  const { error: authError, supabase } = await requireAdmin();
+  if (authError || !supabase) {
+    return { success: false, error: authError || 'Authentication failed' };
   }
 
-  // Use service client to bypass RLS for creating subscriptions for other users
-  const serviceClient = await createServiceClient();
+  // Try to use service client to bypass RLS, fall back to regular client
+  let dbClient;
+  try {
+    dbClient = await createServiceClient();
+  } catch (e) {
+    // Service role key not available, try with regular client
+    console.warn('Service client not available, using regular client:', e);
+    dbClient = supabase;
+  }
 
   // Check if subscription already exists for target user
-  const { data: existing } = await serviceClient
+  const { data: existing, error: selectError } = await dbClient
     .from('calendar_subscriptions')
     .select('id, token')
     .eq('user_id', targetUserId)
     .eq('feed_type', 'personal')
     .is('project_id', null)
     .maybeSingle();
+
+  if (selectError) {
+    console.error('Error checking existing subscription:', selectError);
+    return { success: false, error: `Database error: ${selectError.message}` };
+  }
 
   if (existing) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
@@ -1164,7 +1176,7 @@ export async function createCalendarSubscriptionForUser(
   }
 
   // Create new subscription for target user
-  const { data: subscription, error: insertError } = await serviceClient
+  const { data: subscription, error: insertError } = await dbClient
     .from('calendar_subscriptions')
     .insert({
       user_id: targetUserId,
