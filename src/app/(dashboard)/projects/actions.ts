@@ -309,8 +309,25 @@ export async function bulkUpdateScheduleStatus(data: BulkUpdateScheduleStatusDat
     return { success: false, error: 'Authentication required' };
   }
 
+  // Permission check - only admin/editor can bulk update
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile || !['admin', 'editor'].includes(profile.role || '')) {
+    return { success: false, error: 'Insufficient permissions' };
+  }
+
   if (!data.projectIds.length) {
     return { success: false, error: 'No projects selected' };
+  }
+
+  // Validate schedule status value
+  const validStatuses = ['draft', 'tentative', 'pending_confirm', 'confirmed'];
+  if (!validStatuses.includes(data.scheduleStatus)) {
+    return { success: false, error: 'Invalid schedule status' };
   }
 
   // Update all projects

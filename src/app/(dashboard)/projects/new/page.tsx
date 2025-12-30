@@ -4,50 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft } from 'lucide-react';
 import { ProjectForm } from '@/components/projects/project-form';
-
-async function getStatuses() {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from('statuses')
-    .select('*')
-    .eq('is_active', true)
-    .order('display_order');
-  return data || [];
-}
-
-async function getTags() {
-  const supabase = await createClient();
-  const { data } = await supabase.from('tags').select('*').order('name');
-  return data || [];
-}
-
-async function getSalespeople() {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('is_salesperson', true)
-    .order('full_name');
-  return data || [];
-}
-
-async function getProjectTypes() {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from('project_types')
-    .select('*')
-    .eq('is_active', true)
-    .order('display_order');
-  return data || [];
-}
-
-async function getProjectTypeStatuses() {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from('project_type_statuses')
-    .select('*');
-  return data || [];
-}
+import {
+  getCachedStatuses,
+  getCachedTags,
+  getCachedProjectTypes,
+  getCachedProjectTypeStatuses,
+  getCachedSalespeople,
+} from '@/lib/data/cached-queries';
 
 async function getCurrentUser() {
   const supabase = await createClient();
@@ -56,12 +19,13 @@ async function getCurrentUser() {
 }
 
 export default async function NewProjectPage() {
+  // Use cached queries for static data
   const [statuses, tags, salespeople, projectTypes, projectTypeStatuses, currentUser] = await Promise.all([
-    getStatuses(),
-    getTags(),
-    getSalespeople(),
-    getProjectTypes(),
-    getProjectTypeStatuses(),
+    getCachedStatuses(),
+    getCachedTags(),
+    getCachedSalespeople(),
+    getCachedProjectTypes(),
+    getCachedProjectTypeStatuses(),
     getCurrentUser(),
   ]);
 

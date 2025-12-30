@@ -13,10 +13,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Mail } from 'lucide-react';
+import { Loader2, Mail, AlertTriangle } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { CONTRACT_TYPES } from '@/lib/constants';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { Project, Tag, Profile, ProjectType } from '@/types';
 import type { ACAccount, ACContact } from '@/types/activecampaign';
 import { createProject } from '@/app/(dashboard)/projects/actions';
@@ -24,48 +35,14 @@ import { ClientNameAutocomplete } from './client-name-autocomplete';
 import { ContactSelector } from './contact-selector';
 import { SecondaryContactSelector } from './secondary-contact-selector';
 import { useActiveCampaignContacts } from '@/hooks/use-activecampaign';
-
-// Validation helpers
-function cleanSalesAmount(value: string): string {
-  // Remove $ and , characters, return cleaned number string
-  return value.replace(/[$,]/g, '').trim();
-}
-
-function validateEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-}
-
-function formatPhoneNumber(phone: string): string {
-  // Extract digits only for the first 10 characters
-  const digits = phone.replace(/\D/g, '');
-
-  // If we have at least 10 digits, format the first 10 as xxx-xxx-xxxx
-  if (digits.length >= 10) {
-    const formatted = `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
-    // Keep any remaining characters (for extensions like "ext 123" or "x123")
-    const remaining = phone.slice(phone.lastIndexOf(digits.slice(9, 10)) + 1).trim();
-    // Check if there are additional characters after the 10th digit in the original
-    const afterDigits = phone.replace(/^[\d\s\-().]+/, '').trim();
-    if (afterDigits) {
-      return `${formatted} ${afterDigits}`;
-    }
-    // If remaining digits exist beyond 10, add them as extension
-    if (digits.length > 10) {
-      return `${formatted} ext ${digits.slice(10)}`;
-    }
-    return formatted;
-  }
-
-  return phone; // Return as-is if less than 10 digits
-}
-
-function validateDateInRange(dateStr: string): boolean {
-  if (!dateStr) return true; // Empty is valid
-  const date = new Date(dateStr);
-  const year = date.getFullYear();
-  return year >= 2024 && year <= 2030;
-}
+import { ProjectDatePicker } from '@/components/calendar/project-date-picker';
+import {
+  calculateGoalDate,
+  cleanSalesAmount,
+  formatPhoneNumber,
+  validateProjectForm,
+  validateSalesOrderNumber,
+} from '@/lib/projects/utils';
 
 function formatDateForInput(dateStr: string | null | undefined): string {
   if (!dateStr) return '';
@@ -146,6 +123,12 @@ export function ProjectForm({
 
   const isEditing = !!project;
 
+  // State for project type change warning dialog (when editing)
+  const [showTypeChangeWarning, setShowTypeChangeWarning] = useState(false);
+  const [pendingProjectType, setPendingProjectType] = useState<string | null>(null);
+  const [needsStatusSelection, setNeedsStatusSelection] = useState(false);
+  const [selectedNewStatus, setSelectedNewStatus] = useState<string>('');
+
   // Get statuses available for the selected project type
   const getAvailableStatuses = (projectTypeId: string) => {
     const statusIds = projectTypeStatuses
@@ -154,75 +137,81 @@ export function ProjectForm({
     return statuses.filter(s => statusIds.includes(s.id) && s.is_active);
   };
 
+  // Handle project type change (when editing)
+  const handleProjectTypeChange = (newTypeId: string) => {
+    if (!isEditing) {
+      // For new projects, just set the type and auto-calculate goal date
+      setSelectedProjectType(newTypeId);
+      const typeName = projectTypes.find(t => t.id === newTypeId)?.name || '';
+      const calculatedGoal = calculateGoalDate(typeName);
+      setGoalCompletionDate(calculatedGoal);
+      return;
+    }
+
+    // For existing projects, check if current status is valid for new type
+    const newTypeStatuses = getAvailableStatuses(newTypeId);
+    const currentStatusValid = newTypeStatuses.some(s => s.id === project?.current_status_id);
+
+    if (!currentStatusValid) {
+      // Show warning dialog - status is not valid for new type
+      setPendingProjectType(newTypeId);
+      setNeedsStatusSelection(true);
+      setSelectedNewStatus(newTypeStatuses[0]?.id || '');
+      setShowTypeChangeWarning(true);
+    } else {
+      // Status is valid, just change the type and reset any stale status selection
+      setSelectedProjectType(newTypeId);
+      setSelectedNewStatus(''); // Reset to avoid stale state
+    }
+  };
+
+  // Confirm project type change (with new status if needed)
+  const confirmProjectTypeChange = () => {
+    if (pendingProjectType) {
+      setSelectedProjectType(pendingProjectType);
+      setPendingProjectType(null);
+      setShowTypeChangeWarning(false);
+      setNeedsStatusSelection(false);
+      // Don't reset selectedNewStatus here - it's needed for the form submission
+    }
+  };
+
+  // Cancel project type change
+  const cancelProjectTypeChange = () => {
+    setPendingProjectType(null);
+    setShowTypeChangeWarning(false);
+    setNeedsStatusSelection(false);
+    setSelectedNewStatus('');
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
 
-    // Validate salesperson is selected
-    if (!selectedSalesperson) {
-      toast.error('Please select a salesperson');
-      return;
-    }
+    // Run comprehensive form validation
+    const validation = validateProjectForm({
+      selectedSalesperson,
+      selectedProjectType,
+      isEditing,
+      salesOrderNumber,
+      pocName,
+      pocEmail,
+      pocPhone,
+      goalCompletionDate,
+      createdDate,
+      startDate,
+      endDate,
+      salesAmount,
+      secondaryPocEmail,
+    });
 
-    // Validate project type is selected for new projects
-    if (!isEditing && !selectedProjectType) {
-      toast.error('Please select a project type');
-      return;
-    }
-
-    // Validate Sales Order Number format (must start with S1 and be 6 characters)
-    if (salesOrderNumber && salesOrderNumber.trim()) {
-      const trimmedSalesOrder = salesOrderNumber.trim();
-      if (!trimmedSalesOrder.startsWith('S1') || trimmedSalesOrder.length !== 6) {
-        toast.error('Sales Order # must start with "S1" and be exactly 6 characters (e.g., S12345)');
-        setSalesOrderError('Must start with "S1" and be exactly 6 characters');
-        return;
+    if (!validation.valid) {
+      toast.error(validation.error);
+      // Set sales order error for UI feedback if applicable
+      const salesOrderError = validateSalesOrderNumber(salesOrderNumber);
+      if (salesOrderError) {
+        setSalesOrderError(salesOrderError);
       }
-    }
-
-    // Validate Point of Contact fields are all filled
-    // Use state values for POC fields since they're controlled
-    if (!pocName?.trim() || !pocEmail?.trim() || !pocPhone?.trim()) {
-      toast.error('All Point of Contact fields are required');
-      return;
-    }
-
-    // Validate email format
-    if (!validateEmail(pocEmail)) {
-      toast.error('Please enter a valid email address');
-      return;
-    }
-
-    // Validate phone has at least 10 digits
-    const phoneDigits = pocPhone.replace(/\D/g, '');
-    if (phoneDigits.length < 10) {
-      toast.error('Phone number must have at least 10 digits');
-      return;
-    }
-
-    // Validate goal completion date range
-    if (goalCompletionDate && !validateDateInRange(goalCompletionDate)) {
-      toast.error('Goal completion date must be between 2024 and 2030');
-      return;
-    }
-
-    // Validate created date range (for editing)
-    if (createdDate && !validateDateInRange(createdDate)) {
-      toast.error('Created date must be between 2024 and 2030');
-      return;
-    }
-
-    // Validate project schedule dates
-    if (startDate && !validateDateInRange(startDate)) {
-      toast.error('Start date must be between 2024 and 2030');
-      return;
-    }
-    if (endDate && !validateDateInRange(endDate)) {
-      toast.error('End date must be between 2024 and 2030');
-      return;
-    }
-    if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
-      toast.error('End date must be after start date');
       return;
     }
 
@@ -232,17 +221,6 @@ export function ProjectForm({
     // Clean and parse sales amount
     const cleanedSalesAmount = cleanSalesAmount(salesAmount);
     const parsedSalesAmount = cleanedSalesAmount ? parseFloat(cleanedSalesAmount) : null;
-
-    if (cleanedSalesAmount && (isNaN(parsedSalesAmount!) || parsedSalesAmount! < 0)) {
-      toast.error('Please enter a valid sales amount');
-      return;
-    }
-
-    // Validate secondary email format if provided
-    if (secondaryPocEmail && secondaryPocEmail.trim() && !validateEmail(secondaryPocEmail.trim())) {
-      toast.error('Please enter a valid secondary email address');
-      return;
-    }
 
     const data = {
       client_name: clientName,
@@ -265,6 +243,11 @@ export function ProjectForm({
       start_date: startDate || null,
       end_date: endDate || null,
       ...(isEditing && { created_date: createdDate }),
+      // Include project type and status changes when editing
+      ...(isEditing && selectedProjectType !== project?.project_type_id && {
+        project_type_id: selectedProjectType,
+        ...(selectedNewStatus && { current_status_id: selectedNewStatus }),
+      }),
     };
 
     setIsPending(true);
@@ -347,6 +330,7 @@ export function ProjectForm({
             }
           } catch (err) {
             console.error('Background save error:', err);
+            toast.warning('Some changes may not have been saved. Please refresh to verify.');
           }
         })();
 
@@ -461,8 +445,7 @@ export function ProjectForm({
           <Label htmlFor="project_type">Project Type *</Label>
           <Select
             value={selectedProjectType}
-            onValueChange={setSelectedProjectType}
-            disabled={isEditing}
+            onValueChange={handleProjectTypeChange}
           >
             <SelectTrigger>
               <SelectValue placeholder="Select project type" />
@@ -475,9 +458,9 @@ export function ProjectForm({
               ))}
             </SelectContent>
           </Select>
-          {isEditing && (
-            <p className="text-xs text-muted-foreground">
-              Project type cannot be changed after creation
+          {isEditing && selectedProjectType !== project?.project_type_id && (
+            <p className="text-xs text-amber-600">
+              Changing project type may affect available statuses
             </p>
           )}
         </div>
@@ -611,23 +594,6 @@ export function ProjectForm({
           />
         </div>
 
-        {/* Goal Completion Date */}
-        <div className="space-y-2">
-          <Label htmlFor="goal_completion_date">Goal Completion Date</Label>
-          <Input
-            id="goal_completion_date"
-            name="goal_completion_date"
-            type="date"
-            min="2024-01-01"
-            max="2030-12-31"
-            value={goalCompletionDate}
-            onChange={(e) => setGoalCompletionDate(e.target.value)}
-          />
-          <p className="text-xs text-muted-foreground">
-            Must be between 2024 and 2030
-          </p>
-        </div>
-
         {/* Scope Link */}
         <div className="space-y-2">
           <Label htmlFor="scope_link">Scope Link (OneDrive)</Label>
@@ -646,34 +612,45 @@ export function ProjectForm({
       <div className="border-t pt-4">
         <h3 className="text-sm font-medium mb-3">Project Schedule</h3>
         <p className="text-xs text-muted-foreground mb-4">
-          Set the start and end dates for this project. These dates are used for calendar scheduling and customer visibility.
+          Set the goal date and schedule for this project. These dates are used for calendar scheduling and customer visibility.
         </p>
         <div className="grid gap-4 md:grid-cols-2">
-          {/* Start Date */}
+          {/* Goal Completion Date */}
           <div className="space-y-2">
-            <Label htmlFor="start_date">Start Date</Label>
+            <Label htmlFor="goal_completion_date">Goal Completion Date</Label>
             <Input
-              id="start_date"
-              name="start_date"
+              id="goal_completion_date"
+              name="goal_completion_date"
               type="date"
               min="2024-01-01"
               max="2030-12-31"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              value={goalCompletionDate}
+              onChange={(e) => setGoalCompletionDate(e.target.value)}
             />
+            {!isEditing && selectedProjectType && goalCompletionDate && (
+              <p className="text-xs text-muted-foreground">
+                Auto-calculated based on {projectTypes.find(t => t.id === selectedProjectType)?.name || 'project type'}
+              </p>
+            )}
+            {!selectedProjectType && !isEditing && (
+              <p className="text-xs text-muted-foreground">
+                Select a project type to auto-calculate
+              </p>
+            )}
           </div>
 
-          {/* End Date */}
-          <div className="space-y-2">
-            <Label htmlFor="end_date">End Date</Label>
-            <Input
-              id="end_date"
-              name="end_date"
-              type="date"
-              min="2024-01-01"
-              max="2030-12-31"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+          {/* Placeholder for grid alignment */}
+          <div className="hidden md:block" />
+
+          {/* Project Date Range Picker */}
+          <div className="md:col-span-2">
+            <ProjectDatePicker
+              startDate={startDate || null}
+              endDate={endDate || null}
+              onDateChange={(newStart, newEnd) => {
+                setStartDate(newStart || '');
+                setEndDate(newEnd || '');
+              }}
             />
           </div>
         </div>
@@ -759,6 +736,64 @@ export function ProjectForm({
           {isEditing ? 'Save Changes' : 'Create Project'}
         </Button>
       </div>
+
+      {/* Project Type Change Warning Dialog */}
+      <AlertDialog open={showTypeChangeWarning} onOpenChange={setShowTypeChangeWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Project Type Change
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                <p>
+                  Changing the project type will affect the available statuses for this project.
+                </p>
+                {needsStatusSelection && pendingProjectType && (
+                  <Alert variant="destructive" className="border-amber-200 bg-amber-50 text-amber-800">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      The current status is not available in the new project type. Please select a new status.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {needsStatusSelection && pendingProjectType && (
+                  <div className="space-y-2">
+                    <Label>Select New Status *</Label>
+                    <Select
+                      value={selectedNewStatus}
+                      onValueChange={setSelectedNewStatus}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getAvailableStatuses(pendingProjectType).map((status) => (
+                          <SelectItem key={status.id} value={status.id}>
+                            {status.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelProjectTypeChange}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmProjectTypeChange}
+              disabled={needsStatusSelection && !selectedNewStatus}
+            >
+              Confirm Change
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </form>
   );
 }
