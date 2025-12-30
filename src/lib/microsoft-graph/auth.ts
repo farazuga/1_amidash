@@ -2,7 +2,6 @@
  * Microsoft OAuth authentication helpers
  */
 
-import { ConfidentialClientApplication, Configuration } from '@azure/msal-node';
 import type { MicrosoftTokenResponse, MicrosoftOAuthConfig } from './types';
 
 // OAuth configuration
@@ -34,20 +33,6 @@ function getConfig(): MicrosoftOAuthConfig {
     tenantId,
     scopes: MICROSOFT_SCOPES,
   };
-}
-
-function getMsalClient(): ConfidentialClientApplication {
-  const config = getConfig();
-
-  const msalConfig: Configuration = {
-    auth: {
-      clientId: config.clientId,
-      clientSecret: config.clientSecret,
-      authority: `https://login.microsoftonline.com/${config.tenantId}`,
-    },
-  };
-
-  return new ConfidentialClientApplication(msalConfig);
 }
 
 /**
@@ -82,33 +67,12 @@ export function getAuthUrl(state: string): string {
 
 /**
  * Exchange authorization code for tokens
+ * Uses direct fetch to token endpoint to get refresh_token
  */
 export async function exchangeCodeForTokens(
   code: string
 ): Promise<MicrosoftTokenResponse> {
-  const config = getConfig();
-  const msalClient = getMsalClient();
-
-  try {
-    const response = await msalClient.acquireTokenByCode({
-      code,
-      scopes: config.scopes,
-      redirectUri: config.redirectUri,
-    });
-
-    if (!response || !response.accessToken) {
-      throw new Error('Failed to acquire tokens from Microsoft');
-    }
-
-    // MSAL doesn't directly return refresh_token in the response object
-    // We need to handle this differently - the token is cached internally
-    // For server-side, we'll use the token endpoint directly
-
-    return await exchangeCodeDirectly(code);
-  } catch (error) {
-    console.error('Token exchange error:', error);
-    throw error;
-  }
+  return exchangeCodeDirectly(code);
 }
 
 /**
