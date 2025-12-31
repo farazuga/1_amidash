@@ -16,6 +16,7 @@ import {
   Plus,
   Target,
   Settings,
+  Settings2,
   Tv,
   ChevronLeft,
   ChevronRight,
@@ -66,6 +67,11 @@ const mainNavItems = [
 ];
 
 const adminNavItems = [
+  {
+    title: 'Settings',
+    href: '/admin/settings',
+    icon: Settings2,
+  },
   {
     title: 'Statuses',
     href: '/admin/statuses',
