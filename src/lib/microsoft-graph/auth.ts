@@ -5,13 +5,17 @@
 import type { MicrosoftTokenResponse, MicrosoftOAuthConfig } from './types';
 
 // OAuth configuration
+// See: https://learn.microsoft.com/en-us/graph/permissions-reference
 const MICROSOFT_SCOPES = [
   'openid',
   'profile',
   'email',
   'offline_access',
-  'Calendars.ReadWrite',
   'User.Read',
+  'Calendars.ReadWrite',
+  // SharePoint and OneDrive permissions for file management
+  'Sites.Read.All', // Read SharePoint sites
+  'Files.ReadWrite.All', // Read and write files in OneDrive and SharePoint
 ];
 
 function getConfig(): MicrosoftOAuthConfig {

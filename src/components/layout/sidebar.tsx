@@ -16,6 +16,7 @@ import {
   Plus,
   Target,
   Settings,
+  Settings2,
   Tv,
   ChevronLeft,
   ChevronRight,
@@ -58,9 +59,19 @@ const mainNavItems = [
     href: '/my-schedule',
     icon: CalendarDays,
   },
+  {
+    title: 'Settings',
+    href: '/settings',
+    icon: Settings,
+  },
 ];
 
 const adminNavItems = [
+  {
+    title: 'Settings',
+    href: '/admin/settings',
+    icon: Settings2,
+  },
   {
     title: 'Statuses',
     href: '/admin/statuses',
@@ -90,11 +101,6 @@ const adminNavItems = [
     title: 'Audit Log',
     href: '/admin/audit',
     icon: FileText,
-  },
-  {
-    title: 'Settings',
-    href: '/admin/settings',
-    icon: Settings,
   },
 ];
 

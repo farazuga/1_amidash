@@ -3,6 +3,17 @@
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
+// Helper to get sales order number from project ID for revalidation
+async function getSalesOrderNumber(projectId: string): Promise<string | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('projects')
+    .select('sales_order_number')
+    .eq('id', projectId)
+    .single();
+  return data?.sales_order_number || null;
+}
+
 export interface CreateProjectData {
   client_name: string;
   sales_order_number: string | null;
@@ -194,7 +205,7 @@ export async function updateProjectDates(data: UpdateProjectDatesData): Promise<
   // Get current project dates for audit log
   const { data: project, error: fetchError } = await supabase
     .from('projects')
-    .select('start_date, end_date')
+    .select('start_date, end_date, sales_order_number')
     .eq('id', data.projectId)
     .single();
 
@@ -233,7 +244,9 @@ export async function updateProjectDates(data: UpdateProjectDatesData): Promise<
     // Don't fail the whole operation
   }
 
-  revalidatePath(`/projects/${data.projectId}`);
+  if (project.sales_order_number) {
+    revalidatePath(`/projects/${project.sales_order_number}`);
+  }
   revalidatePath('/projects');
   revalidatePath('/project-calendar');
 
@@ -283,7 +296,10 @@ export async function updateProjectStatus(data: UpdateStatusData): Promise<Updat
     // Don't fail the whole operation for background tasks
   }
 
-  revalidatePath(`/projects/${data.projectId}`);
+  const salesOrder = await getSalesOrderNumber(data.projectId);
+  if (salesOrder) {
+    revalidatePath(`/projects/${salesOrder}`);
+  }
   revalidatePath('/projects');
 
   return { success: true };
@@ -396,7 +412,7 @@ export async function updateProjectScheduleStatus(data: UpdateScheduleStatusData
   // Verify project exists and has dates
   const { data: project } = await supabase
     .from('projects')
-    .select('id, start_date, end_date')
+    .select('id, start_date, end_date, sales_order_number')
     .eq('id', data.projectId)
     .single();
 
@@ -432,7 +448,127 @@ export async function updateProjectScheduleStatus(data: UpdateScheduleStatusData
     console.error('Audit log error:', err);
   }
 
-  revalidatePath(`/projects/${data.projectId}`);
+  if (project.sales_order_number) {
+    revalidatePath(`/projects/${project.sales_order_number}`);
+  }
+  revalidatePath('/projects');
+  revalidatePath('/project-calendar');
+
+  return { success: true };
+}
+
+// Inline edit actions for Quick Info fields
+export interface InlineEditData {
+  projectId: string;
+  field: string;
+  value: string | null;
+}
+
+export interface InlineEditResult {
+  success: boolean;
+  error?: string;
+}
+
+export async function inlineEditProjectField(data: InlineEditData): Promise<InlineEditResult> {
+  const supabase = await createClient();
+
+  // Get current user
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    return { success: false, error: 'Authentication required' };
+  }
+
+  // Map field names to database columns
+  const fieldMap: Record<string, string> = {
+    goal_date: 'goal_completion_date',
+    sales_amount: 'sales_amount',
+    salesperson_id: 'salesperson_id',
+    start_date: 'start_date',
+    end_date: 'end_date',
+    sales_order_number: 'sales_order_number',
+    sales_order_url: 'sales_order_url',
+    status_id: 'current_status_id',
+  };
+
+  const dbField = fieldMap[data.field];
+  if (!dbField) {
+    return { success: false, error: 'Invalid field' };
+  }
+
+  // Special handling for status changes - need to update status history
+  if (data.field === 'status_id' && data.value) {
+    // Use the dedicated status update function for proper history tracking
+    const { data: currentProject } = await supabase
+      .from('projects')
+      .select('current_status:statuses(name)')
+      .eq('id', data.projectId)
+      .single();
+
+    const { data: newStatus } = await supabase
+      .from('statuses')
+      .select('name')
+      .eq('id', data.value)
+      .single();
+
+    const result = await updateProjectStatus({
+      projectId: data.projectId,
+      newStatusId: data.value,
+      currentStatusName: (currentProject?.current_status as { name: string } | null)?.name,
+      newStatusName: newStatus?.name,
+    });
+
+    return result;
+  }
+
+  // Get current project for audit log and sales order
+  const { data: project } = await supabase
+    .from('projects')
+    .select('sales_order_number, goal_completion_date, sales_amount, salesperson_id, start_date, end_date, sales_order_url')
+    .eq('id', data.projectId)
+    .single();
+
+  if (!project) {
+    return { success: false, error: 'Project not found' };
+  }
+
+  // Get old value for audit log
+  const oldValue = project[dbField as keyof typeof project];
+
+  // Prepare value for database
+  let dbValue: string | number | null = data.value;
+  if (data.field === 'sales_amount' && data.value) {
+    dbValue = parseFloat(data.value) || null;
+  }
+
+  // Update the field
+  const { error: updateError } = await supabase
+    .from('projects')
+    .update({ [dbField]: dbValue })
+    .eq('id', data.projectId);
+
+  if (updateError) {
+    console.error('Inline edit error:', updateError);
+    return { success: false, error: 'Failed to update field' };
+  }
+
+  // Add audit log
+  try {
+    await supabase.from('audit_logs').insert({
+      project_id: data.projectId,
+      user_id: user.id,
+      action: 'update',
+      field_name: data.field,
+      old_value: String(oldValue ?? ''),
+      new_value: data.value || '',
+    });
+  } catch (err) {
+    console.error('Audit log error:', err);
+  }
+
+  // Revalidate paths
+  if (project.sales_order_number) {
+    revalidatePath(`/projects/${project.sales_order_number}`);
+  }
   revalidatePath('/projects');
   revalidatePath('/project-calendar');
 
