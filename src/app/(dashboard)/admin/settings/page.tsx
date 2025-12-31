@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Loader2, Mail, AlertTriangle, Settings, FolderSync, ExternalLink, Unlink, BarChart3, HelpCircle, Calendar, RefreshCw } from 'lucide-react';
+import { Loader2, Mail, AlertTriangle, Settings, FolderSync, ExternalLink, Unlink, BarChart3, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
@@ -103,10 +103,6 @@ export default function AdminSettingsPage() {
   const [msEmail, setMsEmail] = useState<string | null>(null);
   const [showSharepointDialog, setShowSharepointDialog] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
-  const [isConnectingMs, setIsConnectingMs] = useState(false);
-  const [isDisconnectingMs, setIsDisconnectingMs] = useState(false);
-  const [isSyncingCalendar, setIsSyncingCalendar] = useState(false);
-  const [syncResult, setSyncResult] = useState<{ synced: number; failed: number } | null>(null);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -199,51 +195,6 @@ export default function AdminSettingsPage() {
       toast.error('Failed to disconnect SharePoint');
     } finally {
       setIsDisconnecting(false);
-    }
-  };
-
-  const handleConnectMicrosoft = () => {
-    setIsConnectingMs(true);
-    window.location.href = `/api/auth/microsoft?return_url=${encodeURIComponent('/admin/settings')}`;
-  };
-
-  const handleDisconnectMicrosoft = async () => {
-    if (!confirm('Disconnect Microsoft account? This will also disconnect SharePoint integration.')) {
-      return;
-    }
-    setIsDisconnectingMs(true);
-    try {
-      const response = await fetch('/api/auth/microsoft/disconnect', { method: 'POST' });
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to disconnect');
-      }
-      setMsConnected(false);
-      setMsEmail(null);
-      setSharepointConfig(null);
-      toast.success('Microsoft account disconnected');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to disconnect');
-    } finally {
-      setIsDisconnectingMs(false);
-    }
-  };
-
-  const handleSyncCalendar = async () => {
-    setIsSyncingCalendar(true);
-    setSyncResult(null);
-    try {
-      const response = await fetch('/api/auth/microsoft/sync', { method: 'POST' });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Sync failed');
-      }
-      setSyncResult({ synced: data.synced, failed: data.failed });
-      toast.success(`Synced ${data.synced} calendar events`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Sync failed');
-    } finally {
-      setIsSyncingCalendar(false);
     }
   };
 
@@ -446,108 +397,6 @@ WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND pr
         </CardContent>
       </Card>
 
-      {/* Microsoft Integration Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Microsoft Integration
-          </CardTitle>
-          <CardDescription>
-            Connect Microsoft 365 for calendar sync and SharePoint file storage
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {sharepointLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : msConnected ? (
-            <>
-              <div className="rounded-lg border p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Status</span>
-                  <span className="text-sm font-medium text-green-600 flex items-center gap-1">
-                    <span className="h-2 w-2 rounded-full bg-green-500" />
-                    Connected
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Account</span>
-                  <span className="text-sm font-medium">{msEmail || 'Unknown'}</span>
-                </div>
-              </div>
-
-              {syncResult && (
-                <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200">
-                  Synced {syncResult.synced} calendar events
-                  {syncResult.failed > 0 && ` (${syncResult.failed} failed)`}
-                </div>
-              )}
-
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={handleSyncCalendar}
-                  disabled={isSyncingCalendar}
-                >
-                  {isSyncingCalendar ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                  )}
-                  Sync Calendar
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleDisconnectMicrosoft}
-                  disabled={isDisconnectingMs}
-                  className="text-red-600 hover:text-red-700"
-                >
-                  {isDisconnectingMs ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Unlink className="h-4 w-4 mr-2" />
-                  )}
-                  Disconnect
-                </Button>
-              </div>
-
-              <div className="rounded-lg bg-muted p-4">
-                <div className="flex items-start gap-3">
-                  <Settings className="h-5 w-5 text-muted-foreground mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium">What&apos;s connected</p>
-                    <p className="text-sm text-muted-foreground">
-                      This Microsoft account is used for calendar event syncing and SharePoint file storage.
-                      All users&apos; project schedule assignments will sync to this calendar.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="text-center py-6 border-2 border-dashed rounded-lg">
-                <Calendar className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-                <h3 className="font-medium mb-1">Microsoft Not Connected</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Connect a Microsoft 365 account to enable calendar sync and SharePoint
-                </p>
-                <Button onClick={handleConnectMicrosoft} disabled={isConnectingMs}>
-                  {isConnectingMs ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Calendar className="h-4 w-4 mr-2" />
-                  )}
-                  Connect Microsoft
-                </Button>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
       {/* SharePoint Settings Card */}
       <Card>
         <CardHeader>
@@ -566,13 +415,21 @@ WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND pr
             </div>
           ) : !msConnected ? (
             /* Microsoft not connected */
-            <Alert>
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Microsoft Account Required</AlertTitle>
-              <AlertDescription>
-                Connect your Microsoft account above to configure SharePoint.
-              </AlertDescription>
-            </Alert>
+            <div className="text-center py-6 border-2 border-dashed rounded-lg">
+              <FolderSync className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
+              <h3 className="font-medium mb-1">Microsoft Account Required</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Connect a Microsoft account to configure SharePoint file storage
+              </p>
+              <Button
+                onClick={() => {
+                  window.location.href = `/api/auth/microsoft?return_url=${encodeURIComponent('/admin/settings')}`;
+                }}
+              >
+                <FolderSync className="h-4 w-4 mr-2" />
+                Connect Microsoft
+              </Button>
+            </div>
           ) : sharepointConfig ? (
             /* SharePoint configured */
             <>
