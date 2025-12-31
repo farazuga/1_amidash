@@ -102,25 +102,29 @@ export default async function SettingsPage() {
         </Card>
 
         {/* Calendar Integration */}
-        {isMicrosoftConfigured() && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-muted-foreground" />
-                <CardTitle>Calendar Integration</CardTitle>
-              </div>
-              <CardDescription>
-                Connect your Microsoft Outlook calendar to sync your project schedules
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-muted-foreground" />
+              <CardTitle>Calendar Integration</CardTitle>
+            </div>
+            <CardDescription>
+              Connect your Microsoft Outlook calendar to sync your project schedules
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isMicrosoftConfigured() ? (
               <OutlookConnection
                 connection={calendarConnection}
                 returnUrl="/settings"
               />
-            </CardContent>
-          </Card>
-        )}
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                Microsoft integration is not configured. Contact your administrator to set up the Microsoft OAuth credentials.
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
