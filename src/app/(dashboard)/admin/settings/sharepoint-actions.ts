@@ -218,7 +218,7 @@ export async function checkAdminMicrosoftConnection(): Promise<CheckMicrosoftCon
 
     const { data, error } = await supabase
       .from('calendar_connections')
-      .select('account_email')
+      .select('outlook_email')
       .eq('user_id', user.id)
       .eq('provider', 'microsoft')
       .maybeSingle();
@@ -232,7 +232,7 @@ export async function checkAdminMicrosoftConnection(): Promise<CheckMicrosoftCon
       return { connected: false };
     }
 
-    return { connected: true, email: data.account_email };
+    return { connected: true, email: data.outlook_email };
   } catch (error) {
     console.error('[SharePoint Config] Error:', error);
     return {
