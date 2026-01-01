@@ -19,6 +19,7 @@ const DEFAULT_OPTIONS: Required<CompressionOptions> = {
 
 /**
  * Compress an image file to reduce size
+ * Uses standard Canvas API for iOS Safari compatibility (OffscreenCanvas not supported)
  *
  * @param file - The image file to compress
  * @param options - Compression options
@@ -47,21 +48,23 @@ export async function compressImage(
   }
 
   try {
-    // Load image
-    const imageBitmap = await createImageBitmap(file);
+    // Load image using standard Image element (works on all browsers including iOS Safari)
+    const img = await loadImage(file);
 
     // Calculate new dimensions
     const { width, height } = calculateDimensions(
-      imageBitmap.width,
-      imageBitmap.height,
+      img.width,
+      img.height,
       opts.maxWidth,
       opts.maxHeight
     );
 
-    // Create canvas and draw resized image
-    const canvas = new OffscreenCanvas(width, height);
-    const ctx = canvas.getContext('2d');
+    // Create standard canvas (iOS Safari compatible)
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
 
+    const ctx = canvas.getContext('2d');
     if (!ctx) {
       throw new Error('Failed to get canvas context');
     }
@@ -69,13 +72,23 @@ export async function compressImage(
     // Use high-quality rendering
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(imageBitmap, 0, 0, width, height);
+    ctx.drawImage(img, 0, 0, width, height);
 
     // Convert to blob with compression
     const mimeType = opts.format === 'webp' ? 'image/webp' : 'image/jpeg';
-    const blob = await canvas.convertToBlob({
-      type: mimeType,
-      quality: opts.quality,
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error('Failed to create blob'));
+          }
+        },
+        mimeType,
+        opts.quality
+      );
     });
 
     // Create new file with compressed content
@@ -99,6 +112,28 @@ export async function compressImage(
     // Return original file if compression fails
     return file;
   }
+}
+
+/**
+ * Load an image file into an HTMLImageElement
+ */
+function loadImage(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Failed to load image'));
+    };
+
+    img.src = url;
+  });
 }
 
 /**
@@ -181,6 +216,7 @@ export function estimateCompressedSize(file: File, options: CompressionOptions =
 
 /**
  * Generate a thumbnail from an image file
+ * Uses standard Canvas API for iOS Safari compatibility
  */
 export async function generateThumbnail(
   file: File,
@@ -189,25 +225,30 @@ export async function generateThumbnail(
   if (!isImageFile(file)) return null;
 
   try {
-    const imageBitmap = await createImageBitmap(file);
+    const img = await loadImage(file);
 
     const { width, height } = calculateDimensions(
-      imageBitmap.width,
-      imageBitmap.height,
+      img.width,
+      img.height,
       maxSize,
       maxSize
     );
 
-    const canvas = new OffscreenCanvas(width, height);
-    const ctx = canvas.getContext('2d');
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
 
+    const ctx = canvas.getContext('2d');
     if (!ctx) return null;
 
-    ctx.drawImage(imageBitmap, 0, 0, width, height);
+    ctx.drawImage(img, 0, 0, width, height);
 
-    return canvas.convertToBlob({
-      type: 'image/jpeg',
-      quality: 0.6,
+    return new Promise((resolve) => {
+      canvas.toBlob(
+        (blob) => resolve(blob),
+        'image/jpeg',
+        0.6
+      );
     });
   } catch (error) {
     console.error('[Thumbnail] Failed to generate:', error);

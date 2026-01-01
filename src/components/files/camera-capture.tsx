@@ -31,8 +31,8 @@ import {
   Loader2,
   CloudOff,
   Smartphone,
-  Info,
   Settings,
+  AlertCircle,
 } from 'lucide-react';
 import { compressImage, isImageFile } from '@/lib/image-utils';
 import type { FileCategory, ProjectPhase, DeviceType } from '@/types';
@@ -141,6 +141,7 @@ export function CameraCaptureDialog({
   const [isCompressing, setIsCompressing] = useState(false);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | undefined>();
   const [showVideoTip, setShowVideoTip] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -209,6 +210,7 @@ export function CameraCaptureDialog({
     if (!capturedFile) return;
 
     setIsSubmitting(true);
+    setErrorMessage(null);
 
     try {
       let fileToUpload = capturedFile;
@@ -240,6 +242,11 @@ export function CameraCaptureDialog({
     } catch (error) {
       console.error('Capture failed:', error);
       setIsCompressing(false);
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Failed to save file. Please try again.'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -253,6 +260,7 @@ export function CameraCaptureDialog({
     setCapturedPreview(null);
     setNotes('');
     setLocation(undefined);
+    setErrorMessage(null);
   };
 
   const handleClose = () => {
@@ -437,6 +445,15 @@ export function CameraCaptureDialog({
               <div className="text-xs text-gray-500">
                 Location: {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
               </div>
+            )}
+
+            {/* Error message */}
+            {errorMessage && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{errorMessage}</AlertDescription>
+              </Alert>
             )}
 
             {/* Action buttons */}
