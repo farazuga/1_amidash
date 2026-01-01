@@ -35,6 +35,8 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { compressImage, isImageFile } from '@/lib/image-utils';
+import { isGetUserMediaSupported } from '@/lib/video-utils';
+import { CustomCameraUI } from './custom-camera-ui';
 import type { FileCategory, ProjectPhase, DeviceType } from '@/types';
 import { FILE_CATEGORY_CONFIG, PROJECT_PHASE_CONFIG } from '@/types';
 import { cn } from '@/lib/utils';
@@ -120,9 +122,6 @@ export function CaptureFloatingButton({
  * Quick capture dialog optimized for iOS Safari
  * Uses native file inputs with capture attribute for best iOS experience
  */
-// Key for storing video quality tip dismissed state
-const VIDEO_TIP_DISMISSED_KEY = 'amidash-video-tip-dismissed';
-
 export function CameraCaptureDialog({
   open,
   onOpenChange,
@@ -140,32 +139,18 @@ export function CameraCaptureDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | undefined>();
-  const [showVideoTip, setShowVideoTip] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showCustomCamera, setShowCustomCamera] = useState(false);
+  const [initialCameraMode, setInitialCameraMode] = useState<'photo' | 'video'>('photo');
+  const [cameraSupported, setCameraSupported] = useState(false);
 
-  const photoInputRef = useRef<HTMLInputElement>(null);
-  const videoInputRef = useRef<HTMLInputElement>(null);
+  // Check camera support on mount
+  useEffect(() => {
+    setCameraSupported(isGetUserMediaSupported());
+  }, []);
 
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
   const deviceType = detectDeviceType();
-
-  // Check if video tip should be shown
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const dismissed = localStorage.getItem(VIDEO_TIP_DISMISSED_KEY);
-      if (!dismissed) {
-        setShowVideoTip(true);
-      }
-    }
-  }, []);
-
-  // Dismiss video tip
-  const dismissVideoTip = useCallback(() => {
-    setShowVideoTip(false);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(VIDEO_TIP_DISMISSED_KEY, 'true');
-    }
-  }, []);
 
   // Request location when dialog opens
   const requestLocation = useCallback(() => {
@@ -185,10 +170,8 @@ export function CameraCaptureDialog({
     }
   }, []);
 
-  const handleFileCapture = useCallback((files: FileList | null, mode: CaptureMode) => {
-    if (!files || files.length === 0) return;
-
-    const file = files[0];
+  // Handle capture from custom camera
+  const handleCameraCapture = useCallback((file: File, mode: 'photo' | 'video') => {
     setCapturedFile(file);
 
     // Create preview
@@ -204,7 +187,22 @@ export function CameraCaptureDialog({
 
     // Request location
     requestLocation();
+
+    // Close custom camera, show preview
+    setShowCustomCamera(false);
   }, [requestLocation]);
+
+  // Open custom camera for photo
+  const handleOpenPhotoCamera = useCallback(() => {
+    setInitialCameraMode('photo');
+    setShowCustomCamera(true);
+  }, []);
+
+  // Open custom camera for video
+  const handleOpenVideoCamera = useCallback(() => {
+    setInitialCameraMode('video');
+    setShowCustomCamera(true);
+  }, []);
 
   const handleSubmit = async () => {
     if (!capturedFile) return;
@@ -292,33 +290,34 @@ export function CameraCaptureDialog({
           <span>Capturing on {deviceType}</span>
         </div>
 
+        {/* Custom Camera UI (full-screen overlay) */}
+        {showCustomCamera && (
+          <CustomCameraUI
+            onCapture={handleCameraCapture}
+            onClose={() => setShowCustomCamera(false)}
+            initialMode={initialCameraMode}
+          />
+        )}
+
         {!capturedFile ? (
           /* Capture buttons */
           <div className="space-y-3">
-            {/* Video quality tip - shown once */}
-            {showVideoTip && (
-              <Alert className="bg-blue-50 border-blue-200">
-                <Settings className="h-4 w-4 text-blue-600" />
-                <AlertTitle className="text-blue-800">Video Tip</AlertTitle>
-                <AlertDescription className="text-blue-700 text-sm">
-                  For faster uploads, set your iPhone camera to 1080p:
-                  <br />
-                  <span className="font-medium">Settings → Camera → Record Video → 1080p HD</span>
-                  <Button
-                    variant="link"
-                    size="sm"
-                    className="p-0 h-auto ml-2 text-blue-600"
-                    onClick={dismissVideoTip}
-                  >
-                    Got it
-                  </Button>
+            {/* Camera not supported warning */}
+            {!cameraSupported && (
+              <Alert className="bg-yellow-50 border-yellow-200">
+                <AlertCircle className="h-4 w-4 text-yellow-600" />
+                <AlertTitle className="text-yellow-800">Camera Not Available</AlertTitle>
+                <AlertDescription className="text-yellow-700 text-sm">
+                  Camera access is not supported in this browser.
+                  Please use Safari on iOS or a modern desktop browser.
                 </AlertDescription>
               </Alert>
             )}
 
             <Button
               className="w-full h-16 text-lg"
-              onClick={() => photoInputRef.current?.click()}
+              onClick={handleOpenPhotoCamera}
+              disabled={!cameraSupported}
             >
               <Camera className="h-6 w-6 mr-3" />
               Take Photo
@@ -327,32 +326,17 @@ export function CameraCaptureDialog({
             <Button
               variant="outline"
               className="w-full h-16 text-lg"
-              onClick={() => {
-                dismissVideoTip(); // Dismiss tip when they record a video
-                videoInputRef.current?.click();
-              }}
+              onClick={handleOpenVideoCamera}
+              disabled={!cameraSupported}
             >
               <Video className="h-6 w-6 mr-3" />
               Record Video
             </Button>
 
-            {/* Hidden inputs with capture attribute for iOS */}
-            <input
-              ref={photoInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={(e) => handleFileCapture(e.target.files, 'photo')}
-            />
-            <input
-              ref={videoInputRef}
-              type="file"
-              accept="video/*"
-              capture="environment"
-              className="hidden"
-              onChange={(e) => handleFileCapture(e.target.files, 'video')}
-            />
+            {/* 720p quality note */}
+            <p className="text-xs text-gray-500 text-center">
+              Photos and videos are captured at 720p for faster uploads
+            </p>
           </div>
         ) : (
           /* Preview and metadata */
