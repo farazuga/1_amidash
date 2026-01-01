@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, ExternalLink, Eye } from 'lucide-react';
+import { Calendar, ExternalLink, Eye, FolderOpen } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { InlineEditField } from './inline-edit-field';
@@ -165,6 +165,13 @@ export function QuickInfo({
             <Link href={`/projects/${project.sales_order_number || project.id}/calendar`}>
               <Calendar className="mr-1.5 h-3.5 w-3.5" />
               Schedule
+            </Link>
+          </Button>
+
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/projects/${project.sales_order_number || project.id}/files`}>
+              <FolderOpen className="mr-1.5 h-3.5 w-3.5" />
+              Files
             </Link>
           </Button>
 
