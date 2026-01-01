@@ -41,6 +41,7 @@ export interface CreateProjectData {
 export interface CreateProjectResult {
   success: boolean;
   projectId?: string;
+  salesOrderNumber?: string;
   clientToken?: string;
   error?: string;
 }
@@ -165,6 +166,7 @@ export async function createProject(data: CreateProjectData): Promise<CreateProj
   return {
     success: true,
     projectId: newProject.id,
+    salesOrderNumber: newProject.sales_order_number ?? newProject.id,
     clientToken: newProject.client_token ?? undefined,
   };
 }

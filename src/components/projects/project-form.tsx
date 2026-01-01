@@ -399,7 +399,7 @@ export function ProjectForm({
         }
 
         toast.success('Project created successfully');
-        router.push(`/projects/${result.projectId}`);
+        router.push(`/projects/${result.salesOrderNumber}`);
       }
     } catch (err) {
       console.error('Unexpected error:', err);
