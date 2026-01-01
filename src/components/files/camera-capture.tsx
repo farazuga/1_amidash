@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -15,6 +15,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -26,7 +31,10 @@ import {
   Loader2,
   CloudOff,
   Smartphone,
+  Info,
+  Settings,
 } from 'lucide-react';
+import { compressImage, isImageFile } from '@/lib/image-utils';
 import type { FileCategory, ProjectPhase, DeviceType } from '@/types';
 import { FILE_CATEGORY_CONFIG, PROJECT_PHASE_CONFIG } from '@/types';
 import { cn } from '@/lib/utils';
@@ -112,6 +120,9 @@ export function CaptureFloatingButton({
  * Quick capture dialog optimized for iOS Safari
  * Uses native file inputs with capture attribute for best iOS experience
  */
+// Key for storing video quality tip dismissed state
+const VIDEO_TIP_DISMISSED_KEY = 'amidash-video-tip-dismissed';
+
 export function CameraCaptureDialog({
   open,
   onOpenChange,
@@ -127,13 +138,33 @@ export function CameraCaptureDialog({
   const [phase, setPhase] = useState<ProjectPhase | undefined>(defaultPhase);
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | undefined>();
+  const [showVideoTip, setShowVideoTip] = useState(false);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
 
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
   const deviceType = detectDeviceType();
+
+  // Check if video tip should be shown
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const dismissed = localStorage.getItem(VIDEO_TIP_DISMISSED_KEY);
+      if (!dismissed) {
+        setShowVideoTip(true);
+      }
+    }
+  }, []);
+
+  // Dismiss video tip
+  const dismissVideoTip = useCallback(() => {
+    setShowVideoTip(false);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(VIDEO_TIP_DISMISSED_KEY, 'true');
+    }
+  }, []);
 
   // Request location when dialog opens
   const requestLocation = useCallback(() => {
@@ -180,8 +211,21 @@ export function CameraCaptureDialog({
     setIsSubmitting(true);
 
     try {
+      let fileToUpload = capturedFile;
+
+      // Compress images to reduce storage and upload size
+      if (isImageFile(capturedFile)) {
+        setIsCompressing(true);
+        fileToUpload = await compressImage(capturedFile, {
+          maxWidth: 1920,
+          maxHeight: 1440,
+          quality: 0.8,
+        });
+        setIsCompressing(false);
+      }
+
       await onCapture({
-        file: capturedFile,
+        file: fileToUpload,
         category,
         phase,
         notes: notes || undefined,
@@ -195,6 +239,7 @@ export function CameraCaptureDialog({
       onOpenChange(false);
     } catch (error) {
       console.error('Capture failed:', error);
+      setIsCompressing(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -242,6 +287,27 @@ export function CameraCaptureDialog({
         {!capturedFile ? (
           /* Capture buttons */
           <div className="space-y-3">
+            {/* Video quality tip - shown once */}
+            {showVideoTip && (
+              <Alert className="bg-blue-50 border-blue-200">
+                <Settings className="h-4 w-4 text-blue-600" />
+                <AlertTitle className="text-blue-800">Video Tip</AlertTitle>
+                <AlertDescription className="text-blue-700 text-sm">
+                  For faster uploads, set your iPhone camera to 1080p:
+                  <br />
+                  <span className="font-medium">Settings → Camera → Record Video → 1080p HD</span>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="p-0 h-auto ml-2 text-blue-600"
+                    onClick={dismissVideoTip}
+                  >
+                    Got it
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+
             <Button
               className="w-full h-16 text-lg"
               onClick={() => photoInputRef.current?.click()}
@@ -253,7 +319,10 @@ export function CameraCaptureDialog({
             <Button
               variant="outline"
               className="w-full h-16 text-lg"
-              onClick={() => videoInputRef.current?.click()}
+              onClick={() => {
+                dismissVideoTip(); // Dismiss tip when they record a video
+                videoInputRef.current?.click();
+              }}
             >
               <Video className="h-6 w-6 mr-3" />
               Record Video
@@ -379,16 +448,29 @@ export function CameraCaptureDialog({
               <Button
                 className="flex-1"
                 onClick={handleSubmit}
-                disabled={isSubmitting}
+                disabled={isSubmitting || isCompressing}
               >
-                {isSubmitting ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                {isCompressing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Compressing...
+                  </>
+                ) : isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
                 ) : !isOnline ? (
-                  <CloudOff className="h-4 w-4 mr-2" />
+                  <>
+                    <CloudOff className="h-4 w-4 mr-2" />
+                    Save Offline
+                  </>
                 ) : (
-                  <Check className="h-4 w-4 mr-2" />
+                  <>
+                    <Check className="h-4 w-4 mr-2" />
+                    Save
+                  </>
                 )}
-                {isSubmitting ? 'Saving...' : isOnline ? 'Save' : 'Save Offline'}
               </Button>
             </div>
           </div>
