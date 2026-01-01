@@ -129,7 +129,7 @@ describe('GET /api/customer/email-preferences', () => {
     const data = await response.json();
 
     expect(response.status).toBe(500);
-    expect(data.error).toBe('Database connection failed');
+    expect(data.error).toBe('Failed to fetch email preferences');
   });
 
   it('returns 500 on unexpected error', async () => {
@@ -418,7 +418,7 @@ describe('PUT /api/customer/email-preferences', () => {
     const data = await response.json();
 
     expect(response.status).toBe(500);
-    expect(data.error).toBe('Database constraint violation');
+    expect(data.error).toBe('Failed to update email preferences');
     expect(consoleSpy).toHaveBeenCalledWith(
       'Error updating email preference:',
       expect.objectContaining({ message: 'Database constraint violation' })

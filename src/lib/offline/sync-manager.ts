@@ -303,19 +303,44 @@ export async function getSyncStatus(): Promise<{
  * This allows sync even when the app is closed
  */
 export async function registerBackgroundSync(): Promise<boolean> {
-  if ('serviceWorker' in navigator && 'sync' in window.ServiceWorkerRegistration.prototype) {
+  if (typeof navigator === 'undefined') return false;
+
+  if ('serviceWorker' in navigator && 'SyncManager' in window) {
     try {
       const registration = await navigator.serviceWorker.ready;
-      await (registration as ServiceWorkerRegistration & {
+      // Type assertion for Background Sync API
+      const swRegistration = registration as ServiceWorkerRegistration & {
         sync: { register: (tag: string) => Promise<void> };
-      }).sync.register('file-sync');
-      return true;
+      };
+
+      if (swRegistration.sync) {
+        await swRegistration.sync.register('file-sync');
+        console.log('[Sync] Background sync registered');
+        return true;
+      }
     } catch (error) {
       console.error('[Sync] Failed to register background sync:', error);
       return false;
     }
   }
+
+  console.log('[Sync] Background Sync API not supported');
   return false;
+}
+
+/**
+ * Check if there are pending files and register for background sync
+ */
+export async function scheduleBackgroundSync(): Promise<void> {
+  const pendingCount = await getPendingUploadCount();
+
+  if (pendingCount > 0) {
+    const registered = await registerBackgroundSync();
+    if (!registered) {
+      // Fallback: start the foreground sync instead
+      startBackgroundSync();
+    }
+  }
 }
 
 /**

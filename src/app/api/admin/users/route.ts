@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
 
     if (createError) {
       console.error('Error creating user:', createError);
-      return NextResponse.json({ error: createError.message }, { status: 400 });
+      return NextResponse.json({ error: 'User creation failed' }, { status: 400 });
     }
 
     // Update the profile with role and salesperson status
@@ -136,7 +136,8 @@ export async function GET() {
       .order('created_at', { ascending: false });
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('Error fetching users:', error);
+      return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
     }
 
     return NextResponse.json({ users });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -15,6 +15,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -26,7 +31,12 @@ import {
   Loader2,
   CloudOff,
   Smartphone,
+  Settings,
+  AlertCircle,
 } from 'lucide-react';
+import { compressImage, isImageFile } from '@/lib/image-utils';
+import { isGetUserMediaSupported } from '@/lib/video-utils';
+import { CustomCameraUI } from './custom-camera-ui';
 import type { FileCategory, ProjectPhase, DeviceType } from '@/types';
 import { FILE_CATEGORY_CONFIG, PROJECT_PHASE_CONFIG } from '@/types';
 import { cn } from '@/lib/utils';
@@ -127,10 +137,17 @@ export function CameraCaptureDialog({
   const [phase, setPhase] = useState<ProjectPhase | undefined>(defaultPhase);
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | undefined>();
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showCustomCamera, setShowCustomCamera] = useState(false);
+  const [initialCameraMode, setInitialCameraMode] = useState<'photo' | 'video'>('photo');
+  const [cameraSupported, setCameraSupported] = useState(false);
 
-  const photoInputRef = useRef<HTMLInputElement>(null);
-  const videoInputRef = useRef<HTMLInputElement>(null);
+  // Check camera support on mount
+  useEffect(() => {
+    setCameraSupported(isGetUserMediaSupported());
+  }, []);
 
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
   const deviceType = detectDeviceType();
@@ -153,10 +170,8 @@ export function CameraCaptureDialog({
     }
   }, []);
 
-  const handleFileCapture = useCallback((files: FileList | null, mode: CaptureMode) => {
-    if (!files || files.length === 0) return;
-
-    const file = files[0];
+  // Handle capture from custom camera
+  const handleCameraCapture = useCallback((file: File, mode: 'photo' | 'video') => {
     setCapturedFile(file);
 
     // Create preview
@@ -172,16 +187,45 @@ export function CameraCaptureDialog({
 
     // Request location
     requestLocation();
+
+    // Close custom camera, show preview
+    setShowCustomCamera(false);
   }, [requestLocation]);
+
+  // Open custom camera for photo
+  const handleOpenPhotoCamera = useCallback(() => {
+    setInitialCameraMode('photo');
+    setShowCustomCamera(true);
+  }, []);
+
+  // Open custom camera for video
+  const handleOpenVideoCamera = useCallback(() => {
+    setInitialCameraMode('video');
+    setShowCustomCamera(true);
+  }, []);
 
   const handleSubmit = async () => {
     if (!capturedFile) return;
 
     setIsSubmitting(true);
+    setErrorMessage(null);
 
     try {
+      let fileToUpload = capturedFile;
+
+      // Compress images to reduce storage and upload size
+      if (isImageFile(capturedFile)) {
+        setIsCompressing(true);
+        fileToUpload = await compressImage(capturedFile, {
+          maxWidth: 1920,
+          maxHeight: 1440,
+          quality: 0.8,
+        });
+        setIsCompressing(false);
+      }
+
       await onCapture({
-        file: capturedFile,
+        file: fileToUpload,
         category,
         phase,
         notes: notes || undefined,
@@ -195,6 +239,12 @@ export function CameraCaptureDialog({
       onOpenChange(false);
     } catch (error) {
       console.error('Capture failed:', error);
+      setIsCompressing(false);
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Failed to save file. Please try again.'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -208,6 +258,7 @@ export function CameraCaptureDialog({
     setCapturedPreview(null);
     setNotes('');
     setLocation(undefined);
+    setErrorMessage(null);
   };
 
   const handleClose = () => {
@@ -239,12 +290,34 @@ export function CameraCaptureDialog({
           <span>Capturing on {deviceType}</span>
         </div>
 
+        {/* Custom Camera UI (full-screen overlay) */}
+        {showCustomCamera && (
+          <CustomCameraUI
+            onCapture={handleCameraCapture}
+            onClose={() => setShowCustomCamera(false)}
+            initialMode={initialCameraMode}
+          />
+        )}
+
         {!capturedFile ? (
           /* Capture buttons */
           <div className="space-y-3">
+            {/* Camera not supported warning */}
+            {!cameraSupported && (
+              <Alert className="bg-yellow-50 border-yellow-200">
+                <AlertCircle className="h-4 w-4 text-yellow-600" />
+                <AlertTitle className="text-yellow-800">Camera Not Available</AlertTitle>
+                <AlertDescription className="text-yellow-700 text-sm">
+                  Camera access is not supported in this browser.
+                  Please use Safari on iOS or a modern desktop browser.
+                </AlertDescription>
+              </Alert>
+            )}
+
             <Button
               className="w-full h-16 text-lg"
-              onClick={() => photoInputRef.current?.click()}
+              onClick={handleOpenPhotoCamera}
+              disabled={!cameraSupported}
             >
               <Camera className="h-6 w-6 mr-3" />
               Take Photo
@@ -253,29 +326,17 @@ export function CameraCaptureDialog({
             <Button
               variant="outline"
               className="w-full h-16 text-lg"
-              onClick={() => videoInputRef.current?.click()}
+              onClick={handleOpenVideoCamera}
+              disabled={!cameraSupported}
             >
               <Video className="h-6 w-6 mr-3" />
               Record Video
             </Button>
 
-            {/* Hidden inputs with capture attribute for iOS */}
-            <input
-              ref={photoInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={(e) => handleFileCapture(e.target.files, 'photo')}
-            />
-            <input
-              ref={videoInputRef}
-              type="file"
-              accept="video/*"
-              capture="environment"
-              className="hidden"
-              onChange={(e) => handleFileCapture(e.target.files, 'video')}
-            />
+            {/* 720p quality note */}
+            <p className="text-xs text-gray-500 text-center">
+              Photos and videos are captured at 720p for faster uploads
+            </p>
           </div>
         ) : (
           /* Preview and metadata */
@@ -370,6 +431,15 @@ export function CameraCaptureDialog({
               </div>
             )}
 
+            {/* Error message */}
+            {errorMessage && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{errorMessage}</AlertDescription>
+              </Alert>
+            )}
+
             {/* Action buttons */}
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={handleClose}>
@@ -379,16 +449,29 @@ export function CameraCaptureDialog({
               <Button
                 className="flex-1"
                 onClick={handleSubmit}
-                disabled={isSubmitting}
+                disabled={isSubmitting || isCompressing}
               >
-                {isSubmitting ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                {isCompressing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Compressing...
+                  </>
+                ) : isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
                 ) : !isOnline ? (
-                  <CloudOff className="h-4 w-4 mr-2" />
+                  <>
+                    <CloudOff className="h-4 w-4 mr-2" />
+                    Save Offline
+                  </>
                 ) : (
-                  <Check className="h-4 w-4 mr-2" />
+                  <>
+                    <Check className="h-4 w-4 mr-2" />
+                    Save
+                  </>
                 )}
-                {isSubmitting ? 'Saving...' : isOnline ? 'Save' : 'Save Offline'}
               </Button>
             </div>
           </div>
