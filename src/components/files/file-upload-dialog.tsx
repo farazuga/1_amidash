@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -37,6 +37,8 @@ import {
 import type { FileCategory, ProjectPhase } from '@/types';
 import { cn } from '@/lib/utils';
 import { FILE_CATEGORY_CONFIG, PROJECT_PHASE_CONFIG } from '@/types';
+import { CustomCameraUI } from './custom-camera-ui';
+import { isGetUserMediaSupported } from '@/lib/video-utils';
 
 interface FileUploadDialogProps {
   open: boolean;
@@ -123,11 +125,17 @@ export function FileUploadDialog({
   const [globalCategory, setGlobalCategory] = useState<FileCategory>(defaultCategory);
   const [globalPhase, setGlobalPhase] = useState<ProjectPhase | undefined>(defaultPhase);
   const [globalNotes, setGlobalNotes] = useState('');
+  const [showCustomCamera, setShowCustomCamera] = useState(false);
+  const [cameraSupported, setCameraSupported] = useState(false);
+  const [initialCameraMode, setInitialCameraMode] = useState<'photo' | 'video'>('photo');
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
-  const videoInputRef = useRef<HTMLInputElement>(null);
 
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+  // Check camera support on mount
+  useEffect(() => {
+    setCameraSupported(isGetUserMediaSupported());
+  }, []);
 
   const handleFilesSelected = useCallback((files: FileList | null) => {
     if (!files) return;
@@ -163,6 +171,40 @@ export function FileUploadDialog({
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+  }, []);
+
+  // Handle capture from custom camera
+  const handleCameraCapture = useCallback((file: File, mode: 'photo' | 'video') => {
+    const category = mode === 'photo' ? 'photos' : 'videos';
+    let preview: string | undefined;
+
+    if (file.type.startsWith('image/')) {
+      preview = URL.createObjectURL(file);
+    }
+
+    const newPendingFile: PendingFile = {
+      id: crypto.randomUUID(),
+      file,
+      preview,
+      category,
+      phase: globalPhase,
+      notes: '',
+      status: 'pending',
+      progress: 0,
+    };
+
+    setPendingFiles((prev) => [...prev, newPendingFile]);
+    setShowCustomCamera(false);
+  }, [globalPhase]);
+
+  const handleOpenPhotoCamera = useCallback(() => {
+    setInitialCameraMode('photo');
+    setShowCustomCamera(true);
+  }, []);
+
+  const handleOpenVideoCamera = useCallback(() => {
+    setInitialCameraMode('video');
+    setShowCustomCamera(true);
   }, []);
 
   const removeFile = (id: string) => {
@@ -283,46 +325,41 @@ export function FileUploadDialog({
         </div>
 
         {/* Quick capture buttons for mobile */}
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={() => cameraInputRef.current?.click()}
-          >
-            <Camera className="h-4 w-4 mr-2" />
-            Take Photo
-          </Button>
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={() => videoInputRef.current?.click()}
-          >
-            <Video className="h-4 w-4 mr-2" />
-            Record Video
-          </Button>
-        </div>
+        {cameraSupported && (
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={handleOpenPhotoCamera}
+            >
+              <Camera className="h-4 w-4 mr-2" />
+              Take Photo
+            </Button>
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={handleOpenVideoCamera}
+            >
+              <Video className="h-4 w-4 mr-2" />
+              Record Video
+            </Button>
+          </div>
+        )}
 
-        {/* Hidden file inputs */}
+        {/* Custom Camera UI (full-screen overlay) */}
+        {showCustomCamera && (
+          <CustomCameraUI
+            onCapture={handleCameraCapture}
+            onClose={() => setShowCustomCamera(false)}
+            initialMode={initialCameraMode}
+          />
+        )}
+
+        {/* Hidden file input for browse */}
         <input
           ref={fileInputRef}
           type="file"
           multiple
-          className="hidden"
-          onChange={(e) => handleFilesSelected(e.target.files)}
-        />
-        <input
-          ref={cameraInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={(e) => handleFilesSelected(e.target.files)}
-        />
-        <input
-          ref={videoInputRef}
-          type="file"
-          accept="video/*"
-          capture="environment"
           className="hidden"
           onChange={(e) => handleFilesSelected(e.target.files)}
         />
