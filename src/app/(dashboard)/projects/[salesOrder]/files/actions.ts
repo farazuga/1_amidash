@@ -219,7 +219,11 @@ async function ensureProjectFolder(
       return { success: false, error: 'Failed to save connection' };
     }
 
-    revalidatePath(`/projects/${projectId}`);
+    try {
+      revalidatePath(`/projects/${projectId}`);
+    } catch (e) {
+      console.error('Revalidation error (non-fatal):', e);
+    }
 
     return { success: true, connection: connection as ProjectSharePointConnection };
   } catch (error) {
@@ -318,7 +322,11 @@ export async function connectSharePointFolder(
       return { success: false, error: 'Failed to save connection' };
     }
 
-    revalidatePath(`/projects/${data.projectId}`);
+    try {
+      revalidatePath(`/projects/${data.projectId}`);
+    } catch (e) {
+      console.error('Revalidation error (non-fatal):', e);
+    }
 
     return { success: true, connection: connection as ProjectSharePointConnection };
   } catch (error) {
@@ -351,7 +359,11 @@ export async function disconnectSharePoint(projectId: string): Promise<{ success
     return { success: false, error: 'Failed to disconnect' };
   }
 
-  revalidatePath(`/projects/${projectId}`);
+  try {
+    revalidatePath(`/projects/${projectId}`);
+  } catch (e) {
+    console.error('Revalidation error (non-fatal):', e);
+  }
   return { success: true };
 }
 
@@ -671,7 +683,11 @@ export async function syncFilesFromSharePoint(projectId: string): Promise<SyncFi
       .update({ last_synced_at: new Date().toISOString(), sync_error: null })
       .eq('id', connection.id);
 
-    revalidatePath(`/projects/${projectId}`);
+    try {
+      revalidatePath(`/projects/${projectId}`);
+    } catch (e) {
+      console.error('Revalidation error (non-fatal):', e);
+    }
 
     return { success: true, syncedCount };
   } catch (error) {
@@ -755,7 +771,11 @@ export async function deleteFile(fileId: string): Promise<DeleteFileResult> {
       return { success: false, error: 'Failed to delete file record' };
     }
 
-    revalidatePath(`/projects/${file.project_id}`);
+    try {
+      revalidatePath(`/projects/${file.project_id}`);
+    } catch (e) {
+      console.error('Revalidation error (non-fatal):', e);
+    }
 
     return { success: true };
   } catch (error) {
@@ -1029,7 +1049,11 @@ export async function linkPresalesFilesToProject(
       return { success: false, error: 'Failed to link files' };
     }
 
-    revalidatePath(`/projects/${projectId}`);
+    try {
+      revalidatePath(`/projects/${projectId}`);
+    } catch (e) {
+      console.error('Revalidation error (non-fatal):', e);
+    }
 
     return { success: true, linkedCount: data };
   } catch (error) {
@@ -1075,7 +1099,11 @@ export async function migratePresalesFilesToProject(
       return { success: false, error: 'Failed to migrate files' };
     }
 
-    revalidatePath(`/projects/${projectId}`);
+    try {
+      revalidatePath(`/projects/${projectId}`);
+    } catch (e) {
+      console.error('Revalidation error (non-fatal):', e);
+    }
 
     return { success: true, migratedCount: data };
   } catch (error) {
