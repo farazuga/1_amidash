@@ -276,15 +276,23 @@ export function CustomCameraUI({
             <img
               src={previewUrl}
               alt="Captured photo"
-              className="max-w-full max-h-full object-contain"
+              className={cn(
+                'max-w-full max-h-full object-contain',
+                currentFacingMode === 'user' && 'scale-x-[-1]'
+              )}
             />
           ) : (
             <video
               ref={previewVideoRef}
               src={previewUrl}
               controls
-              className="max-w-full max-h-full object-contain"
+              className={cn(
+                'max-w-full max-h-full object-contain',
+                currentFacingMode === 'user' && 'scale-x-[-1]'
+              )}
               playsInline
+              autoPlay
+              muted
             />
           )
         ) : (

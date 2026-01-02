@@ -81,7 +81,15 @@ export function ProjectFilesClient({
   const handleUpload = useCallback(async (uploadData: FileUploadData[]) => {
     for (const data of uploadData) {
       try {
+        console.log('[Upload] Starting upload:', {
+          name: data.file.name,
+          size: data.file.size,
+          type: data.file.type,
+          category: data.category,
+        });
+
         const arrayBuffer = await data.file.arrayBuffer();
+        console.log('[Upload] ArrayBuffer size:', arrayBuffer.byteLength);
 
         const result = await uploadFile({
           projectId,
@@ -92,6 +100,8 @@ export function ProjectFilesClient({
           phase: data.phase,
           notes: data.notes,
         });
+
+        console.log('[Upload] Result:', result);
 
         if (result.success && result.file) {
           // Generate and upload thumbnail in background

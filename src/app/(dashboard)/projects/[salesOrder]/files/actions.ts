@@ -428,17 +428,27 @@ export async function getProjectFiles(projectId: string): Promise<GetFilesResult
  * Upload a file to SharePoint and track in database
  */
 export async function uploadFile(data: UploadFileData): Promise<UploadFileResult> {
+  console.log('[uploadFile] Starting upload:', {
+    projectId: data.projectId,
+    fileName: data.fileName,
+    contentType: data.contentType,
+    category: data.category,
+    fileSize: data.fileContent.byteLength,
+  });
+
   const supabase = await createClient();
   const db = await getTypedClient();
 
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
+    console.error('[uploadFile] Auth error:', userError);
     return { success: false, error: 'Authentication required' };
   }
 
   // Get Microsoft connection first
   const msConnection = await getMicrosoftConnection(user.id);
   if (!msConnection) {
+    console.error('[uploadFile] No Microsoft connection for user:', user.id);
     return { success: false, error: 'Please connect your Microsoft account' };
   }
 
@@ -485,6 +495,13 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
     const targetFolderId = categoryFolder?.id || connection.folder_id;
 
     // Upload to SharePoint
+    console.log('[uploadFile] Uploading to SharePoint:', {
+      driveId: connection.drive_id,
+      folderId: targetFolderId,
+      fileName: data.fileName,
+      blobSize: data.fileContent.byteLength,
+    });
+
     const blob = new Blob([data.fileContent], { type: data.contentType });
     const uploadResult = await sharepoint.uploadFile(
       msConnection,
@@ -494,6 +511,12 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
       blob,
       data.contentType
     );
+
+    console.log('[uploadFile] SharePoint upload result:', {
+      success: uploadResult.success,
+      error: uploadResult.error,
+      itemId: uploadResult.item?.id,
+    });
 
     if (!uploadResult.success || !uploadResult.item) {
       return { success: false, error: uploadResult.error || 'Upload failed' };

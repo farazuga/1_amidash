@@ -248,11 +248,17 @@ export function stopRecordingAndGetBlob(recorder: MediaRecorder): Promise<Blob> 
       cleanup();
 
       if (chunks.length === 0) {
+        console.error('[VideoRecorder] No chunks collected');
         reject(new Error('No video data recorded'));
         return;
       }
 
       const blob = new Blob(chunks, { type: recorder.mimeType });
+      console.log('[VideoRecorder] Created blob:', {
+        size: blob.size,
+        type: blob.type,
+        chunks: chunks.length,
+      });
       resolve(blob);
     };
 
