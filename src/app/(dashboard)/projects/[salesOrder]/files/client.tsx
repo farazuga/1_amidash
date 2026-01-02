@@ -53,74 +53,89 @@ export function ProjectFilesClient({
   // Handle file upload
   const handleUpload = useCallback(async (uploadData: FileUploadData[]) => {
     for (const data of uploadData) {
-      const arrayBuffer = await data.file.arrayBuffer();
+      try {
+        const arrayBuffer = await data.file.arrayBuffer();
 
-      const result = await uploadFile({
-        projectId,
-        fileName: data.file.name,
-        fileContent: arrayBuffer,
-        contentType: data.file.type,
-        category: data.category,
-        phase: data.phase,
-        notes: data.notes,
-      });
-
-      if (result.success && result.file) {
-        setFiles(prev => [result.file!, ...prev]);
-        // Update counts
-        setCounts(prev => {
-          const existing = prev.find(c => c.category === data.category);
-          if (existing) {
-            return prev.map(c =>
-              c.category === data.category
-                ? { ...c, count: c.count + 1 }
-                : c
-            );
-          }
-          return [...prev, { category: data.category, count: 1 }];
+        const result = await uploadFile({
+          projectId,
+          fileName: data.file.name,
+          fileContent: arrayBuffer,
+          contentType: data.file.type,
+          category: data.category,
+          phase: data.phase,
+          notes: data.notes,
         });
-        toast.success(`Uploaded ${data.file.name}`);
-      } else {
-        toast.error(result.error || `Failed to upload ${data.file.name}`);
+
+        if (result.success && result.file) {
+          setFiles(prev => [result.file!, ...prev]);
+          // Update counts
+          setCounts(prev => {
+            const existing = prev.find(c => c.category === data.category);
+            if (existing) {
+              return prev.map(c =>
+                c.category === data.category
+                  ? { ...c, count: c.count + 1 }
+                  : c
+              );
+            }
+            return [...prev, { category: data.category, count: 1 }];
+          });
+          toast.success(`Uploaded ${data.file.name}`);
+        } else {
+          toast.error(result.error || `Failed to upload ${data.file.name}`);
+        }
+      } catch (error) {
+        console.error('Upload error:', error);
+        toast.error(`Failed to upload ${data.file.name}`);
       }
     }
   }, [projectId]);
 
   // Handle camera capture
   const handleCapture = useCallback(async (data: CapturedFileData) => {
-    const arrayBuffer = await data.file.arrayBuffer();
+    try {
+      const arrayBuffer = await data.file.arrayBuffer();
 
-    startTransition(async () => {
-      const result = await uploadFile({
-        projectId,
-        fileName: data.file.name,
-        fileContent: arrayBuffer,
-        contentType: data.file.type,
-        category: data.category,
-        phase: data.phase,
-        notes: data.notes,
-        capturedOffline: data.capturedOffline,
-        capturedOnDevice: data.deviceType,
-      });
+      startTransition(async () => {
+        try {
+          const result = await uploadFile({
+            projectId,
+            fileName: data.file.name,
+            fileContent: arrayBuffer,
+            contentType: data.file.type,
+            category: data.category,
+            phase: data.phase,
+            notes: data.notes,
+            capturedOffline: data.capturedOffline,
+            capturedOnDevice: data.deviceType,
+          });
 
-      if (result.success && result.file) {
-        setFiles(prev => [result.file!, ...prev]);
-        setCounts(prev => {
-          const existing = prev.find(c => c.category === data.category);
-          if (existing) {
-            return prev.map(c =>
-              c.category === data.category
-                ? { ...c, count: c.count + 1 }
-                : c
-            );
+          if (result.success && result.file) {
+            setFiles(prev => [result.file!, ...prev]);
+            setCounts(prev => {
+              const existing = prev.find(c => c.category === data.category);
+              if (existing) {
+                return prev.map(c =>
+                  c.category === data.category
+                    ? { ...c, count: c.count + 1 }
+                    : c
+                );
+              }
+              return [...prev, { category: data.category, count: 1 }];
+            });
+            toast.success(data.file.type.startsWith('video/') ? 'Video saved' : 'Photo saved');
+          } else {
+            toast.error(result.error || 'Failed to save file');
           }
-          return [...prev, { category: data.category, count: 1 }];
-        });
-        toast.success('Photo saved');
-      } else {
-        toast.error(result.error || 'Failed to save photo');
-      }
-    });
+        } catch (error) {
+          console.error('Upload error:', error);
+          toast.error('Failed to save file');
+        }
+      });
+    } catch (error) {
+      console.error('File processing error:', error);
+      toast.error('Failed to process file');
+    }
   }, [projectId]);
 
   // Handle sync from SharePoint

@@ -536,7 +536,12 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
       return { success: false, error: 'File uploaded but failed to save record' };
     }
 
-    revalidatePath(`/projects/${data.projectId}`);
+    // Revalidate in background - don't let it break the response
+    try {
+      revalidatePath(`/projects/${data.projectId}`);
+    } catch (revalidateError) {
+      console.error('Revalidation error (non-fatal):', revalidateError);
+    }
 
     return { success: true, file: file as ProjectFile };
   } catch (error) {
