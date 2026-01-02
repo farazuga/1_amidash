@@ -173,10 +173,18 @@ export function CameraCaptureDialog({
 
   // Handle capture from custom camera
   const handleCameraCapture = useCallback((file: File, mode: 'photo' | 'video') => {
+    console.log('[CameraCapture] Received file from camera:', {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      mode,
+    });
+
     setCapturedFile(file);
 
     // Create preview
     const previewUrl = URL.createObjectURL(file);
+    console.log('[CameraCapture] Created preview URL:', previewUrl);
     setCapturedPreview(previewUrl);
 
     // Auto-set category based on capture mode
@@ -191,6 +199,7 @@ export function CameraCaptureDialog({
 
     // Close custom camera, show preview
     setShowCustomCamera(false);
+    console.log('[CameraCapture] Camera closed, showing preview dialog');
   }, [requestLocation]);
 
   // Open custom camera for photo
@@ -206,7 +215,18 @@ export function CameraCaptureDialog({
   }, []);
 
   const handleSubmit = async () => {
-    if (!capturedFile) return;
+    if (!capturedFile) {
+      console.error('[CameraCapture] No captured file to submit');
+      return;
+    }
+
+    console.log('[CameraCapture] Starting submit:', {
+      fileName: capturedFile.name,
+      fileSize: capturedFile.size,
+      fileType: capturedFile.type,
+      category,
+      phase,
+    });
 
     setIsSubmitting(true);
     setErrorMessage(null);
@@ -216,6 +236,7 @@ export function CameraCaptureDialog({
 
       // Compress images to reduce storage and upload size
       if (isImageFile(capturedFile)) {
+        console.log('[CameraCapture] Compressing image...');
         setIsCompressing(true);
         fileToUpload = await compressImage(capturedFile, {
           maxWidth: 1920,
@@ -223,8 +244,10 @@ export function CameraCaptureDialog({
           quality: 0.8,
         });
         setIsCompressing(false);
+        console.log('[CameraCapture] Image compressed:', fileToUpload.size);
       }
 
+      console.log('[CameraCapture] Calling onCapture...');
       await onCapture({
         file: fileToUpload,
         category,
@@ -235,11 +258,12 @@ export function CameraCaptureDialog({
         location,
       });
 
+      console.log('[CameraCapture] Upload successful, resetting');
       // Reset and close
       handleReset();
       onOpenChange(false);
     } catch (error) {
-      console.error('Capture failed:', error);
+      console.error('[CameraCapture] Submit failed:', error);
       setIsCompressing(false);
       setErrorMessage(
         error instanceof Error

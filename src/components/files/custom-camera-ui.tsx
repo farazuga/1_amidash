@@ -188,10 +188,32 @@ export function CustomCameraUI({
 
   // Handle confirm
   const handleConfirm = useCallback(() => {
-    if (!capturedBlob) return;
+    if (!capturedBlob) {
+      console.error('[Camera] No captured blob to confirm');
+      setCaptureError('No captured content to save');
+      return;
+    }
 
-    const file = createFileFromBlob(capturedBlob, undefined, mode);
-    onCapture(file, mode);
+    try {
+      console.log('[Camera] Creating file from blob:', {
+        blobSize: capturedBlob.size,
+        blobType: capturedBlob.type,
+        mode,
+      });
+
+      const file = createFileFromBlob(capturedBlob, undefined, mode);
+
+      console.log('[Camera] File created:', {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+      });
+
+      onCapture(file, mode);
+    } catch (error) {
+      console.error('[Camera] Error creating file:', error);
+      setCaptureError('Failed to process captured content');
+    }
   }, [capturedBlob, mode, onCapture]);
 
   // Handle mode switch
