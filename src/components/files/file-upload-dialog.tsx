@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Dialog,
   DialogContent,
@@ -279,7 +280,18 @@ export function FileUploadDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <>
+      {/* Custom Camera UI - rendered via portal to escape dialog constraints */}
+      {showCustomCamera && typeof document !== 'undefined' && createPortal(
+        <CustomCameraUI
+          onCapture={handleCameraCapture}
+          onClose={() => setShowCustomCamera(false)}
+          initialMode={initialCameraMode}
+        />,
+        document.body
+      )}
+
+      <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Upload Files</DialogTitle>
@@ -344,15 +356,6 @@ export function FileUploadDialog({
               Record Video
             </Button>
           </div>
-        )}
-
-        {/* Custom Camera UI (full-screen overlay) */}
-        {showCustomCamera && (
-          <CustomCameraUI
-            onCapture={handleCameraCapture}
-            onClose={() => setShowCustomCamera(false)}
-            initialMode={initialCameraMode}
-          />
         )}
 
         {/* Hidden file input for browse */}
@@ -534,5 +537,6 @@ export function FileUploadDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

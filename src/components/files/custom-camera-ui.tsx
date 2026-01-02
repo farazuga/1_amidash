@@ -213,7 +213,7 @@ export function CustomCameraUI({
   // Render error state
   if (error && !isStreaming) {
     return (
-      <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center p-6">
+      <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center p-6">
         <div className="bg-white rounded-lg p-6 max-w-sm w-full text-center">
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
           <h2 className="text-lg font-semibold text-gray-900 mb-2">
@@ -243,7 +243,7 @@ export function CustomCameraUI({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col">
+    <div className="fixed inset-0 z-[100] bg-black flex flex-col">
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between p-4 bg-gradient-to-b from-black/50 to-transparent">
         <Button

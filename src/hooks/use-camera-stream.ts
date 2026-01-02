@@ -71,22 +71,25 @@ export function useCameraStream(
   const [error, setError] = useState<CameraError | null>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [currentFacingMode, setCurrentFacingMode] = useState<FacingMode>(initialFacingMode);
-  const [capabilities, setCapabilities] = useState<CameraCapabilities>({
-    isSupported: false,
+  // Initialize capabilities synchronously to avoid race condition
+  const [capabilities, setCapabilities] = useState<CameraCapabilities>(() => ({
+    isSupported: typeof window !== 'undefined' && isGetUserMediaSupported(),
     canSwitchCamera: false,
-  });
+  }));
 
   // Refs
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Detect basic capabilities on mount (without triggering permission prompts)
+  // Re-check capabilities on mount (for SSR hydration)
   useEffect(() => {
-    const isSupported = isGetUserMediaSupported();
-    setCapabilities({
-      isSupported,
-      canSwitchCamera: false, // Will be updated after stream starts
-    });
+    if (typeof window !== 'undefined') {
+      const isSupported = isGetUserMediaSupported();
+      setCapabilities((prev) => ({
+        ...prev,
+        isSupported,
+      }));
+    }
   }, []);
 
   // Stop all tracks in a stream
