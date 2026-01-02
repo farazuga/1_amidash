@@ -122,6 +122,8 @@ export function FileCard({
   const isVideo = file.category === 'videos' || file.mime_type?.startsWith('video/');
   const hasThumbnail = isImage || isVideo;
   const isPending = file.upload_status !== 'uploaded';
+  // Use local thumbnail first (client-generated), fallback to SharePoint thumbnail
+  const thumbnailUrl = file.local_thumbnail_url || file.thumbnail_url;
 
   return (
     <Card
@@ -140,9 +142,9 @@ export function FileCard({
           'border-b'
         )}
       >
-        {hasThumbnail && file.thumbnail_url ? (
+        {hasThumbnail && thumbnailUrl ? (
           <img
-            src={file.thumbnail_url}
+            src={thumbnailUrl}
             alt={file.file_name}
             className="w-full h-full object-cover"
           />

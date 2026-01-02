@@ -238,6 +238,7 @@ export interface PresalesFile {
   web_url: string | null;
   download_url: string | null;
   thumbnail_url: string | null;
+  local_thumbnail_url: string | null;  // Client-generated thumbnail in Supabase storage
   sharepoint_folder_path: string | null;
   uploaded_by: string | null;
   upload_status: UploadStatus;
@@ -266,6 +267,7 @@ export interface ProjectFile {
   web_url: string | null;
   download_url: string | null;
   thumbnail_url: string | null;
+  local_thumbnail_url: string | null;  // Client-generated thumbnail in Supabase storage
   uploaded_by: string | null;
   sharepoint_modified_by: string | null;
   sharepoint_modified_at: string | null;

@@ -14,6 +14,7 @@ import {
   createShareLink,
   getProjectFiles,
 } from './actions';
+import { generateFileThumbnail } from '@/lib/image-utils';
 
 interface ProjectFilesClientProps {
   projectId: string;
@@ -50,6 +51,32 @@ export function ProjectFilesClient({
     }
   }, [projectId]);
 
+  // Upload thumbnail for a file
+  const uploadThumbnail = useCallback(async (file: File, fileId: string): Promise<string | null> => {
+    try {
+      const thumbnailBlob = await generateFileThumbnail(file, 320);
+      if (!thumbnailBlob) return null;
+
+      const formData = new FormData();
+      formData.append('thumbnail', new File([thumbnailBlob], 'thumbnail.jpg', { type: 'image/jpeg' }));
+      formData.append('fileId', fileId);
+      formData.append('fileType', 'project');
+
+      const response = await fetch('/api/thumbnails', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) return null;
+
+      const data = await response.json();
+      return data.url || null;
+    } catch (error) {
+      console.error('Thumbnail upload failed:', error);
+      return null;
+    }
+  }, []);
+
   // Handle file upload
   const handleUpload = useCallback(async (uploadData: FileUploadData[]) => {
     for (const data of uploadData) {
@@ -67,7 +94,15 @@ export function ProjectFilesClient({
         });
 
         if (result.success && result.file) {
-          setFiles(prev => [result.file!, ...prev]);
+          // Generate and upload thumbnail in background
+          const thumbnailUrl = await uploadThumbnail(data.file, result.file.id);
+
+          // Update file in state with thumbnail
+          const fileWithThumb = thumbnailUrl
+            ? { ...result.file, local_thumbnail_url: thumbnailUrl }
+            : result.file;
+
+          setFiles(prev => [fileWithThumb, ...prev]);
           // Update counts
           setCounts(prev => {
             const existing = prev.find(c => c.category === data.category);
@@ -89,7 +124,7 @@ export function ProjectFilesClient({
         toast.error(`Failed to upload ${data.file.name}`);
       }
     }
-  }, [projectId]);
+  }, [projectId, uploadThumbnail]);
 
   // Handle camera capture
   const handleCapture = useCallback(async (data: CapturedFileData) => {
@@ -111,7 +146,15 @@ export function ProjectFilesClient({
           });
 
           if (result.success && result.file) {
-            setFiles(prev => [result.file!, ...prev]);
+            // Generate and upload thumbnail in background
+            const thumbnailUrl = await uploadThumbnail(data.file, result.file.id);
+
+            // Update file in state with thumbnail
+            const fileWithThumb = thumbnailUrl
+              ? { ...result.file, local_thumbnail_url: thumbnailUrl }
+              : result.file;
+
+            setFiles(prev => [fileWithThumb, ...prev]);
             setCounts(prev => {
               const existing = prev.find(c => c.category === data.category);
               if (existing) {
@@ -136,7 +179,7 @@ export function ProjectFilesClient({
       console.error('File processing error:', error);
       toast.error('Failed to process file');
     }
-  }, [projectId]);
+  }, [projectId, uploadThumbnail]);
 
   // Handle sync from SharePoint
   const handleSync = useCallback(async () => {

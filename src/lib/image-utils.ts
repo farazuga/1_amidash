@@ -269,3 +269,140 @@ export function createPreviewUrl(file: File): string {
 export function revokePreviewUrl(url: string): void {
   URL.revokeObjectURL(url);
 }
+
+/**
+ * Generate a thumbnail from a video file by capturing a frame
+ * Captures frame at 1 second or 10% into the video (whichever is earlier)
+ */
+export async function generateVideoThumbnail(
+  file: File,
+  maxSize: number = 320
+): Promise<Blob | null> {
+  if (!isVideoFile(file)) return null;
+
+  try {
+    const video = document.createElement('video');
+    const url = URL.createObjectURL(file);
+
+    return new Promise((resolve) => {
+      video.preload = 'metadata';
+      video.muted = true;
+      video.playsInline = true;
+
+      video.onloadedmetadata = () => {
+        // Seek to 1 second or 10% of duration, whichever is smaller
+        const seekTime = Math.min(1, video.duration * 0.1);
+        video.currentTime = seekTime;
+      };
+
+      video.onseeked = () => {
+        // Calculate thumbnail dimensions
+        const { width, height } = calculateThumbnailDimensions(
+          video.videoWidth,
+          video.videoHeight,
+          maxSize
+        );
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          URL.revokeObjectURL(url);
+          resolve(null);
+          return;
+        }
+
+        ctx.drawImage(video, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            URL.revokeObjectURL(url);
+            resolve(blob);
+          },
+          'image/jpeg',
+          0.7
+        );
+      };
+
+      video.onerror = () => {
+        URL.revokeObjectURL(url);
+        console.error('[VideoThumbnail] Failed to load video');
+        resolve(null);
+      };
+
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+        resolve(null);
+      }, 10000);
+
+      video.src = url;
+    });
+  } catch (error) {
+    console.error('[VideoThumbnail] Failed to generate:', error);
+    return null;
+  }
+}
+
+/**
+ * Generate thumbnail from either image or video file
+ */
+export async function generateFileThumbnail(
+  file: File,
+  maxSize: number = 320
+): Promise<Blob | null> {
+  if (isImageFile(file)) {
+    return generateThumbnail(file, maxSize);
+  }
+  if (isVideoFile(file)) {
+    return generateVideoThumbnail(file, maxSize);
+  }
+  return null;
+}
+
+/**
+ * Calculate thumbnail dimensions maintaining aspect ratio
+ */
+function calculateThumbnailDimensions(
+  origWidth: number,
+  origHeight: number,
+  maxSize: number
+): { width: number; height: number } {
+  if (origWidth <= maxSize && origHeight <= maxSize) {
+    return { width: origWidth, height: origHeight };
+  }
+
+  const aspectRatio = origWidth / origHeight;
+
+  if (origWidth > origHeight) {
+    return {
+      width: maxSize,
+      height: Math.round(maxSize / aspectRatio),
+    };
+  } else {
+    return {
+      width: Math.round(maxSize * aspectRatio),
+      height: maxSize,
+    };
+  }
+}
+
+/**
+ * Convert blob to base64 data URL
+ */
+export function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Failed to convert blob to base64'));
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
