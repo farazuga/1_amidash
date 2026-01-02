@@ -26,10 +26,11 @@ const securityHeaders = [
   },
   {
     // Restrict browser features and APIs
+    // Note: camera and microphone enabled for file capture feature
     key: 'Permissions-Policy',
     value: [
-      'camera=()',
-      'microphone=()',
+      'camera=(self)',
+      'microphone=(self)',
       'geolocation=()',
       'browsing-topics=()',
       'payment=()',
@@ -57,8 +58,10 @@ const securityHeaders = [
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       // Styles: self + inline (required for Tailwind CSS)
       "style-src 'self' 'unsafe-inline'",
-      // Images: self + data URIs + allowed domains
-      "img-src 'self' data: blob: https://www.amitrace.com https://*.supabase.co",
+      // Images: self + data URIs + allowed domains (including SharePoint thumbnails)
+      "img-src 'self' data: blob: https://www.amitrace.com https://*.supabase.co https://*.sharepoint.com https://*.svc.ms",
+      // Media: blob URLs for video/audio preview from camera capture
+      "media-src 'self' blob:",
       // Fonts: self + data URIs
       "font-src 'self' data:",
       // Connect: API endpoints - Supabase and Microsoft OAuth/Graph
