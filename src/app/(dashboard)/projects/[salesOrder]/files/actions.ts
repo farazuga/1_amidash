@@ -571,12 +571,10 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
       return { success: false, error: 'File uploaded but failed to save record' };
     }
 
-    // Revalidate in background - don't let it break the response
-    try {
-      revalidatePath(`/projects/${data.projectId}`);
-    } catch (revalidateError) {
-      console.error('Revalidation error (non-fatal):', revalidateError);
-    }
+    // Note: We skip revalidatePath here because:
+    // 1. Client already updates state optimistically
+    // 2. revalidatePath can disrupt streaming responses in production
+    // 3. Page will refresh data on next navigation anyway
 
     return { success: true, file: file as ProjectFile };
   } catch (error) {
