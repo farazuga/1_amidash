@@ -80,19 +80,13 @@ export function useCameraStream(
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Detect capabilities on mount
+  // Detect basic capabilities on mount (without triggering permission prompts)
   useEffect(() => {
-    const detectCapabilities = async () => {
-      const isSupported = isGetUserMediaSupported();
-      const canSwitchCamera = await hasMultipleCameras();
-
-      setCapabilities({
-        isSupported,
-        canSwitchCamera,
-      });
-    };
-
-    detectCapabilities();
+    const isSupported = isGetUserMediaSupported();
+    setCapabilities({
+      isSupported,
+      canSwitchCamera: false, // Will be updated after stream starts
+    });
   }, []);
 
   // Stop all tracks in a stream
@@ -130,6 +124,10 @@ export function useCameraStream(
       streamRef.current = mediaStream;
       setStream(mediaStream);
       setHasPermission(true);
+
+      // Now that we have permission, check if device has multiple cameras
+      const canSwitchCamera = await hasMultipleCameras();
+      setCapabilities((prev) => ({ ...prev, canSwitchCamera }));
 
       // Attach to video element if available
       if (videoRef.current) {

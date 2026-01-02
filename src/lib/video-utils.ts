@@ -224,18 +224,28 @@ export function createVideoRecorder(
  */
 export function stopRecordingAndGetBlob(recorder: MediaRecorder): Promise<Blob> {
   return new Promise((resolve, reject) => {
+    // Check state first
+    if (recorder.state !== 'recording') {
+      reject(new Error('Recorder is not recording'));
+      return;
+    }
+
     const chunks: Blob[] = [];
 
+    const cleanup = () => {
+      recorder.removeEventListener('dataavailable', handleDataAvailable);
+      recorder.removeEventListener('stop', handleStop);
+      recorder.removeEventListener('error', handleError);
+    };
+
     const handleDataAvailable = (event: BlobEvent) => {
-      if (event.data.size > 0) {
+      if (event.data && event.data.size > 0) {
         chunks.push(event.data);
       }
     };
 
     const handleStop = () => {
-      recorder.removeEventListener('dataavailable', handleDataAvailable);
-      recorder.removeEventListener('stop', handleStop);
-      recorder.removeEventListener('error', handleError);
+      cleanup();
 
       if (chunks.length === 0) {
         reject(new Error('No video data recorded'));
@@ -246,24 +256,18 @@ export function stopRecordingAndGetBlob(recorder: MediaRecorder): Promise<Blob> 
       resolve(blob);
     };
 
-    const handleError = (event: Event) => {
-      recorder.removeEventListener('dataavailable', handleDataAvailable);
-      recorder.removeEventListener('stop', handleStop);
-      recorder.removeEventListener('error', handleError);
+    const handleError = () => {
+      cleanup();
       reject(new Error('Recording failed'));
     };
 
+    // Add listeners BEFORE stopping
     recorder.addEventListener('dataavailable', handleDataAvailable);
     recorder.addEventListener('stop', handleStop);
     recorder.addEventListener('error', handleError);
 
-    // Request data before stopping
-    if (recorder.state === 'recording') {
-      recorder.requestData();
-      recorder.stop();
-    } else {
-      reject(new Error('Recorder is not recording'));
-    }
+    // Just call stop() - it will trigger dataavailable with all data
+    recorder.stop();
   });
 }
 

@@ -38,10 +38,20 @@ describe('useCameraStream', () => {
     it('detects camera capabilities', async () => {
       const { result } = renderHook(() => useCameraStream());
 
+      // isSupported is detected immediately
       await waitFor(() => {
         expect(result.current.capabilities.isSupported).toBe(true);
-        expect(result.current.capabilities.canSwitchCamera).toBe(true);
       });
+
+      // canSwitchCamera is only detected after stream starts (to avoid permission prompts)
+      expect(result.current.capabilities.canSwitchCamera).toBe(false);
+
+      // Start stream to trigger camera detection
+      await act(async () => {
+        await result.current.startStream();
+      });
+
+      expect(result.current.capabilities.canSwitchCamera).toBe(true);
     });
 
     it('uses default 720p resolution and environment facing mode', () => {
@@ -240,7 +250,13 @@ describe('useCameraStream', () => {
         expect(result.current.capabilities.isSupported).toBe(true);
       });
 
+      // Start stream first (canSwitchCamera is only available after stream starts)
+      await act(async () => {
+        await result.current.startStream();
+      });
+
       expect(result.current.currentFacingMode).toBe('environment');
+      expect(result.current.capabilities.canSwitchCamera).toBe(true);
 
       await act(async () => {
         await result.current.switchCamera();
