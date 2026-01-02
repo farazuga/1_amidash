@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -267,37 +268,39 @@ export function CameraCaptureDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Camera className="h-5 w-5" />
-            Quick Capture
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      {/* Custom Camera UI - rendered via portal to escape dialog constraints */}
+      {showCustomCamera && typeof document !== 'undefined' && createPortal(
+        <CustomCameraUI
+          onCapture={handleCameraCapture}
+          onClose={() => setShowCustomCamera(false)}
+          initialMode={initialCameraMode}
+        />,
+        document.body
+      )}
 
-        {/* Offline indicator */}
-        {!isOnline && (
-          <div className="flex items-center gap-2 p-2 rounded bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm">
-            <CloudOff className="h-4 w-4" />
-            <span>Offline - will sync when connected</span>
+      <Dialog open={open} onOpenChange={handleClose}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Camera className="h-5 w-5" />
+              Quick Capture
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* Offline indicator */}
+          {!isOnline && (
+            <div className="flex items-center gap-2 p-2 rounded bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm">
+              <CloudOff className="h-4 w-4" />
+              <span>Offline - will sync when connected</span>
+            </div>
+          )}
+
+          {/* Device indicator */}
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Smartphone className="h-4 w-4" />
+            <span>Capturing on {deviceType}</span>
           </div>
-        )}
-
-        {/* Device indicator */}
-        <div className="flex items-center gap-2 text-sm text-gray-500">
-          <Smartphone className="h-4 w-4" />
-          <span>Capturing on {deviceType}</span>
-        </div>
-
-        {/* Custom Camera UI (full-screen overlay) */}
-        {showCustomCamera && (
-          <CustomCameraUI
-            onCapture={handleCameraCapture}
-            onClose={() => setShowCustomCamera(false)}
-            initialMode={initialCameraMode}
-          />
-        )}
 
         {!capturedFile ? (
           /* Capture buttons */
@@ -478,6 +481,7 @@ export function CameraCaptureDialog({
         )}
       </DialogContent>
     </Dialog>
+    </>
   );
 }
 
