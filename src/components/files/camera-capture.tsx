@@ -202,6 +202,7 @@ export function CameraCaptureDialog({
   const [showCustomCamera, setShowCustomCamera] = useState(false);
   const [initialCameraMode, setInitialCameraMode] = useState<'photo' | 'video'>('photo');
   const [cameraSupported, setCameraSupported] = useState(false);
+  const [ignoreCloseUntil, setIgnoreCloseUntil] = useState(0);
 
   // Check camera support on mount
   useEffect(() => {
@@ -254,12 +255,15 @@ export function CameraCaptureDialog({
     // Request location
     requestLocation();
 
+    // Set a cooldown period to ignore close events during camera transition
+    // This prevents the Dialog from closing due to focus/blur events when portal unmounts
+    setIgnoreCloseUntil(Date.now() + 500);
+
     // Close custom camera after a brief delay to ensure state is set
-    // This prevents the Dialog from receiving stray events when the portal unmounts
     setTimeout(() => {
       setShowCustomCamera(false);
       console.log('[CameraCapture] Camera closed, showing preview dialog');
-    }, 50);
+    }, 100);
   }, [requestLocation]);
 
   // Open custom camera for photo
@@ -347,8 +351,34 @@ export function CameraCaptureDialog({
   };
 
   const handleClose = () => {
+    console.log('[CameraCapture] handleClose called');
     handleReset();
     onOpenChange(false);
+  };
+
+  // Handle dialog open change - only close if explicitly requested and not during cooldown
+  const handleDialogOpenChange = (isOpen: boolean) => {
+    console.log('[CameraCapture] Dialog onOpenChange:', isOpen, {
+      showCustomCamera,
+      capturedFile: !!capturedFile,
+      ignoreCloseUntil,
+      now: Date.now(),
+    });
+
+    // If trying to close, check if we should ignore
+    if (!isOpen) {
+      // Ignore if camera is still open
+      if (showCustomCamera) {
+        console.log('[CameraCapture] Ignoring close request - camera is open');
+        return;
+      }
+      // Ignore if we're in cooldown period after camera closed
+      if (Date.now() < ignoreCloseUntil) {
+        console.log('[CameraCapture] Ignoring close request - in cooldown period');
+        return;
+      }
+      handleClose();
+    }
   };
 
   return (
@@ -363,7 +393,7 @@ export function CameraCaptureDialog({
         document.body
       )}
 
-      <Dialog open={open} onOpenChange={handleClose}>
+      <Dialog open={open} onOpenChange={handleDialogOpenChange}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
