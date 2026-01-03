@@ -96,6 +96,11 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     optimizePackageImports: ['lucide-react', 'recharts', 'date-fns'],
+    // Increase body size limit for video uploads via Server Actions
+    // 720p video at ~2.5 Mbps = ~18 MB/min, so 100 MB covers ~5 min videos
+    serverActions: {
+      bodySizeLimit: '100MB',  // Note: uppercase MB works more reliably
+    },
   },
   // Empty turbopack config to satisfy the PWA webpack compatibility check
   turbopack: {},
