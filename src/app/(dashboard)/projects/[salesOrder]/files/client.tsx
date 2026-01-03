@@ -139,9 +139,19 @@ export function ProjectFilesClient({
   // Handle camera capture
   // Note: Don't use startTransition here - it causes Next.js to re-render server components
   const handleCapture = useCallback(async (data: CapturedFileData) => {
-    try {
-      const arrayBuffer = await data.file.arrayBuffer();
+    console.log('[handleCapture] Starting capture upload:', {
+      name: data.file.name,
+      size: data.file.size,
+      type: data.file.type,
+      category: data.category,
+    });
 
+    try {
+      console.log('[handleCapture] Converting to ArrayBuffer...');
+      const arrayBuffer = await data.file.arrayBuffer();
+      console.log('[handleCapture] ArrayBuffer size:', arrayBuffer.byteLength);
+
+      console.log('[handleCapture] Calling uploadFile...');
       const result = await uploadFile({
         projectId,
         fileName: data.file.name,
@@ -151,6 +161,12 @@ export function ProjectFilesClient({
         notes: data.notes,
         capturedOffline: data.capturedOffline,
         capturedOnDevice: data.deviceType,
+      });
+
+      console.log('[handleCapture] Upload result:', {
+        success: result.success,
+        error: result.error,
+        fileId: result.file?.id,
       });
 
       if (result.success && result.file) {
@@ -180,11 +196,14 @@ export function ProjectFilesClient({
         });
         toast.success(data.file.type.startsWith('video/') ? 'Video saved' : 'Photo saved');
       } else {
+        console.error('[handleCapture] Upload failed:', result.error);
         toast.error(result.error || 'Failed to save file');
       }
     } catch (error) {
-      console.error('Upload error:', error);
-      toast.error('Failed to save file');
+      console.error('[handleCapture] Unexpected error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[handleCapture] Error details:', errorMessage);
+      toast.error(`Upload failed: ${errorMessage}`);
     }
   }, [projectId, uploadThumbnail]);
 
