@@ -186,7 +186,7 @@ export interface RevenueGoal {
 }
 
 // Project Files types
-export type FileCategory = 'schematics' | 'sow' | 'photos' | 'videos' | 'other';
+export type FileCategory = 'schematics' | 'sow' | 'media' | 'other';
 
 export type ProjectPhase = 'quoting' | 'engineering' | 'onsite' | 'complete' | 'other';
 
@@ -315,15 +315,10 @@ export const FILE_CATEGORY_CONFIG: Record<FileCategory, { label: string; icon: s
     icon: 'FileText',
     description: 'Scope of Work, proposals, contracts',
   },
-  photos: {
-    label: 'Photos',
+  media: {
+    label: 'Photos & Videos',
     icon: 'Image',
-    description: 'Site photos, installation images',
-  },
-  videos: {
-    label: 'Videos',
-    icon: 'Video',
-    description: 'Site videos, recordings',
+    description: 'Site photos, videos, and recordings',
   },
   other: {
     label: 'Other',

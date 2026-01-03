@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { uploadFile } from '@/app/(dashboard)/projects/[salesOrder]/files/actions';
-import type { FileCategory, ProjectPhase } from '@/types';
+import type { FileCategory } from '@/types';
 
 /**
  * API route for file uploads (used by offline sync and direct uploads)
@@ -21,7 +21,6 @@ export async function POST(request: Request) {
     const file = formData.get('file') as File | null;
     const projectId = formData.get('projectId') as string | null;
     const category = formData.get('category') as FileCategory | null;
-    const phase = formData.get('phase') as ProjectPhase | null;
     const notes = formData.get('notes') as string | null;
     const capturedOffline = formData.get('capturedOffline') === 'true';
     const capturedOnDevice = formData.get('capturedOnDevice') as string | null;
@@ -47,7 +46,6 @@ export async function POST(request: Request) {
       fileContent: arrayBuffer,
       contentType: file.type,
       category,
-      phase: phase || undefined,
       notes: notes || undefined,
       capturedOffline,
       capturedOnDevice: capturedOnDevice || undefined,

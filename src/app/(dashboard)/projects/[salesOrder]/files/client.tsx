@@ -98,7 +98,6 @@ export function ProjectFilesClient({
           fileContent: arrayBuffer,
           contentType: data.file.type,
           category: data.category,
-          phase: data.phase,
           notes: data.notes,
         });
 
@@ -149,7 +148,6 @@ export function ProjectFilesClient({
         fileContent: arrayBuffer,
         contentType: data.file.type,
         category: data.category,
-        phase: data.phase,
         notes: data.notes,
         capturedOffline: data.capturedOffline,
         capturedOnDevice: data.deviceType,
@@ -285,7 +283,7 @@ export function ProjectFilesClient({
         projectId={projectId}
         onCapture={handleCapture}
         onUpload={() => setShowFabUploadDialog(true)}
-        defaultCategory="photos"
+        defaultCategory="media"
         pendingCount={pendingCount}
       />
 

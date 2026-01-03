@@ -46,8 +46,8 @@ import {
 import { compressImage, isImageFile } from '@/lib/image-utils';
 import { isGetUserMediaSupported } from '@/lib/video-utils';
 import { CustomCameraUI } from './custom-camera-ui';
-import type { FileCategory, ProjectPhase, DeviceType } from '@/types';
-import { FILE_CATEGORY_CONFIG, PROJECT_PHASE_CONFIG } from '@/types';
+import type { FileCategory, DeviceType } from '@/types';
+import { FILE_CATEGORY_CONFIG } from '@/types';
 import { cn } from '@/lib/utils';
 
 interface CameraCaptureProps {
@@ -55,13 +55,11 @@ interface CameraCaptureProps {
   dealId?: string;
   onCapture: (data: CapturedFileData) => Promise<void>;
   defaultCategory?: FileCategory;
-  defaultPhase?: ProjectPhase;
 }
 
 export interface CapturedFileData {
   file: File;
   category: FileCategory;
-  phase?: ProjectPhase;
   notes?: string;
   capturedOffline: boolean;
   deviceType: DeviceType;
@@ -187,13 +185,11 @@ export function CameraCaptureDialog({
   projectId,
   dealId,
   onCapture,
-  defaultCategory = 'photos',
-  defaultPhase,
+  defaultCategory = 'media',
 }: CameraCaptureProps & { open: boolean; onOpenChange: (open: boolean) => void }) {
   const [capturedFile, setCapturedFile] = useState<File | null>(null);
   const [capturedPreview, setCapturedPreview] = useState<string | null>(null);
   const [category, setCategory] = useState<FileCategory>(defaultCategory);
-  const [phase, setPhase] = useState<ProjectPhase | undefined>(defaultPhase);
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
@@ -245,12 +241,8 @@ export function CameraCaptureDialog({
     console.log('[CameraCapture] Created preview URL:', previewUrl);
     setCapturedPreview(previewUrl);
 
-    // Auto-set category based on capture mode
-    if (mode === 'photo') {
-      setCategory('photos');
-    } else if (mode === 'video') {
-      setCategory('videos');
-    }
+    // Auto-set category to media for all captures
+    setCategory('media');
 
     // Request location
     requestLocation();
@@ -289,7 +281,6 @@ export function CameraCaptureDialog({
       fileSize: capturedFile.size,
       fileType: capturedFile.type,
       category,
-      phase,
     });
 
     setIsSubmitting(true);
@@ -315,7 +306,6 @@ export function CameraCaptureDialog({
       await onCapture({
         file: fileToUpload,
         category,
-        phase,
         notes: notes || undefined,
         capturedOffline: !isOnline,
         deviceType,
@@ -512,26 +502,6 @@ export function CameraCaptureDialog({
               </Select>
             </div>
 
-            {/* Phase */}
-            <div>
-              <Label>Project Phase</Label>
-              <Select
-                value={phase || ''}
-                onValueChange={(v) => setPhase(v as ProjectPhase || undefined)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select phase..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(PROJECT_PHASE_CONFIG).map(([key, config]) => (
-                    <SelectItem key={key} value={key}>
-                      {config.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
             {/* Notes */}
             <div>
               <Label>Notes (optional)</Label>
@@ -612,7 +582,6 @@ export function CameraCapture({
   onCapture,
   onUpload,
   defaultCategory,
-  defaultPhase,
   pendingCount = 0,
 }: CameraCaptureProps & {
   pendingCount?: number;
@@ -660,7 +629,6 @@ export function CameraCapture({
         dealId={dealId}
         onCapture={onCapture}
         defaultCategory={defaultCategory}
-        defaultPhase={defaultPhase}
       />
     </>
   );

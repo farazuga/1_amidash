@@ -35,9 +35,9 @@ import {
   CheckCircle,
   AlertCircle,
 } from 'lucide-react';
-import type { FileCategory, ProjectPhase } from '@/types';
+import type { FileCategory } from '@/types';
 import { cn } from '@/lib/utils';
-import { FILE_CATEGORY_CONFIG, PROJECT_PHASE_CONFIG } from '@/types';
+import { FILE_CATEGORY_CONFIG } from '@/types';
 import { CustomCameraUI } from './custom-camera-ui';
 import { isGetUserMediaSupported } from '@/lib/video-utils';
 
@@ -48,13 +48,11 @@ interface FileUploadDialogProps {
   dealId?: string;  // For presales files
   onUpload: (files: FileUploadData[]) => Promise<void>;
   defaultCategory?: FileCategory;
-  defaultPhase?: ProjectPhase;
 }
 
 export interface FileUploadData {
   file: File;
   category: FileCategory;
-  phase?: ProjectPhase;
   notes?: string;
 }
 
@@ -63,7 +61,6 @@ interface PendingFile {
   file: File;
   preview?: string;
   category: FileCategory;
-  phase?: ProjectPhase;
   notes?: string;
   status: 'pending' | 'uploading' | 'success' | 'error';
   progress: number;
@@ -73,8 +70,7 @@ interface PendingFile {
 const categoryIcons: Record<FileCategory, React.ComponentType<{ className?: string }>> = {
   schematics: FileCode,
   sow: FileText,
-  photos: Image,
-  videos: Video,
+  media: Image,
   other: File,
 };
 
@@ -95,11 +91,8 @@ function detectCategory(file: File): FileCategory {
   const mimeType = file.type.toLowerCase();
   const extension = file.name.split('.').pop()?.toLowerCase();
 
-  // Photos
-  if (mimeType.startsWith('image/')) return 'photos';
-
-  // Videos
-  if (mimeType.startsWith('video/')) return 'videos';
+  // Photos and Videos go to media
+  if (mimeType.startsWith('image/') || mimeType.startsWith('video/')) return 'media';
 
   // Schematics (CAD, diagrams)
   const schematicExtensions = ['dwg', 'dxf', 'dwf', 'dgn', 'skp', 'step', 'stp', 'iges', 'igs'];
@@ -118,13 +111,11 @@ export function FileUploadDialog({
   projectId,
   dealId,
   onUpload,
-  defaultCategory = 'other',
-  defaultPhase,
+  defaultCategory = 'media',
 }: FileUploadDialogProps) {
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [globalCategory, setGlobalCategory] = useState<FileCategory>(defaultCategory);
-  const [globalPhase, setGlobalPhase] = useState<ProjectPhase | undefined>(defaultPhase);
   const [globalNotes, setGlobalNotes] = useState('');
   const [showCustomCamera, setShowCustomCamera] = useState(false);
   const [cameraSupported, setCameraSupported] = useState(false);
@@ -155,7 +146,6 @@ export function FileUploadDialog({
         file,
         preview,
         category,
-        phase: globalPhase,
         notes: '',
         status: 'pending',
         progress: 0,
@@ -163,7 +153,7 @@ export function FileUploadDialog({
     });
 
     setPendingFiles((prev) => [...prev, ...newPendingFiles]);
-  }, [globalPhase]);
+  }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -174,9 +164,8 @@ export function FileUploadDialog({
     e.preventDefault();
   }, []);
 
-  // Handle capture from custom camera
-  const handleCameraCapture = useCallback((file: File, mode: 'photo' | 'video') => {
-    const category = mode === 'photo' ? 'photos' : 'videos';
+  // Handle capture from custom camera - always use media category
+  const handleCameraCapture = useCallback((file: File, _mode: 'photo' | 'video') => {
     let preview: string | undefined;
 
     if (file.type.startsWith('image/')) {
@@ -187,8 +176,7 @@ export function FileUploadDialog({
       id: crypto.randomUUID(),
       file,
       preview,
-      category,
-      phase: globalPhase,
+      category: 'media',
       notes: '',
       status: 'pending',
       progress: 0,
@@ -196,7 +184,7 @@ export function FileUploadDialog({
 
     setPendingFiles((prev) => [...prev, newPendingFile]);
     setShowCustomCamera(false);
-  }, [globalPhase]);
+  }, []);
 
   const handleOpenPhotoCamera = useCallback(() => {
     setInitialCameraMode('photo');
@@ -232,7 +220,6 @@ export function FileUploadDialog({
     const filesToUpload: FileUploadData[] = pendingFiles.map(pf => ({
       file: pf.file,
       category: pf.category,
-      phase: pf.phase || globalPhase,
       notes: pf.notes || globalNotes,
     }));
 
@@ -457,43 +444,23 @@ export function FileUploadDialog({
         {/* Global settings */}
         {pendingFiles.length > 0 && (
           <div className="space-y-4 pt-4 border-t">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="global-category">Default Category</Label>
-                <Select
-                  value={globalCategory}
-                  onValueChange={(value) => setGlobalCategory(value as FileCategory)}
-                >
-                  <SelectTrigger id="global-category">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(FILE_CATEGORY_CONFIG).map(([key, config]) => (
-                      <SelectItem key={key} value={key}>
-                        {config.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="global-phase">Project Phase</Label>
-                <Select
-                  value={globalPhase || ''}
-                  onValueChange={(value) => setGlobalPhase(value as ProjectPhase || undefined)}
-                >
-                  <SelectTrigger id="global-phase">
-                    <SelectValue placeholder="Select phase..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(PROJECT_PHASE_CONFIG).map(([key, config]) => (
-                      <SelectItem key={key} value={key}>
-                        {config.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div>
+              <Label htmlFor="global-category">Default Category</Label>
+              <Select
+                value={globalCategory}
+                onValueChange={(value) => setGlobalCategory(value as FileCategory)}
+              >
+                <SelectTrigger id="global-category">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(FILE_CATEGORY_CONFIG).map(([key, config]) => (
+                    <SelectItem key={key} value={key}>
+                      {config.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label htmlFor="global-notes">Notes (optional)</Label>

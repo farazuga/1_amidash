@@ -46,7 +46,6 @@ export interface UploadFileData {
   fileContent: ArrayBuffer;
   contentType: string;
   category: FileCategory;
-  phase?: ProjectPhase;
   notes?: string;
   capturedOffline?: boolean;
   capturedOnDevice?: string;
@@ -183,7 +182,7 @@ async function ensureProjectFolder(
     );
 
     // Create category subfolders
-    const categories: FileCategory[] = ['schematics', 'sow', 'photos', 'videos', 'other'];
+    const categories: FileCategory[] = ['schematics', 'sow', 'media', 'other'];
     for (const category of categories) {
       const categoryFolderName = sharepoint.getCategoryFolderName(category);
       try {
@@ -287,7 +286,7 @@ export async function connectSharePointFolder(
 
     // Create category subfolders if requested
     if (data.createSubfolders !== false) {
-      const categories: FileCategory[] = ['schematics', 'sow', 'photos', 'videos', 'other'];
+      const categories: FileCategory[] = ['schematics', 'sow', 'media', 'other'];
       for (const category of categories) {
         const folderName = sharepoint.getCategoryFolderName(category);
         try {
@@ -550,7 +549,6 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
         uploaded_by: user.id,
         sharepoint_modified_by: spItem.lastModifiedBy?.user?.email,
         sharepoint_modified_at: spItem.lastModifiedDateTime,
-        project_phase: data.phase,
         notes: data.notes,
         upload_status: 'uploaded',
         is_synced: true,
@@ -614,7 +612,7 @@ export async function syncFilesFromSharePoint(projectId: string): Promise<SyncFi
 
   try {
     let syncedCount = 0;
-    const categories: FileCategory[] = ['schematics', 'sow', 'photos', 'videos', 'other'];
+    const categories: FileCategory[] = ['schematics', 'sow', 'media', 'other'];
 
     for (const category of categories) {
       const folderName = sharepoint.getCategoryFolderName(category);

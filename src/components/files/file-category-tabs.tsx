@@ -6,7 +6,6 @@ import {
   FileCode,
   FileText,
   Image,
-  Video,
   File,
   FolderOpen
 } from 'lucide-react';
@@ -40,15 +39,10 @@ const categoryConfig: Record<FileCategory | 'all', {
     icon: FileText,
     color: 'text-purple-600',
   },
-  photos: {
-    label: 'Photos',
+  media: {
+    label: 'Photos & Videos',
     icon: Image,
     color: 'text-green-600',
-  },
-  videos: {
-    label: 'Videos',
-    icon: Video,
-    color: 'text-red-600',
   },
   other: {
     label: 'Other',
@@ -70,7 +64,7 @@ export function FileCategoryTabs({
     return counts.find(c => c.category === category)?.count || 0;
   };
 
-  const categories: (FileCategory | 'all')[] = ['all', 'schematics', 'sow', 'photos', 'videos', 'other'];
+  const categories: (FileCategory | 'all')[] = ['all', 'schematics', 'sow', 'media', 'other'];
 
   return (
     <Tabs
@@ -78,7 +72,7 @@ export function FileCategoryTabs({
       onValueChange={(value) => onCategoryChange(value as FileCategory | 'all')}
       className={className}
     >
-      <TabsList className="grid w-full grid-cols-6 h-auto p-1">
+      <TabsList className="grid w-full grid-cols-5 h-auto p-1">
         {categories.map((category) => {
           const config = categoryConfig[category];
           const Icon = config.icon;
@@ -129,7 +123,7 @@ export function FileCategoryTabsMobile({
     return counts.find(c => c.category === category)?.count || 0;
   };
 
-  const categories: (FileCategory | 'all')[] = ['all', 'schematics', 'sow', 'photos', 'videos', 'other'];
+  const categories: (FileCategory | 'all')[] = ['all', 'schematics', 'sow', 'media', 'other'];
 
   return (
     <div className={cn('overflow-x-auto -mx-4 px-4', className)}>
