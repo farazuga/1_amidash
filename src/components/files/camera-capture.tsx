@@ -245,23 +245,31 @@ export function CameraCaptureDialog({
     forceOpenRef.current = true;
     ignoreCloseUntilRef.current = Date.now() + 3000; // 3 second cooldown
 
-    // Set captured file and preview
-    setCapturedFile(file);
-    const previewUrl = URL.createObjectURL(file);
-    console.log('[CameraCapture] Created preview URL:', previewUrl);
-    setCapturedPreview(previewUrl);
+    // Close custom camera FIRST (before setting state to avoid race conditions)
+    setShowCustomCamera(false);
+    console.log('[CameraCapture] Camera closed');
 
-    // Auto-set category to media for all captures
-    setCategory('media');
-
-    // Request location
-    requestLocation();
-
-    // Close custom camera after a brief delay to ensure state is set
+    // Set captured file and preview AFTER camera is closed
+    // Small delay to let React process the camera close and allow any
+    // accidental dialog close events to be blocked by our refs
     setTimeout(() => {
-      setShowCustomCamera(false);
-      console.log('[CameraCapture] Camera closed, showing preview dialog');
-    }, 100);
+      console.log('[CameraCapture] Setting captured file state');
+      setCapturedFile(file);
+      const previewUrl = URL.createObjectURL(file);
+      console.log('[CameraCapture] Created preview URL:', previewUrl);
+      setCapturedPreview(previewUrl);
+
+      // Auto-set category to media for all captures
+      setCategory('media');
+
+      // Request location
+      requestLocation();
+
+      // EXPLICITLY ensure dialog stays open after state is set
+      // This counters any accidental close that may have been triggered
+      onOpenChange(true);
+      console.log('[CameraCapture] Dialog explicitly set to open');
+    }, 50);
 
     // Clear the protection flags after state has settled
     setTimeout(() => {
@@ -269,7 +277,7 @@ export function CameraCaptureDialog({
       forceOpenRef.current = false;
       console.log('[CameraCapture] Protection flags cleared');
     }, 2000);
-  }, [requestLocation]);
+  }, [requestLocation, onOpenChange]);
 
   // Open custom camera for photo
   const handleOpenPhotoCamera = useCallback(() => {
