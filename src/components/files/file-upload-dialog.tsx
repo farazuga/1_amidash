@@ -203,13 +203,17 @@ export function FileUploadDialog({
   }, []);
 
   const handleOpenPhotoCamera = useCallback(() => {
+    console.log('[FileUploadDialog] Opening photo camera');
     setInitialCameraMode('photo');
     setShowCustomCamera(true);
+    console.log('[FileUploadDialog] showCustomCamera set to true');
   }, []);
 
   const handleOpenVideoCamera = useCallback(() => {
+    console.log('[FileUploadDialog] Opening video camera');
     setInitialCameraMode('video');
     setShowCustomCamera(true);
+    console.log('[FileUploadDialog] showCustomCamera set to true');
   }, []);
 
   const removeFile = (id: string) => {

@@ -103,7 +103,10 @@ export function useCameraStream(
 
   // Start the camera stream
   const startStream = useCallback(async (): Promise<boolean> => {
+    console.log('[useCameraStream] startStream called, isSupported:', capabilities.isSupported);
+
     if (!capabilities.isSupported) {
+      console.error('[useCameraStream] Camera not supported');
       setError('not_supported');
       return false;
     }
@@ -120,8 +123,10 @@ export function useCameraStream(
         facingMode: currentFacingMode,
         includeAudio,
       });
+      console.log('[useCameraStream] Requesting camera with constraints:', JSON.stringify(constraints));
 
       const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+      console.log('[useCameraStream] Got media stream:', mediaStream.id);
 
       // Store in ref for cleanup
       streamRef.current = mediaStream;
@@ -134,6 +139,7 @@ export function useCameraStream(
 
       // Attach to video element if available
       if (videoRef.current) {
+        console.log('[useCameraStream] Attaching stream to video element');
         videoRef.current.srcObject = mediaStream;
         // iOS Safari requires these attributes
         videoRef.current.setAttribute('playsinline', 'true');
@@ -144,17 +150,26 @@ export function useCameraStream(
         await new Promise<void>((resolve, reject) => {
           const video = videoRef.current;
           if (!video) {
+            console.log('[useCameraStream] Video ref is null, skipping');
             resolve();
             return;
           }
 
           const handleLoadedMetadata = () => {
+            console.log('[useCameraStream] Video metadata loaded, playing...');
             video.removeEventListener('loadedmetadata', handleLoadedMetadata);
             video.removeEventListener('error', handleError);
-            video.play().then(resolve).catch(reject);
+            video.play().then(() => {
+              console.log('[useCameraStream] Video playing successfully');
+              resolve();
+            }).catch((err) => {
+              console.error('[useCameraStream] Video play failed:', err);
+              reject(err);
+            });
           };
 
           const handleError = () => {
+            console.error('[useCameraStream] Video element error');
             video.removeEventListener('loadedmetadata', handleLoadedMetadata);
             video.removeEventListener('error', handleError);
             reject(new Error('Video failed to load'));
@@ -163,12 +178,17 @@ export function useCameraStream(
           video.addEventListener('loadedmetadata', handleLoadedMetadata);
           video.addEventListener('error', handleError);
         });
+      } else {
+        console.warn('[useCameraStream] No video ref available');
       }
 
+      console.log('[useCameraStream] Stream started successfully');
       setIsLoading(false);
       return true;
     } catch (err) {
+      console.error('[useCameraStream] Error starting stream:', err);
       const cameraError = mapMediaError(err);
+      console.error('[useCameraStream] Mapped error:', cameraError);
       setError(cameraError);
       setHasPermission(cameraError === 'permission_denied' ? false : null);
       setIsLoading(false);
