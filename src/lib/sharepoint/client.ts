@@ -598,6 +598,9 @@ function getCategoryFolderName(category: FileCategory): string {
     schematics: 'Schematics',
     sow: 'SOW',
     media: 'Photos & Videos',
+    // Legacy categories map to Photos & Videos folder
+    photos: 'Photos & Videos',
+    videos: 'Photos & Videos',
     other: 'Other',
   };
   return names[category];

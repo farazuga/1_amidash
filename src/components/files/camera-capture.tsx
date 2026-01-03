@@ -198,7 +198,10 @@ export function CameraCaptureDialog({
   const [showCustomCamera, setShowCustomCamera] = useState(false);
   const [initialCameraMode, setInitialCameraMode] = useState<'photo' | 'video'>('photo');
   const [cameraSupported, setCameraSupported] = useState(false);
-  const [ignoreCloseUntil, setIgnoreCloseUntil] = useState(0);
+  // Use ref for cooldown to ensure synchronous updates (state updates are async)
+  const ignoreCloseUntilRef = useRef(0);
+  // Track if we just received a capture (synchronous flag)
+  const justReceivedCaptureRef = useRef(false);
 
   // Check camera support on mount
   useEffect(() => {
@@ -235,7 +238,11 @@ export function CameraCaptureDialog({
       mode,
     });
 
-    // Set captured file and preview FIRST
+    // IMMEDIATELY set refs to prevent dialog from closing (refs update synchronously)
+    justReceivedCaptureRef.current = true;
+    ignoreCloseUntilRef.current = Date.now() + 2000; // 2 second cooldown
+
+    // Set captured file and preview
     setCapturedFile(file);
     const previewUrl = URL.createObjectURL(file);
     console.log('[CameraCapture] Created preview URL:', previewUrl);
@@ -247,15 +254,16 @@ export function CameraCaptureDialog({
     // Request location
     requestLocation();
 
-    // Set a cooldown period to ignore close events during camera transition
-    // This prevents the Dialog from closing due to focus/blur events when portal unmounts
-    setIgnoreCloseUntil(Date.now() + 500);
-
     // Close custom camera after a brief delay to ensure state is set
     setTimeout(() => {
       setShowCustomCamera(false);
       console.log('[CameraCapture] Camera closed, showing preview dialog');
     }, 100);
+
+    // Clear the immediate capture flag after a longer delay
+    setTimeout(() => {
+      justReceivedCaptureRef.current = false;
+    }, 1000);
   }, [requestLocation]);
 
   // Open custom camera for photo
@@ -351,7 +359,8 @@ export function CameraCaptureDialog({
     console.log('[CameraCapture] Dialog onOpenChange:', isOpen, {
       showCustomCamera,
       capturedFile: !!capturedFile,
-      ignoreCloseUntil,
+      justReceivedCapture: justReceivedCaptureRef.current,
+      ignoreCloseUntil: ignoreCloseUntilRef.current,
       now: Date.now(),
     });
 
@@ -362,8 +371,13 @@ export function CameraCaptureDialog({
         console.log('[CameraCapture] Ignoring close request - camera is open');
         return;
       }
+      // Ignore if we just received a capture (immediate synchronous check)
+      if (justReceivedCaptureRef.current) {
+        console.log('[CameraCapture] Ignoring close request - just received capture');
+        return;
+      }
       // Ignore if we're in cooldown period after camera closed
-      if (Date.now() < ignoreCloseUntil) {
+      if (Date.now() < ignoreCloseUntilRef.current) {
         console.log('[CameraCapture] Ignoring close request - in cooldown period');
         return;
       }

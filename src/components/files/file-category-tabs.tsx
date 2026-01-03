@@ -44,6 +44,17 @@ const categoryConfig: Record<FileCategory | 'all', {
     icon: Image,
     color: 'text-green-600',
   },
+  // Legacy categories (for backwards compatibility)
+  photos: {
+    label: 'Photos',
+    icon: Image,
+    color: 'text-green-600',
+  },
+  videos: {
+    label: 'Videos',
+    icon: Image,
+    color: 'text-green-600',
+  },
   other: {
     label: 'Other',
     icon: File,
@@ -61,9 +72,17 @@ export function FileCategoryTabs({
     if (category === 'all') {
       return counts.reduce((sum, c) => sum + c.count, 0);
     }
+    // Group legacy 'photos' and 'videos' into 'media' count
+    if (category === 'media') {
+      const mediaCount = counts.find(c => c.category === 'media')?.count || 0;
+      const photosCount = counts.find(c => c.category === 'photos')?.count || 0;
+      const videosCount = counts.find(c => c.category === 'videos')?.count || 0;
+      return mediaCount + photosCount + videosCount;
+    }
     return counts.find(c => c.category === category)?.count || 0;
   };
 
+  // Only show main categories in tabs (not legacy photos/videos)
   const categories: (FileCategory | 'all')[] = ['all', 'schematics', 'sow', 'media', 'other'];
 
   return (
@@ -120,9 +139,17 @@ export function FileCategoryTabsMobile({
     if (category === 'all') {
       return counts.reduce((sum, c) => sum + c.count, 0);
     }
+    // Group legacy 'photos' and 'videos' into 'media' count
+    if (category === 'media') {
+      const mediaCount = counts.find(c => c.category === 'media')?.count || 0;
+      const photosCount = counts.find(c => c.category === 'photos')?.count || 0;
+      const videosCount = counts.find(c => c.category === 'videos')?.count || 0;
+      return mediaCount + photosCount + videosCount;
+    }
     return counts.find(c => c.category === category)?.count || 0;
   };
 
+  // Only show main categories in tabs (not legacy photos/videos)
   const categories: (FileCategory | 'all')[] = ['all', 'schematics', 'sow', 'media', 'other'];
 
   return (

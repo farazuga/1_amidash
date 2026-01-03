@@ -186,7 +186,9 @@ export interface RevenueGoal {
 }
 
 // Project Files types
-export type FileCategory = 'schematics' | 'sow' | 'media' | 'other';
+// Note: 'photos' and 'videos' are kept for backwards compatibility with existing data
+// New uploads should use 'media' instead
+export type FileCategory = 'schematics' | 'sow' | 'media' | 'photos' | 'videos' | 'other';
 
 export type ProjectPhase = 'quoting' | 'engineering' | 'onsite' | 'complete' | 'other';
 
@@ -304,6 +306,7 @@ export interface FileCategoryCount {
 }
 
 // File category display configuration
+// Includes legacy 'photos' and 'videos' for backwards compatibility
 export const FILE_CATEGORY_CONFIG: Record<FileCategory, { label: string; icon: string; description: string }> = {
   schematics: {
     label: 'Schematics',
@@ -319,6 +322,17 @@ export const FILE_CATEGORY_CONFIG: Record<FileCategory, { label: string; icon: s
     label: 'Photos & Videos',
     icon: 'Image',
     description: 'Site photos, videos, and recordings',
+  },
+  // Legacy categories for backwards compatibility with existing data
+  photos: {
+    label: 'Photos',
+    icon: 'Image',
+    description: 'Site photos (legacy)',
+  },
+  videos: {
+    label: 'Videos',
+    icon: 'Video',
+    description: 'Video recordings (legacy)',
   },
   other: {
     label: 'Other',
