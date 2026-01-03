@@ -137,57 +137,55 @@ export function ProjectFilesClient({
   }, [projectId, uploadThumbnail]);
 
   // Handle camera capture
+  // Note: Don't use startTransition here - it causes Next.js to re-render server components
   const handleCapture = useCallback(async (data: CapturedFileData) => {
     try {
       const arrayBuffer = await data.file.arrayBuffer();
 
-      startTransition(async () => {
-        try {
-          const result = await uploadFile({
-            projectId,
-            fileName: data.file.name,
-            fileContent: arrayBuffer,
-            contentType: data.file.type,
-            category: data.category,
-            phase: data.phase,
-            notes: data.notes,
-            capturedOffline: data.capturedOffline,
-            capturedOnDevice: data.deviceType,
-          });
-
-          if (result.success && result.file) {
-            // Generate and upload thumbnail in background
-            const thumbnailUrl = await uploadThumbnail(data.file, result.file.id);
-
-            // Update file in state with thumbnail
-            const fileWithThumb = thumbnailUrl
-              ? { ...result.file, local_thumbnail_url: thumbnailUrl }
-              : result.file;
-
-            setFiles(prev => [fileWithThumb, ...prev]);
-            setCounts(prev => {
-              const existing = prev.find(c => c.category === data.category);
-              if (existing) {
-                return prev.map(c =>
-                  c.category === data.category
-                    ? { ...c, count: c.count + 1 }
-                    : c
-                );
-              }
-              return [...prev, { category: data.category, count: 1 }];
-            });
-            toast.success(data.file.type.startsWith('video/') ? 'Video saved' : 'Photo saved');
-          } else {
-            toast.error(result.error || 'Failed to save file');
-          }
-        } catch (error) {
-          console.error('Upload error:', error);
-          toast.error('Failed to save file');
-        }
+      const result = await uploadFile({
+        projectId,
+        fileName: data.file.name,
+        fileContent: arrayBuffer,
+        contentType: data.file.type,
+        category: data.category,
+        phase: data.phase,
+        notes: data.notes,
+        capturedOffline: data.capturedOffline,
+        capturedOnDevice: data.deviceType,
       });
+
+      if (result.success && result.file) {
+        // Generate and upload thumbnail in background (don't await)
+        uploadThumbnail(data.file, result.file.id).then(thumbnailUrl => {
+          if (thumbnailUrl) {
+            setFiles(prev => prev.map(f =>
+              f.id === result.file!.id
+                ? { ...f, local_thumbnail_url: thumbnailUrl }
+                : f
+            ));
+          }
+        }).catch(err => console.error('Thumbnail upload failed:', err));
+
+        // Update state immediately with the new file
+        setFiles(prev => [result.file!, ...prev]);
+        setCounts(prev => {
+          const existing = prev.find(c => c.category === data.category);
+          if (existing) {
+            return prev.map(c =>
+              c.category === data.category
+                ? { ...c, count: c.count + 1 }
+                : c
+            );
+          }
+          return [...prev, { category: data.category, count: 1 }];
+        });
+        toast.success(data.file.type.startsWith('video/') ? 'Video saved' : 'Photo saved');
+      } else {
+        toast.error(result.error || 'Failed to save file');
+      }
     } catch (error) {
-      console.error('File processing error:', error);
-      toast.error('Failed to process file');
+      console.error('Upload error:', error);
+      toast.error('Failed to save file');
     }
   }, [projectId, uploadThumbnail]);
 
