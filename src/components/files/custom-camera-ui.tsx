@@ -116,7 +116,12 @@ export function CustomCameraUI({
 
   // Handle video recording start
   const handleStartRecording = useCallback(async () => {
+    console.log('[CustomCamera] handleStartRecording called');
+    console.log('[CustomCamera] stream:', stream ? 'exists' : 'null');
+    console.log('[CustomCamera] isMediaRecorderSupported:', isMediaRecorderSupported());
+
     if (!stream || !isMediaRecorderSupported()) {
+      console.error('[CustomCamera] Recording not supported or no stream');
       setCaptureError('Video recording is not supported on this device.');
       return;
     }
@@ -124,12 +129,15 @@ export function CustomCameraUI({
     setCaptureError(null);
 
     try {
+      console.log('[CustomCamera] Creating video recorder...');
       const recorder = createVideoRecorder(stream);
+      console.log('[CustomCamera] Recorder created:', recorder);
       mediaRecorderRef.current = recorder;
 
       setIsRecording(true);
       setCameraState('recording');
       setRecordingDuration(0);
+      console.log('[CustomCamera] Recording state set');
 
       // Start duration timer
       recordingIntervalRef.current = setInterval(() => {
@@ -137,8 +145,9 @@ export function CustomCameraUI({
       }, 1000);
 
       recorder.start();
+      console.log('[CustomCamera] Recorder started');
     } catch (err) {
-      console.error('Failed to start recording:', err);
+      console.error('[CustomCamera] Failed to start recording:', err);
       setCaptureError('Failed to start video recording. Please try again.');
     }
   }, [stream]);
@@ -218,6 +227,7 @@ export function CustomCameraUI({
 
   // Handle mode switch
   const handleModeSwitch = useCallback((newMode: CaptureMode) => {
+    console.log('[CustomCamera] handleModeSwitch to:', newMode, 'isRecording:', isRecording);
     if (isRecording) return;
     setMode(newMode);
     setCaptureError(null);
@@ -231,6 +241,16 @@ export function CustomCameraUI({
     }
     onClose();
   }, [onClose, previewUrl, stopStream]);
+
+  // Debug log render state
+  console.log('[CustomCamera] Render state:', {
+    mode,
+    cameraState,
+    isStreaming,
+    isLoading,
+    isRecording,
+    hasStream: !!stream,
+  });
 
   // Render error state
   if (error && !isStreaming) {
