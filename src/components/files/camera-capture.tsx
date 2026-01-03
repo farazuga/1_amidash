@@ -180,9 +180,8 @@ export function CameraCaptureDialog({
       mode,
     });
 
+    // Set captured file and preview FIRST
     setCapturedFile(file);
-
-    // Create preview
     const previewUrl = URL.createObjectURL(file);
     console.log('[CameraCapture] Created preview URL:', previewUrl);
     setCapturedPreview(previewUrl);
@@ -197,9 +196,12 @@ export function CameraCaptureDialog({
     // Request location
     requestLocation();
 
-    // Close custom camera, show preview
-    setShowCustomCamera(false);
-    console.log('[CameraCapture] Camera closed, showing preview dialog');
+    // Close custom camera after a brief delay to ensure state is set
+    // This prevents the Dialog from receiving stray events when the portal unmounts
+    setTimeout(() => {
+      setShowCustomCamera(false);
+      console.log('[CameraCapture] Camera closed, showing preview dialog');
+    }, 50);
   }, [requestLocation]);
 
   // Open custom camera for photo
