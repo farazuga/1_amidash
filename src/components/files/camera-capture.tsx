@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -369,6 +370,9 @@ export function CameraCaptureDialog({
               <Camera className="h-5 w-5" />
               Quick Capture
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              Take a photo or record a video to upload to this project
+            </DialogDescription>
           </DialogHeader>
 
           {/* Offline indicator */}

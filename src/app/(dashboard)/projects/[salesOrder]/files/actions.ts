@@ -219,11 +219,8 @@ async function ensureProjectFolder(
       return { success: false, error: 'Failed to save connection' };
     }
 
-    try {
-      revalidatePath(`/projects/${projectId}`);
-    } catch (e) {
-      console.error('Revalidation error (non-fatal):', e);
-    }
+    // Note: Skip revalidatePath here to avoid disrupting streaming responses
+    // Client updates state optimistically, data refreshes on next navigation
 
     return { success: true, connection: connection as ProjectSharePointConnection };
   } catch (error) {
