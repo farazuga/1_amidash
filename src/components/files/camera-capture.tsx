@@ -202,6 +202,8 @@ export function CameraCaptureDialog({
   const ignoreCloseUntilRef = useRef(0);
   // Track if we just received a capture (synchronous flag)
   const justReceivedCaptureRef = useRef(false);
+  // Track if the dialog should be forced open
+  const forceOpenRef = useRef(false);
 
   // Check camera support on mount
   useEffect(() => {
@@ -240,7 +242,8 @@ export function CameraCaptureDialog({
 
     // IMMEDIATELY set refs to prevent dialog from closing (refs update synchronously)
     justReceivedCaptureRef.current = true;
-    ignoreCloseUntilRef.current = Date.now() + 2000; // 2 second cooldown
+    forceOpenRef.current = true;
+    ignoreCloseUntilRef.current = Date.now() + 3000; // 3 second cooldown
 
     // Set captured file and preview
     setCapturedFile(file);
@@ -260,10 +263,12 @@ export function CameraCaptureDialog({
       console.log('[CameraCapture] Camera closed, showing preview dialog');
     }, 100);
 
-    // Clear the immediate capture flag after a longer delay
+    // Clear the protection flags after state has settled
     setTimeout(() => {
       justReceivedCaptureRef.current = false;
-    }, 1000);
+      forceOpenRef.current = false;
+      console.log('[CameraCapture] Protection flags cleared');
+    }, 2000);
   }, [requestLocation]);
 
   // Open custom camera for photo
@@ -361,11 +366,17 @@ export function CameraCaptureDialog({
       capturedFile: !!capturedFile,
       justReceivedCapture: justReceivedCaptureRef.current,
       ignoreCloseUntil: ignoreCloseUntilRef.current,
+      forceOpen: forceOpenRef.current,
       now: Date.now(),
     });
 
     // If trying to close, check if we should ignore
     if (!isOpen) {
+      // Ignore if dialog is force-opened
+      if (forceOpenRef.current) {
+        console.log('[CameraCapture] Ignoring close request - dialog is force-opened');
+        return;
+      }
       // Ignore if camera is still open
       if (showCustomCamera) {
         console.log('[CameraCapture] Ignoring close request - camera is open');
