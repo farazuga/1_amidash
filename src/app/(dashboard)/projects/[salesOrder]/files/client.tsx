@@ -4,7 +4,7 @@ import { useState, useCallback, useTransition } from 'react';
 import { toast } from 'sonner';
 import { FileBrowser } from '@/components/files/file-browser';
 import { CameraCapture, CapturedFileData } from '@/components/files/camera-capture';
-import { FileUploadData } from '@/components/files/file-upload-dialog';
+import { FileUploadDialog, FileUploadData } from '@/components/files/file-upload-dialog';
 import type { ProjectFile, FileCategoryCount, ProjectSharePointConnection } from '@/types';
 import {
   uploadFile,
@@ -37,6 +37,7 @@ export function ProjectFilesClient({
   const [counts, setCounts] = useState<FileCategoryCount[]>(initialCounts);
   const [connection, setConnection] = useState<ProjectSharePointConnection | null>(initialConnection);
   const [isPending, startTransition] = useTransition();
+  const [showFabUploadDialog, setShowFabUploadDialog] = useState(false);
 
   // Get pending upload count for floating button badge
   const pendingCount = files.filter(f => f.upload_status !== 'uploaded').length;
@@ -279,12 +280,21 @@ export function ProjectFilesClient({
         onPreview={handlePreview}
       />
 
-      {/* Floating camera capture button (mobile) */}
+      {/* Floating action button for capture/upload (mobile) */}
       <CameraCapture
         projectId={projectId}
         onCapture={handleCapture}
+        onUpload={() => setShowFabUploadDialog(true)}
         defaultCategory="photos"
         pendingCount={pendingCount}
+      />
+
+      {/* Upload dialog triggered from FAB */}
+      <FileUploadDialog
+        open={showFabUploadDialog}
+        onOpenChange={setShowFabUploadDialog}
+        projectId={projectId}
+        onUpload={handleUpload}
       />
     </>
   );

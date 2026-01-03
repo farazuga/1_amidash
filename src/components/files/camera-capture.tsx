@@ -17,6 +17,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
   Alert,
   AlertDescription,
   AlertTitle,
@@ -34,6 +39,8 @@ import {
   Smartphone,
   Settings,
   AlertCircle,
+  Plus,
+  Upload,
 } from 'lucide-react';
 import { compressImage, isImageFile } from '@/lib/image-utils';
 import { isGetUserMediaSupported } from '@/lib/video-utils';
@@ -79,43 +86,93 @@ function detectDeviceType(): DeviceType {
 }
 
 /**
- * Floating action button for quick capture on mobile
+ * Floating action button for quick capture and upload on mobile
+ * Shows a menu with Photo, Video, and Upload options
  */
 export function CaptureFloatingButton({
-  onClick,
+  onPhoto,
+  onVideo,
+  onUpload,
   pendingCount = 0,
+  cameraSupported = true,
 }: {
-  onClick: () => void;
+  onPhoto: () => void;
+  onVideo: () => void;
+  onUpload: () => void;
   pendingCount?: number;
+  cameraSupported?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
+  const handleAction = (action: () => void) => {
+    setOpen(false);
+    action();
+  };
+
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'fixed bottom-6 right-6 z-50',
-        'h-14 w-14 rounded-full shadow-lg',
-        'bg-primary text-primary-foreground',
-        'flex items-center justify-center',
-        'hover:bg-primary/90 active:scale-95 transition-all',
-        'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2'
-      )}
-    >
-      <Camera className="h-6 w-6" />
-      {pendingCount > 0 && (
-        <span
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
           className={cn(
-            'absolute -top-1 -right-1',
-            'h-5 w-5 rounded-full text-xs font-medium',
+            'fixed bottom-6 right-6 z-50',
+            'h-14 w-14 rounded-full shadow-lg',
+            'bg-primary text-primary-foreground',
             'flex items-center justify-center',
-            isOnline ? 'bg-yellow-500 text-white' : 'bg-red-500 text-white'
+            'hover:bg-primary/90 active:scale-95 transition-all',
+            'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2'
           )}
         >
-          {pendingCount}
-        </span>
-      )}
-    </button>
+          <Plus className={cn('h-6 w-6 transition-transform', open && 'rotate-45')} />
+          {pendingCount > 0 && (
+            <span
+              className={cn(
+                'absolute -top-1 -right-1',
+                'h-5 w-5 rounded-full text-xs font-medium',
+                'flex items-center justify-center',
+                isOnline ? 'bg-yellow-500 text-white' : 'bg-red-500 text-white'
+              )}
+            >
+              {pendingCount}
+            </span>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="end"
+        className="w-48 p-2"
+        sideOffset={8}
+      >
+        <div className="flex flex-col gap-1">
+          {cameraSupported && (
+            <>
+              <button
+                onClick={() => handleAction(onPhoto)}
+                className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors text-left"
+              >
+                <Camera className="h-5 w-5 text-gray-600" />
+                <span className="font-medium">Take Photo</span>
+              </button>
+              <button
+                onClick={() => handleAction(onVideo)}
+                className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors text-left"
+              >
+                <Video className="h-5 w-5 text-gray-600" />
+                <span className="font-medium">Record Video</span>
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => handleAction(onUpload)}
+            className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors text-left"
+          >
+            <Upload className="h-5 w-5 text-gray-600" />
+            <span className="font-medium">Upload Files</span>
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -513,22 +570,53 @@ export function CameraCaptureDialog({
 
 /**
  * Combined component with floating button and dialog
+ * Provides quick access to Photo, Video, and Upload
  */
 export function CameraCapture({
   projectId,
   dealId,
   onCapture,
+  onUpload,
   defaultCategory,
   defaultPhase,
   pendingCount = 0,
-}: CameraCaptureProps & { pendingCount?: number }) {
+}: CameraCaptureProps & {
+  pendingCount?: number;
+  onUpload?: () => void;
+}) {
   const [showDialog, setShowDialog] = useState(false);
+  const [initialMode, setInitialMode] = useState<'photo' | 'video'>('photo');
+  const [cameraSupported, setCameraSupported] = useState(false);
+
+  // Check camera support on mount
+  useEffect(() => {
+    setCameraSupported(isGetUserMediaSupported());
+  }, []);
+
+  const handlePhoto = useCallback(() => {
+    setInitialMode('photo');
+    setShowDialog(true);
+  }, []);
+
+  const handleVideo = useCallback(() => {
+    setInitialMode('video');
+    setShowDialog(true);
+  }, []);
+
+  const handleUpload = useCallback(() => {
+    if (onUpload) {
+      onUpload();
+    }
+  }, [onUpload]);
 
   return (
     <>
       <CaptureFloatingButton
-        onClick={() => setShowDialog(true)}
+        onPhoto={handlePhoto}
+        onVideo={handleVideo}
+        onUpload={handleUpload}
         pendingCount={pendingCount}
+        cameraSupported={cameraSupported}
       />
 
       <CameraCaptureDialog
