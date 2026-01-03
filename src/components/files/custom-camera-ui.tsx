@@ -287,12 +287,17 @@ export function CustomCameraUI({
   return (
     <div className="fixed inset-0 z-[100] bg-black flex flex-col">
       {/* Header */}
-      <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between p-4 bg-gradient-to-b from-black/50 to-transparent">
+      <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between p-4 bg-gradient-to-b from-black/50 to-transparent pointer-events-none">
         <Button
           variant="ghost"
           size="icon"
-          className="text-white hover:bg-white/20"
-          onClick={handleClose}
+          className="text-white hover:bg-white/20 active:bg-white/30 pointer-events-auto"
+          style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+          onClick={(e) => {
+            e.stopPropagation();
+            console.log('[CustomCamera] Close button clicked');
+            handleClose();
+          }}
         >
           <X className="h-6 w-6" />
         </Button>
@@ -301,8 +306,13 @@ export function CustomCameraUI({
           <Button
             variant="ghost"
             size="icon"
-            className="text-white hover:bg-white/20"
-            onClick={switchCamera}
+            className="text-white hover:bg-white/20 active:bg-white/30 pointer-events-auto"
+            style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+            onClick={(e) => {
+              e.stopPropagation();
+              console.log('[CustomCamera] Switch camera button clicked');
+              switchCamera();
+            }}
             disabled={isLoading}
           >
             <SwitchCamera className="h-6 w-6" />
@@ -310,8 +320,8 @@ export function CustomCameraUI({
         )}
       </div>
 
-      {/* Video Preview Area */}
-      <div className="flex-1 flex items-center justify-center">
+      {/* Video Preview Area - pointer-events none on container, auto on video */}
+      <div className="flex-1 flex items-center justify-center pointer-events-none">
         {cameraState === 'preview' && previewUrl ? (
           // Show captured preview
           mode === 'photo' ? (
@@ -329,7 +339,7 @@ export function CustomCameraUI({
               src={previewUrl}
               controls
               className={cn(
-                'max-w-full max-h-full object-contain',
+                'max-w-full max-h-full object-contain pointer-events-auto',
                 currentFacingMode === 'user' && 'scale-x-[-1]'
               )}
               playsInline
@@ -378,16 +388,21 @@ export function CustomCameraUI({
         </div>
       )}
 
-      {/* Controls */}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6 pb-8">
+      {/* Controls - z-20 to ensure above video, touch-action for iOS */}
+      <div className="absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/80 to-transparent p-6 pb-8" style={{ touchAction: 'manipulation' }}>
         {cameraState === 'preview' ? (
           // Preview controls
-          <div className="flex items-center justify-center gap-8">
+          <div className="flex items-center justify-center gap-8 pointer-events-auto">
             <Button
               variant="ghost"
               size="lg"
-              className="text-white hover:bg-white/20 flex flex-col items-center gap-1"
-              onClick={handleRetake}
+              className="text-white hover:bg-white/20 active:bg-white/30 flex flex-col items-center gap-1"
+              style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                console.log('[CustomCamera] Retake button clicked');
+                handleRetake();
+              }}
             >
               <RotateCcw className="h-8 w-8" />
               <span className="text-sm">Retake</span>
@@ -395,24 +410,34 @@ export function CustomCameraUI({
 
             <Button
               size="lg"
-              className="h-16 w-16 rounded-full bg-green-600 hover:bg-green-700"
-              onClick={handleConfirm}
+              className="h-16 w-16 rounded-full bg-green-600 hover:bg-green-700 active:bg-green-800"
+              style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                console.log('[CustomCamera] Confirm button clicked');
+                handleConfirm();
+              }}
             >
               <Check className="h-8 w-8" />
             </Button>
           </div>
         ) : (
           // Capture controls
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between pointer-events-auto">
             {/* Photo mode button */}
             <Button
               variant="ghost"
               size="lg"
               className={cn(
-                'text-white hover:bg-white/20 flex flex-col items-center gap-1',
+                'text-white hover:bg-white/20 active:bg-white/30 flex flex-col items-center gap-1',
                 mode === 'photo' && 'bg-white/20'
               )}
-              onClick={() => handleModeSwitch('photo')}
+              style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                console.log('[CustomCamera] Photo mode button clicked');
+                handleModeSwitch('photo');
+              }}
               disabled={isRecording}
             >
               <Camera className="h-6 w-6" />
@@ -420,12 +445,17 @@ export function CustomCameraUI({
             </Button>
 
             {/* Main capture button */}
-            <div className="flex flex-col items-center">
+            <div className="flex flex-col items-center" style={{ touchAction: 'manipulation' }}>
               {mode === 'photo' ? (
                 <Button
                   size="lg"
-                  className="h-20 w-20 rounded-full bg-white hover:bg-gray-200"
-                  onClick={handleCapturePhoto}
+                  className="h-20 w-20 rounded-full bg-white hover:bg-gray-200 active:bg-gray-300"
+                  style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    console.log('[CustomCamera] Photo capture button clicked!');
+                    handleCapturePhoto();
+                  }}
                   disabled={!isStreaming || isLoading}
                 >
                   <Circle className="h-16 w-16 text-gray-800" />
@@ -433,16 +463,26 @@ export function CustomCameraUI({
               ) : isRecording ? (
                 <Button
                   size="lg"
-                  className="h-20 w-20 rounded-full bg-red-600 hover:bg-red-700"
-                  onClick={handleStopRecording}
+                  className="h-20 w-20 rounded-full bg-red-600 hover:bg-red-700 active:bg-red-800"
+                  style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    console.log('[CustomCamera] Stop recording button clicked!');
+                    handleStopRecording();
+                  }}
                 >
                   <Square className="h-8 w-8 text-white" />
                 </Button>
               ) : (
                 <Button
                   size="lg"
-                  className="h-20 w-20 rounded-full bg-red-600 hover:bg-red-700"
-                  onClick={handleStartRecording}
+                  className="h-20 w-20 rounded-full bg-red-600 hover:bg-red-700 active:bg-red-800"
+                  style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    console.log('[CustomCamera] Record button clicked!', { isStreaming, isLoading });
+                    handleStartRecording();
+                  }}
                   disabled={!isStreaming || isLoading}
                 >
                   <Circle className="h-16 w-16 text-white fill-current" />
@@ -455,10 +495,15 @@ export function CustomCameraUI({
               variant="ghost"
               size="lg"
               className={cn(
-                'text-white hover:bg-white/20 flex flex-col items-center gap-1',
+                'text-white hover:bg-white/20 active:bg-white/30 flex flex-col items-center gap-1',
                 mode === 'video' && 'bg-white/20'
               )}
-              onClick={() => handleModeSwitch('video')}
+              style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                console.log('[CustomCamera] Video mode button clicked');
+                handleModeSwitch('video');
+              }}
               disabled={isRecording}
             >
               <Video className="h-6 w-6" />
