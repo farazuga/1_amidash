@@ -3,7 +3,6 @@
 import { useState, useCallback, useTransition } from 'react';
 import { toast } from 'sonner';
 import { FileBrowser } from '@/components/files/file-browser';
-import { CameraCapture, CapturedFileData } from '@/components/files/camera-capture';
 import { FileUploadDialog, FileUploadData } from '@/components/files/file-upload-dialog';
 import type { ProjectFile, FileCategoryCount, ProjectSharePointConnection } from '@/types';
 import {
@@ -37,10 +36,6 @@ export function ProjectFilesClient({
   const [counts, setCounts] = useState<FileCategoryCount[]>(initialCounts);
   const [connection, setConnection] = useState<ProjectSharePointConnection | null>(initialConnection);
   const [isPending, startTransition] = useTransition();
-  const [showFabUploadDialog, setShowFabUploadDialog] = useState(false);
-
-  // Get pending upload count for floating button badge
-  const pendingCount = files.filter(f => f.upload_status !== 'uploaded').length;
 
   // Refresh files from server
   const refreshFiles = useCallback(async () => {
@@ -136,77 +131,6 @@ export function ProjectFilesClient({
     }
   }, [projectId, uploadThumbnail]);
 
-  // Handle camera capture
-  // Note: Don't use startTransition here - it causes Next.js to re-render server components
-  const handleCapture = useCallback(async (data: CapturedFileData) => {
-    console.log('[handleCapture] Starting capture upload:', {
-      name: data.file.name,
-      size: data.file.size,
-      type: data.file.type,
-      category: data.category,
-    });
-
-    try {
-      console.log('[handleCapture] Converting to ArrayBuffer...');
-      const arrayBuffer = await data.file.arrayBuffer();
-      console.log('[handleCapture] ArrayBuffer size:', arrayBuffer.byteLength);
-
-      console.log('[handleCapture] Calling uploadFile...');
-      const result = await uploadFile({
-        projectId,
-        fileName: data.file.name,
-        fileContent: arrayBuffer,
-        contentType: data.file.type,
-        category: data.category,
-        notes: data.notes,
-        capturedOffline: data.capturedOffline,
-        capturedOnDevice: data.deviceType,
-      });
-
-      console.log('[handleCapture] Upload result:', {
-        success: result.success,
-        error: result.error,
-        fileId: result.file?.id,
-      });
-
-      if (result.success && result.file) {
-        // Generate and upload thumbnail in background (don't await)
-        uploadThumbnail(data.file, result.file.id).then(thumbnailUrl => {
-          if (thumbnailUrl) {
-            setFiles(prev => prev.map(f =>
-              f.id === result.file!.id
-                ? { ...f, local_thumbnail_url: thumbnailUrl }
-                : f
-            ));
-          }
-        }).catch(err => console.error('Thumbnail upload failed:', err));
-
-        // Update state immediately with the new file
-        setFiles(prev => [result.file!, ...prev]);
-        setCounts(prev => {
-          const existing = prev.find(c => c.category === data.category);
-          if (existing) {
-            return prev.map(c =>
-              c.category === data.category
-                ? { ...c, count: c.count + 1 }
-                : c
-            );
-          }
-          return [...prev, { category: data.category, count: 1 }];
-        });
-        toast.success(data.file.type.startsWith('video/') ? 'Video saved' : 'Photo saved');
-      } else {
-        console.error('[handleCapture] Upload failed:', result.error);
-        toast.error(result.error || 'Failed to save file');
-      }
-    } catch (error) {
-      console.error('[handleCapture] Unexpected error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[handleCapture] Error details:', errorMessage);
-      toast.error(`Upload failed: ${errorMessage}`);
-    }
-  }, [projectId, uploadThumbnail]);
-
   // Handle sync from SharePoint
   const handleSync = useCallback(async () => {
     startTransition(async () => {
@@ -280,39 +204,20 @@ export function ProjectFilesClient({
   }, []);
 
   return (
-    <>
-      <FileBrowser
-        projectId={projectId}
-        projectName={projectName}
-        files={files}
-        counts={counts}
-        connection={connection}
-        globalSharePointConfigured={globalSharePointConfigured}
-        isLoading={isPending}
-        onUpload={handleUpload}
-        onSync={handleSync}
-        onDownload={handleDownload}
-        onDelete={handleDelete}
-        onShare={handleShare}
-        onPreview={handlePreview}
-      />
-
-      {/* Floating action button for capture/upload (mobile) */}
-      <CameraCapture
-        projectId={projectId}
-        onCapture={handleCapture}
-        onUpload={() => setShowFabUploadDialog(true)}
-        defaultCategory="media"
-        pendingCount={pendingCount}
-      />
-
-      {/* Upload dialog triggered from FAB */}
-      <FileUploadDialog
-        open={showFabUploadDialog}
-        onOpenChange={setShowFabUploadDialog}
-        projectId={projectId}
-        onUpload={handleUpload}
-      />
-    </>
+    <FileBrowser
+      projectId={projectId}
+      projectName={projectName}
+      files={files}
+      counts={counts}
+      connection={connection}
+      globalSharePointConfigured={globalSharePointConfigured}
+      isLoading={isPending}
+      onUpload={handleUpload}
+      onSync={handleSync}
+      onDownload={handleDownload}
+      onDelete={handleDelete}
+      onShare={handleShare}
+      onPreview={handlePreview}
+    />
   );
 }

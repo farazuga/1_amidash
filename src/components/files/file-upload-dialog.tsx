@@ -124,6 +124,8 @@ export function FileUploadDialog({
   const [cameraSupported, setCameraSupported] = useState(false);
   const [initialCameraMode, setInitialCameraMode] = useState<'photo' | 'video'>('photo');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Track when camera was just closed to prevent dialog from closing
+  const cameraJustClosedRef = useRef(false);
 
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
@@ -169,6 +171,11 @@ export function FileUploadDialog({
 
   // Handle capture from custom camera - always use media category
   const handleCameraCapture = useCallback((file: File, _mode: 'photo' | 'video') => {
+    console.log('[FileUploadDialog] Camera captured file:', file.name);
+
+    // Set protection flag BEFORE closing camera
+    cameraJustClosedRef.current = true;
+
     let preview: string | undefined;
 
     if (file.type.startsWith('image/')) {
@@ -187,6 +194,12 @@ export function FileUploadDialog({
 
     setPendingFiles((prev) => [...prev, newPendingFile]);
     setShowCustomCamera(false);
+
+    // Clear protection flag after React has processed the state updates
+    setTimeout(() => {
+      cameraJustClosedRef.current = false;
+      console.log('[FileUploadDialog] Camera protection cleared');
+    }, 500);
   }, []);
 
   const handleOpenPhotoCamera = useCallback(() => {
@@ -269,6 +282,23 @@ export function FileUploadDialog({
     onOpenChange(false);
   };
 
+  // Handle dialog open change - prevent closing during camera operation
+  const handleDialogOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
+      // Don't close if camera is open
+      if (showCustomCamera) {
+        console.log('[FileUploadDialog] Blocking close - camera is open');
+        return;
+      }
+      // Don't close if camera just closed (prevents focus-loss close)
+      if (cameraJustClosedRef.current) {
+        console.log('[FileUploadDialog] Blocking close - camera just closed');
+        return;
+      }
+      handleClose();
+    }
+  };
+
   return (
     <>
       {/* Custom Camera UI - rendered via portal to escape dialog constraints */}
@@ -281,7 +311,7 @@ export function FileUploadDialog({
         document.body
       )}
 
-      <Dialog open={open} onOpenChange={handleClose}>
+      <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Upload Files</DialogTitle>
