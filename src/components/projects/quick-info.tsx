@@ -12,6 +12,7 @@ import { ScheduleStatusBadge } from './schedule-status-badge';
 import { StatusBadge } from './status-badge';
 import { CopyClientLink } from './copy-client-link';
 import { DeleteProjectButton } from './delete-project-button';
+import { ProjectScheduledHours } from './project-scheduled-hours';
 import { inlineEditProjectField, updateProjectDates, updateProjectScheduleStatus } from '@/app/(dashboard)/projects/actions';
 import { toast } from 'sonner';
 import type { BookingStatus } from '@/types/calendar';
@@ -293,6 +294,9 @@ export function QuickInfo({
               )}
             </div>
           </div>
+
+          {/* Scheduled Hours */}
+          <ProjectScheduledHours projectId={project.id} />
 
           {/* Sales Amount */}
           <div className="flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors">

@@ -69,6 +69,10 @@ export async function getDashboardData(): Promise<DashboardData> {
     'dashboard_concentration_high_threshold': 'concentrationHighThreshold',
     'dashboard_concentration_medium_threshold': 'concentrationMediumThreshold',
     'dashboard_backlog_warning_months': 'backlogWarningMonths',
+    'dashboard_not_scheduled_warning_days': 'notScheduledWarningDays',
+    'dashboard_low_invoice_warning_percent': 'lowInvoiceWarningPercent',
+    'dashboard_signage_min_project_value': 'signageMinProjectValue',
+    'dashboard_signage_upcoming_days': 'signageUpcomingDays',
   };
 
   if (settingsRes.data) {
