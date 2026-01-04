@@ -176,6 +176,11 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
   const [compareEnabled, setCompareEnabled] = useState(false);
   const [periodPickerOpen, setPeriodPickerOpen] = useState(false);
 
+  // Expanded sections state
+  const [expandedOverdue, setExpandedOverdue] = useState(false);
+  const [expandedStuck, setExpandedStuck] = useState(false);
+  const [expandedNotScheduled, setExpandedNotScheduled] = useState(false);
+
   // Use data from server
   const { projects, statuses, statusHistory, goals, thresholds } = initialData;
 
@@ -1182,7 +1187,7 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
           <MetricTooltip metric="pipeline">
             <Card className="p-2">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] text-muted-foreground uppercase">Pipeline</span>
+                <span className="text-[10px] text-muted-foreground uppercase">WIP Pipeline</span>
                 <DollarSign className="h-3 w-3 text-muted-foreground" />
               </div>
               <p className="text-lg font-bold">{formatCurrency(pipelineRevenue)}</p>
@@ -1315,14 +1320,19 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
               <p className="text-xs text-muted-foreground">No overdue projects</p>
             ) : (
               <div className="space-y-1.5">
-                {overdueProjects.slice(0, 3).map(p => (
+                {(expandedOverdue ? overdueProjects : overdueProjects.slice(0, 3)).map(p => (
                   <Link key={p.id} href={`/projects/${p.id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
                     <span className="font-medium truncate max-w-[120px]">{p.client_name}</span>
                     <span className="text-red-600">{formatCurrency(p.sales_amount || 0)}</span>
                   </Link>
                 ))}
                 {overdueProjects.length > 3 && (
-                  <p className="text-[10px] text-muted-foreground">+{overdueProjects.length - 3} more</p>
+                  <button
+                    onClick={() => setExpandedOverdue(!expandedOverdue)}
+                    className="text-[10px] text-primary hover:underline cursor-pointer"
+                  >
+                    {expandedOverdue ? 'Show less' : `+${overdueProjects.length - 3} more`}
+                  </button>
                 )}
               </div>
             )}
@@ -1342,7 +1352,7 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
               <p className="text-xs text-muted-foreground">No stuck projects</p>
             ) : (
               <div className="space-y-1.5">
-                {wipAgingData.stuckProjects.slice(0, 3).map(p => (
+                {(expandedStuck ? wipAgingData.stuckProjects : wipAgingData.stuckProjects.slice(0, 3)).map(p => (
                   <Link key={p.id} href={`/projects/${p.id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
                     <span className="font-medium truncate max-w-[100px]">{p.client_name}</span>
                     <div className="flex items-center gap-2">
@@ -1354,7 +1364,12 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
                   </Link>
                 ))}
                 {wipAgingData.totalStuck > 3 && (
-                  <p className="text-[10px] text-muted-foreground">+{wipAgingData.totalStuck - 3} more ({formatCurrency(wipAgingData.totalStuckRevenue)})</p>
+                  <button
+                    onClick={() => setExpandedStuck(!expandedStuck)}
+                    className="text-[10px] text-primary hover:underline cursor-pointer"
+                  >
+                    {expandedStuck ? 'Show less' : `+${wipAgingData.totalStuck - 3} more (${formatCurrency(wipAgingData.totalStuckRevenue)})`}
+                  </button>
                 )}
               </div>
             )}
@@ -1437,7 +1452,7 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
                 <p className="text-xs text-amber-600 font-medium">
                   {projectsNotScheduled.count} project{projectsNotScheduled.count !== 1 ? 's' : ''} waiting ({formatCurrency(projectsNotScheduled.totalRevenue)})
                 </p>
-                {projectsNotScheduled.projects.slice(0, 3).map(p => (
+                {(expandedNotScheduled ? projectsNotScheduled.projects : projectsNotScheduled.projects.slice(0, 3)).map(p => (
                   <Link key={p.id} href={`/projects/${p.id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
                     <span className="font-medium truncate max-w-[100px]">{p.client_name}</span>
                     <div className="flex items-center gap-2">
@@ -1449,7 +1464,12 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
                   </Link>
                 ))}
                 {projectsNotScheduled.count > 3 && (
-                  <p className="text-[10px] text-muted-foreground">+{projectsNotScheduled.count - 3} more</p>
+                  <button
+                    onClick={() => setExpandedNotScheduled(!expandedNotScheduled)}
+                    className="text-[10px] text-primary hover:underline cursor-pointer"
+                  >
+                    {expandedNotScheduled ? 'Show less' : `+${projectsNotScheduled.count - 3} more`}
+                  </button>
                 )}
               </div>
             )}
@@ -1689,12 +1709,12 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
         </Card>
       </div>
 
-      {/* ROW 5: Revenue Pipeline - Compact */}
+      {/* ROW 5: Invoice Goal Date by Month */}
       <Card>
         <CardHeader className="pb-2 pt-3 px-4">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
-            Revenue Pipeline (Next 6 Months)
+            Invoice Goal Date by Month
           </CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-3">
