@@ -163,7 +163,7 @@ export function UserScheduleView({ userId, userName, currentDate }: UserSchedule
                   {daySchedule.map((item, index) => (
                     <Link
                       key={`${item.assignment_id}-${index}`}
-                      href={`/projects/${item.project_id}`}
+                      href={`/projects/${item.project_id}/calendar`}
                       className="flex items-center justify-between p-2 rounded-md hover:bg-muted transition-colors"
                     >
                       <span className="font-medium">{item.project_name}</span>
