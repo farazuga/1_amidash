@@ -1321,7 +1321,7 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
             ) : (
               <div className="space-y-1.5">
                 {(expandedOverdue ? overdueProjects : overdueProjects.slice(0, 3)).map(p => (
-                  <Link key={p.id} href={`/projects/${p.id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
+                  <Link key={p.id} href={`/projects/${p.sales_order_number || p.id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
                     <span className="font-medium truncate max-w-[120px]">{p.client_name}</span>
                     <span className="text-red-600">{formatCurrency(p.sales_amount || 0)}</span>
                   </Link>
@@ -1353,7 +1353,7 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
             ) : (
               <div className="space-y-1.5">
                 {(expandedStuck ? wipAgingData.stuckProjects : wipAgingData.stuckProjects.slice(0, 3)).map(p => (
-                  <Link key={p.id} href={`/projects/${p.id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
+                  <Link key={p.id} href={`/projects/${p.sales_order_number || p.id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
                     <span className="font-medium truncate max-w-[100px]">{p.client_name}</span>
                     <div className="flex items-center gap-2">
                       <span className="text-muted-foreground">{p.statusName}</span>
@@ -1453,7 +1453,7 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
                   {projectsNotScheduled.count} project{projectsNotScheduled.count !== 1 ? 's' : ''} waiting ({formatCurrency(projectsNotScheduled.totalRevenue)})
                 </p>
                 {(expandedNotScheduled ? projectsNotScheduled.projects : projectsNotScheduled.projects.slice(0, 3)).map(p => (
-                  <Link key={p.id} href={`/projects/${p.id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
+                  <Link key={p.id} href={`/projects/${p.sales_order_number || p.id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
                     <span className="font-medium truncate max-w-[100px]">{p.client_name}</span>
                     <div className="flex items-center gap-2">
                       <span className="text-muted-foreground truncate max-w-[60px]">{p.statusName}</span>
@@ -1664,7 +1664,7 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
             ) : (
               <div className="space-y-1.5">
                 {lastInvoiced.map(h => (
-                  <Link key={h.id} href={`/projects/${h.project_id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
+                  <Link key={h.id} href={`/projects/${h.project?.sales_order_number || h.project_id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
                     <span className="font-medium truncate max-w-[120px]">{h.project?.client_name}</span>
                     <span className="text-green-600 font-medium">{formatCurrency(h.project?.sales_amount || 0)}</span>
                   </Link>

@@ -193,6 +193,7 @@ export interface CalendarEvent {
   end: Date;
   projectId: string;
   projectName: string;
+  salesOrderNumber: string | null;
   userId: string;
   userName: string;
   bookingStatus: BookingStatus;
@@ -296,6 +297,7 @@ export interface UserScheduleResult {
   schedule_date: string;
   project_id: string;
   project_name: string;
+  sales_order_number: string | null;
   booking_status: BookingStatus;
   assignment_id: string;
 }
@@ -305,6 +307,7 @@ export interface CalendarAssignmentResult {
   assignment_id: string;
   project_id: string;
   project_name: string;
+  sales_order_number: string | null;
   user_id: string;
   user_name: string;
   booking_status: BookingStatus;

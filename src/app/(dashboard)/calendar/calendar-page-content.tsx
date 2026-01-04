@@ -28,7 +28,7 @@ export function CalendarPageContent({ isAdmin }: CalendarPageContentProps) {
   const createSubscription = useCreateCalendarSubscription();
 
   const handleEventClick = (event: CalendarEvent) => {
-    router.push(`/projects/${event.projectId}`);
+    router.push(`/projects/${event.salesOrderNumber || event.projectId}`);
   };
 
   const handleGetICalLink = async () => {
