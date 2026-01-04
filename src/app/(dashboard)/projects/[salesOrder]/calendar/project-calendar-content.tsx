@@ -40,10 +40,8 @@ export function ProjectCalendarContent({ project, isAdmin }: ProjectCalendarCont
   const createSubscription = useCreateCalendarSubscription();
 
   const handleEventClick = (event: CalendarEvent) => {
-    // Could open an assignment detail dialog here
-    toast.info(`Selected ${event.userName}'s assignment`, {
-      description: `Status: ${event.bookingStatus}`,
-    });
+    // Navigate to the project page
+    router.push(`/projects/${project.sales_order_number}`);
   };
 
   const handleGetICalLink = async () => {

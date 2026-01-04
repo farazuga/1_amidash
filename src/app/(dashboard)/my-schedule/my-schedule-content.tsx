@@ -28,38 +28,37 @@ export function MyScheduleContent({ userId, userName }: MyScheduleContentProps) 
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header with navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <CalendarHeader
-            currentDate={currentDate}
-            onPreviousMonth={handlePreviousMonth}
-            onNextMonth={handleNextMonth}
-            onToday={handleToday}
-          />
+      <div className="flex flex-col gap-3 sm:gap-4">
+        {/* Calendar navigation */}
+        <CalendarHeader
+          currentDate={currentDate}
+          onPreviousMonth={handlePreviousMonth}
+          onNextMonth={handleNextMonth}
+          onToday={handleToday}
+        />
 
-          {/* View toggle */}
-          <div className="flex items-center gap-1 border rounded-lg p-1">
-            <Button
-              variant={viewMode === 'calendar' ? 'secondary' : 'ghost'}
-              size="sm"
-              className="h-7 gap-1"
-              onClick={() => setViewMode('calendar')}
-            >
-              <LayoutGrid className="h-3.5 w-3.5" />
-              Calendar
-            </Button>
-            <Button
-              variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-              size="sm"
-              className="h-7 gap-1"
-              onClick={() => setViewMode('list')}
-            >
-              <List className="h-3.5 w-3.5" />
-              List
-            </Button>
-          </div>
+        {/* View toggle - full width on mobile */}
+        <div className="flex items-center gap-1 border rounded-lg p-1 w-full sm:w-auto">
+          <Button
+            variant={viewMode === 'calendar' ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-8 sm:h-7 gap-1 flex-1 sm:flex-none"
+            onClick={() => setViewMode('calendar')}
+          >
+            <LayoutGrid className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+            <span className="sm:inline">Calendar</span>
+          </Button>
+          <Button
+            variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-8 sm:h-7 gap-1 flex-1 sm:flex-none"
+            onClick={() => setViewMode('list')}
+          >
+            <List className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+            <span className="sm:inline">List</span>
+          </Button>
         </div>
       </div>
 

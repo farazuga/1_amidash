@@ -213,7 +213,7 @@ export async function fullSyncForUser(userId: string): Promise<{
     return { synced: 0, failed: 0, errors: ['No calendar connections found'] };
   }
 
-  // Get user's assignments with project data
+  // Get user's assignments with extended project data
   const { data: assignments, error } = await supabase
     .from('project_assignments')
     .select(`
@@ -226,12 +226,48 @@ export async function fullSyncForUser(userId: string): Promise<{
         id,
         client_name,
         start_date,
-        end_date
+        end_date,
+        sales_order_number,
+        sales_order_url,
+        poc_name,
+        poc_email,
+        poc_phone,
+        goal_completion_date
       )
     `)
     .eq('user_id', userId)
     .not('project.start_date', 'is', null)
     .not('project.end_date', 'is', null);
+
+  // Get other engineers for each project
+  const projectIds = [...new Set((assignments || []).map(a => a.project_id))];
+  const otherEngineersMap: Record<string, string[]> = {};
+
+  if (projectIds.length > 0) {
+    const { data: allAssignments } = await supabase
+      .from('project_assignments')
+      .select(`
+        project_id,
+        user:profiles!user_id(full_name, email)
+      `)
+      .in('project_id', projectIds)
+      .neq('user_id', userId);
+
+    if (allAssignments) {
+      for (const assignment of allAssignments) {
+        if (!otherEngineersMap[assignment.project_id]) {
+          otherEngineersMap[assignment.project_id] = [];
+        }
+        const user = assignment.user as { full_name: string | null; email: string } | null;
+        if (user) {
+          const name = user.full_name || user.email;
+          if (!otherEngineersMap[assignment.project_id].includes(name)) {
+            otherEngineersMap[assignment.project_id].push(name);
+          }
+        }
+      }
+    }
+  }
 
   if (error) {
     console.error('Failed to fetch assignments:', error);
@@ -249,6 +285,19 @@ export async function fullSyncForUser(userId: string): Promise<{
   // Sync each assignment to each connection
   for (const connection of connections) {
     for (const assignment of assignments) {
+      const project = assignment.project as {
+        id: string;
+        client_name: string;
+        start_date: string;
+        end_date: string;
+        sales_order_number: string | null;
+        sales_order_url: string | null;
+        poc_name: string | null;
+        poc_email: string | null;
+        poc_phone: string | null;
+        goal_completion_date: string | null;
+      };
+
       const result = await syncAssignmentToOutlook(
         {
           id: assignment.id,
@@ -257,11 +306,18 @@ export async function fullSyncForUser(userId: string): Promise<{
           booking_status: assignment.booking_status,
           notes: assignment.notes,
           project: {
-            id: assignment.project.id,
-            client_name: assignment.project.client_name,
-            start_date: assignment.project.start_date!,
-            end_date: assignment.project.end_date!,
+            id: project.id,
+            client_name: project.client_name,
+            start_date: project.start_date!,
+            end_date: project.end_date!,
+            sales_order_number: project.sales_order_number,
+            sales_order_url: project.sales_order_url,
+            poc_name: project.poc_name,
+            poc_email: project.poc_email,
+            poc_phone: project.poc_phone,
+            goal_completion_date: project.goal_completion_date,
           },
+          other_engineers: otherEngineersMap[assignment.project_id] || [],
         },
         connection
       );
@@ -271,7 +327,7 @@ export async function fullSyncForUser(userId: string): Promise<{
       } else {
         failed++;
         if (result.error) {
-          errors.push(`${assignment.project.client_name}: ${result.error}`);
+          errors.push(`${project.client_name}: ${result.error}`);
         }
       }
     }

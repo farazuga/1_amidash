@@ -93,5 +93,13 @@ export interface AssignmentForSync {
     client_name: string;
     start_date: string;
     end_date: string;
+    sales_order_number?: string | null;
+    sales_order_url?: string | null;
+    poc_name?: string | null;
+    poc_email?: string | null;
+    poc_phone?: string | null;
+    goal_completion_date?: string | null;
   };
+  // Other engineers assigned to the same project (excluding current user)
+  other_engineers?: string[];
 }

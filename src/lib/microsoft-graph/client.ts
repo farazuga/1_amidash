@@ -229,20 +229,71 @@ export function buildEventFromAssignment(
       client_name: string;
       start_date: string;
       end_date: string;
+      sales_order_number?: string | null;
+      sales_order_url?: string | null;
+      poc_name?: string | null;
+      poc_email?: string | null;
+      poc_phone?: string | null;
+      goal_completion_date?: string | null;
     };
+    other_engineers?: string[];
   },
   baseUrl: string
 ): OutlookCalendarEvent {
   const statusLabel = getStatusLabel(assignment.booking_status);
   const showAs = assignment.booking_status === 'confirmed' ? 'busy' : 'tentative';
 
-  // Build description
+  // Build description with enhanced details
   let description = `Project: ${assignment.project.client_name}\n`;
   description += `Status: ${statusLabel}\n`;
-  if (assignment.notes) {
-    description += `\nNotes: ${assignment.notes}`;
+
+  // Add sales order info
+  if (assignment.project.sales_order_number) {
+    description += `\nSales Order: ${assignment.project.sales_order_number}`;
+    if (assignment.project.sales_order_url) {
+      description += `\nSales Order Link: ${assignment.project.sales_order_url}`;
+    }
   }
-  description += `\n\nView in AmiDash: ${baseUrl}/calendar`;
+
+  // Add completion date
+  if (assignment.project.goal_completion_date) {
+    const completionDate = new Date(assignment.project.goal_completion_date);
+    description += `\nCompletion Date: ${completionDate.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    })}`;
+  }
+
+  // Add POC details
+  if (assignment.project.poc_name || assignment.project.poc_email || assignment.project.poc_phone) {
+    description += `\n\n--- Point of Contact ---`;
+    if (assignment.project.poc_name) {
+      description += `\nName: ${assignment.project.poc_name}`;
+    }
+    if (assignment.project.poc_email) {
+      description += `\nEmail: ${assignment.project.poc_email}`;
+    }
+    if (assignment.project.poc_phone) {
+      description += `\nPhone: ${assignment.project.poc_phone}`;
+    }
+  }
+
+  // Add other engineers
+  if (assignment.other_engineers && assignment.other_engineers.length > 0) {
+    description += `\n\n--- Other Engineers ---`;
+    description += `\n${assignment.other_engineers.join(', ')}`;
+  }
+
+  // Add notes if present
+  if (assignment.notes) {
+    description += `\n\nNotes: ${assignment.notes}`;
+  }
+
+  // Add link to AmiDash
+  description += `\n\n--- Links ---`;
+  description += `\nView in AmiDash: ${baseUrl}/projects/${assignment.project.sales_order_number || assignment.id}/calendar`;
 
   // Parse dates - add one day to end date because Outlook end dates are exclusive
   const startDate = new Date(assignment.project.start_date);
