@@ -86,7 +86,14 @@ export function FileBrowser({
 
     // Filter by category
     if (activeCategory !== 'all') {
-      result = result.filter(f => f.category === activeCategory);
+      // When 'media' is selected, also include legacy 'photos' and 'videos' categories
+      if (activeCategory === 'media') {
+        result = result.filter(f =>
+          f.category === 'media' || f.category === 'photos' || f.category === 'videos'
+        );
+      } else {
+        result = result.filter(f => f.category === activeCategory);
+      }
     }
 
     // Filter by search query

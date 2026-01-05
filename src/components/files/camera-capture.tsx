@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -15,6 +17,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -26,9 +38,16 @@ import {
   Loader2,
   CloudOff,
   Smartphone,
+  Settings,
+  AlertCircle,
+  Plus,
+  Upload,
 } from 'lucide-react';
-import type { FileCategory, ProjectPhase, DeviceType } from '@/types';
-import { FILE_CATEGORY_CONFIG, PROJECT_PHASE_CONFIG } from '@/types';
+import { compressImage, isImageFile } from '@/lib/image-utils';
+import { isGetUserMediaSupported } from '@/lib/video-utils';
+import { CustomCameraUI } from './custom-camera-ui';
+import type { FileCategory, DeviceType } from '@/types';
+import { FILE_CATEGORY_CONFIG } from '@/types';
 import { cn } from '@/lib/utils';
 
 interface CameraCaptureProps {
@@ -36,13 +55,11 @@ interface CameraCaptureProps {
   dealId?: string;
   onCapture: (data: CapturedFileData) => Promise<void>;
   defaultCategory?: FileCategory;
-  defaultPhase?: ProjectPhase;
 }
 
 export interface CapturedFileData {
   file: File;
   category: FileCategory;
-  phase?: ProjectPhase;
   notes?: string;
   capturedOffline: boolean;
   deviceType: DeviceType;
@@ -68,43 +85,93 @@ function detectDeviceType(): DeviceType {
 }
 
 /**
- * Floating action button for quick capture on mobile
+ * Floating action button for quick capture and upload on mobile
+ * Shows a menu with Photo, Video, and Upload options
  */
 export function CaptureFloatingButton({
-  onClick,
+  onPhoto,
+  onVideo,
+  onUpload,
   pendingCount = 0,
+  cameraSupported = true,
 }: {
-  onClick: () => void;
+  onPhoto: () => void;
+  onVideo: () => void;
+  onUpload: () => void;
   pendingCount?: number;
+  cameraSupported?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
+  const handleAction = (action: () => void) => {
+    setOpen(false);
+    action();
+  };
+
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'fixed bottom-6 right-6 z-50',
-        'h-14 w-14 rounded-full shadow-lg',
-        'bg-primary text-primary-foreground',
-        'flex items-center justify-center',
-        'hover:bg-primary/90 active:scale-95 transition-all',
-        'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2'
-      )}
-    >
-      <Camera className="h-6 w-6" />
-      {pendingCount > 0 && (
-        <span
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
           className={cn(
-            'absolute -top-1 -right-1',
-            'h-5 w-5 rounded-full text-xs font-medium',
+            'fixed bottom-6 right-6 z-50',
+            'h-14 w-14 rounded-full shadow-lg',
+            'bg-primary text-primary-foreground',
             'flex items-center justify-center',
-            isOnline ? 'bg-yellow-500 text-white' : 'bg-red-500 text-white'
+            'hover:bg-primary/90 active:scale-95 transition-all',
+            'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2'
           )}
         >
-          {pendingCount}
-        </span>
-      )}
-    </button>
+          <Plus className={cn('h-6 w-6 transition-transform', open && 'rotate-45')} />
+          {pendingCount > 0 && (
+            <span
+              className={cn(
+                'absolute -top-1 -right-1',
+                'h-5 w-5 rounded-full text-xs font-medium',
+                'flex items-center justify-center',
+                isOnline ? 'bg-yellow-500 text-white' : 'bg-red-500 text-white'
+              )}
+            >
+              {pendingCount}
+            </span>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="end"
+        className="w-48 p-2"
+        sideOffset={8}
+      >
+        <div className="flex flex-col gap-1">
+          {cameraSupported && (
+            <>
+              <button
+                onClick={() => handleAction(onPhoto)}
+                className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors text-left"
+              >
+                <Camera className="h-5 w-5 text-gray-600" />
+                <span className="font-medium">Take Photo</span>
+              </button>
+              <button
+                onClick={() => handleAction(onVideo)}
+                className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors text-left"
+              >
+                <Video className="h-5 w-5 text-gray-600" />
+                <span className="font-medium">Record Video</span>
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => handleAction(onUpload)}
+            className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors text-left"
+          >
+            <Upload className="h-5 w-5 text-gray-600" />
+            <span className="font-medium">Upload Files</span>
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -118,19 +185,30 @@ export function CameraCaptureDialog({
   projectId,
   dealId,
   onCapture,
-  defaultCategory = 'photos',
-  defaultPhase,
+  defaultCategory = 'media',
 }: CameraCaptureProps & { open: boolean; onOpenChange: (open: boolean) => void }) {
   const [capturedFile, setCapturedFile] = useState<File | null>(null);
   const [capturedPreview, setCapturedPreview] = useState<string | null>(null);
   const [category, setCategory] = useState<FileCategory>(defaultCategory);
-  const [phase, setPhase] = useState<ProjectPhase | undefined>(defaultPhase);
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | undefined>();
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showCustomCamera, setShowCustomCamera] = useState(false);
+  const [initialCameraMode, setInitialCameraMode] = useState<'photo' | 'video'>('photo');
+  const [cameraSupported, setCameraSupported] = useState(false);
+  // Use ref for cooldown to ensure synchronous updates (state updates are async)
+  const ignoreCloseUntilRef = useRef(0);
+  // Track if we just received a capture (synchronous flag)
+  const justReceivedCaptureRef = useRef(false);
+  // Track if the dialog should be forced open
+  const forceOpenRef = useRef(false);
 
-  const photoInputRef = useRef<HTMLInputElement>(null);
-  const videoInputRef = useRef<HTMLInputElement>(null);
+  // Check camera support on mount
+  useEffect(() => {
+    setCameraSupported(isGetUserMediaSupported());
+  }, []);
 
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
   const deviceType = detectDeviceType();
@@ -153,48 +231,120 @@ export function CameraCaptureDialog({
     }
   }, []);
 
-  const handleFileCapture = useCallback((files: FileList | null, mode: CaptureMode) => {
-    if (!files || files.length === 0) return;
+  // Handle capture from custom camera
+  const handleCameraCapture = useCallback((file: File, mode: 'photo' | 'video') => {
+    console.log('[CameraCapture] Received file from camera:', {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      mode,
+    });
 
-    const file = files[0];
-    setCapturedFile(file);
+    // IMMEDIATELY set refs to prevent dialog from closing (refs update synchronously)
+    justReceivedCaptureRef.current = true;
+    forceOpenRef.current = true;
+    ignoreCloseUntilRef.current = Date.now() + 3000; // 3 second cooldown
 
-    // Create preview
-    const previewUrl = URL.createObjectURL(file);
-    setCapturedPreview(previewUrl);
+    // Close custom camera FIRST (before setting state to avoid race conditions)
+    setShowCustomCamera(false);
+    console.log('[CameraCapture] Camera closed');
 
-    // Auto-set category based on capture mode
-    if (mode === 'photo') {
-      setCategory('photos');
-    } else if (mode === 'video') {
-      setCategory('videos');
-    }
+    // Set captured file and preview AFTER camera is closed
+    // Small delay to let React process the camera close and allow any
+    // accidental dialog close events to be blocked by our refs
+    setTimeout(() => {
+      console.log('[CameraCapture] Setting captured file state');
+      setCapturedFile(file);
+      const previewUrl = URL.createObjectURL(file);
+      console.log('[CameraCapture] Created preview URL:', previewUrl);
+      setCapturedPreview(previewUrl);
 
-    // Request location
-    requestLocation();
-  }, [requestLocation]);
+      // Auto-set category to media for all captures
+      setCategory('media');
+
+      // Request location
+      requestLocation();
+
+      // EXPLICITLY ensure dialog stays open after state is set
+      // This counters any accidental close that may have been triggered
+      onOpenChange(true);
+      console.log('[CameraCapture] Dialog explicitly set to open');
+    }, 50);
+
+    // Clear the protection flags after state has settled
+    setTimeout(() => {
+      justReceivedCaptureRef.current = false;
+      forceOpenRef.current = false;
+      console.log('[CameraCapture] Protection flags cleared');
+    }, 2000);
+  }, [requestLocation, onOpenChange]);
+
+  // Open custom camera for photo
+  const handleOpenPhotoCamera = useCallback(() => {
+    setInitialCameraMode('photo');
+    setShowCustomCamera(true);
+  }, []);
+
+  // Open custom camera for video
+  const handleOpenVideoCamera = useCallback(() => {
+    setInitialCameraMode('video');
+    setShowCustomCamera(true);
+  }, []);
 
   const handleSubmit = async () => {
-    if (!capturedFile) return;
+    if (!capturedFile) {
+      console.error('[CameraCapture] No captured file to submit');
+      return;
+    }
+
+    console.log('[CameraCapture] Starting submit:', {
+      fileName: capturedFile.name,
+      fileSize: capturedFile.size,
+      fileType: capturedFile.type,
+      category,
+    });
 
     setIsSubmitting(true);
+    setErrorMessage(null);
 
     try {
+      let fileToUpload = capturedFile;
+
+      // Compress images to reduce storage and upload size
+      if (isImageFile(capturedFile)) {
+        console.log('[CameraCapture] Compressing image...');
+        setIsCompressing(true);
+        fileToUpload = await compressImage(capturedFile, {
+          maxWidth: 1920,
+          maxHeight: 1440,
+          quality: 0.8,
+        });
+        setIsCompressing(false);
+        console.log('[CameraCapture] Image compressed:', fileToUpload.size);
+      }
+
+      console.log('[CameraCapture] Calling onCapture...');
       await onCapture({
-        file: capturedFile,
+        file: fileToUpload,
         category,
-        phase,
         notes: notes || undefined,
         capturedOffline: !isOnline,
         deviceType,
         location,
       });
 
+      console.log('[CameraCapture] Upload successful, resetting');
       // Reset and close
       handleReset();
       onOpenChange(false);
     } catch (error) {
-      console.error('Capture failed:', error);
+      console.error('[CameraCapture] Submit failed:', error);
+      setIsCompressing(false);
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Failed to save file. Please try again.'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -208,43 +358,109 @@ export function CameraCaptureDialog({
     setCapturedPreview(null);
     setNotes('');
     setLocation(undefined);
+    setErrorMessage(null);
   };
 
   const handleClose = () => {
+    console.log('[CameraCapture] handleClose called');
     handleReset();
     onOpenChange(false);
   };
 
+  // Handle dialog open change - only close if explicitly requested and not during cooldown
+  const handleDialogOpenChange = (isOpen: boolean) => {
+    console.log('[CameraCapture] Dialog onOpenChange:', isOpen, {
+      showCustomCamera,
+      capturedFile: !!capturedFile,
+      justReceivedCapture: justReceivedCaptureRef.current,
+      ignoreCloseUntil: ignoreCloseUntilRef.current,
+      forceOpen: forceOpenRef.current,
+      now: Date.now(),
+    });
+
+    // If trying to close, check if we should ignore
+    if (!isOpen) {
+      // Ignore if dialog is force-opened
+      if (forceOpenRef.current) {
+        console.log('[CameraCapture] Ignoring close request - dialog is force-opened');
+        return;
+      }
+      // Ignore if camera is still open
+      if (showCustomCamera) {
+        console.log('[CameraCapture] Ignoring close request - camera is open');
+        return;
+      }
+      // Ignore if we just received a capture (immediate synchronous check)
+      if (justReceivedCaptureRef.current) {
+        console.log('[CameraCapture] Ignoring close request - just received capture');
+        return;
+      }
+      // Ignore if we're in cooldown period after camera closed
+      if (Date.now() < ignoreCloseUntilRef.current) {
+        console.log('[CameraCapture] Ignoring close request - in cooldown period');
+        return;
+      }
+      handleClose();
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Camera className="h-5 w-5" />
-            Quick Capture
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      {/* Custom Camera UI - rendered via portal to escape dialog constraints */}
+      {showCustomCamera && typeof document !== 'undefined' && createPortal(
+        <CustomCameraUI
+          onCapture={handleCameraCapture}
+          onClose={() => setShowCustomCamera(false)}
+          initialMode={initialCameraMode}
+        />,
+        document.body
+      )}
 
-        {/* Offline indicator */}
-        {!isOnline && (
-          <div className="flex items-center gap-2 p-2 rounded bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm">
-            <CloudOff className="h-4 w-4" />
-            <span>Offline - will sync when connected</span>
+      <Dialog open={open} onOpenChange={handleDialogOpenChange}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Camera className="h-5 w-5" />
+              Quick Capture
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              Take a photo or record a video to upload to this project
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Offline indicator */}
+          {!isOnline && (
+            <div className="flex items-center gap-2 p-2 rounded bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm">
+              <CloudOff className="h-4 w-4" />
+              <span>Offline - will sync when connected</span>
+            </div>
+          )}
+
+          {/* Device indicator */}
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Smartphone className="h-4 w-4" />
+            <span>Capturing on {deviceType}</span>
           </div>
-        )}
-
-        {/* Device indicator */}
-        <div className="flex items-center gap-2 text-sm text-gray-500">
-          <Smartphone className="h-4 w-4" />
-          <span>Capturing on {deviceType}</span>
-        </div>
 
         {!capturedFile ? (
           /* Capture buttons */
           <div className="space-y-3">
+            {/* Camera not supported warning */}
+            {!cameraSupported && (
+              <Alert className="bg-yellow-50 border-yellow-200">
+                <AlertCircle className="h-4 w-4 text-yellow-600" />
+                <AlertTitle className="text-yellow-800">Camera Not Available</AlertTitle>
+                <AlertDescription className="text-yellow-700 text-sm">
+                  Camera access is not supported in this browser.
+                  Please use Safari on iOS or a modern desktop browser.
+                </AlertDescription>
+              </Alert>
+            )}
+
             <Button
               className="w-full h-16 text-lg"
-              onClick={() => photoInputRef.current?.click()}
+              onClick={handleOpenPhotoCamera}
+              disabled={!cameraSupported}
             >
               <Camera className="h-6 w-6 mr-3" />
               Take Photo
@@ -253,29 +469,17 @@ export function CameraCaptureDialog({
             <Button
               variant="outline"
               className="w-full h-16 text-lg"
-              onClick={() => videoInputRef.current?.click()}
+              onClick={handleOpenVideoCamera}
+              disabled={!cameraSupported}
             >
               <Video className="h-6 w-6 mr-3" />
               Record Video
             </Button>
 
-            {/* Hidden inputs with capture attribute for iOS */}
-            <input
-              ref={photoInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={(e) => handleFileCapture(e.target.files, 'photo')}
-            />
-            <input
-              ref={videoInputRef}
-              type="file"
-              accept="video/*"
-              capture="environment"
-              className="hidden"
-              onChange={(e) => handleFileCapture(e.target.files, 'video')}
-            />
+            {/* 720p quality note */}
+            <p className="text-xs text-gray-500 text-center">
+              Photos and videos are captured at 720p for faster uploads
+            </p>
           </div>
         ) : (
           /* Preview and metadata */
@@ -331,26 +535,6 @@ export function CameraCaptureDialog({
               </Select>
             </div>
 
-            {/* Phase */}
-            <div>
-              <Label>Project Phase</Label>
-              <Select
-                value={phase || ''}
-                onValueChange={(v) => setPhase(v as ProjectPhase || undefined)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select phase..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(PROJECT_PHASE_CONFIG).map(([key, config]) => (
-                    <SelectItem key={key} value={key}>
-                      {config.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
             {/* Notes */}
             <div>
               <Label>Notes (optional)</Label>
@@ -370,6 +554,15 @@ export function CameraCaptureDialog({
               </div>
             )}
 
+            {/* Error message */}
+            {errorMessage && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{errorMessage}</AlertDescription>
+              </Alert>
+            )}
+
             {/* Action buttons */}
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={handleClose}>
@@ -379,43 +572,87 @@ export function CameraCaptureDialog({
               <Button
                 className="flex-1"
                 onClick={handleSubmit}
-                disabled={isSubmitting}
+                disabled={isSubmitting || isCompressing}
               >
-                {isSubmitting ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                {isCompressing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Compressing...
+                  </>
+                ) : isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
                 ) : !isOnline ? (
-                  <CloudOff className="h-4 w-4 mr-2" />
+                  <>
+                    <CloudOff className="h-4 w-4 mr-2" />
+                    Save Offline
+                  </>
                 ) : (
-                  <Check className="h-4 w-4 mr-2" />
+                  <>
+                    <Check className="h-4 w-4 mr-2" />
+                    Save
+                  </>
                 )}
-                {isSubmitting ? 'Saving...' : isOnline ? 'Save' : 'Save Offline'}
               </Button>
             </div>
           </div>
         )}
       </DialogContent>
     </Dialog>
+    </>
   );
 }
 
 /**
  * Combined component with floating button and dialog
+ * Provides quick access to Photo, Video, and Upload
  */
 export function CameraCapture({
   projectId,
   dealId,
   onCapture,
+  onUpload,
   defaultCategory,
-  defaultPhase,
   pendingCount = 0,
-}: CameraCaptureProps & { pendingCount?: number }) {
+}: CameraCaptureProps & {
+  pendingCount?: number;
+  onUpload?: () => void;
+}) {
   const [showDialog, setShowDialog] = useState(false);
+  const [initialMode, setInitialMode] = useState<'photo' | 'video'>('photo');
+  const [cameraSupported, setCameraSupported] = useState(false);
+
+  // Check camera support on mount
+  useEffect(() => {
+    setCameraSupported(isGetUserMediaSupported());
+  }, []);
+
+  const handlePhoto = useCallback(() => {
+    setInitialMode('photo');
+    setShowDialog(true);
+  }, []);
+
+  const handleVideo = useCallback(() => {
+    setInitialMode('video');
+    setShowDialog(true);
+  }, []);
+
+  const handleUpload = useCallback(() => {
+    if (onUpload) {
+      onUpload();
+    }
+  }, [onUpload]);
 
   return (
     <>
       <CaptureFloatingButton
-        onClick={() => setShowDialog(true)}
+        onPhoto={handlePhoto}
+        onVideo={handleVideo}
+        onUpload={handleUpload}
         pendingCount={pendingCount}
+        cameraSupported={cameraSupported}
       />
 
       <CameraCaptureDialog
@@ -425,7 +662,6 @@ export function CameraCapture({
         dealId={dealId}
         onCapture={onCapture}
         defaultCategory={defaultCategory}
-        defaultPhase={defaultPhase}
       />
     </>
   );

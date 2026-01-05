@@ -299,7 +299,7 @@ export async function createProjectFolderStructure(
   driveId: string,
   baseFolderId: string,
   projectName: string,
-  categories: FileCategory[] = ['schematics', 'sow', 'photos', 'videos', 'other']
+  categories: FileCategory[] = ['schematics', 'sow', 'media', 'other']
 ): Promise<Record<FileCategory, SharePointDriveItem>> {
   // Create main project folder
   const projectFolder = await createFolder(connection, driveId, baseFolderId, projectName);
@@ -597,8 +597,10 @@ function getCategoryFolderName(category: FileCategory): string {
   const names: Record<FileCategory, string> = {
     schematics: 'Schematics',
     sow: 'SOW',
-    photos: 'Photos',
-    videos: 'Videos',
+    media: 'Photos & Videos',
+    // Legacy categories map to Photos & Videos folder
+    photos: 'Photos & Videos',
+    videos: 'Photos & Videos',
     other: 'Other',
   };
   return names[category];

@@ -29,6 +29,8 @@ import {
   ChevronRight,
   Info,
   HelpCircle,
+  CalendarX,
+  Receipt,
 } from 'lucide-react';
 import { LazyRevenueChart } from '@/components/dashboard/lazy-charts';
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from 'date-fns';
@@ -120,6 +122,21 @@ const METRIC_TOOLTIPS = {
     description: 'Comparison of projects received vs projects completed over the last 6 months.',
     why: 'If POs > Invoiced, backlog is growing. If Invoiced > POs, backlog is shrinking (good for delivery, watch sales).',
   },
+  lowInvoice: {
+    title: 'Low Invoice Warning',
+    description: 'Alert when the current month is on pace to miss the invoiced revenue goal.',
+    why: 'Early warning to take action before month-end. Based on pace of invoicing so far this month.',
+  },
+  notScheduled: {
+    title: 'Projects Not Scheduled',
+    description: 'Projects that have been waiting for scheduling beyond the threshold (default: 14 days).',
+    why: 'Ensures projects don\'t sit idle without a plan. Helps identify process bottlenecks early.',
+  },
+  bottleneckSummary: {
+    title: 'Bottleneck Summary',
+    description: 'Projects stuck in key bottleneck statuses: Engineering Review, In Procurement, and Hold.',
+    why: 'Quick view of where work is piling up. Helps prioritize clearing blockages.',
+  },
 };
 
 // Metric Tooltip Helper Component
@@ -158,6 +175,11 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
   const [selectedQuarter, setSelectedQuarter] = useState(Math.floor(new Date().getMonth() / 3) + 1);
   const [compareEnabled, setCompareEnabled] = useState(false);
   const [periodPickerOpen, setPeriodPickerOpen] = useState(false);
+
+  // Expanded sections state
+  const [expandedOverdue, setExpandedOverdue] = useState(false);
+  const [expandedStuck, setExpandedStuck] = useState(false);
+  const [expandedNotScheduled, setExpandedNotScheduled] = useState(false);
 
   // Use data from server
   const { projects, statuses, statusHistory, goals, thresholds } = initialData;
@@ -787,6 +809,167 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
     };
   }, [projectsInProgress, thresholds.concentrationMediumThreshold, thresholds.concentrationHighThreshold]);
 
+  // ============================================
+  // NEW ALERT METRICS
+  // ============================================
+
+  // Low Invoice Month Warning - Calculate projected month-end invoicing
+  const lowInvoiceWarning = useMemo(() => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const dayOfMonth = now.getDate();
+    const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+
+    // Get current month's goal
+    const monthGoal = goals.find(g => g.year === currentYear && g.month === currentMonth);
+    const invoicedGoal = monthGoal?.invoiced_revenue_goal || 0;
+
+    // Get invoiced revenue so far this month
+    const monthStart = startOfMonth(now);
+    const invoicedThisMonth = statusHistory.filter(h => {
+      if (h.status?.name !== 'Invoiced') return false;
+      const changedAt = new Date(h.changed_at);
+      return changedAt >= monthStart;
+    });
+    const currentInvoiced = invoicedThisMonth.reduce((sum, h) => sum + (h.project?.sales_amount || 0), 0);
+
+    // Calculate projected month-end based on current pace
+    const dailyRate = dayOfMonth > 0 ? currentInvoiced / dayOfMonth : 0;
+    const projectedMonthEnd = dailyRate * daysInMonth;
+
+    // Calculate percentage of goal
+    const projectedPercent = invoicedGoal > 0 ? (projectedMonthEnd / invoicedGoal) * 100 : 100;
+    const currentPercent = invoicedGoal > 0 ? (currentInvoiced / invoicedGoal) * 100 : 100;
+
+    // Determine warning level
+    const warningThreshold = thresholds.lowInvoiceWarningPercent;
+    const isWarning = projectedPercent < warningThreshold;
+    const isCritical = projectedPercent < 60;
+
+    return {
+      currentInvoiced,
+      projectedMonthEnd,
+      invoicedGoal,
+      projectedPercent,
+      currentPercent,
+      dayOfMonth,
+      daysInMonth,
+      daysRemaining: daysInMonth - dayOfMonth,
+      isWarning,
+      isCritical,
+      warningThreshold
+    };
+  }, [statusHistory, goals, thresholds.lowInvoiceWarningPercent]);
+
+  // Projects Not Scheduled - Find projects waiting too long without being scheduled
+  const projectsNotScheduled = useMemo(() => {
+    const today = new Date();
+    const warningDays = thresholds.notScheduledWarningDays;
+
+    // Find statuses that are pre-scheduling
+    const preSchedulingStatuses = statuses.filter(s =>
+      s.name === 'PO Received' ||
+      s.name.toLowerCase().includes('engineering') ||
+      s.name.toLowerCase().includes('procurement') ||
+      s.name === 'Pending Scheduling'
+    ).map(s => s.id);
+
+    // Find projects in pre-scheduling statuses without a start date or with a far-out start date
+    const waitingProjects = projects
+      .filter(p => {
+        // Must be in a pre-scheduling status
+        if (!p.current_status_id || !preSchedulingStatuses.includes(p.current_status_id)) return false;
+        // Must not be invoiced
+        if (p.current_status_id === invoicedStatus?.id) return false;
+
+        // Check how long since creation
+        const createdAt = p.created_at ? new Date(p.created_at) : null;
+        if (!createdAt) return false;
+
+        const daysSinceCreation = Math.floor((today.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
+        return daysSinceCreation >= warningDays;
+      })
+      .map(p => {
+        const createdAt = p.created_at ? new Date(p.created_at) : today;
+        const daysWaiting = Math.floor((today.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
+        return {
+          ...p,
+          daysWaiting,
+          statusName: p.current_status?.name || 'Unknown'
+        };
+      })
+      .sort((a, b) => b.daysWaiting - a.daysWaiting);
+
+    return {
+      projects: waitingProjects,
+      count: waitingProjects.length,
+      totalRevenue: waitingProjects.reduce((sum, p) => sum + (p.sales_amount || 0), 0),
+      warningDays
+    };
+  }, [projects, statuses, invoicedStatus, thresholds.notScheduledWarningDays]);
+
+  // Enhanced Bottleneck Summary
+  const bottleneckSummary = useMemo(() => {
+    const today = new Date();
+
+    // Find bottleneck statuses
+    const engineeringStatus = statuses.find(s =>
+      s.name.toLowerCase().includes('engineering')
+    );
+    const procurementStatus = statuses.find(s =>
+      s.name.toLowerCase().includes('procurement')
+    );
+    const holdStatus = statuses.find(s =>
+      s.name.toLowerCase() === 'hold'
+    );
+
+    const getBottleneckData = (statusId: string | undefined, statusName: string) => {
+      if (!statusId) return { count: 0, revenue: 0, avgDays: 0, projects: [] as typeof projects, statusName };
+
+      const projectsInStatus = projects.filter(p => p.current_status_id === statusId);
+      const revenue = projectsInStatus.reduce((sum, p) => sum + (p.sales_amount || 0), 0);
+
+      // Calculate average days in this status
+      let totalDays = 0;
+      let countWithHistory = 0;
+      const projectsWithDays = projectsInStatus.map(p => {
+        const lastChange = statusHistory.find(h => h.project_id === p.id);
+        let daysInStatus = 0;
+        if (lastChange) {
+          daysInStatus = Math.floor((today.getTime() - new Date(lastChange.changed_at).getTime()) / (1000 * 60 * 60 * 24));
+          totalDays += daysInStatus;
+          countWithHistory++;
+        }
+        return { ...p, daysInStatus };
+      }).sort((a, b) => b.daysInStatus - a.daysInStatus);
+
+      return {
+        count: projectsInStatus.length,
+        revenue,
+        avgDays: countWithHistory > 0 ? Math.round(totalDays / countWithHistory) : 0,
+        projects: projectsWithDays,
+        statusName
+      };
+    };
+
+    const engineering = getBottleneckData(engineeringStatus?.id, 'Engineering Review');
+    const procurement = getBottleneckData(procurementStatus?.id, 'In Procurement');
+    const hold = getBottleneckData(holdStatus?.id, 'Hold');
+
+    const totalCount = engineering.count + procurement.count + hold.count;
+    const totalRevenue = engineering.revenue + procurement.revenue + hold.revenue;
+
+    return {
+      engineering,
+      procurement,
+      hold,
+      totalCount,
+      totalRevenue,
+      hasBottlenecks: totalCount > 0
+    };
+  }, [projects, statuses, statusHistory]);
+
   // Helper component for trend indicator
   const TrendIndicator = ({ current, previous }: { current: number; previous: number }) => {
     if (previous === 0) return <span className="text-xs text-muted-foreground">-</span>;
@@ -808,174 +991,180 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
 
   return (
     <div className="space-y-3">
-      {/* Header with Period Selector */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Dashboard</h1>
-        <Popover open={periodPickerOpen} onOpenChange={setPeriodPickerOpen}>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="h-9 px-3 gap-2">
-              <Calendar className="h-4 w-4" />
-              <span className="text-sm font-medium">{getPeriodLabel()}</span>
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[340px] p-0" align="end">
-            {/* Year Navigation */}
-            <div className="flex items-center justify-between px-3 py-2 border-b">
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedYear(y => y - 1)}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="font-semibold">{selectedYear}</span>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedYear(y => y + 1)}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+      {/* HERO: Monthly Summary - Most Prominent Metrics */}
+      <div className="bg-gradient-to-r from-[#023A2D] to-[#034d3c] rounded-lg p-4 sm:p-6 text-white">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="grid grid-cols-2 gap-6 sm:gap-10 flex-1">
+            {/* Monthly POs Received */}
+            <MetricTooltip metric="posReceived">
+              <div className="cursor-help">
+                <div className="text-xs sm:text-sm text-white/70 uppercase tracking-wider mb-1 flex items-center gap-1">
+                  {periodType === 'month' ? 'Monthly' : periodType === 'quarter' ? 'Quarterly' : periodType === 'ytd' ? 'YTD' : '12mo'} POs Received
+                  <HelpCircle className="h-3 w-3 opacity-50" />
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl sm:text-5xl font-bold tracking-tight">{formatCurrency(posReceivedRevenue)}</span>
+                  {periodGoal.revenue > 0 && (
+                    <span className="text-sm sm:text-lg text-white/60">/ {formatCurrency(periodGoal.revenue)}</span>
+                  )}
+                </div>
+                {periodGoal.revenue > 0 && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <Progress value={posReceivedProgress} className="h-2 flex-1 bg-white/20 [&>div]:bg-white" />
+                    <span className="text-sm font-semibold">{posReceivedProgress.toFixed(0)}%</span>
+                  </div>
+                )}
+                {compareEnabled && previousPeriodData.posReceived > 0 && (
+                  <div className="mt-1">
+                    <TrendIndicator current={posReceivedRevenue} previous={previousPeriodData.posReceived} />
+                  </div>
+                )}
+              </div>
+            </MetricTooltip>
 
-            {/* Quick Select */}
-            <div className="p-3 border-b space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase">Quick Select</p>
-              <div className="flex flex-wrap gap-1.5">
-                <Button
-                  variant={periodType === 'month' && selectedMonth === currentMonth && selectedYear === now.getFullYear() ? 'default' : 'outline'}
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => handleQuickSelect('month')}
-                >
-                  This Month
+            {/* Monthly Invoiced */}
+            <MetricTooltip metric="invoiced">
+              <div className="cursor-help">
+                <div className="text-xs sm:text-sm text-white/70 uppercase tracking-wider mb-1 flex items-center gap-1">
+                  {periodType === 'month' ? 'Monthly' : periodType === 'quarter' ? 'Quarterly' : periodType === 'ytd' ? 'YTD' : '12mo'} Invoiced
+                  <HelpCircle className="h-3 w-3 opacity-50" />
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl sm:text-5xl font-bold tracking-tight">{formatCurrency(invoicedRevenue)}</span>
+                  {periodGoal.invoicedRevenue > 0 && (
+                    <span className="text-sm sm:text-lg text-white/60">/ {formatCurrency(periodGoal.invoicedRevenue)}</span>
+                  )}
+                </div>
+                {periodGoal.invoicedRevenue > 0 && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <Progress value={invoicedRevenueProgress} className="h-2 flex-1 bg-white/20 [&>div]:bg-white" />
+                    <span className="text-sm font-semibold">{invoicedRevenueProgress.toFixed(0)}%</span>
+                  </div>
+                )}
+                {compareEnabled && previousPeriodData.invoiced > 0 && (
+                  <div className="mt-1">
+                    <TrendIndicator current={invoicedRevenue} previous={previousPeriodData.invoiced} />
+                  </div>
+                )}
+              </div>
+            </MetricTooltip>
+          </div>
+
+          {/* Period Selector */}
+          <Popover open={periodPickerOpen} onOpenChange={setPeriodPickerOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="secondary" className="h-9 px-3 gap-2 bg-white/10 hover:bg-white/20 text-white border-white/20">
+                <Calendar className="h-4 w-4" />
+                <span className="text-sm font-medium">{getPeriodLabel()}</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[340px] p-0" align="end">
+              {/* Year Navigation */}
+              <div className="flex items-center justify-between px-3 py-2 border-b">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedYear(y => y - 1)}>
+                  <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <Button
-                  variant={periodType === 'quarter' && selectedQuarter === currentQuarter && selectedYear === now.getFullYear() ? 'default' : 'outline'}
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => handleQuickSelect('quarter')}
-                >
-                  This Quarter
-                </Button>
-                <Button
-                  variant={periodType === 'ytd' && selectedYear === now.getFullYear() ? 'default' : 'outline'}
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => handleQuickSelect('ytd')}
-                >
-                  Year to Date
-                </Button>
-                <Button
-                  variant={periodType === 'last12' ? 'default' : 'outline'}
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => handleQuickSelect('last12')}
-                >
-                  Last 12 Mo
+                <span className="font-semibold">{selectedYear}</span>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedYear(y => y + 1)}>
+                  <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
-            </div>
 
-            {/* Calendar Grid */}
-            <div className="p-3">
-              <div className="grid grid-cols-4 gap-1">
-                {quarters.map((quarter) => (
-                  <div key={quarter.q} className="space-y-1">
-                    {/* Quarter Header */}
-                    <button
-                      onClick={() => handleQuarterClick(quarter.q)}
-                      className={`w-full text-[10px] font-semibold py-1 rounded transition-colors ${
-                        periodType === 'quarter' && selectedQuarter === quarter.q && selectedYear === now.getFullYear()
-                          ? 'bg-primary text-primary-foreground'
-                          : selectedYear === now.getFullYear() && currentQuarter === quarter.q
-                          ? 'bg-primary/10 text-primary hover:bg-primary/20'
-                          : 'text-muted-foreground hover:bg-muted'
-                      }`}
-                    >
-                      Q{quarter.q}
-                    </button>
-                    {/* Months in Quarter */}
-                    {quarter.months.map((monthNum) => (
+              {/* Quick Select */}
+              <div className="p-3 border-b space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase">Quick Select</p>
+                <div className="flex flex-wrap gap-1.5">
+                  <Button
+                    variant={periodType === 'month' && selectedMonth === currentMonth && selectedYear === now.getFullYear() ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => handleQuickSelect('month')}
+                  >
+                    This Month
+                  </Button>
+                  <Button
+                    variant={periodType === 'quarter' && selectedQuarter === currentQuarter && selectedYear === now.getFullYear() ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => handleQuickSelect('quarter')}
+                  >
+                    This Quarter
+                  </Button>
+                  <Button
+                    variant={periodType === 'ytd' && selectedYear === now.getFullYear() ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => handleQuickSelect('ytd')}
+                  >
+                    Year to Date
+                  </Button>
+                  <Button
+                    variant={periodType === 'last12' ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => handleQuickSelect('last12')}
+                  >
+                    Last 12 Mo
+                  </Button>
+                </div>
+              </div>
+
+              {/* Calendar Grid */}
+              <div className="p-3">
+                <div className="grid grid-cols-4 gap-1">
+                  {quarters.map((quarter) => (
+                    <div key={quarter.q} className="space-y-1">
+                      {/* Quarter Header */}
                       <button
-                        key={monthNum}
-                        onClick={() => handleMonthClick(monthNum)}
-                        className={`w-full text-xs py-1.5 rounded transition-colors ${
-                          periodType === 'month' && selectedMonth === monthNum && selectedYear === now.getFullYear()
+                        onClick={() => handleQuarterClick(quarter.q)}
+                        className={`w-full text-[10px] font-semibold py-1 rounded transition-colors ${
+                          periodType === 'quarter' && selectedQuarter === quarter.q && selectedYear === now.getFullYear()
                             ? 'bg-primary text-primary-foreground'
-                            : selectedYear === now.getFullYear() && currentMonth === monthNum
-                            ? 'bg-primary/10 text-primary font-medium hover:bg-primary/20'
-                            : 'hover:bg-muted'
+                            : selectedYear === now.getFullYear() && currentQuarter === quarter.q
+                            ? 'bg-primary/10 text-primary hover:bg-primary/20'
+                            : 'text-muted-foreground hover:bg-muted'
                         }`}
                       >
-                        {months[monthNum - 1]}
+                        Q{quarter.q}
                       </button>
-                    ))}
-                  </div>
-                ))}
+                      {/* Months in Quarter */}
+                      {quarter.months.map((monthNum) => (
+                        <button
+                          key={monthNum}
+                          onClick={() => handleMonthClick(monthNum)}
+                          className={`w-full text-xs py-1.5 rounded transition-colors ${
+                            periodType === 'month' && selectedMonth === monthNum && selectedYear === now.getFullYear()
+                              ? 'bg-primary text-primary-foreground'
+                              : selectedYear === now.getFullYear() && currentMonth === monthNum
+                              ? 'bg-primary/10 text-primary font-medium hover:bg-primary/20'
+                              : 'hover:bg-muted'
+                          }`}
+                        >
+                          {months[monthNum - 1]}
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            {/* Compare Toggle */}
-            <div className="px-3 py-2 border-t">
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <Checkbox
-                  checked={compareEnabled}
-                  onCheckedChange={(checked) => setCompareEnabled(checked === true)}
-                />
-                <span className="text-muted-foreground">Compare to previous period</span>
-              </label>
-            </div>
-          </PopoverContent>
-        </Popover>
+              {/* Compare Toggle */}
+              <div className="px-3 py-2 border-t">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={compareEnabled}
+                    onCheckedChange={(checked) => setCompareEnabled(checked === true)}
+                  />
+                  <span className="text-muted-foreground">Compare to previous period</span>
+                </label>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
       </div>
 
-      {/* ROW 1: Revenue Progress + 8 Mini Metrics */}
-      <div className="grid gap-3 lg:grid-cols-5">
-        {/* Revenue Progress - spans 3 cols */}
-        <Card className="lg:col-span-3 border-[#023A2D]">
-          <CardHeader className="pb-2 pt-3 px-4">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-[#023A2D]">
-              <DollarSign className="h-4 w-4" />
-              {periodType === 'month' ? 'Monthly' : periodType === 'quarter' ? 'Quarterly' : periodType === 'ytd' ? 'YTD' : 'Rolling 12mo'} Revenue
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-3">
-            <div className="grid grid-cols-2 gap-4">
-              <MetricTooltip metric="posReceived">
-                <div className="space-y-1">
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-xl font-bold text-[#023A2D]">{formatCurrency(posReceivedRevenue)}</span>
-                    <span className="text-xs text-muted-foreground">/ {formatCurrency(periodGoal.revenue)}</span>
-                  </div>
-                  <Progress value={posReceivedProgress} className="h-2" />
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground flex items-center gap-1">
-                      POs Received <HelpCircle className="h-3 w-3 opacity-50" />
-                    </span>
-                    <div className="flex items-center gap-2">
-                      {compareEnabled && <TrendIndicator current={posReceivedRevenue} previous={previousPeriodData.posReceived} />}
-                      <span className="font-medium">{posReceivedProgress.toFixed(0)}%</span>
-                    </div>
-                  </div>
-                </div>
-              </MetricTooltip>
-              <MetricTooltip metric="invoiced">
-                <div className="space-y-1">
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-xl font-bold text-[#023A2D]">{formatCurrency(invoicedRevenue)}</span>
-                    <span className="text-xs text-muted-foreground">/ {formatCurrency(periodGoal.invoicedRevenue)}</span>
-                  </div>
-                  <Progress value={invoicedRevenueProgress} className="h-2" />
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground flex items-center gap-1">
-                      Invoiced <HelpCircle className="h-3 w-3 opacity-50" />
-                    </span>
-                    <div className="flex items-center gap-2">
-                      {compareEnabled && <TrendIndicator current={invoicedRevenue} previous={previousPeriodData.invoiced} />}
-                      <span className="font-medium">{invoicedRevenueProgress.toFixed(0)}%</span>
-                    </div>
-                  </div>
-                </div>
-              </MetricTooltip>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 8 Mini Metric Cards - 2x4 grid in 2 cols */}
-        <div className="lg:col-span-2 grid grid-cols-4 gap-2">
+      {/* ROW 1: 8 Mini Metrics - Full width grid */}
+      <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
           <MetricTooltip metric="completed">
             <Card className="p-2">
               <div className="flex items-center justify-between">
@@ -998,7 +1187,7 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
           <MetricTooltip metric="pipeline">
             <Card className="p-2">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] text-muted-foreground uppercase">Pipeline</span>
+                <span className="text-[10px] text-muted-foreground uppercase">WIP Pipeline</span>
                 <DollarSign className="h-3 w-3 text-muted-foreground" />
               </div>
               <p className="text-lg font-bold">{formatCurrency(pipelineRevenue)}</p>
@@ -1055,7 +1244,6 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
               </p>
             </Card>
           </MetricTooltip>
-        </div>
       </div>
 
       {/* ROW 2: Health Diagnostic + Overdue/WIP Alerts */}
@@ -1132,14 +1320,19 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
               <p className="text-xs text-muted-foreground">No overdue projects</p>
             ) : (
               <div className="space-y-1.5">
-                {overdueProjects.slice(0, 3).map(p => (
-                  <Link key={p.id} href={`/projects/${p.id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
+                {(expandedOverdue ? overdueProjects : overdueProjects.slice(0, 3)).map(p => (
+                  <Link key={p.id} href={`/projects/${p.sales_order_number || p.id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
                     <span className="font-medium truncate max-w-[120px]">{p.client_name}</span>
                     <span className="text-red-600">{formatCurrency(p.sales_amount || 0)}</span>
                   </Link>
                 ))}
                 {overdueProjects.length > 3 && (
-                  <p className="text-[10px] text-muted-foreground">+{overdueProjects.length - 3} more</p>
+                  <button
+                    onClick={() => setExpandedOverdue(!expandedOverdue)}
+                    className="text-[10px] text-primary hover:underline cursor-pointer"
+                  >
+                    {expandedOverdue ? 'Show less' : `+${overdueProjects.length - 3} more`}
+                  </button>
                 )}
               </div>
             )}
@@ -1159,8 +1352,8 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
               <p className="text-xs text-muted-foreground">No stuck projects</p>
             ) : (
               <div className="space-y-1.5">
-                {wipAgingData.stuckProjects.slice(0, 3).map(p => (
-                  <Link key={p.id} href={`/projects/${p.id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
+                {(expandedStuck ? wipAgingData.stuckProjects : wipAgingData.stuckProjects.slice(0, 3)).map(p => (
+                  <Link key={p.id} href={`/projects/${p.sales_order_number || p.id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
                     <span className="font-medium truncate max-w-[100px]">{p.client_name}</span>
                     <div className="flex items-center gap-2">
                       <span className="text-muted-foreground">{p.statusName}</span>
@@ -1171,8 +1364,180 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
                   </Link>
                 ))}
                 {wipAgingData.totalStuck > 3 && (
-                  <p className="text-[10px] text-muted-foreground">+{wipAgingData.totalStuck - 3} more ({formatCurrency(wipAgingData.totalStuckRevenue)})</p>
+                  <button
+                    onClick={() => setExpandedStuck(!expandedStuck)}
+                    className="text-[10px] text-primary hover:underline cursor-pointer"
+                  >
+                    {expandedStuck ? 'Show less' : `+${wipAgingData.totalStuck - 3} more (${formatCurrency(wipAgingData.totalStuckRevenue)})`}
+                  </button>
                 )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ROW 2B: New Alerts - Low Invoice Warning, Not Scheduled, Bottleneck Summary */}
+      <div className="grid gap-3 lg:grid-cols-3">
+        {/* Low Invoice Month Warning */}
+        {lowInvoiceWarning.invoicedGoal > 0 && (
+          <Card className={`${lowInvoiceWarning.isCritical ? 'border-l-4 border-l-red-500' : lowInvoiceWarning.isWarning ? 'border-l-4 border-l-amber-500' : ''}`}>
+            <CardHeader className="pb-2 pt-3 px-4">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <MetricTooltip metric="lowInvoice">
+                  <span className="flex items-center gap-2 cursor-help">
+                    <Receipt className={`h-4 w-4 ${lowInvoiceWarning.isCritical ? 'text-red-500' : lowInvoiceWarning.isWarning ? 'text-amber-500' : 'text-green-500'}`} />
+                    Invoice Pace
+                    <HelpCircle className="h-3 w-3 opacity-50" />
+                  </span>
+                </MetricTooltip>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-3">
+              {lowInvoiceWarning.isWarning ? (
+                <div className="space-y-2">
+                  <div className="flex items-baseline justify-between">
+                    <span className={`text-lg font-bold ${lowInvoiceWarning.isCritical ? 'text-red-600' : 'text-amber-600'}`}>
+                      {lowInvoiceWarning.projectedPercent.toFixed(0)}%
+                    </span>
+                    <span className="text-xs text-muted-foreground">projected</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    On pace for {formatCurrency(lowInvoiceWarning.projectedMonthEnd)} of {formatCurrency(lowInvoiceWarning.invoicedGoal)} goal
+                  </p>
+                  <div className="flex justify-between text-xs">
+                    <span>Current: {formatCurrency(lowInvoiceWarning.currentInvoiced)}</span>
+                    <span>{lowInvoiceWarning.daysRemaining} days left</span>
+                  </div>
+                  <Progress
+                    value={lowInvoiceWarning.currentPercent}
+                    className={`h-1.5 ${lowInvoiceWarning.isCritical ? '[&>div]:bg-red-500' : '[&>div]:bg-amber-500'}`}
+                  />
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-lg font-bold text-green-600">
+                      {lowInvoiceWarning.projectedPercent.toFixed(0)}%
+                    </span>
+                    <span className="text-xs text-muted-foreground">on track</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {formatCurrency(lowInvoiceWarning.currentInvoiced)} invoiced, {lowInvoiceWarning.daysRemaining} days left
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Projects Not Scheduled Alert */}
+        <Card className={projectsNotScheduled.count > 0 ? 'border-l-4 border-l-amber-500' : ''}>
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <MetricTooltip metric="notScheduled">
+                <span className="flex items-center gap-2 cursor-help">
+                  <CalendarX className={`h-4 w-4 ${projectsNotScheduled.count > 0 ? 'text-amber-500' : 'text-green-500'}`} />
+                  Not Scheduled (&gt;{projectsNotScheduled.warningDays}d)
+                  <HelpCircle className="h-3 w-3 opacity-50" />
+                </span>
+              </MetricTooltip>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3">
+            {projectsNotScheduled.count === 0 ? (
+              <p className="text-xs text-muted-foreground">All projects scheduled</p>
+            ) : (
+              <div className="space-y-1.5">
+                <p className="text-xs text-amber-600 font-medium">
+                  {projectsNotScheduled.count} project{projectsNotScheduled.count !== 1 ? 's' : ''} waiting ({formatCurrency(projectsNotScheduled.totalRevenue)})
+                </p>
+                {(expandedNotScheduled ? projectsNotScheduled.projects : projectsNotScheduled.projects.slice(0, 3)).map(p => (
+                  <Link key={p.id} href={`/projects/${p.sales_order_number || p.id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
+                    <span className="font-medium truncate max-w-[100px]">{p.client_name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground truncate max-w-[60px]">{p.statusName}</span>
+                      <Badge variant="outline" className="text-amber-700 border-amber-300 text-[10px] px-1 py-0">
+                        {p.daysWaiting}d
+                      </Badge>
+                    </div>
+                  </Link>
+                ))}
+                {projectsNotScheduled.count > 3 && (
+                  <button
+                    onClick={() => setExpandedNotScheduled(!expandedNotScheduled)}
+                    className="text-[10px] text-primary hover:underline cursor-pointer"
+                  >
+                    {expandedNotScheduled ? 'Show less' : `+${projectsNotScheduled.count - 3} more`}
+                  </button>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Bottleneck Summary Card */}
+        <Card className={bottleneckSummary.hasBottlenecks ? 'border-l-4 border-l-blue-500' : ''}>
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <MetricTooltip metric="bottleneckSummary">
+                <span className="flex items-center gap-2 cursor-help">
+                  <Layers className={`h-4 w-4 ${bottleneckSummary.hasBottlenecks ? 'text-blue-500' : 'text-green-500'}`} />
+                  Bottlenecks
+                  <HelpCircle className="h-3 w-3 opacity-50" />
+                </span>
+              </MetricTooltip>
+              {bottleneckSummary.hasBottlenecks && (
+                <Badge variant="secondary" className="text-[10px]">
+                  {bottleneckSummary.totalCount} projects
+                </Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3">
+            {!bottleneckSummary.hasBottlenecks ? (
+              <p className="text-xs text-muted-foreground">No bottlenecks detected</p>
+            ) : (
+              <div className="space-y-2">
+                {bottleneckSummary.engineering.count > 0 && (
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-blue-500" />
+                      <span>Engineering</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{bottleneckSummary.engineering.count}</span>
+                      <span className="text-muted-foreground">({bottleneckSummary.engineering.avgDays}d avg)</span>
+                    </div>
+                  </div>
+                )}
+                {bottleneckSummary.procurement.count > 0 && (
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-amber-500" />
+                      <span>Procurement</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{bottleneckSummary.procurement.count}</span>
+                      <span className="text-muted-foreground">({bottleneckSummary.procurement.avgDays}d avg)</span>
+                    </div>
+                  </div>
+                )}
+                {bottleneckSummary.hold.count > 0 && (
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-red-500" />
+                      <span>Hold</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{bottleneckSummary.hold.count}</span>
+                      <span className="text-muted-foreground">({bottleneckSummary.hold.avgDays}d avg)</span>
+                    </div>
+                  </div>
+                )}
+                <div className="pt-1 border-t text-xs text-muted-foreground">
+                  Total value: {formatCurrency(bottleneckSummary.totalRevenue)}
+                </div>
               </div>
             )}
           </CardContent>
@@ -1299,7 +1664,7 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
             ) : (
               <div className="space-y-1.5">
                 {lastInvoiced.map(h => (
-                  <Link key={h.id} href={`/projects/${h.project_id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
+                  <Link key={h.id} href={`/projects/${h.project?.sales_order_number || h.project_id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
                     <span className="font-medium truncate max-w-[120px]">{h.project?.client_name}</span>
                     <span className="text-green-600 font-medium">{formatCurrency(h.project?.sales_amount || 0)}</span>
                   </Link>
@@ -1344,12 +1709,12 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
         </Card>
       </div>
 
-      {/* ROW 5: Revenue Pipeline - Compact */}
+      {/* ROW 5: Invoice Goal Date by Month */}
       <Card>
         <CardHeader className="pb-2 pt-3 px-4">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
-            Revenue Pipeline (Next 6 Months)
+            Invoice Goal Date by Month
           </CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-3">

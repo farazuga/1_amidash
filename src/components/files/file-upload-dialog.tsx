@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Dialog,
   DialogContent,
@@ -34,9 +35,11 @@ import {
   CheckCircle,
   AlertCircle,
 } from 'lucide-react';
-import type { FileCategory, ProjectPhase } from '@/types';
+import type { FileCategory } from '@/types';
 import { cn } from '@/lib/utils';
-import { FILE_CATEGORY_CONFIG, PROJECT_PHASE_CONFIG } from '@/types';
+import { FILE_CATEGORY_CONFIG } from '@/types';
+import { CustomCameraUI } from './custom-camera-ui';
+import { isGetUserMediaSupported } from '@/lib/video-utils';
 
 interface FileUploadDialogProps {
   open: boolean;
@@ -45,13 +48,11 @@ interface FileUploadDialogProps {
   dealId?: string;  // For presales files
   onUpload: (files: FileUploadData[]) => Promise<void>;
   defaultCategory?: FileCategory;
-  defaultPhase?: ProjectPhase;
 }
 
 export interface FileUploadData {
   file: File;
   category: FileCategory;
-  phase?: ProjectPhase;
   notes?: string;
 }
 
@@ -60,7 +61,6 @@ interface PendingFile {
   file: File;
   preview?: string;
   category: FileCategory;
-  phase?: ProjectPhase;
   notes?: string;
   status: 'pending' | 'uploading' | 'success' | 'error';
   progress: number;
@@ -70,8 +70,10 @@ interface PendingFile {
 const categoryIcons: Record<FileCategory, React.ComponentType<{ className?: string }>> = {
   schematics: FileCode,
   sow: FileText,
+  media: Image,
+  // Legacy categories for backwards compatibility
   photos: Image,
-  videos: Video,
+  videos: Image,
   other: File,
 };
 
@@ -92,11 +94,8 @@ function detectCategory(file: File): FileCategory {
   const mimeType = file.type.toLowerCase();
   const extension = file.name.split('.').pop()?.toLowerCase();
 
-  // Photos
-  if (mimeType.startsWith('image/')) return 'photos';
-
-  // Videos
-  if (mimeType.startsWith('video/')) return 'videos';
+  // Photos and Videos go to media
+  if (mimeType.startsWith('image/') || mimeType.startsWith('video/')) return 'media';
 
   // Schematics (CAD, diagrams)
   const schematicExtensions = ['dwg', 'dxf', 'dwf', 'dgn', 'skp', 'step', 'stp', 'iges', 'igs'];
@@ -115,19 +114,25 @@ export function FileUploadDialog({
   projectId,
   dealId,
   onUpload,
-  defaultCategory = 'other',
-  defaultPhase,
+  defaultCategory = 'media',
 }: FileUploadDialogProps) {
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [globalCategory, setGlobalCategory] = useState<FileCategory>(defaultCategory);
-  const [globalPhase, setGlobalPhase] = useState<ProjectPhase | undefined>(defaultPhase);
   const [globalNotes, setGlobalNotes] = useState('');
+  const [showCustomCamera, setShowCustomCamera] = useState(false);
+  const [cameraSupported, setCameraSupported] = useState(false);
+  const [initialCameraMode, setInitialCameraMode] = useState<'photo' | 'video'>('photo');
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
-  const videoInputRef = useRef<HTMLInputElement>(null);
+  // Track when camera was just closed to prevent dialog from closing
+  const cameraJustClosedRef = useRef(false);
 
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+  // Check camera support on mount
+  useEffect(() => {
+    setCameraSupported(isGetUserMediaSupported());
+  }, []);
 
   const handleFilesSelected = useCallback((files: FileList | null) => {
     if (!files) return;
@@ -146,7 +151,6 @@ export function FileUploadDialog({
         file,
         preview,
         category,
-        phase: globalPhase,
         notes: '',
         status: 'pending',
         progress: 0,
@@ -154,7 +158,7 @@ export function FileUploadDialog({
     });
 
     setPendingFiles((prev) => [...prev, ...newPendingFiles]);
-  }, [globalPhase]);
+  }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -163,6 +167,53 @@ export function FileUploadDialog({
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+  }, []);
+
+  // Handle capture from custom camera - always use media category
+  const handleCameraCapture = useCallback((file: File, _mode: 'photo' | 'video') => {
+    console.log('[FileUploadDialog] Camera captured file:', file.name);
+
+    // Set protection flag BEFORE closing camera
+    cameraJustClosedRef.current = true;
+
+    let preview: string | undefined;
+
+    if (file.type.startsWith('image/')) {
+      preview = URL.createObjectURL(file);
+    }
+
+    const newPendingFile: PendingFile = {
+      id: crypto.randomUUID(),
+      file,
+      preview,
+      category: 'media',
+      notes: '',
+      status: 'pending',
+      progress: 0,
+    };
+
+    setPendingFiles((prev) => [...prev, newPendingFile]);
+    setShowCustomCamera(false);
+
+    // Clear protection flag after React has processed the state updates
+    setTimeout(() => {
+      cameraJustClosedRef.current = false;
+      console.log('[FileUploadDialog] Camera protection cleared');
+    }, 500);
+  }, []);
+
+  const handleOpenPhotoCamera = useCallback(() => {
+    console.log('[FileUploadDialog] Opening photo camera');
+    setInitialCameraMode('photo');
+    setShowCustomCamera(true);
+    console.log('[FileUploadDialog] showCustomCamera set to true');
+  }, []);
+
+  const handleOpenVideoCamera = useCallback(() => {
+    console.log('[FileUploadDialog] Opening video camera');
+    setInitialCameraMode('video');
+    setShowCustomCamera(true);
+    console.log('[FileUploadDialog] showCustomCamera set to true');
   }, []);
 
   const removeFile = (id: string) => {
@@ -189,7 +240,6 @@ export function FileUploadDialog({
     const filesToUpload: FileUploadData[] = pendingFiles.map(pf => ({
       file: pf.file,
       category: pf.category,
-      phase: pf.phase || globalPhase,
       notes: pf.notes || globalNotes,
     }));
 
@@ -236,8 +286,36 @@ export function FileUploadDialog({
     onOpenChange(false);
   };
 
+  // Handle dialog open change - prevent closing during camera operation
+  const handleDialogOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
+      // Don't close if camera is open
+      if (showCustomCamera) {
+        console.log('[FileUploadDialog] Blocking close - camera is open');
+        return;
+      }
+      // Don't close if camera just closed (prevents focus-loss close)
+      if (cameraJustClosedRef.current) {
+        console.log('[FileUploadDialog] Blocking close - camera just closed');
+        return;
+      }
+      handleClose();
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <>
+      {/* Custom Camera UI - rendered via portal to escape dialog constraints */}
+      {showCustomCamera && typeof document !== 'undefined' && createPortal(
+        <CustomCameraUI
+          onCapture={handleCameraCapture}
+          onClose={() => setShowCustomCamera(false)}
+          initialMode={initialCameraMode}
+        />,
+        document.body
+      )}
+
+      <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Upload Files</DialogTitle>
@@ -283,46 +361,32 @@ export function FileUploadDialog({
         </div>
 
         {/* Quick capture buttons for mobile */}
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={() => cameraInputRef.current?.click()}
-          >
-            <Camera className="h-4 w-4 mr-2" />
-            Take Photo
-          </Button>
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={() => videoInputRef.current?.click()}
-          >
-            <Video className="h-4 w-4 mr-2" />
-            Record Video
-          </Button>
-        </div>
+        {cameraSupported && (
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={handleOpenPhotoCamera}
+            >
+              <Camera className="h-4 w-4 mr-2" />
+              Take Photo
+            </Button>
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={handleOpenVideoCamera}
+            >
+              <Video className="h-4 w-4 mr-2" />
+              Record Video
+            </Button>
+          </div>
+        )}
 
-        {/* Hidden file inputs */}
+        {/* Hidden file input for browse */}
         <input
           ref={fileInputRef}
           type="file"
           multiple
-          className="hidden"
-          onChange={(e) => handleFilesSelected(e.target.files)}
-        />
-        <input
-          ref={cameraInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={(e) => handleFilesSelected(e.target.files)}
-        />
-        <input
-          ref={videoInputRef}
-          type="file"
-          accept="video/*"
-          capture="environment"
           className="hidden"
           onChange={(e) => handleFilesSelected(e.target.files)}
         />
@@ -417,43 +481,23 @@ export function FileUploadDialog({
         {/* Global settings */}
         {pendingFiles.length > 0 && (
           <div className="space-y-4 pt-4 border-t">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="global-category">Default Category</Label>
-                <Select
-                  value={globalCategory}
-                  onValueChange={(value) => setGlobalCategory(value as FileCategory)}
-                >
-                  <SelectTrigger id="global-category">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(FILE_CATEGORY_CONFIG).map(([key, config]) => (
-                      <SelectItem key={key} value={key}>
-                        {config.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="global-phase">Project Phase</Label>
-                <Select
-                  value={globalPhase || ''}
-                  onValueChange={(value) => setGlobalPhase(value as ProjectPhase || undefined)}
-                >
-                  <SelectTrigger id="global-phase">
-                    <SelectValue placeholder="Select phase..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(PROJECT_PHASE_CONFIG).map(([key, config]) => (
-                      <SelectItem key={key} value={key}>
-                        {config.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div>
+              <Label htmlFor="global-category">Default Category</Label>
+              <Select
+                value={globalCategory}
+                onValueChange={(value) => setGlobalCategory(value as FileCategory)}
+              >
+                <SelectTrigger id="global-category">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(FILE_CATEGORY_CONFIG).map(([key, config]) => (
+                    <SelectItem key={key} value={key}>
+                      {config.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label htmlFor="global-notes">Notes (optional)</Label>
@@ -497,5 +541,6 @@ export function FileUploadDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

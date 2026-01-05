@@ -6,7 +6,6 @@ import {
   FileCode,
   FileText,
   Image,
-  Video,
   File,
   FolderOpen
 } from 'lucide-react';
@@ -40,6 +39,12 @@ const categoryConfig: Record<FileCategory | 'all', {
     icon: FileText,
     color: 'text-purple-600',
   },
+  media: {
+    label: 'Photos & Videos',
+    icon: Image,
+    color: 'text-green-600',
+  },
+  // Legacy categories (for backwards compatibility)
   photos: {
     label: 'Photos',
     icon: Image,
@@ -47,8 +52,8 @@ const categoryConfig: Record<FileCategory | 'all', {
   },
   videos: {
     label: 'Videos',
-    icon: Video,
-    color: 'text-red-600',
+    icon: Image,
+    color: 'text-green-600',
   },
   other: {
     label: 'Other',
@@ -67,10 +72,18 @@ export function FileCategoryTabs({
     if (category === 'all') {
       return counts.reduce((sum, c) => sum + c.count, 0);
     }
+    // Group legacy 'photos' and 'videos' into 'media' count
+    if (category === 'media') {
+      const mediaCount = counts.find(c => c.category === 'media')?.count || 0;
+      const photosCount = counts.find(c => c.category === 'photos')?.count || 0;
+      const videosCount = counts.find(c => c.category === 'videos')?.count || 0;
+      return mediaCount + photosCount + videosCount;
+    }
     return counts.find(c => c.category === category)?.count || 0;
   };
 
-  const categories: (FileCategory | 'all')[] = ['all', 'schematics', 'sow', 'photos', 'videos', 'other'];
+  // Only show main categories in tabs (not legacy photos/videos)
+  const categories: (FileCategory | 'all')[] = ['all', 'schematics', 'sow', 'media', 'other'];
 
   return (
     <Tabs
@@ -78,7 +91,7 @@ export function FileCategoryTabs({
       onValueChange={(value) => onCategoryChange(value as FileCategory | 'all')}
       className={className}
     >
-      <TabsList className="grid w-full grid-cols-6 h-auto p-1">
+      <TabsList className="grid w-full grid-cols-5 h-auto p-1">
         {categories.map((category) => {
           const config = categoryConfig[category];
           const Icon = config.icon;
@@ -126,10 +139,18 @@ export function FileCategoryTabsMobile({
     if (category === 'all') {
       return counts.reduce((sum, c) => sum + c.count, 0);
     }
+    // Group legacy 'photos' and 'videos' into 'media' count
+    if (category === 'media') {
+      const mediaCount = counts.find(c => c.category === 'media')?.count || 0;
+      const photosCount = counts.find(c => c.category === 'photos')?.count || 0;
+      const videosCount = counts.find(c => c.category === 'videos')?.count || 0;
+      return mediaCount + photosCount + videosCount;
+    }
     return counts.find(c => c.category === category)?.count || 0;
   };
 
-  const categories: (FileCategory | 'all')[] = ['all', 'schematics', 'sow', 'photos', 'videos', 'other'];
+  // Only show main categories in tabs (not legacy photos/videos)
+  const categories: (FileCategory | 'all')[] = ['all', 'schematics', 'sow', 'media', 'other'];
 
   return (
     <div className={cn('overflow-x-auto -mx-4 px-4', className)}>

@@ -13,6 +13,7 @@ import {
 } from '@/lib/microsoft-graph/auth';
 import { getUserInfo } from '@/lib/microsoft-graph/client';
 import { fullSyncForUser } from '@/lib/microsoft-graph/sync';
+import { encryptToken, isEncryptionConfigured } from '@/lib/crypto';
 
 /**
  * Get the external origin for redirects.
@@ -102,6 +103,21 @@ export async function GET(request: NextRequest) {
     // Get user info from Microsoft to display connected email
     const msUserInfo = await getUserInfo(tokens.access_token);
 
+    // Encrypt tokens before storage for security
+    // If TOKEN_ENCRYPTION_KEY is not set, tokens are stored as-is (with warning in logs)
+    let accessTokenToStore = tokens.access_token;
+    let refreshTokenToStore = tokens.refresh_token;
+
+    if (isEncryptionConfigured()) {
+      accessTokenToStore = encryptToken(tokens.access_token);
+      refreshTokenToStore = encryptToken(tokens.refresh_token);
+    } else {
+      console.warn(
+        'TOKEN_ENCRYPTION_KEY not configured - OAuth tokens will be stored unencrypted. ' +
+          'Set this environment variable for production deployments.'
+      );
+    }
+
     // Store connection in database using service client (bypass RLS for insert)
     const serviceClient = await createServiceClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -109,8 +125,8 @@ export async function GET(request: NextRequest) {
       {
         user_id: user.id,
         provider: 'microsoft',
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
+        access_token: accessTokenToStore,
+        refresh_token: refreshTokenToStore,
         token_expires_at: calculateExpiresAt(tokens.expires_in).toISOString(),
         outlook_email: msUserInfo.mail || msUserInfo.userPrincipalName,
         calendar_id: 'primary',

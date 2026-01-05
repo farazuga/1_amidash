@@ -413,7 +413,7 @@ describe('POST /api/admin/users - error handling', () => {
     const data = await response.json();
 
     expect(response.status).toBe(400);
-    expect(data.error).toBe('User already exists');
+    expect(data.error).toBe('User creation failed');
   });
 
   it('returns 500 on unexpected error', async () => {
@@ -593,7 +593,7 @@ describe('GET /api/admin/users', () => {
     const data = await response.json();
 
     expect(response.status).toBe(500);
-    expect(data.error).toBe('Database error');
+    expect(data.error).toBe('Failed to fetch users');
   });
 
   it('returns 500 on unexpected error', async () => {

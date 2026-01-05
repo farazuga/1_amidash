@@ -20,7 +20,8 @@ export async function GET() {
 
     // PGRST116 = no rows found - this is OK, just means no preference set yet
     if (error && error.code !== 'PGRST116') {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('Error fetching email preference:', error);
+      return NextResponse.json({ error: 'Failed to fetch email preferences' }, { status: 500 });
     }
 
     return NextResponse.json({
@@ -65,7 +66,7 @@ export async function PUT(request: NextRequest) {
 
     if (error) {
       console.error('Error updating email preference:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to update email preferences' }, { status: 500 });
     }
 
     return NextResponse.json({

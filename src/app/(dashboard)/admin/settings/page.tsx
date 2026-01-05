@@ -39,6 +39,11 @@ interface DashboardSettings {
   concentrationHighThreshold: number;
   concentrationMediumThreshold: number;
   backlogWarningMonths: number;
+  // New settings for dashboard improvements
+  notScheduledWarningDays: number;
+  lowInvoiceWarningPercent: number;
+  signageMinProjectValue: number;
+  signageUpcomingDays: number;
 }
 
 const DEFAULT_DASHBOARD_SETTINGS: DashboardSettings = {
@@ -50,6 +55,11 @@ const DEFAULT_DASHBOARD_SETTINGS: DashboardSettings = {
   concentrationHighThreshold: 70,
   concentrationMediumThreshold: 50,
   backlogWarningMonths: 6,
+  // New settings for dashboard improvements
+  notScheduledWarningDays: 14,
+  lowInvoiceWarningPercent: 80,
+  signageMinProjectValue: 10000,
+  signageUpcomingDays: 30,
 };
 
 const SETTING_TOOLTIPS: Record<keyof DashboardSettings, { label: string; tooltip: string }> = {
@@ -84,6 +94,23 @@ const SETTING_TOOLTIPS: Record<keyof DashboardSettings, { label: string; tooltip
   backlogWarningMonths: {
     label: 'Backlog Warning (months)',
     tooltip: 'Backlog depth above this shows warning. Recommended: 6 months. Too much backlog may indicate capacity issues.',
+  },
+  // New settings for dashboard improvements
+  notScheduledWarningDays: {
+    label: 'Not Scheduled Warning (days)',
+    tooltip: 'Projects waiting longer than this without being scheduled trigger an alert. Recommended: 14 days.',
+  },
+  lowInvoiceWarningPercent: {
+    label: 'Low Invoice Warning (%)',
+    tooltip: 'If projected invoicing for the month is below this percentage of goal, show a warning. Recommended: 80%.',
+  },
+  signageMinProjectValue: {
+    label: 'Signage Min Project Value ($)',
+    tooltip: 'Only show projects with value above this threshold on digital signage. Helps prioritize Solutions over Box Sales.',
+  },
+  signageUpcomingDays: {
+    label: 'Signage Upcoming Days',
+    tooltip: 'Number of days to look ahead for "Upcoming Projects" on signage. Recommended: 30 days.',
   },
 };
 
@@ -136,6 +163,11 @@ export default function AdminSettingsPage() {
           'dashboard_concentration_high_threshold': 'concentrationHighThreshold',
           'dashboard_concentration_medium_threshold': 'concentrationMediumThreshold',
           'dashboard_backlog_warning_months': 'backlogWarningMonths',
+          // New settings
+          'dashboard_not_scheduled_warning_days': 'notScheduledWarningDays',
+          'dashboard_low_invoice_warning_percent': 'lowInvoiceWarningPercent',
+          'dashboard_signage_min_project_value': 'signageMinProjectValue',
+          'dashboard_signage_upcoming_days': 'signageUpcomingDays',
         };
 
         data.forEach((setting: AppSetting) => {
@@ -235,6 +267,11 @@ export default function AdminSettingsPage() {
       concentrationHighThreshold: 'dashboard_concentration_high_threshold',
       concentrationMediumThreshold: 'dashboard_concentration_medium_threshold',
       backlogWarningMonths: 'dashboard_backlog_warning_months',
+      // New settings
+      notScheduledWarningDays: 'dashboard_not_scheduled_warning_days',
+      lowInvoiceWarningPercent: 'dashboard_low_invoice_warning_percent',
+      signageMinProjectValue: 'dashboard_signage_min_project_value',
+      signageUpcomingDays: 'dashboard_signage_upcoming_days',
     };
 
     try {
@@ -682,6 +719,72 @@ WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND pr
                       type="number"
                       min={0}
                       max={100}
+                      value={dashboardSettings[key]}
+                      onChange={(e) => handleDashboardSettingChange(key, e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Dashboard Alert Thresholds */}
+            <div>
+              <h3 className="text-sm font-semibold mb-4">Dashboard Alerts</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {(['notScheduledWarningDays', 'lowInvoiceWarningPercent'] as const).map(key => (
+                  <div key={key} className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor={key} className="text-sm">
+                        {SETTING_TOOLTIPS[key].label}
+                      </Label>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p>{SETTING_TOOLTIPS[key].tooltip}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <Input
+                      id={key}
+                      type="number"
+                      min={key === 'notScheduledWarningDays' ? 1 : 0}
+                      max={key === 'notScheduledWarningDays' ? 90 : 100}
+                      value={dashboardSettings[key]}
+                      onChange={(e) => handleDashboardSettingChange(key, e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Digital Signage Settings */}
+            <div>
+              <h3 className="text-sm font-semibold mb-4">Digital Signage</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {(['signageMinProjectValue', 'signageUpcomingDays'] as const).map(key => (
+                  <div key={key} className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor={key} className="text-sm">
+                        {SETTING_TOOLTIPS[key].label}
+                      </Label>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p>{SETTING_TOOLTIPS[key].tooltip}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <Input
+                      id={key}
+                      type="number"
+                      min={key === 'signageMinProjectValue' ? 0 : 1}
+                      max={key === 'signageMinProjectValue' ? 1000000 : 365}
                       value={dashboardSettings[key]}
                       onChange={(e) => handleDashboardSettingChange(key, e.target.value)}
                       className="w-full"

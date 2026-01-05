@@ -9,6 +9,12 @@ import { ProjectMetricsSlide } from './slides/project-metrics.js';
 import { POTickerSlide } from './slides/po-ticker.js';
 import { RevenueDashboardSlide } from './slides/revenue-dashboard.js';
 import { TeamScheduleSlide } from './slides/team-schedule.js';
+// New slides
+import { UpcomingProjectsSlide } from './slides/upcoming-projects.js';
+import { InProgressSlide } from './slides/in-progress.js';
+import { MonthlyScorecardSlide } from './slides/monthly-scorecard.js';
+import { BottleneckAlertSlide } from './slides/bottleneck-alert.js';
+import { RecentWinsSlide } from './slides/recent-wins.js';
 import { logger } from '../utils/logger.js';
 
 export class SlideManager {
@@ -55,6 +61,17 @@ export class SlideManager {
         return new RevenueDashboardSlide(config, this.displayConfig);
       case 'team-schedule':
         return new TeamScheduleSlide(config, this.displayConfig);
+      // New slides
+      case 'upcoming-projects':
+        return new UpcomingProjectsSlide(config, this.displayConfig);
+      case 'in-progress':
+        return new InProgressSlide(config, this.displayConfig);
+      case 'monthly-scorecard':
+        return new MonthlyScorecardSlide(config, this.displayConfig);
+      case 'bottleneck-alert':
+        return new BottleneckAlertSlide(config, this.displayConfig);
+      case 'recent-wins':
+        return new RecentWinsSlide(config, this.displayConfig);
       default:
         logger.warn({ type: config.type }, 'Unknown slide type');
         return null;
@@ -103,6 +120,12 @@ export class SlideManager {
       'revenue-dashboard': 'revenue-dashboard',
       'team-schedule': 'team-schedule',
       'active-projects': 'active-projects',
+      // New slide types
+      'upcoming-projects': 'upcoming-projects',
+      'in-progress': 'in-progress',
+      'monthly-scorecard': 'monthly-scorecard',
+      'bottleneck-alert': 'bottleneck-alert',
+      'recent-wins': 'recent-wins',
     };
     return typeMap[dbType] || 'active-projects';
   }

@@ -5,12 +5,45 @@
 import { Client } from '@microsoft/microsoft-graph-client';
 import { refreshAccessToken, isTokenExpired, calculateExpiresAt } from './auth';
 import { createServiceClient } from '@/lib/supabase/server';
+import { decryptToken, encryptToken, isEncryptionConfigured } from '@/lib/crypto';
 import type {
   CalendarConnection,
   MicrosoftUserInfo,
   OutlookCalendarEvent,
   OutlookEventCreateResponse,
 } from './types';
+
+/**
+ * Decrypt access token from storage if encryption is configured
+ */
+function getDecryptedAccessToken(encryptedToken: string): string {
+  if (!isEncryptionConfigured()) {
+    return encryptedToken;
+  }
+  try {
+    return decryptToken(encryptedToken);
+  } catch {
+    // Token might not be encrypted (legacy data)
+    console.warn('Token decryption failed, using raw token (may be legacy unencrypted data)');
+    return encryptedToken;
+  }
+}
+
+/**
+ * Decrypt refresh token from storage if encryption is configured
+ */
+function getDecryptedRefreshToken(encryptedToken: string): string {
+  if (!isEncryptionConfigured()) {
+    return encryptedToken;
+  }
+  try {
+    return decryptToken(encryptedToken);
+  } catch {
+    // Token might not be encrypted (legacy data)
+    console.warn('Refresh token decryption failed, using raw token (may be legacy unencrypted data)');
+    return encryptedToken;
+  }
+}
 
 /**
  * Get a Microsoft Graph client with valid access token
@@ -21,12 +54,25 @@ export async function getGraphClient(
 ): Promise<{ client: Client; connection: CalendarConnection }> {
   let currentConnection = connection;
 
+  // Decrypt tokens from storage
+  const decryptedAccessToken = getDecryptedAccessToken(connection.access_token);
+  const decryptedRefreshToken = getDecryptedRefreshToken(connection.refresh_token);
+
   // Check if token needs refresh
   if (isTokenExpired(connection.token_expires_at)) {
     console.log('Access token expired, refreshing...');
 
     try {
-      const newTokens = await refreshAccessToken(connection.refresh_token);
+      const newTokens = await refreshAccessToken(decryptedRefreshToken);
+
+      // Encrypt new tokens before storing
+      let accessTokenToStore = newTokens.access_token;
+      let refreshTokenToStore = newTokens.refresh_token;
+
+      if (isEncryptionConfigured()) {
+        accessTokenToStore = encryptToken(newTokens.access_token);
+        refreshTokenToStore = encryptToken(newTokens.refresh_token);
+      }
 
       // Update tokens in database
       const supabase = await createServiceClient();
@@ -34,8 +80,8 @@ export async function getGraphClient(
       const { error } = await (supabase as any)
         .from('calendar_connections')
         .update({
-          access_token: newTokens.access_token,
-          refresh_token: newTokens.refresh_token,
+          access_token: accessTokenToStore,
+          refresh_token: refreshTokenToStore,
           token_expires_at: calculateExpiresAt(newTokens.expires_in).toISOString(),
         })
         .eq('id', connection.id);
@@ -45,23 +91,33 @@ export async function getGraphClient(
         throw new Error('Failed to update refreshed tokens');
       }
 
-      // Update local connection object
+      // Update local connection object with encrypted tokens (for storage consistency)
+      // but use decrypted tokens for the Graph client
       currentConnection = {
         ...connection,
-        access_token: newTokens.access_token,
-        refresh_token: newTokens.refresh_token,
+        access_token: accessTokenToStore,
+        refresh_token: refreshTokenToStore,
         token_expires_at: calculateExpiresAt(newTokens.expires_in).toISOString(),
       };
+
+      // Use the fresh unencrypted access token for the client
+      const client = Client.init({
+        authProvider: (done) => {
+          done(null, newTokens.access_token);
+        },
+      });
+
+      return { client, connection: currentConnection };
     } catch (error) {
       console.error('Token refresh failed:', error);
       throw new Error('Failed to refresh access token. User may need to reconnect.');
     }
   }
 
-  // Create Graph client with current access token
+  // Create Graph client with decrypted access token
   const client = Client.init({
     authProvider: (done) => {
-      done(null, currentConnection.access_token);
+      done(null, decryptedAccessToken);
     },
   });
 

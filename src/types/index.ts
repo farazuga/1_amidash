@@ -186,7 +186,9 @@ export interface RevenueGoal {
 }
 
 // Project Files types
-export type FileCategory = 'schematics' | 'sow' | 'photos' | 'videos' | 'other';
+// Note: 'photos' and 'videos' are kept for backwards compatibility with existing data
+// New uploads should use 'media' instead
+export type FileCategory = 'schematics' | 'sow' | 'media' | 'photos' | 'videos' | 'other';
 
 export type ProjectPhase = 'quoting' | 'engineering' | 'onsite' | 'complete' | 'other';
 
@@ -238,6 +240,7 @@ export interface PresalesFile {
   web_url: string | null;
   download_url: string | null;
   thumbnail_url: string | null;
+  local_thumbnail_url: string | null;  // Client-generated thumbnail in Supabase storage
   sharepoint_folder_path: string | null;
   uploaded_by: string | null;
   upload_status: UploadStatus;
@@ -266,6 +269,7 @@ export interface ProjectFile {
   web_url: string | null;
   download_url: string | null;
   thumbnail_url: string | null;
+  local_thumbnail_url: string | null;  // Client-generated thumbnail in Supabase storage
   uploaded_by: string | null;
   sharepoint_modified_by: string | null;
   sharepoint_modified_at: string | null;
@@ -302,6 +306,7 @@ export interface FileCategoryCount {
 }
 
 // File category display configuration
+// Includes legacy 'photos' and 'videos' for backwards compatibility
 export const FILE_CATEGORY_CONFIG: Record<FileCategory, { label: string; icon: string; description: string }> = {
   schematics: {
     label: 'Schematics',
@@ -313,15 +318,21 @@ export const FILE_CATEGORY_CONFIG: Record<FileCategory, { label: string; icon: s
     icon: 'FileText',
     description: 'Scope of Work, proposals, contracts',
   },
+  media: {
+    label: 'Photos & Videos',
+    icon: 'Image',
+    description: 'Site photos, videos, and recordings',
+  },
+  // Legacy categories for backwards compatibility with existing data
   photos: {
     label: 'Photos',
     icon: 'Image',
-    description: 'Site photos, installation images',
+    description: 'Site photos (legacy)',
   },
   videos: {
     label: 'Videos',
     icon: 'Video',
-    description: 'Site videos, recordings',
+    description: 'Video recordings (legacy)',
   },
   other: {
     label: 'Other',

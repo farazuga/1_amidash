@@ -3,8 +3,7 @@
 import { useState, useCallback, useTransition } from 'react';
 import { toast } from 'sonner';
 import { FileBrowser } from '@/components/files/file-browser';
-import { CameraCapture, CapturedFileData } from '@/components/files/camera-capture';
-import { FileUploadData } from '@/components/files/file-upload-dialog';
+import { FileUploadDialog, FileUploadData } from '@/components/files/file-upload-dialog';
 import type { ProjectFile, FileCategoryCount, ProjectSharePointConnection } from '@/types';
 import {
   uploadFile,
@@ -14,6 +13,7 @@ import {
   createShareLink,
   getProjectFiles,
 } from './actions';
+import { generateFileThumbnail } from '@/lib/image-utils';
 
 interface ProjectFilesClientProps {
   projectId: string;
@@ -37,9 +37,6 @@ export function ProjectFilesClient({
   const [connection, setConnection] = useState<ProjectSharePointConnection | null>(initialConnection);
   const [isPending, startTransition] = useTransition();
 
-  // Get pending upload count for floating button badge
-  const pendingCount = files.filter(f => f.upload_status !== 'uploaded').length;
-
   // Refresh files from server
   const refreshFiles = useCallback(async () => {
     const result = await getProjectFiles(projectId);
@@ -50,78 +47,89 @@ export function ProjectFilesClient({
     }
   }, [projectId]);
 
+  // Upload thumbnail for a file
+  const uploadThumbnail = useCallback(async (file: File, fileId: string): Promise<string | null> => {
+    try {
+      const thumbnailBlob = await generateFileThumbnail(file, 320);
+      if (!thumbnailBlob) return null;
+
+      const formData = new FormData();
+      formData.append('thumbnail', new File([thumbnailBlob], 'thumbnail.jpg', { type: 'image/jpeg' }));
+      formData.append('fileId', fileId);
+      formData.append('fileType', 'project');
+
+      const response = await fetch('/api/thumbnails', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) return null;
+
+      const data = await response.json();
+      return data.url || null;
+    } catch (error) {
+      console.error('Thumbnail upload failed:', error);
+      return null;
+    }
+  }, []);
+
   // Handle file upload
   const handleUpload = useCallback(async (uploadData: FileUploadData[]) => {
     for (const data of uploadData) {
-      const arrayBuffer = await data.file.arrayBuffer();
-
-      const result = await uploadFile({
-        projectId,
-        fileName: data.file.name,
-        fileContent: arrayBuffer,
-        contentType: data.file.type,
-        category: data.category,
-        phase: data.phase,
-        notes: data.notes,
-      });
-
-      if (result.success && result.file) {
-        setFiles(prev => [result.file!, ...prev]);
-        // Update counts
-        setCounts(prev => {
-          const existing = prev.find(c => c.category === data.category);
-          if (existing) {
-            return prev.map(c =>
-              c.category === data.category
-                ? { ...c, count: c.count + 1 }
-                : c
-            );
-          }
-          return [...prev, { category: data.category, count: 1 }];
+      try {
+        console.log('[Upload] Starting upload:', {
+          name: data.file.name,
+          size: data.file.size,
+          type: data.file.type,
+          category: data.category,
         });
-        toast.success(`Uploaded ${data.file.name}`);
-      } else {
-        toast.error(result.error || `Failed to upload ${data.file.name}`);
+
+        const arrayBuffer = await data.file.arrayBuffer();
+        console.log('[Upload] ArrayBuffer size:', arrayBuffer.byteLength);
+
+        const result = await uploadFile({
+          projectId,
+          fileName: data.file.name,
+          fileContent: arrayBuffer,
+          contentType: data.file.type,
+          category: data.category,
+          notes: data.notes,
+        });
+
+        console.log('[Upload] Result:', result);
+
+        if (result.success && result.file) {
+          // Generate and upload thumbnail in background
+          const thumbnailUrl = await uploadThumbnail(data.file, result.file.id);
+
+          // Update file in state with thumbnail
+          const fileWithThumb = thumbnailUrl
+            ? { ...result.file, local_thumbnail_url: thumbnailUrl }
+            : result.file;
+
+          setFiles(prev => [fileWithThumb, ...prev]);
+          // Update counts
+          setCounts(prev => {
+            const existing = prev.find(c => c.category === data.category);
+            if (existing) {
+              return prev.map(c =>
+                c.category === data.category
+                  ? { ...c, count: c.count + 1 }
+                  : c
+              );
+            }
+            return [...prev, { category: data.category, count: 1 }];
+          });
+          toast.success(`Uploaded ${data.file.name}`);
+        } else {
+          toast.error(result.error || `Failed to upload ${data.file.name}`);
+        }
+      } catch (error) {
+        console.error('Upload error:', error);
+        toast.error(`Failed to upload ${data.file.name}`);
       }
     }
-  }, [projectId]);
-
-  // Handle camera capture
-  const handleCapture = useCallback(async (data: CapturedFileData) => {
-    const arrayBuffer = await data.file.arrayBuffer();
-
-    startTransition(async () => {
-      const result = await uploadFile({
-        projectId,
-        fileName: data.file.name,
-        fileContent: arrayBuffer,
-        contentType: data.file.type,
-        category: data.category,
-        phase: data.phase,
-        notes: data.notes,
-        capturedOffline: data.capturedOffline,
-        capturedOnDevice: data.deviceType,
-      });
-
-      if (result.success && result.file) {
-        setFiles(prev => [result.file!, ...prev]);
-        setCounts(prev => {
-          const existing = prev.find(c => c.category === data.category);
-          if (existing) {
-            return prev.map(c =>
-              c.category === data.category
-                ? { ...c, count: c.count + 1 }
-                : c
-            );
-          }
-          return [...prev, { category: data.category, count: 1 }];
-        });
-        toast.success('Photo saved');
-      } else {
-        toast.error(result.error || 'Failed to save photo');
-      }
-    });
-  }, [projectId]);
+  }, [projectId, uploadThumbnail]);
 
   // Handle sync from SharePoint
   const handleSync = useCallback(async () => {
@@ -196,30 +204,20 @@ export function ProjectFilesClient({
   }, []);
 
   return (
-    <>
-      <FileBrowser
-        projectId={projectId}
-        projectName={projectName}
-        files={files}
-        counts={counts}
-        connection={connection}
-        globalSharePointConfigured={globalSharePointConfigured}
-        isLoading={isPending}
-        onUpload={handleUpload}
-        onSync={handleSync}
-        onDownload={handleDownload}
-        onDelete={handleDelete}
-        onShare={handleShare}
-        onPreview={handlePreview}
-      />
-
-      {/* Floating camera capture button (mobile) */}
-      <CameraCapture
-        projectId={projectId}
-        onCapture={handleCapture}
-        defaultCategory="photos"
-        pendingCount={pendingCount}
-      />
-    </>
+    <FileBrowser
+      projectId={projectId}
+      projectName={projectName}
+      files={files}
+      counts={counts}
+      connection={connection}
+      globalSharePointConfigured={globalSharePointConfigured}
+      isLoading={isPending}
+      onUpload={handleUpload}
+      onSync={handleSync}
+      onDownload={handleDownload}
+      onDelete={handleDelete}
+      onShare={handleShare}
+      onPreview={handlePreview}
+    />
   );
 }

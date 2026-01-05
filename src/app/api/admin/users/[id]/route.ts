@@ -57,7 +57,7 @@ export async function DELETE(
 
     if (deleteError) {
       console.error('Error deleting user:', deleteError);
-      return NextResponse.json({ error: deleteError.message }, { status: 400 });
+      return NextResponse.json({ error: 'User deletion failed' }, { status: 400 });
     }
 
     // Log the deletion to audit

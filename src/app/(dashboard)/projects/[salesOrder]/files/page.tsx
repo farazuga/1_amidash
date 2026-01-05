@@ -22,8 +22,14 @@ export default async function ProjectFilesPage({
     notFound();
   }
 
-  // Get initial file data
-  const filesResult = await getProjectFiles(project.id);
+  // Get initial file data - wrapped in try-catch to handle re-render failures gracefully
+  let filesResult;
+  try {
+    filesResult = await getProjectFiles(project.id);
+  } catch (error) {
+    console.error('Failed to load project files:', error);
+    filesResult = { files: [], counts: [], connection: null, globalSharePointConfigured: false };
+  }
 
   return (
     <div className="space-y-4 md:space-y-6">

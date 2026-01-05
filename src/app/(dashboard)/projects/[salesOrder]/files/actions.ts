@@ -46,7 +46,6 @@ export interface UploadFileData {
   fileContent: ArrayBuffer;
   contentType: string;
   category: FileCategory;
-  phase?: ProjectPhase;
   notes?: string;
   capturedOffline?: boolean;
   capturedOnDevice?: string;
@@ -183,7 +182,7 @@ async function ensureProjectFolder(
     );
 
     // Create category subfolders
-    const categories: FileCategory[] = ['schematics', 'sow', 'photos', 'videos', 'other'];
+    const categories: FileCategory[] = ['schematics', 'sow', 'media', 'other'];
     for (const category of categories) {
       const categoryFolderName = sharepoint.getCategoryFolderName(category);
       try {
@@ -219,7 +218,8 @@ async function ensureProjectFolder(
       return { success: false, error: 'Failed to save connection' };
     }
 
-    revalidatePath(`/projects/${projectId}`);
+    // Note: Skip revalidatePath here to avoid disrupting streaming responses
+    // Client updates state optimistically, data refreshes on next navigation
 
     return { success: true, connection: connection as ProjectSharePointConnection };
   } catch (error) {
@@ -286,7 +286,7 @@ export async function connectSharePointFolder(
 
     // Create category subfolders if requested
     if (data.createSubfolders !== false) {
-      const categories: FileCategory[] = ['schematics', 'sow', 'photos', 'videos', 'other'];
+      const categories: FileCategory[] = ['schematics', 'sow', 'media', 'other'];
       for (const category of categories) {
         const folderName = sharepoint.getCategoryFolderName(category);
         try {
@@ -318,7 +318,11 @@ export async function connectSharePointFolder(
       return { success: false, error: 'Failed to save connection' };
     }
 
-    revalidatePath(`/projects/${data.projectId}`);
+    try {
+      revalidatePath(`/projects/${data.projectId}`);
+    } catch (e) {
+      console.error('Revalidation error (non-fatal):', e);
+    }
 
     return { success: true, connection: connection as ProjectSharePointConnection };
   } catch (error) {
@@ -351,7 +355,11 @@ export async function disconnectSharePoint(projectId: string): Promise<{ success
     return { success: false, error: 'Failed to disconnect' };
   }
 
-  revalidatePath(`/projects/${projectId}`);
+  try {
+    revalidatePath(`/projects/${projectId}`);
+  } catch (e) {
+    console.error('Revalidation error (non-fatal):', e);
+  }
   return { success: true };
 }
 
@@ -416,63 +424,137 @@ export async function getProjectFiles(projectId: string): Promise<GetFilesResult
  * Upload a file to SharePoint and track in database
  */
 export async function uploadFile(data: UploadFileData): Promise<UploadFileResult> {
-  const supabase = await createClient();
-  const db = await getTypedClient();
+  console.log('[uploadFile] === STEP 1: Starting upload ===');
+  console.log('[uploadFile] Input:', {
+    projectId: data.projectId,
+    fileName: data.fileName,
+    contentType: data.contentType,
+    category: data.category,
+    fileSize: data.fileContent.byteLength,
+  });
 
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (userError || !user) {
-    return { success: false, error: 'Authentication required' };
+  let supabase;
+  let db;
+  try {
+    console.log('[uploadFile] === STEP 2: Creating Supabase clients ===');
+    supabase = await createClient();
+    db = await getTypedClient();
+    console.log('[uploadFile] Clients created successfully');
+  } catch (clientError) {
+    console.error('[uploadFile] Failed to create Supabase client:', clientError);
+    return { success: false, error: `Database connection failed: ${clientError instanceof Error ? clientError.message : 'Unknown error'}` };
+  }
+
+  let user;
+  try {
+    console.log('[uploadFile] === STEP 3: Getting user ===');
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
+      console.error('[uploadFile] Auth error:', userError);
+      return { success: false, error: 'Authentication required' };
+    }
+    user = userData.user;
+    console.log('[uploadFile] User authenticated:', user.id);
+  } catch (authError) {
+    console.error('[uploadFile] Auth exception:', authError);
+    return { success: false, error: `Authentication failed: ${authError instanceof Error ? authError.message : 'Unknown error'}` };
   }
 
   // Get Microsoft connection first
-  const msConnection = await getMicrosoftConnection(user.id);
-  if (!msConnection) {
-    return { success: false, error: 'Please connect your Microsoft account' };
+  let msConnection;
+  try {
+    console.log('[uploadFile] === STEP 4: Getting Microsoft connection ===');
+    msConnection = await getMicrosoftConnection(user.id);
+    if (!msConnection) {
+      console.error('[uploadFile] No Microsoft connection for user:', user.id);
+      return { success: false, error: 'Please connect your Microsoft account' };
+    }
+    console.log('[uploadFile] Microsoft connection found');
+  } catch (msError) {
+    console.error('[uploadFile] Microsoft connection error:', msError);
+    return { success: false, error: `Microsoft connection failed: ${msError instanceof Error ? msError.message : 'Unknown error'}` };
   }
 
   // Get project name for folder creation
-  const { data: project } = await db
-    .from('projects')
-    .select('client_name')
-    .eq('id', data.projectId)
-    .single();
+  let project;
+  try {
+    console.log('[uploadFile] === STEP 5: Getting project ===');
+    const { data: projectData, error: projectError } = await db
+      .from('projects')
+      .select('client_name')
+      .eq('id', data.projectId)
+      .single();
 
-  if (!project) {
-    return { success: false, error: 'Project not found' };
+    if (projectError || !projectData) {
+      console.error('[uploadFile] Project not found:', projectError);
+      return { success: false, error: 'Project not found' };
+    }
+    project = projectData;
+    console.log('[uploadFile] Project found:', project.client_name);
+  } catch (projectFetchError) {
+    console.error('[uploadFile] Project fetch exception:', projectFetchError);
+    return { success: false, error: `Failed to fetch project: ${projectFetchError instanceof Error ? projectFetchError.message : 'Unknown error'}` };
   }
 
   // Ensure project has a SharePoint folder (auto-create if needed)
-  const folderResult = await ensureProjectFolder(
-    data.projectId,
-    project.client_name,
-    user.id,
-    msConnection
-  );
+  let connection;
+  try {
+    console.log('[uploadFile] === STEP 6: Ensuring project folder ===');
+    const folderResult = await ensureProjectFolder(
+      data.projectId,
+      project.client_name,
+      user.id,
+      msConnection
+    );
 
-  if (!folderResult.success || !folderResult.connection) {
-    return { success: false, error: folderResult.error || 'Failed to setup project folder' };
+    if (!folderResult.success || !folderResult.connection) {
+      console.error('[uploadFile] Folder setup failed:', folderResult.error);
+      return { success: false, error: folderResult.error || 'Failed to setup project folder' };
+    }
+    connection = folderResult.connection;
+    console.log('[uploadFile] Project folder ready:', connection.folder_path);
+  } catch (folderError) {
+    console.error('[uploadFile] Folder setup exception:', folderError);
+    return { success: false, error: `Folder setup failed: ${folderError instanceof Error ? folderError.message : 'Unknown error'}` };
   }
-
-  const connection = folderResult.connection;
 
   try {
     // Get the category subfolder
+    console.log('[uploadFile] === STEP 7: Getting category folder ===');
     const categoryFolderName = sharepoint.getCategoryFolderName(data.category);
-    const categoryFolder = await sharepoint.getItemByPath(
-      msConnection,
-      connection.drive_id,
-      `${connection.folder_path}/${categoryFolderName}`
-    );
+    console.log('[uploadFile] Category folder name:', categoryFolderName);
+
+    let categoryFolder;
+    try {
+      categoryFolder = await sharepoint.getItemByPath(
+        msConnection,
+        connection.drive_id,
+        `${connection.folder_path}/${categoryFolderName}`
+      );
+      console.log('[uploadFile] Category folder found:', categoryFolder?.id);
+    } catch (catFolderError) {
+      console.log('[uploadFile] Category folder not found, will create it');
+    }
 
     if (!categoryFolder) {
       // Create category folder if it doesn't exist
+      console.log('[uploadFile] Creating category folder...');
       const rootFolder = await sharepoint.getItem(msConnection, connection.drive_id, connection.folder_id);
       await sharepoint.createFolder(msConnection, connection.drive_id, rootFolder.id, categoryFolderName);
+      console.log('[uploadFile] Category folder created');
     }
 
     const targetFolderId = categoryFolder?.id || connection.folder_id;
 
     // Upload to SharePoint
+    console.log('[uploadFile] === STEP 8: Uploading to SharePoint ===');
+    console.log('[uploadFile] Upload params:', {
+      driveId: connection.drive_id,
+      folderId: targetFolderId,
+      fileName: data.fileName,
+      blobSize: data.fileContent.byteLength,
+    });
+
     const blob = new Blob([data.fileContent], { type: data.contentType });
     const uploadResult = await sharepoint.uploadFile(
       msConnection,
@@ -483,48 +565,64 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
       data.contentType
     );
 
+    console.log('[uploadFile] SharePoint upload result:', {
+      success: uploadResult.success,
+      error: uploadResult.error,
+      itemId: uploadResult.item?.id,
+    });
+
     if (!uploadResult.success || !uploadResult.item) {
+      console.error('[uploadFile] SharePoint upload failed:', uploadResult.error);
       return { success: false, error: uploadResult.error || 'Upload failed' };
     }
 
     const spItem = uploadResult.item;
+    console.log('[uploadFile] === STEP 9: SharePoint upload complete ===');
 
     // Get thumbnail if available
+    console.log('[uploadFile] === STEP 10: Getting thumbnail ===');
     let thumbnailUrl: string | null = null;
     if (spItem.file?.mimeType?.startsWith('image/') || spItem.file?.mimeType?.startsWith('video/')) {
       try {
         const thumbnails = await sharepoint.getThumbnails(msConnection, connection.drive_id, spItem.id);
         thumbnailUrl = thumbnails?.[0]?.medium?.url || thumbnails?.[0]?.small?.url || null;
-      } catch {
-        // Thumbnails not available, that's OK
+        console.log('[uploadFile] Thumbnail URL:', thumbnailUrl ? 'obtained' : 'not available');
+      } catch (thumbError) {
+        console.log('[uploadFile] Thumbnail not available:', thumbError);
       }
     }
 
     // Save file record to database
+    console.log('[uploadFile] === STEP 11: Saving to database ===');
+    const insertPayload = {
+      project_id: data.projectId,
+      connection_id: connection.id,
+      file_name: data.fileName,
+      sharepoint_item_id: spItem.id,
+      category: data.category,
+      file_size: spItem.size,
+      mime_type: spItem.file?.mimeType || data.contentType,
+      file_extension: getFileExtension(data.fileName),
+      web_url: spItem.webUrl,
+      download_url: spItem['@microsoft.graph.downloadUrl'],
+      thumbnail_url: thumbnailUrl,
+      uploaded_by: user.id,
+      sharepoint_modified_by: spItem.lastModifiedBy?.user?.email,
+      sharepoint_modified_at: spItem.lastModifiedDateTime,
+      notes: data.notes,
+      upload_status: 'uploaded',
+      is_synced: true,
+      captured_on_device: data.capturedOnDevice,
+      captured_offline: data.capturedOffline || false,
+    };
+    console.log('[uploadFile] Insert payload:', {
+      ...insertPayload,
+      download_url: insertPayload.download_url ? '[redacted]' : null,
+    });
+
     const { data: file, error: insertError } = await db
       .from('project_files')
-      .insert({
-        project_id: data.projectId,
-        connection_id: connection.id,
-        file_name: data.fileName,
-        sharepoint_item_id: spItem.id,
-        category: data.category,
-        file_size: spItem.size,
-        mime_type: spItem.file?.mimeType || data.contentType,
-        file_extension: getFileExtension(data.fileName),
-        web_url: spItem.webUrl,
-        download_url: spItem['@microsoft.graph.downloadUrl'],
-        thumbnail_url: thumbnailUrl,
-        uploaded_by: user.id,
-        sharepoint_modified_by: spItem.lastModifiedBy?.user?.email,
-        sharepoint_modified_at: spItem.lastModifiedDateTime,
-        project_phase: data.phase,
-        notes: data.notes,
-        upload_status: 'uploaded',
-        is_synced: true,
-        captured_on_device: data.capturedOnDevice,
-        captured_offline: data.capturedOffline || false,
-      })
+      .insert(insertPayload)
       .select(`
         *,
         uploaded_by_profile:profiles!project_files_uploaded_by_fkey(id, email, full_name)
@@ -532,15 +630,23 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
       .single();
 
     if (insertError) {
-      console.error('Failed to save file record:', insertError);
-      return { success: false, error: 'File uploaded but failed to save record' };
+      console.error('[uploadFile] Database insert error:', insertError);
+      console.error('[uploadFile] Insert error details:', JSON.stringify(insertError, null, 2));
+      return { success: false, error: `Database error: ${insertError.message || 'Failed to save record'}` };
     }
 
-    revalidatePath(`/projects/${data.projectId}`);
+    console.log('[uploadFile] === STEP 12: Upload complete ===');
+    console.log('[uploadFile] File saved with ID:', file?.id);
+
+    // Note: We skip revalidatePath here because:
+    // 1. Client already updates state optimistically
+    // 2. revalidatePath can disrupt streaming responses in production
+    // 3. Page will refresh data on next navigation anyway
 
     return { success: true, file: file as ProjectFile };
   } catch (error) {
-    console.error('Upload error:', error);
+    console.error('[uploadFile] Unexpected error:', error);
+    console.error('[uploadFile] Error stack:', error instanceof Error ? error.stack : 'No stack');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Upload failed',
@@ -579,7 +685,7 @@ export async function syncFilesFromSharePoint(projectId: string): Promise<SyncFi
 
   try {
     let syncedCount = 0;
-    const categories: FileCategory[] = ['schematics', 'sow', 'photos', 'videos', 'other'];
+    const categories: FileCategory[] = ['schematics', 'sow', 'media', 'other'];
 
     for (const category of categories) {
       const folderName = sharepoint.getCategoryFolderName(category);
@@ -666,7 +772,11 @@ export async function syncFilesFromSharePoint(projectId: string): Promise<SyncFi
       .update({ last_synced_at: new Date().toISOString(), sync_error: null })
       .eq('id', connection.id);
 
-    revalidatePath(`/projects/${projectId}`);
+    try {
+      revalidatePath(`/projects/${projectId}`);
+    } catch (e) {
+      console.error('Revalidation error (non-fatal):', e);
+    }
 
     return { success: true, syncedCount };
   } catch (error) {
@@ -750,7 +860,11 @@ export async function deleteFile(fileId: string): Promise<DeleteFileResult> {
       return { success: false, error: 'Failed to delete file record' };
     }
 
-    revalidatePath(`/projects/${file.project_id}`);
+    try {
+      revalidatePath(`/projects/${file.project_id}`);
+    } catch (e) {
+      console.error('Revalidation error (non-fatal):', e);
+    }
 
     return { success: true };
   } catch (error) {
@@ -1024,7 +1138,11 @@ export async function linkPresalesFilesToProject(
       return { success: false, error: 'Failed to link files' };
     }
 
-    revalidatePath(`/projects/${projectId}`);
+    try {
+      revalidatePath(`/projects/${projectId}`);
+    } catch (e) {
+      console.error('Revalidation error (non-fatal):', e);
+    }
 
     return { success: true, linkedCount: data };
   } catch (error) {
@@ -1070,7 +1188,11 @@ export async function migratePresalesFilesToProject(
       return { success: false, error: 'Failed to migrate files' };
     }
 
-    revalidatePath(`/projects/${projectId}`);
+    try {
+      revalidatePath(`/projects/${projectId}`);
+    } catch (e) {
+      console.error('Revalidation error (non-fatal):', e);
+    }
 
     return { success: true, migratedCount: data };
   } catch (error) {

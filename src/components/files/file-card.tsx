@@ -15,7 +15,6 @@ import {
   FileCode,
   FileText,
   Image,
-  Video,
   File,
   Download,
   ExternalLink,
@@ -45,16 +44,20 @@ interface FileCardProps {
 const categoryIcons: Record<FileCategory, React.ComponentType<{ className?: string }>> = {
   schematics: FileCode,
   sow: FileText,
+  media: Image,
+  // Legacy categories
   photos: Image,
-  videos: Video,
+  videos: Image,
   other: File,
 };
 
 const categoryColors: Record<FileCategory, string> = {
   schematics: 'bg-blue-100 text-blue-700',
   sow: 'bg-purple-100 text-purple-700',
+  media: 'bg-green-100 text-green-700',
+  // Legacy categories
   photos: 'bg-green-100 text-green-700',
-  videos: 'bg-red-100 text-red-700',
+  videos: 'bg-green-100 text-green-700',
   other: 'bg-gray-100 text-gray-700',
 };
 
@@ -118,10 +121,12 @@ export function FileCard({
 
   const Icon = categoryIcons[file.category];
   const extension = getFileExtension(file.file_name);
-  const isImage = file.category === 'photos' || file.mime_type?.startsWith('image/');
-  const isVideo = file.category === 'videos' || file.mime_type?.startsWith('video/');
+  const isImage = file.mime_type?.startsWith('image/');
+  const isVideo = file.mime_type?.startsWith('video/');
   const hasThumbnail = isImage || isVideo;
   const isPending = file.upload_status !== 'uploaded';
+  // Use local thumbnail first (client-generated), fallback to SharePoint thumbnail
+  const thumbnailUrl = file.local_thumbnail_url || file.thumbnail_url;
 
   return (
     <Card
@@ -140,9 +145,9 @@ export function FileCard({
           'border-b'
         )}
       >
-        {hasThumbnail && file.thumbnail_url ? (
+        {hasThumbnail && thumbnailUrl ? (
           <img
-            src={file.thumbnail_url}
+            src={thumbnailUrl}
             alt={file.file_name}
             className="w-full h-full object-cover"
           />
