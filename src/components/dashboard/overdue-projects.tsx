@@ -10,6 +10,7 @@ import { formatDistanceToNow } from 'date-fns';
 interface Project {
   id: string;
   client_name: string;
+  sales_order_number: string | null;
   goal_completion_date: string;
   sales_amount: number | null;
   current_status?: {
@@ -59,7 +60,7 @@ export function OverdueProjects({ projects }: OverdueProjectsProps) {
                   </span>
                 )}
                 <Button variant="outline" size="sm" asChild>
-                  <Link href={`/projects/${project.id}`}>
+                  <Link href={`/projects/${project.sales_order_number || project.id}`}>
                     View
                     <ExternalLink className="ml-1 h-3 w-3" />
                   </Link>

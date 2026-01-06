@@ -23,6 +23,23 @@ import type { FileCategory } from '@/types';
 // Re-use the calendar connection for SharePoint (same Microsoft OAuth)
 type MicrosoftConnection = CalendarConnection;
 
+// Custom error class for authentication issues that require user action
+export class MicrosoftAuthError extends Error {
+  constructor(message: string, public readonly requiresReconnect: boolean = false) {
+    super(message);
+    this.name = 'MicrosoftAuthError';
+  }
+}
+
+/**
+ * Validate that a token looks like a valid JWT (has 3 dot-separated parts)
+ */
+function isValidJwtFormat(token: string): boolean {
+  if (!token || typeof token !== 'string') return false;
+  const parts = token.split('.');
+  return parts.length === 3 && parts.every(part => part.length > 0);
+}
+
 /**
  * Get a Microsoft Graph client with valid access token
  * Reuses the pattern from calendar integration
@@ -32,12 +49,30 @@ export async function getSharePointClient(
 ): Promise<{ client: Client; connection: MicrosoftConnection }> {
   let currentConnection = connection;
 
+  // Validate current token format before using
+  if (!isValidJwtFormat(connection.access_token)) {
+    console.error('[SharePoint] Invalid token format detected - token is not a valid JWT');
+    throw new MicrosoftAuthError(
+      'Your Microsoft connection has expired or is invalid. Please go to Settings and reconnect your Microsoft account.',
+      true
+    );
+  }
+
   // Check if token needs refresh
   if (isTokenExpired(connection.token_expires_at)) {
     console.log('[SharePoint] Access token expired, refreshing...');
 
     try {
       const newTokens = await refreshAccessToken(connection.refresh_token);
+
+      // Validate the refreshed token
+      if (!isValidJwtFormat(newTokens.access_token)) {
+        console.error('[SharePoint] Refreshed token is not a valid JWT');
+        throw new MicrosoftAuthError(
+          'Failed to refresh Microsoft connection. Please go to Settings and reconnect your Microsoft account.',
+          true
+        );
+      }
 
       // Update tokens in database
       const supabase = await createServiceClient();
@@ -64,7 +99,14 @@ export async function getSharePointClient(
       };
     } catch (error) {
       console.error('[SharePoint] Token refresh failed:', error);
-      throw new Error('Failed to refresh access token. User may need to reconnect.');
+      // Check if it's already our custom error
+      if (error instanceof MicrosoftAuthError) {
+        throw error;
+      }
+      throw new MicrosoftAuthError(
+        'Failed to refresh Microsoft connection. Please go to Settings and reconnect your Microsoft account.',
+        true
+      );
     }
   }
 

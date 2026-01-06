@@ -32,7 +32,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, GripVertical, Pencil, Trash2, LayoutDashboard, List, TrendingUp, Clock, Users } from 'lucide-react';
+import { Plus, GripVertical, Pencil, Trash2, LayoutDashboard, List, TrendingUp, Clock, Users, CalendarDays, PlayCircle, BarChart3, AlertTriangle, Trophy } from 'lucide-react';
 import {
   createSlide,
   updateSlide,
@@ -53,6 +53,12 @@ const SLIDE_TYPES: { value: SlideType; label: string; icon: React.ReactNode; des
   { value: 'po-ticker', label: 'PO Ticker', icon: <Clock className="h-4 w-4" />, description: 'Scrolling ticker of recent purchase orders' },
   { value: 'revenue-dashboard', label: 'Revenue Dashboard', icon: <LayoutDashboard className="h-4 w-4" />, description: 'Revenue goals, actuals, and monthly breakdown' },
   { value: 'team-schedule', label: 'Team Schedule', icon: <Users className="h-4 w-4" />, description: 'Team member availability and assignments' },
+  // New slide types
+  { value: 'upcoming-projects', label: 'Upcoming Projects', icon: <CalendarDays className="h-4 w-4" />, description: 'Projects starting in the next 30 days, prioritized by value' },
+  { value: 'in-progress', label: 'In Progress', icon: <PlayCircle className="h-4 w-4" />, description: 'Currently active projects with timeline progress' },
+  { value: 'monthly-scorecard', label: 'Monthly Scorecard', icon: <BarChart3 className="h-4 w-4" />, description: 'Monthly summary of POs received, invoiced, and project KPIs' },
+  { value: 'bottleneck-alert', label: 'Bottleneck Alert', icon: <AlertTriangle className="h-4 w-4" />, description: 'Highlights projects stuck in Engineering, Procurement, or Hold' },
+  { value: 'recent-wins', label: 'Recent Wins', icon: <Trophy className="h-4 w-4" />, description: 'Celebrates recent new sales with value and client info' },
 ];
 
 function getSlideTypeInfo(type: SlideType) {

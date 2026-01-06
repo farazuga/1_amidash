@@ -186,8 +186,8 @@ export interface UpdateStatusResult {
 
 export interface UpdateProjectDatesData {
   projectId: string;
-  startDate: string;
-  endDate: string;
+  startDate: string | null;
+  endDate: string | null;
 }
 
 export interface UpdateProjectDatesResult {
@@ -239,7 +239,9 @@ export async function updateProjectDates(data: UpdateProjectDatesData): Promise<
       old_value: project.start_date && project.end_date
         ? `${project.start_date} to ${project.end_date}`
         : null,
-      new_value: `${data.startDate} to ${data.endDate}`,
+      new_value: data.startDate && data.endDate
+        ? `${data.startDate} to ${data.endDate}`
+        : null,
     });
   } catch (err) {
     console.error('Audit log error:', err);
@@ -575,4 +577,125 @@ export async function inlineEditProjectField(data: InlineEditData): Promise<Inli
   revalidatePath('/project-calendar');
 
   return { success: true };
+}
+
+// ============================================
+// Get Project Scheduled Hours
+// ============================================
+
+export interface ProjectScheduledHoursResult {
+  success: boolean;
+  data?: {
+    totalHours: number;
+    totalDays: number;
+    byEngineer: Array<{
+      userId: string;
+      userName: string;
+      hours: number;
+      days: number;
+    }>;
+  };
+  error?: string;
+}
+
+export async function getProjectScheduledHours(projectId: string): Promise<ProjectScheduledHoursResult> {
+  const supabase = await createClient();
+
+  // Define types for the query result
+  interface AssignmentDayRow {
+    work_date: string;
+    start_time: string;
+    end_time: string;
+  }
+
+  interface AssignmentRow {
+    id: string;
+    user_id: string;
+    user: { id: string; full_name: string | null; email: string } | null;
+    assignment_days: AssignmentDayRow[] | null;
+  }
+
+  // Fetch all assignments for this project with their assignment days
+  const { data: assignments, error } = await supabase
+    .from('project_assignments')
+    .select(`
+      id,
+      user_id,
+      user:profiles!project_assignments_user_id_fkey(id, full_name, email),
+      assignment_days(
+        work_date,
+        start_time,
+        end_time
+      )
+    `)
+    .eq('project_id', projectId);
+
+  if (error) {
+    console.error('Error fetching project hours:', error);
+    return { success: false, error: error.message };
+  }
+
+  if (!assignments || assignments.length === 0) {
+    return {
+      success: true,
+      data: {
+        totalHours: 0,
+        totalDays: 0,
+        byEngineer: [],
+      },
+    };
+  }
+
+  // Type assertion for assignments
+  const typedAssignments = assignments as unknown as AssignmentRow[];
+
+  // Calculate hours per engineer
+  const byEngineer: Array<{
+    userId: string;
+    userName: string;
+    hours: number;
+    days: number;
+  }> = [];
+
+  let totalHours = 0;
+  let totalDays = 0;
+
+  // Parse time string to decimal hours
+  const parseTime = (timeStr: string): number => {
+    const parts = timeStr.split(':');
+    const hours = parseInt(parts[0], 10);
+    const minutes = parseInt(parts[1] || '0', 10);
+    return hours + minutes / 60;
+  };
+
+  for (const assignment of typedAssignments) {
+    const days = assignment.assignment_days || [];
+    let engineerHours = 0;
+
+    for (const day of days) {
+      const startHour = parseTime(day.start_time || '07:00');
+      const endHour = parseTime(day.end_time || '16:00');
+      const hoursWorked = Math.max(0, endHour - startHour);
+      engineerHours += hoursWorked;
+    }
+
+    byEngineer.push({
+      userId: assignment.user_id,
+      userName: assignment.user?.full_name || assignment.user?.email || 'Unknown',
+      hours: Math.round(engineerHours * 10) / 10, // Round to 1 decimal
+      days: days.length,
+    });
+
+    totalHours += engineerHours;
+    totalDays += days.length;
+  }
+
+  return {
+    success: true,
+    data: {
+      totalHours: Math.round(totalHours * 10) / 10,
+      totalDays,
+      byEngineer,
+    },
+  };
 }

@@ -12,6 +12,7 @@ import { ScheduleStatusBadge } from './schedule-status-badge';
 import { StatusBadge } from './status-badge';
 import { CopyClientLink } from './copy-client-link';
 import { DeleteProjectButton } from './delete-project-button';
+import { ProjectScheduledHours } from './project-scheduled-hours';
 import { inlineEditProjectField, updateProjectDates, updateProjectScheduleStatus } from '@/app/(dashboard)/projects/actions';
 import { toast } from 'sonner';
 import type { BookingStatus } from '@/types/calendar';
@@ -103,7 +104,8 @@ export function QuickInfo({
   };
 
   const handleDateRangeSave = async (startDate: string | null, endDate: string | null) => {
-    if (!startDate || !endDate) {
+    // Allow clearing both dates, but not setting just one
+    if ((startDate && !endDate) || (!startDate && endDate)) {
       toast.error('Both start and end dates are required');
       throw new Error('Both dates required');
     }
@@ -118,7 +120,7 @@ export function QuickInfo({
       toast.error(result.error || 'Failed to update dates');
       throw new Error(result.error);
     }
-    toast.success('Project dates updated');
+    toast.success(startDate && endDate ? 'Project dates updated' : 'Project dates cleared');
   };
 
   const handleScheduleStatusChange = async (newStatus: BookingStatus) => {
@@ -293,6 +295,9 @@ export function QuickInfo({
               )}
             </div>
           </div>
+
+          {/* Scheduled Hours */}
+          <ProjectScheduledHours projectId={project.id} />
 
           {/* Sales Amount */}
           <div className="flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors">

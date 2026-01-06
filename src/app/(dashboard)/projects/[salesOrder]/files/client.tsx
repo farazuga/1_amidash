@@ -122,7 +122,20 @@ export function ProjectFilesClient({
           });
           toast.success(`Uploaded ${data.file.name}`);
         } else {
-          toast.error(result.error || `Failed to upload ${data.file.name}`);
+          // Check if user needs to reconnect Microsoft account
+          if (result.requiresReconnect) {
+            toast.error(result.error || 'Microsoft connection expired', {
+              duration: 10000,
+              action: {
+                label: 'Reconnect',
+                onClick: () => window.location.href = '/settings',
+              },
+            });
+            // Stop processing more files since they will all fail
+            break;
+          } else {
+            toast.error(result.error || `Failed to upload ${data.file.name}`);
+          }
         }
       } catch (error) {
         console.error('Upload error:', error);

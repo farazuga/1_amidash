@@ -1,6 +1,19 @@
 import { z } from 'zod';
 
-export const SlideTypeSchema = z.enum(['active-projects', 'project-list', 'project-metrics', 'po-ticker', 'revenue-dashboard', 'team-schedule']);
+export const SlideTypeSchema = z.enum([
+  'active-projects',
+  'project-list',
+  'project-metrics',
+  'po-ticker',
+  'revenue-dashboard',
+  'team-schedule',
+  // New slide types
+  'upcoming-projects',
+  'in-progress',
+  'monthly-scorecard',
+  'bottleneck-alert',
+  'recent-wins',
+]);
 export type SlideType = z.infer<typeof SlideTypeSchema>;
 
 export const SlideConfigSchema = z.object({
