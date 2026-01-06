@@ -80,7 +80,7 @@ const COLUMNS: ColumnConfig[] = [
   { id: 'project_dates', label: 'Project Dates', defaultVisible: false, defaultWidth: 160, minWidth: 120, sortable: true, sortKey: 'start_date' },
   { id: 'amount', label: 'Amount', defaultVisible: true, defaultWidth: 100, minWidth: 80, sortable: true, sortKey: 'sales_amount' },
   { id: 'goal_date', label: 'Goal Date', defaultVisible: true, defaultWidth: 120, minWidth: 100, sortable: true, sortKey: 'goal_completion_date' },
-  { id: 'sales_order', label: 'Sales Order', defaultVisible: true, defaultWidth: 120, minWidth: 80, sortable: false },
+  { id: 'sales_order', label: 'Sales Order', defaultVisible: true, defaultWidth: 120, minWidth: 80, sortable: true, sortKey: 'sales_order_number' },
   { id: 'poc', label: 'POC', defaultVisible: true, defaultWidth: 150, minWidth: 100, sortable: false },
   { id: 'client_portal', label: '', defaultVisible: true, defaultWidth: 50, minWidth: 50, sortable: false },
 ];

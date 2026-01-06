@@ -3,6 +3,7 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import * as sharepoint from '@/lib/sharepoint/client';
+import { MicrosoftAuthError } from '@/lib/sharepoint/client';
 import type { CalendarConnection } from '@/lib/microsoft-graph/types';
 import type {
   ProjectFile,
@@ -55,6 +56,7 @@ export interface UploadFileResult {
   success: boolean;
   file?: ProjectFile;
   error?: string;
+  requiresReconnect?: boolean;
 }
 
 export interface GetFilesResult {
@@ -647,6 +649,16 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
   } catch (error) {
     console.error('[uploadFile] Unexpected error:', error);
     console.error('[uploadFile] Error stack:', error instanceof Error ? error.stack : 'No stack');
+
+    // Check if this is a Microsoft authentication error requiring reconnection
+    if (error instanceof MicrosoftAuthError) {
+      return {
+        success: false,
+        error: error.message,
+        requiresReconnect: error.requiresReconnect,
+      };
+    }
+
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Upload failed',

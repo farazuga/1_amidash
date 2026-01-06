@@ -186,8 +186,8 @@ export interface UpdateStatusResult {
 
 export interface UpdateProjectDatesData {
   projectId: string;
-  startDate: string;
-  endDate: string;
+  startDate: string | null;
+  endDate: string | null;
 }
 
 export interface UpdateProjectDatesResult {
@@ -239,7 +239,9 @@ export async function updateProjectDates(data: UpdateProjectDatesData): Promise<
       old_value: project.start_date && project.end_date
         ? `${project.start_date} to ${project.end_date}`
         : null,
-      new_value: `${data.startDate} to ${data.endDate}`,
+      new_value: data.startDate && data.endDate
+        ? `${data.startDate} to ${data.endDate}`
+        : null,
     });
   } catch (err) {
     console.error('Audit log error:', err);

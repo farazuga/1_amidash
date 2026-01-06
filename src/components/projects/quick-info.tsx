@@ -104,7 +104,8 @@ export function QuickInfo({
   };
 
   const handleDateRangeSave = async (startDate: string | null, endDate: string | null) => {
-    if (!startDate || !endDate) {
+    // Allow clearing both dates, but not setting just one
+    if ((startDate && !endDate) || (!startDate && endDate)) {
       toast.error('Both start and end dates are required');
       throw new Error('Both dates required');
     }
@@ -119,7 +120,7 @@ export function QuickInfo({
       toast.error(result.error || 'Failed to update dates');
       throw new Error(result.error);
     }
-    toast.success('Project dates updated');
+    toast.success(startDate && endDate ? 'Project dates updated' : 'Project dates cleared');
   };
 
   const handleScheduleStatusChange = async (newStatus: BookingStatus) => {

@@ -9,7 +9,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { Pencil, Loader2 } from 'lucide-react';
+import { Pencil, Loader2, X } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 
@@ -65,6 +65,19 @@ export function InlineDateRangePicker({
     }
   };
 
+  const handleClear = async () => {
+    setIsSaving(true);
+    try {
+      await onSave(null, null);
+      setPendingRange(undefined);
+      setOpen(false);
+    } catch (error) {
+      console.error('Failed to clear dates:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const formatDateRange = () => {
     if (!startDate && !endDate) {
       return <span className="text-muted-foreground italic">Not set</span>;
@@ -115,11 +128,27 @@ export function InlineDateRangePicker({
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="end">
-        <div className="p-3 border-b">
-          <p className="text-sm font-medium">Select Date Range</p>
-          <p className="text-xs text-muted-foreground">
-            Click start date, then end date
-          </p>
+        <div className="p-3 border-b flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium">Select Date Range</p>
+            <p className="text-xs text-muted-foreground">
+              {pendingRange?.from && !pendingRange?.to
+                ? 'Now select end date'
+                : 'Click start date, then end date'}
+            </p>
+          </div>
+          {(startDate || endDate || pendingRange?.from) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-muted-foreground hover:text-destructive"
+              onClick={handleClear}
+              disabled={isSaving}
+            >
+              <X className="h-4 w-4 mr-1" />
+              Clear
+            </Button>
+          )}
         </div>
         <Calendar
           mode="range"
