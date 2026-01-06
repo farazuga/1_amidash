@@ -34,6 +34,7 @@ import { formatDistanceToNow } from 'date-fns';
 
 interface FileCardProps {
   file: ProjectFile;
+  folderUrl?: string;
   onDownload?: (file: ProjectFile) => void;
   onDelete?: (file: ProjectFile) => void;
   onShare?: (file: ProjectFile) => void;
@@ -111,6 +112,7 @@ function UploadStatusBadge({ status }: { status: UploadStatus }) {
 
 export function FileCard({
   file,
+  folderUrl,
   onDownload,
   onDelete,
   onShare,
@@ -254,9 +256,9 @@ export function FileCard({
                     Download
                   </DropdownMenuItem>
                 )}
-                {file.web_url && (
+                {folderUrl && (
                   <DropdownMenuItem asChild>
-                    <a href={file.web_url} target="_blank" rel="noopener noreferrer">
+                    <a href={folderUrl} target="_blank" rel="noopener noreferrer">
                       <ExternalLink className="h-4 w-4 mr-2" />
                       Open in SharePoint
                     </a>
@@ -299,6 +301,7 @@ export function FileCard({
 // Compact list view variant
 export function FileCardCompact({
   file,
+  folderUrl,
   onDownload,
   onDelete,
   onShare,
@@ -382,9 +385,9 @@ export function FileCardCompact({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {file.web_url && (
+              {folderUrl && (
                 <DropdownMenuItem asChild>
-                  <a href={file.web_url} target="_blank" rel="noopener noreferrer">
+                  <a href={folderUrl} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="h-4 w-4 mr-2" />
                     Open in SharePoint
                   </a>
