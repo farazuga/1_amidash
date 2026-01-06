@@ -197,20 +197,39 @@ export function ProjectFilesClient({
 
   // Handle file share
   const handleShare = useCallback(async (file: ProjectFile) => {
-    console.log('[Share] Starting share for file:', file.id, file.file_name);
+    // Show loading toast
+    const toastId = toast.loading('Creating share link...');
+
     try {
       const result = await createShareLink(file.id);
-      console.log('[Share] Result:', result);
 
       if (result.success && result.url) {
-        await navigator.clipboard.writeText(result.url);
-        toast.success('Share link copied to clipboard');
+        // Try to copy to clipboard
+        try {
+          await navigator.clipboard.writeText(result.url);
+          toast.success('Share link copied to clipboard', { id: toastId });
+        } catch {
+          // Clipboard failed (permissions), show the link instead
+          toast.success(
+            <div className="flex flex-col gap-1">
+              <span>Share link created:</span>
+              <input
+                type="text"
+                value={result.url}
+                readOnly
+                className="text-xs bg-gray-100 px-2 py-1 rounded w-full"
+                onClick={(e) => (e.target as HTMLInputElement).select()}
+              />
+            </div>,
+            { id: toastId, duration: 10000 }
+          );
+        }
       } else {
-        toast.error(result.error || 'Failed to create share link');
+        toast.error(result.error || 'Failed to create share link', { id: toastId });
       }
     } catch (error) {
       console.error('[Share] Error:', error);
-      toast.error('Failed to create share link');
+      toast.error('Failed to create share link', { id: toastId });
     }
   }, []);
 
