@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import * as sharepoint from '@/lib/sharepoint/client';
+import { decryptToken, isEncryptionConfigured } from '@/lib/crypto';
 import type { CalendarConnection } from '@/lib/microsoft-graph/types';
 
 // Type assertion for tables not in generated types
@@ -31,6 +32,22 @@ export async function GET() {
         { error: 'Please connect your Microsoft account first' },
         { status: 400 }
       );
+    }
+
+    // Decrypt tokens if encryption is configured
+    if (isEncryptionConfigured() && connection.access_token) {
+      try {
+        connection.access_token = decryptToken(connection.access_token);
+        if (connection.refresh_token) {
+          connection.refresh_token = decryptToken(connection.refresh_token);
+        }
+      } catch (err) {
+        console.error('[SharePoint Sites] Token decryption failed:', err);
+        return NextResponse.json(
+          { error: 'Failed to decrypt tokens. Please reconnect your Microsoft account.' },
+          { status: 400 }
+        );
+      }
     }
 
     // List SharePoint sites
