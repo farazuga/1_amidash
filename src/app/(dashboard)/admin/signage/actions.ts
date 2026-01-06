@@ -5,7 +5,20 @@ import { createClient } from '@/lib/supabase/server';
 const SIGNAGE_API_URL = process.env.SIGNAGE_API_URL || 'http://127.0.0.1:3001';
 
 // Slide types for database
-export type SlideType = 'project-list' | 'project-metrics' | 'po-ticker' | 'revenue-dashboard' | 'team-schedule';
+export type SlideType =
+  | 'project-list'
+  | 'project-metrics'
+  | 'po-ticker'
+  | 'revenue-dashboard'
+  | 'team-schedule'
+  | 'active-projects'
+  // New dashboard slides
+  | 'health-dashboard'
+  | 'alerts-dashboard'
+  | 'performance-metrics'
+  | 'velocity-chart'
+  | 'status-pipeline'
+  | 'cycle-time';
 
 export interface SignageSlide {
   id: string;

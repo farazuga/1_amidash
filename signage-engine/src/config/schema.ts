@@ -1,6 +1,20 @@
 import { z } from 'zod';
 
-export const SlideTypeSchema = z.enum(['active-projects', 'project-list', 'project-metrics', 'po-ticker', 'revenue-dashboard', 'team-schedule']);
+export const SlideTypeSchema = z.enum([
+  'active-projects',
+  'project-list',
+  'project-metrics',
+  'po-ticker',
+  'revenue-dashboard',
+  'team-schedule',
+  // New dashboard slides
+  'health-dashboard',
+  'alerts-dashboard',
+  'performance-metrics',
+  'velocity-chart',
+  'status-pipeline',
+  'cycle-time',
+]);
 export type SlideType = z.infer<typeof SlideTypeSchema>;
 
 export const SlideConfigSchema = z.object({
@@ -11,6 +25,16 @@ export const SlideConfigSchema = z.object({
   maxItems: z.number().optional(),
   scrollSpeed: z.number().optional(),
   daysToShow: z.number().optional(),
+  // Optional slide-specific config properties
+  showStatus: z.boolean().optional(),
+  showDueDate: z.boolean().optional(),
+  showSalesAmount: z.boolean().optional(),
+  showMonthlyGoals: z.boolean().optional(),
+  showQuarterlyProgress: z.boolean().optional(),
+  showWeekends: z.boolean().optional(),
+  chartType: z.string().optional(),
+  // Alerts slide specific
+  priorityInsertion: z.boolean().optional(),
 });
 export type SlideConfig = z.infer<typeof SlideConfigSchema>;
 
