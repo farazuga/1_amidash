@@ -10,18 +10,21 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 -- Allow authenticated users to upload thumbnails
+DROP POLICY IF EXISTS "Authenticated users can upload thumbnails" ON storage.objects;
 CREATE POLICY "Authenticated users can upload thumbnails"
 ON storage.objects FOR INSERT
 TO authenticated
 WITH CHECK (bucket_id = 'thumbnails');
 
 -- Allow public read access to thumbnails
+DROP POLICY IF EXISTS "Public read access to thumbnails" ON storage.objects;
 CREATE POLICY "Public read access to thumbnails"
 ON storage.objects FOR SELECT
 TO public
 USING (bucket_id = 'thumbnails');
 
 -- Allow users to delete their own thumbnails
+DROP POLICY IF EXISTS "Users can delete own thumbnails" ON storage.objects;
 CREATE POLICY "Users can delete own thumbnails"
 ON storage.objects FOR DELETE
 TO authenticated

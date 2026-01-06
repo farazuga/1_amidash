@@ -10,7 +10,6 @@ import {
   syncFilesFromSharePoint,
   deleteFile,
   getDownloadUrl,
-  createShareLink,
   getProjectFiles,
 } from './actions';
 import { generateFileThumbnail } from '@/lib/image-utils';
@@ -195,41 +194,32 @@ export function ProjectFilesClient({
     });
   }, []);
 
-  // Handle file share
+  // Handle file share - copy the file's SharePoint URL
   const handleShare = useCallback(async (file: ProjectFile) => {
-    // Show loading toast
-    const toastId = toast.loading('Creating share link...');
+    if (!file.web_url) {
+      toast.error('Share link not available for this file');
+      return;
+    }
 
+    // Try to copy to clipboard
     try {
-      const result = await createShareLink(file.id);
-
-      if (result.success && result.url) {
-        // Try to copy to clipboard
-        try {
-          await navigator.clipboard.writeText(result.url);
-          toast.success('Share link copied to clipboard', { id: toastId });
-        } catch {
-          // Clipboard failed (permissions), show the link instead
-          toast.success(
-            <div className="flex flex-col gap-1">
-              <span>Share link created:</span>
-              <input
-                type="text"
-                value={result.url}
-                readOnly
-                className="text-xs bg-gray-100 px-2 py-1 rounded w-full"
-                onClick={(e) => (e.target as HTMLInputElement).select()}
-              />
-            </div>,
-            { id: toastId, duration: 10000 }
-          );
-        }
-      } else {
-        toast.error(result.error || 'Failed to create share link', { id: toastId });
-      }
-    } catch (error) {
-      console.error('[Share] Error:', error);
-      toast.error('Failed to create share link', { id: toastId });
+      await navigator.clipboard.writeText(file.web_url);
+      toast.success('Link copied to clipboard');
+    } catch {
+      // Clipboard failed (permissions), show the link instead
+      toast.success(
+        <div className="flex flex-col gap-1">
+          <span>Share link:</span>
+          <input
+            type="text"
+            value={file.web_url}
+            readOnly
+            className="text-xs bg-gray-100 px-2 py-1 rounded w-full"
+            onClick={(e) => (e.target as HTMLInputElement).select()}
+          />
+        </div>,
+        { duration: 10000 }
+      );
     }
   }, []);
 
