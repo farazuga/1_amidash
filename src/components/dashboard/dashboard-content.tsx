@@ -254,11 +254,11 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
     return sum + (h.project?.sales_amount || 0);
   }, 0), [invoicedInPeriod]);
 
-  // Projects created (POs received) in period
+  // Projects created (POs received) in period - uses created_date (user-editable PO date), not created_at (system timestamp)
   const projectsCreatedInPeriod = useMemo(() => projects.filter(p => {
-    if (!p.created_at) return false;
-    const createdAt = new Date(p.created_at);
-    return createdAt >= dateRange.start && createdAt <= dateRange.end;
+    if (!p.created_date) return false;
+    const createdDate = new Date(p.created_date);
+    return createdDate >= dateRange.start && createdDate <= dateRange.end;
   }), [projects, dateRange]);
 
   // Revenue from POs received in period
@@ -357,23 +357,23 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
     .filter(h => h.status?.name === 'Invoiced' && h.project)
     .slice(0, 3), [statusHistory]);
 
-  // Last 3 new projects - memoized
+  // Last 3 new projects - memoized (sorted by created_date, the PO received date)
   const lastCreated = useMemo(() => [...projects]
-    .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+    .sort((a, b) => new Date(b.created_date || 0).getTime() - new Date(a.created_date || 0).getTime())
     .slice(0, 3), [projects]);
 
-  // Average days to invoice - memoized
+  // Average days to invoice - memoized (uses created_date as PO received date)
   const avgDaysToInvoice = useMemo(() => {
     const invoiceTimesMs: number[] = [];
     projects.forEach(project => {
-      const createdAt = project.created_at ? new Date(project.created_at) : null;
+      const createdDate = project.created_date ? new Date(project.created_date) : null;
       const invoicedEntry = statusHistory.find(
         h => h.project_id === project.id && h.status?.name === 'Invoiced'
       );
 
-      if (createdAt && invoicedEntry) {
+      if (createdDate && invoicedEntry) {
         const invoicedAt = new Date(invoicedEntry.changed_at);
-        invoiceTimesMs.push(invoicedAt.getTime() - createdAt.getTime());
+        invoiceTimesMs.push(invoicedAt.getTime() - createdDate.getTime());
       }
     });
 
@@ -413,11 +413,11 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
   const previousPeriodData = useMemo(() => {
     const prevRange = getPreviousPeriod();
 
-    // POs received in previous period
+    // POs received in previous period (uses created_date, not created_at)
     const prevPosProjects = projects.filter(p => {
-      if (!p.created_at) return false;
-      const createdAt = new Date(p.created_at);
-      return createdAt >= prevRange.start && createdAt <= prevRange.end;
+      if (!p.created_date) return false;
+      const createdDate = new Date(p.created_date);
+      return createdDate >= prevRange.start && createdDate <= prevRange.end;
     });
     const prevPosReceived = prevPosProjects.reduce((sum, p) => sum + (p.sales_amount || 0), 0);
 
@@ -718,11 +718,11 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
       const monthEnd = endOfMonth(date);
       const monthStr = format(date, 'MMM');
 
-      // POs received (projects created)
+      // POs received (projects created) - uses created_date (user-editable PO date)
       const posInMonth = projects.filter(p => {
-        if (!p.created_at) return false;
-        const createdAt = new Date(p.created_at);
-        return createdAt >= monthStart && createdAt <= monthEnd;
+        if (!p.created_date) return false;
+        const createdDate = new Date(p.created_date);
+        return createdDate >= monthStart && createdDate <= monthEnd;
       });
 
       // Invoiced

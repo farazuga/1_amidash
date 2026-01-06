@@ -139,7 +139,7 @@ export async function fetchDashboardMetrics(): Promise<DashboardMetrics> {
           id,
           client_name,
           sales_amount,
-          created_at,
+          created_date,
           goal_completion_date,
           current_status_id,
           statuses:current_status_id(id, name, display_order)
@@ -153,7 +153,7 @@ export async function fetchDashboardMetrics(): Promise<DashboardMetrics> {
           status_id,
           changed_at,
           statuses:status_id(name),
-          projects:project_id(id, client_name, sales_amount, goal_completion_date, created_at)
+          projects:project_id(id, client_name, sales_amount, goal_completion_date, created_date)
         `)
         .order('changed_at', { ascending: false }),
       supabase
@@ -414,13 +414,14 @@ function calculatePerformanceMetrics(
   invoicedHistory.forEach((h) => {
     const project = h.projects as {
       goal_completion_date: string;
-      created_at: string;
+      created_date: string;
       sales_amount: number;
     } | null;
     if (!project) return;
 
     const invoicedAt = new Date(h.changed_at as string);
-    const createdAt = project.created_at ? new Date(project.created_at) : null;
+    // Use created_date (user-editable PO date), not created_at (system timestamp)
+    const createdDate = project.created_date ? new Date(project.created_date) : null;
     const goalDate = project.goal_completion_date
       ? new Date(project.goal_completion_date)
       : null;
@@ -433,8 +434,8 @@ function calculatePerformanceMetrics(
       }
     }
 
-    if (createdAt) {
-      totalDaysToInvoice += differenceInDays(invoicedAt, createdAt);
+    if (createdDate) {
+      totalDaysToInvoice += differenceInDays(invoicedAt, createdDate);
       invoiceCount++;
     }
   });
@@ -525,10 +526,10 @@ function calculateVelocityData(
     const monthEnd = endOfMonth(date);
     const monthStr = format(date, 'MMM');
 
-    // POs received (projects created)
+    // POs received (uses created_date - user-editable PO date, not created_at system timestamp)
     const posInMonth = projects.filter((p) => {
-      const createdAt = p.created_at ? new Date(p.created_at as string) : null;
-      return createdAt && createdAt >= monthStart && createdAt <= monthEnd;
+      const createdDate = p.created_date ? new Date(p.created_date as string) : null;
+      return createdDate && createdDate >= monthStart && createdDate <= monthEnd;
     }).length;
 
     // Invoiced
