@@ -107,7 +107,13 @@ export function InlineDateRangePicker({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(isOpen) => {
+      // Prevent closing if we're mid-selection (start date selected but not end date)
+      if (!isOpen && pendingRange?.from && !pendingRange?.to) {
+        return;
+      }
+      setOpen(isOpen);
+    }}>
       <PopoverTrigger asChild>
         <button
           type="button"
