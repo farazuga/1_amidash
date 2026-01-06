@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { InlineEditField } from './inline-edit-field';
 import { InlineDateRangePicker } from './inline-date-range-picker';
+import { InlineDatePicker } from './inline-date-picker';
 import { ScheduleStatusBadge } from './schedule-status-badge';
 import { StatusBadge } from './status-badge';
 import { CopyClientLink } from './copy-client-link';
@@ -24,6 +25,7 @@ interface QuickInfoProps {
     goal_completion_date: string | null;
     start_date: string | null;
     end_date: string | null;
+    created_at: string | null;
     sales_amount: number | null;
     sales_order_number: string | null;
     sales_order_url: string | null;
@@ -121,6 +123,20 @@ export function QuickInfo({
       throw new Error(result.error);
     }
     toast.success(startDate && endDate ? 'Project dates updated' : 'Project dates cleared');
+  };
+
+  const handleDateSave = async (field: string, date: string | null) => {
+    const result = await inlineEditProjectField({
+      projectId: project.id,
+      field,
+      value: date,
+    });
+
+    if (!result.success) {
+      toast.error(result.error || 'Failed to update date');
+      throw new Error(result.error);
+    }
+    toast.success('Date updated');
   };
 
   const handleScheduleStatusChange = async (newStatus: BookingStatus) => {
@@ -246,18 +262,11 @@ export function QuickInfo({
           <div className="flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors">
             <span className="text-sm text-muted-foreground">Goal Date</span>
             {canEdit ? (
-              <InlineEditField
-                value={formatDateForInput(project.goal_completion_date)}
-                displayValue={
-                  project.goal_completion_date ? (
-                    <span className={cn('font-medium text-sm', isOverdue && 'text-destructive')}>
-                      {formatDateForDisplay(project.goal_completion_date)}
-                    </span>
-                  ) : undefined
-                }
-                type="date"
-                onSave={(v) => handleFieldSave('goal_date', v)}
-                className={cn(isOverdue && 'text-destructive')}
+              <InlineDatePicker
+                value={project.goal_completion_date}
+                onSave={(date) => handleDateSave('goal_date', date)}
+                label="Goal Date"
+                className={cn(isOverdue && '[&_span.font-medium]:text-destructive')}
               />
             ) : project.goal_completion_date ? (
               <span className={cn('font-medium text-sm', isOverdue && 'text-destructive')}>
@@ -294,6 +303,24 @@ export function QuickInfo({
                 <span className="text-muted-foreground italic">Not set</span>
               )}
             </div>
+          </div>
+
+          {/* Created Date */}
+          <div className="flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors">
+            <span className="text-sm text-muted-foreground">Created</span>
+            {canEdit ? (
+              <InlineDatePicker
+                value={project.created_at ? project.created_at.split('T')[0] : null}
+                onSave={(date) => handleDateSave('created_at', date)}
+                label="Created Date"
+              />
+            ) : project.created_at ? (
+              <span className="font-medium text-sm">
+                {formatDateForDisplay(project.created_at)}
+              </span>
+            ) : (
+              <span className="text-sm text-muted-foreground italic">Not set</span>
+            )}
           </div>
 
           {/* Scheduled Hours */}
@@ -445,19 +472,44 @@ export function QuickInfo({
           )}
 
           {/* Scope Link */}
-          {project.scope_link && (
-            <div className="px-3 py-2">
+          <div className="flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors">
+            <span className="text-sm text-muted-foreground">Scope Link</span>
+            {canEdit ? (
+              <InlineEditField
+                value={project.scope_link || ''}
+                displayValue={
+                  project.scope_link ? (
+                    <a
+                      href={project.scope_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline flex items-center gap-1 text-sm"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      View
+                    </a>
+                  ) : undefined
+                }
+                type="text"
+                onSave={(v) => handleFieldSave('scope_link', v)}
+                placeholder="URL"
+                inputClassName="w-[160px]"
+              />
+            ) : project.scope_link ? (
               <a
                 href={project.scope_link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm text-primary hover:underline flex items-center justify-end gap-1"
+                className="text-primary hover:underline flex items-center gap-1 text-sm"
               >
                 <ExternalLink className="h-3 w-3" />
-                View Scope Document
+                View
               </a>
-            </div>
-          )}
+            ) : (
+              <span className="text-sm text-muted-foreground italic">Not set</span>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
