@@ -964,15 +964,18 @@ export async function createShareLink(
   fileId: string,
   type: 'view' | 'edit' = 'view'
 ): Promise<{ success: boolean; url?: string; error?: string }> {
+  console.log('[createShareLink] Starting for fileId:', fileId);
   const supabase = await createClient();
   const db = await getTypedClient();
 
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
+    console.log('[createShareLink] Auth error:', userError);
     return { success: false, error: 'Authentication required' };
   }
+  console.log('[createShareLink] User:', user.id);
 
-  const { data: file } = await db
+  const { data: file, error: fileError } = await db
     .from('project_files')
     .select(`
       sharepoint_item_id,
@@ -981,22 +984,27 @@ export async function createShareLink(
     .eq('id', fileId)
     .single();
 
+  console.log('[createShareLink] File lookup:', { file, fileError });
+
   if (!file || !file.sharepoint_item_id || !file.connection) {
     return { success: false, error: 'File not found or not connected to SharePoint' };
   }
 
   const msConnection = await getMicrosoftConnection(user.id);
+  console.log('[createShareLink] MS Connection:', msConnection ? 'found' : 'not found');
   if (!msConnection) {
     return { success: false, error: 'Please connect your Microsoft account' };
   }
 
   try {
+    console.log('[createShareLink] Calling sharepoint.createShareLink...');
     const result = await sharepoint.createShareLink(
       msConnection,
       file.connection.drive_id,
       file.sharepoint_item_id,
       { type, scope: 'organization' }
     );
+    console.log('[createShareLink] SharePoint result:', result);
 
     // Log access
     await db.from('project_file_access_logs').insert({
@@ -1007,7 +1015,7 @@ export async function createShareLink(
 
     return { success: true, url: result.link.webUrl };
   } catch (error) {
-    console.error('Create share link error:', error);
+    console.error('[createShareLink] Error:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to create share link',

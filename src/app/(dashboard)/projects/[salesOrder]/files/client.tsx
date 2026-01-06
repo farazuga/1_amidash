@@ -197,13 +197,20 @@ export function ProjectFilesClient({
 
   // Handle file share
   const handleShare = useCallback(async (file: ProjectFile) => {
-    const result = await createShareLink(file.id);
+    console.log('[Share] Starting share for file:', file.id, file.file_name);
+    try {
+      const result = await createShareLink(file.id);
+      console.log('[Share] Result:', result);
 
-    if (result.success && result.url) {
-      await navigator.clipboard.writeText(result.url);
-      toast.success('Share link copied to clipboard');
-    } else {
-      toast.error(result.error || 'Failed to create share link');
+      if (result.success && result.url) {
+        await navigator.clipboard.writeText(result.url);
+        toast.success('Share link copied to clipboard');
+      } else {
+        toast.error(result.error || 'Failed to create share link');
+      }
+    } catch (error) {
+      console.error('[Share] Error:', error);
+      toast.error('Failed to create share link');
     }
   }, []);
 
