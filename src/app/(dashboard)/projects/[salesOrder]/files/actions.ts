@@ -4,6 +4,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import * as sharepoint from '@/lib/sharepoint/client';
 import { MicrosoftAuthError } from '@/lib/sharepoint/client';
+import { decryptToken, isEncryptionConfigured } from '@/lib/crypto';
 import type { CalendarConnection } from '@/lib/microsoft-graph/types';
 import type {
   ProjectFile,
@@ -97,6 +98,20 @@ async function getMicrosoftConnection(userId: string): Promise<CalendarConnectio
 
   if (error || !data) {
     return null;
+  }
+
+  // Decrypt tokens if encryption is configured
+  // Tokens are encrypted at rest for security
+  if (isEncryptionConfigured() && data.access_token) {
+    try {
+      data.access_token = decryptToken(data.access_token);
+      if (data.refresh_token) {
+        data.refresh_token = decryptToken(data.refresh_token);
+      }
+    } catch (err) {
+      console.error('[getMicrosoftConnection] Token decryption failed:', err);
+      return null;
+    }
   }
 
   return data as CalendarConnection;
