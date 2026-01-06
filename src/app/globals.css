@@ -322,14 +322,21 @@
   aside,
   header,
   footer,
-  .print\\:hidden,
   [data-radix-popper-content-wrapper],
   [data-slot="sidebar"],
-  button:not(.print\\:visible),
   [role="dialog"],
   [role="tooltip"],
   .fixed,
   .sticky {
+    display: none !important;
+  }
+
+  /* Tailwind print utilities */
+  .print\:hidden {
+    display: none !important;
+  }
+
+  button:not(.print\:visible) {
     display: none !important;
   }
 
@@ -416,8 +423,8 @@
   }
 
   /* Avoid page breaks in cells */
-  .min-h-\\[100px\\],
-  .min-h-\\[60px\\] {
+  .min-h-\[100px\],
+  .min-h-\[60px\] {
     page-break-inside: avoid;
   }
 
