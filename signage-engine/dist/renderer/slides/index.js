@@ -1,0 +1,13 @@
+export * from './base-slide.js';
+export * from './active-projects.js';
+export * from './project-metrics.js';
+export * from './po-ticker.js';
+export * from './revenue-dashboard.js';
+export * from './team-schedule.js';
+// New slides
+export * from './upcoming-projects.js';
+export * from './in-progress.js';
+export * from './monthly-scorecard.js';
+export * from './bottleneck-alert.js';
+export * from './recent-wins.js';
+//# sourceMappingURL=index.js.map
