@@ -70,6 +70,9 @@ export class HealthDashboardSlide extends BaseSlide {
 
     // Draw celebration particles
     this.updateAndDrawCelebration(ctx, deltaTime);
+
+    // Draw connection status indicator if not connected
+    this.drawConnectionStatus(ctx, data);
   }
 
   private drawNoData(ctx: SKRSContext2D, headerHeight: number): void {

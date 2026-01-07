@@ -6,6 +6,7 @@ import { fetchScheduleData, ScheduleEntry } from './fetchers/schedule.js';
 import { fetchProjectMetrics, ProjectMetrics } from './fetchers/metrics.js';
 import { fetchSlideConfig, SignageSlide } from './fetchers/slide-config.js';
 import { fetchDashboardMetrics, DashboardMetrics } from './fetchers/dashboard-metrics.js';
+import { isSupabaseConfigured } from './supabase-client.js';
 import { PollingConfig } from '../config/schema.js';
 
 export interface DataCache {
@@ -16,6 +17,7 @@ export interface DataCache {
   metrics: { data: ProjectMetrics | null; lastUpdated: Date | null };
   slideConfig: { data: SignageSlide[]; lastUpdated: Date | null };
   dashboardMetrics: { data: DashboardMetrics | null; lastUpdated: Date | null };
+  connectionStatus: { isConnected: boolean; usingMockData: boolean; lastError: string | null };
 }
 
 export class PollingManager {
@@ -27,6 +29,7 @@ export class PollingManager {
     metrics: { data: null, lastUpdated: null },
     slideConfig: { data: [], lastUpdated: null },
     dashboardMetrics: { data: null, lastUpdated: null },
+    connectionStatus: { isConnected: false, usingMockData: true, lastError: null },
   };
 
   private intervals: NodeJS.Timeout[] = [];
@@ -38,6 +41,18 @@ export class PollingManager {
 
   async start(): Promise<void> {
     logger.info('Starting polling manager');
+
+    // Check Supabase connection status
+    const connected = isSupabaseConfigured();
+    this.cache.connectionStatus = {
+      isConnected: connected,
+      usingMockData: !connected,
+      lastError: connected ? null : 'Supabase not configured - displaying mock data',
+    };
+
+    if (!connected) {
+      logger.warn('Supabase not configured - signage will display mock data');
+    }
 
     // Initial fetch
     await this.fetchAll();

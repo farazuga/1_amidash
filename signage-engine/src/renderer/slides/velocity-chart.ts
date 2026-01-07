@@ -14,6 +14,7 @@ export class VelocityChartSlide extends BaseSlide {
     const dashboardMetrics = data.dashboardMetrics.data;
     if (!dashboardMetrics) {
       this.drawNoData(ctx, headerHeight);
+      this.drawConnectionStatus(ctx, data);
       return;
     }
 
@@ -33,6 +34,9 @@ export class VelocityChartSlide extends BaseSlide {
 
     // Legend at bottom
     this.drawLegend(ctx, padding, chartY + chartHeight + 40, width - padding * 2);
+
+    // Draw connection status indicator if not connected
+    this.drawConnectionStatus(ctx, data);
   }
 
   private drawNoData(ctx: SKRSContext2D, headerHeight: number): void {

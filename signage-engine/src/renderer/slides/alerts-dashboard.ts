@@ -21,6 +21,7 @@ export class AlertsDashboardSlide extends BaseSlide {
     const dashboardMetrics = data.dashboardMetrics.data;
     if (!dashboardMetrics) {
       this.drawNoData(ctx, headerHeight);
+      this.drawConnectionStatus(ctx, data);
       return;
     }
 
@@ -32,6 +33,7 @@ export class AlertsDashboardSlide extends BaseSlide {
 
     if (!alerts.hasAlerts) {
       this.drawAllClear(ctx, contentY, contentHeight);
+      this.drawConnectionStatus(ctx, data);
       return;
     }
 
@@ -54,6 +56,9 @@ export class AlertsDashboardSlide extends BaseSlide {
     ctx.strokeStyle = hexToRgba(colors.white, 0.1);
     ctx.lineWidth = 2;
     ctx.stroke();
+
+    // Draw connection status indicator if not connected
+    this.drawConnectionStatus(ctx, data);
   }
 
   private drawNoData(ctx: SKRSContext2D, headerHeight: number): void {

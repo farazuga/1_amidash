@@ -1,7 +1,19 @@
 import { supabase, isSupabaseConfigured } from '../supabase-client.js';
 import { logger } from '../../utils/logger.js';
 
-export type SlideType = 'project-list' | 'project-metrics' | 'po-ticker' | 'revenue-dashboard' | 'team-schedule';
+export type SlideType =
+  | 'project-list'
+  | 'project-metrics'
+  | 'po-ticker'
+  | 'revenue-dashboard'
+  | 'team-schedule'
+  | 'active-projects'
+  | 'health-dashboard'
+  | 'alerts-dashboard'
+  | 'performance-metrics'
+  | 'velocity-chart'
+  | 'status-pipeline'
+  | 'cycle-time';
 
 export interface SignageSlide {
   id: string;
@@ -52,17 +64,17 @@ function getDefaultSlides(): SignageSlide[] {
   return [
     {
       id: 'default-1',
-      slide_type: 'project-list',
-      title: 'Active Projects',
+      slide_type: 'health-dashboard',
+      title: 'Business Health',
       enabled: true,
       display_order: 1,
-      duration_ms: 15000,
-      config: { maxItems: 15 },
+      duration_ms: 10000,
+      config: {},
     },
     {
       id: 'default-2',
-      slide_type: 'project-metrics',
-      title: 'Project Metrics',
+      slide_type: 'revenue-dashboard',
+      title: 'Revenue Dashboard',
       enabled: true,
       display_order: 2,
       duration_ms: 12000,
@@ -70,20 +82,74 @@ function getDefaultSlides(): SignageSlide[] {
     },
     {
       id: 'default-3',
-      slide_type: 'po-ticker',
-      title: 'Recent POs',
+      slide_type: 'active-projects',
+      title: 'Active Projects',
       enabled: true,
       display_order: 3,
-      duration_ms: 20000,
-      config: { scrollSpeed: 2 },
+      duration_ms: 12000,
+      config: { maxItems: 15 },
     },
     {
       id: 'default-4',
-      slide_type: 'revenue-dashboard',
-      title: 'Revenue Dashboard',
+      slide_type: 'performance-metrics',
+      title: 'Performance Metrics',
       enabled: true,
       display_order: 4,
+      duration_ms: 10000,
+      config: {},
+    },
+    {
+      id: 'default-5',
+      slide_type: 'team-schedule',
+      title: 'Team Schedule',
+      enabled: true,
+      display_order: 5,
+      duration_ms: 12000,
+      config: { daysToShow: 7 },
+    },
+    {
+      id: 'default-6',
+      slide_type: 'alerts-dashboard',
+      title: 'Alerts',
+      enabled: true,
+      display_order: 6,
+      duration_ms: 8000,
+      config: {},
+    },
+    {
+      id: 'default-7',
+      slide_type: 'velocity-chart',
+      title: 'Velocity',
+      enabled: true,
+      display_order: 7,
+      duration_ms: 10000,
+      config: {},
+    },
+    {
+      id: 'default-8',
+      slide_type: 'status-pipeline',
+      title: 'Status Pipeline',
+      enabled: true,
+      display_order: 8,
+      duration_ms: 10000,
+      config: {},
+    },
+    {
+      id: 'default-9',
+      slide_type: 'po-ticker',
+      title: 'Recent POs',
+      enabled: true,
+      display_order: 9,
       duration_ms: 15000,
+      config: { scrollSpeed: 2 },
+    },
+    {
+      id: 'default-10',
+      slide_type: 'cycle-time',
+      title: 'Cycle Time',
+      enabled: true,
+      display_order: 10,
+      duration_ms: 10000,
       config: {},
     },
   ];

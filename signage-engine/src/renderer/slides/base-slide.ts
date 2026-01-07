@@ -145,4 +145,60 @@ export abstract class BaseSlide {
       baseline: 'middle',
     });
   }
+
+  protected drawConnectionStatus(ctx: SKRSContext2D, data: DataCache): void {
+    const { connectionStatus } = data;
+    if (connectionStatus.isConnected && !connectionStatus.usingMockData) return;
+
+    const padding = 40;
+    const boxWidth = 480;
+    const boxHeight = 60;
+    const x = (this.displayConfig.width - boxWidth) / 2;
+    const y = this.displayConfig.height - boxHeight - padding;
+
+    // Semi-transparent red background with rounded corners
+    ctx.beginPath();
+    const radius = 12;
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + boxWidth - radius, y);
+    ctx.quadraticCurveTo(x + boxWidth, y, x + boxWidth, y + radius);
+    ctx.lineTo(x + boxWidth, y + boxHeight - radius);
+    ctx.quadraticCurveTo(x + boxWidth, y + boxHeight, x + boxWidth - radius, y + boxHeight);
+    ctx.lineTo(x + radius, y + boxHeight);
+    ctx.quadraticCurveTo(x, y + boxHeight, x, y + boxHeight - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.95)';
+    ctx.fill();
+
+    // White border
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Warning icon
+    drawText(ctx, '⚠', x + 30, y + boxHeight / 2, {
+      font: this.displayConfig.fontFamily,
+      size: 32,
+      color: colors.white,
+      align: 'center',
+      baseline: 'middle',
+    });
+
+    // Error message
+    const message = connectionStatus.usingMockData
+      ? 'NOT CONNECTED TO DATABASE - SHOWING DEMO DATA'
+      : 'DATABASE CONNECTION ERROR';
+
+    drawText(ctx, message, x + boxWidth / 2 + 15, y + boxHeight / 2, {
+      font: this.displayConfig.fontFamily,
+      size: 24,
+      weight: 600,
+      color: colors.white,
+      align: 'center',
+      baseline: 'middle',
+      letterSpacing: 1,
+    });
+  }
 }

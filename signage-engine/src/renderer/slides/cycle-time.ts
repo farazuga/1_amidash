@@ -14,6 +14,7 @@ export class CycleTimeSlide extends BaseSlide {
     const dashboardMetrics = data.dashboardMetrics.data;
     if (!dashboardMetrics) {
       this.drawNoData(ctx, headerHeight);
+      this.drawConnectionStatus(ctx, data);
       return;
     }
 
@@ -30,6 +31,9 @@ export class CycleTimeSlide extends BaseSlide {
     const chartY = contentY + 180;
     const chartHeight = contentHeight - 200;
     this.drawCycleTimeChart(ctx, cycleTime.statuses, padding, chartY, width - padding * 2, chartHeight);
+
+    // Draw connection status indicator if not connected
+    this.drawConnectionStatus(ctx, data);
   }
 
   private drawNoData(ctx: SKRSContext2D, headerHeight: number): void {

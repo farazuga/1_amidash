@@ -15,6 +15,7 @@ export class PerformanceMetricsSlide extends BaseSlide {
     const dashboardMetrics = data.dashboardMetrics.data;
     if (!dashboardMetrics) {
       this.drawNoData(ctx, headerHeight);
+      this.drawConnectionStatus(ctx, data);
       return;
     }
 
@@ -49,6 +50,9 @@ export class PerformanceMetricsSlide extends BaseSlide {
       cardWidth,
       cardHeight
     );
+
+    // Draw connection status indicator if not connected
+    this.drawConnectionStatus(ctx, data);
   }
 
   private drawNoData(ctx: SKRSContext2D, headerHeight: number): void {

@@ -20,6 +20,7 @@ export class StatusPipelineSlide extends BaseSlide {
     const dashboardMetrics = data.dashboardMetrics.data;
     if (!dashboardMetrics) {
       this.drawNoData(ctx, headerHeight);
+      this.drawConnectionStatus(ctx, data);
       return;
     }
 
@@ -36,6 +37,9 @@ export class StatusPipelineSlide extends BaseSlide {
     const pipelineY = contentY + 150;
     const pipelineHeight = contentHeight - 200;
     this.drawPipeline(ctx, pipeline.statuses, padding, pipelineY, width - padding * 2, pipelineHeight);
+
+    // Draw connection status indicator if not connected
+    this.drawConnectionStatus(ctx, data);
   }
 
   private drawNoData(ctx: SKRSContext2D, headerHeight: number): void {
