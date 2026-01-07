@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
 import {
@@ -32,6 +32,9 @@ export function InlineDateRangePicker({
   const [isSaving, setIsSaving] = useState(false);
   const [pendingRange, setPendingRange] = useState<DateRange | undefined>(undefined);
 
+  // Ref to track mid-selection state synchronously (avoids race condition with popover close)
+  const isMidSelectionRef = useRef(false);
+
   const dateRange: DateRange | undefined =
     startDate && endDate
       ? {
@@ -46,10 +49,13 @@ export function InlineDateRangePicker({
       : undefined;
 
   const handleSelect = async (range: DateRange | undefined) => {
+    // Update ref synchronously BEFORE state to prevent race condition with popover close
+    isMidSelectionRef.current = Boolean(range?.from && !range?.to);
     setPendingRange(range);
 
     // Auto-save when both dates are selected
     if (range?.from && range?.to) {
+      isMidSelectionRef.current = false;
       setIsSaving(true);
       try {
         const newStartDate = format(range.from, 'yyyy-MM-dd');
@@ -66,6 +72,7 @@ export function InlineDateRangePicker({
   };
 
   const handleClear = async () => {
+    isMidSelectionRef.current = false;
     setIsSaving(true);
     try {
       await onSave(null, null);
@@ -108,9 +115,13 @@ export function InlineDateRangePicker({
 
   return (
     <Popover open={open} onOpenChange={(isOpen) => {
-      // Prevent closing if we're mid-selection (start date selected but not end date)
-      if (!isOpen && pendingRange?.from && !pendingRange?.to) {
+      // Prevent closing if we're mid-selection (use ref for synchronous check)
+      if (!isOpen && isMidSelectionRef.current) {
         return;
+      }
+      // Reset ref when closing
+      if (!isOpen) {
+        isMidSelectionRef.current = false;
       }
       setOpen(isOpen);
     }}>
@@ -133,7 +144,35 @@ export function InlineDateRangePicker({
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="end">
+      <PopoverContent
+        className="w-auto p-0"
+        align="end"
+        onInteractOutside={(e) => {
+          // Prevent closing if we're mid-selection
+          if (isMidSelectionRef.current) {
+            e.preventDefault();
+          }
+        }}
+        onPointerDownOutside={(e) => {
+          // Prevent closing if we're mid-selection
+          if (isMidSelectionRef.current) {
+            e.preventDefault();
+          }
+        }}
+        onFocusOutside={(e) => {
+          // Prevent closing if we're mid-selection
+          if (isMidSelectionRef.current) {
+            e.preventDefault();
+          }
+        }}
+        onEscapeKeyDown={(e) => {
+          // Allow escape to cancel mid-selection, but reset the ref
+          if (isMidSelectionRef.current) {
+            isMidSelectionRef.current = false;
+            setPendingRange(undefined);
+          }
+        }}
+      >
         <div className="p-3 border-b flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-medium">Select Date Range</p>
