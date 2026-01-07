@@ -113,18 +113,25 @@ export function InlineDateRangePicker({
     return <div className={className}>{formatDateRange()}</div>;
   }
 
+  const handleOpenChange = (isOpen: boolean) => {
+    // Prevent closing if we're mid-selection (use ref for synchronous check)
+    if (!isOpen && isMidSelectionRef.current) {
+      return;
+    }
+    // Reset state when opening or closing
+    if (isOpen) {
+      // Start fresh - user must select both dates
+      setPendingRange(undefined);
+      isMidSelectionRef.current = false;
+    } else {
+      isMidSelectionRef.current = false;
+      setPendingRange(undefined);
+    }
+    setOpen(isOpen);
+  };
+
   return (
-    <Popover open={open} onOpenChange={(isOpen) => {
-      // Prevent closing if we're mid-selection (use ref for synchronous check)
-      if (!isOpen && isMidSelectionRef.current) {
-        return;
-      }
-      // Reset ref when closing
-      if (!isOpen) {
-        isMidSelectionRef.current = false;
-      }
-      setOpen(isOpen);
-    }}>
+    <Popover open={open} onOpenChange={handleOpenChange} modal>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -179,6 +186,8 @@ export function InlineDateRangePicker({
             <p className="text-xs text-muted-foreground">
               {pendingRange?.from && !pendingRange?.to
                 ? 'Now select end date'
+                : startDate && endDate
+                ? `Current: ${format(parseISO(startDate), 'MMM d')} — ${format(parseISO(endDate), 'MMM d')}`
                 : 'Click start date, then end date'}
             </p>
           </div>
@@ -195,13 +204,15 @@ export function InlineDateRangePicker({
             </Button>
           )}
         </div>
-        <Calendar
-          mode="range"
-          defaultMonth={dateRange?.from || pendingRange?.from}
-          selected={pendingRange || dateRange}
-          onSelect={handleSelect}
-          numberOfMonths={2}
-        />
+        <div onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+          <Calendar
+            mode="range"
+            defaultMonth={pendingRange?.from || dateRange?.from}
+            selected={pendingRange}
+            onSelect={handleSelect}
+            numberOfMonths={2}
+          />
+        </div>
         {pendingRange?.from && !pendingRange?.to && (
           <div className="p-3 border-t bg-muted/50">
             <p className="text-sm text-muted-foreground">
