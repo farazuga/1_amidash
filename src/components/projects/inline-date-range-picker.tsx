@@ -53,16 +53,8 @@ export function InlineDateRangePicker({
     const hasCompletedRange = range?.from && range?.to &&
       range.from.getTime() !== range.to.getTime();
 
-    console.log('[DEBUG] handleSelect called:', {
-      from: range?.from?.toISOString(),
-      to: range?.to?.toISOString(),
-      hasCompletedRange,
-      currentRef: isMidSelectionRef.current
-    });
-
     // Mid-selection = has from but range not yet complete (same date = first click)
     isMidSelectionRef.current = Boolean(range?.from && !hasCompletedRange);
-    console.log('[DEBUG] ref set to:', isMidSelectionRef.current);
     setPendingRange(range);
 
     // Auto-save only when range is complete (from and to are DIFFERENT dates)
@@ -126,23 +118,16 @@ export function InlineDateRangePicker({
   }
 
   const handleOpenChange = (isOpen: boolean) => {
-    console.log('[DEBUG] handleOpenChange called:', {
-      isOpen,
-      midSelectionRef: isMidSelectionRef.current
-    });
     // Prevent closing if we're mid-selection (use ref for synchronous check)
     if (!isOpen && isMidSelectionRef.current) {
-      console.log('[DEBUG] BLOCKED close - mid-selection active');
       return;
     }
     // Reset state when opening or closing
     if (isOpen) {
-      console.log('[DEBUG] Opening popover - resetting state');
       // Start fresh - user must select both dates
       setPendingRange(undefined);
       isMidSelectionRef.current = false;
     } else {
-      console.log('[DEBUG] Closing popover');
       isMidSelectionRef.current = false;
       setPendingRange(undefined);
     }
@@ -174,26 +159,17 @@ export function InlineDateRangePicker({
         className="w-auto p-0"
         align="end"
         onInteractOutside={(e) => {
-          console.log('[DEBUG] onInteractOutside fired, ref:', isMidSelectionRef.current);
-          // Prevent closing if we're mid-selection
           if (isMidSelectionRef.current) {
-            console.log('[DEBUG] BLOCKED onInteractOutside');
             e.preventDefault();
           }
         }}
         onPointerDownOutside={(e) => {
-          console.log('[DEBUG] onPointerDownOutside fired, ref:', isMidSelectionRef.current);
-          // Prevent closing if we're mid-selection
           if (isMidSelectionRef.current) {
-            console.log('[DEBUG] BLOCKED onPointerDownOutside');
             e.preventDefault();
           }
         }}
         onFocusOutside={(e) => {
-          console.log('[DEBUG] onFocusOutside fired, ref:', isMidSelectionRef.current);
-          // Prevent closing if we're mid-selection
           if (isMidSelectionRef.current) {
-            console.log('[DEBUG] BLOCKED onFocusOutside');
             e.preventDefault();
           }
         }}
