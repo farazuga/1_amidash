@@ -49,18 +49,24 @@ export function InlineDateRangePicker({
       : undefined;
 
   const handleSelect = async (range: DateRange | undefined) => {
+    // Check if from and to are DIFFERENT dates (react-day-picker sets both to same date on first click)
+    const hasCompletedRange = range?.from && range?.to &&
+      range.from.getTime() !== range.to.getTime();
+
     console.log('[DEBUG] handleSelect called:', {
       from: range?.from?.toISOString(),
       to: range?.to?.toISOString(),
+      hasCompletedRange,
       currentRef: isMidSelectionRef.current
     });
-    // Update ref synchronously BEFORE state to prevent race condition with popover close
-    isMidSelectionRef.current = Boolean(range?.from && !range?.to);
+
+    // Mid-selection = has from but range not yet complete (same date = first click)
+    isMidSelectionRef.current = Boolean(range?.from && !hasCompletedRange);
     console.log('[DEBUG] ref set to:', isMidSelectionRef.current);
     setPendingRange(range);
 
-    // Auto-save when both dates are selected
-    if (range?.from && range?.to) {
+    // Auto-save only when range is complete (from and to are DIFFERENT dates)
+    if (hasCompletedRange && range.from && range.to) {
       isMidSelectionRef.current = false;
       setIsSaving(true);
       try {
@@ -203,7 +209,7 @@ export function InlineDateRangePicker({
           <div>
             <p className="text-sm font-medium">Select Date Range</p>
             <p className="text-xs text-muted-foreground">
-              {pendingRange?.from && !pendingRange?.to
+              {pendingRange?.from && (!pendingRange?.to || pendingRange.from.getTime() === pendingRange.to.getTime())
                 ? 'Now select end date'
                 : startDate && endDate
                 ? `Current: ${format(parseISO(startDate), 'MMM d')} — ${format(parseISO(endDate), 'MMM d')}`
@@ -232,7 +238,7 @@ export function InlineDateRangePicker({
             numberOfMonths={2}
           />
         </div>
-        {pendingRange?.from && !pendingRange?.to && (
+        {pendingRange?.from && (!pendingRange?.to || pendingRange.from.getTime() === pendingRange.to.getTime()) && (
           <div className="p-3 border-t bg-muted/50">
             <p className="text-sm text-muted-foreground">
               Start: {format(pendingRange.from, 'MMM d, yyyy')} — Now select end date
