@@ -40,16 +40,19 @@ export abstract class BaseSlide {
     updateAnimations(this.animationState, deltaTime, this.displayConfig.width, this.displayConfig.height);
   }
 
-  // Draw ambient background effects
-  protected drawAmbientEffects(ctx: SKRSContext2D): void {
-    drawAmbientGradient(ctx, this.displayConfig.width, this.displayConfig.height, this.animationState.pulsePhase);
-    drawParticles(ctx, this.animationState);
+  // Draw ambient background effects - DISABLED for cleaner look and better performance
+  protected drawAmbientEffects(_ctx: SKRSContext2D): void {
+    // Animations disabled for readability and performance
+    // Previously: drawAmbientGradient + drawParticles
   }
+
+  // Screen margin constant - use this for consistent spacing
+  protected readonly SCREEN_MARGIN = 140;
 
   // New minimal header for full-screen slides
   protected drawMinimalHeader(ctx: SKRSContext2D, title: string): number {
-    const headerHeight = 120;
-    const padding = 80;
+    const headerHeight = 180;
+    const padding = this.SCREEN_MARGIN;
 
     // Subtle gradient header background
     const gradient = ctx.createLinearGradient(0, 0, 0, headerHeight);
@@ -58,29 +61,29 @@ export abstract class BaseSlide {
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, this.displayConfig.width, headerHeight);
 
-    // Logo with glow
+    // Logo - larger for better visibility
     if (this.logo) {
-      const logoHeight = 50;
+      const logoHeight = 80;
       const logoWidth = (this.logo.width / this.logo.height) * logoHeight;
       ctx.drawImage(this.logo, padding, (headerHeight - logoHeight) / 2, logoWidth, logoHeight);
     }
 
-    // Bold title
+    // Bold title - larger for readability from distance
     drawText(ctx, title.toUpperCase(), this.displayConfig.width / 2, headerHeight / 2, {
       font: this.displayConfig.fontFamily,
-      size: 72,
+      size: 96,
       weight: 700,
       color: colors.white,
       align: 'center',
       baseline: 'middle',
-      letterSpacing: 8,
     });
 
-    // Timestamp with accent color
+    // Timestamp with accent color - larger
     const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     drawText(ctx, now, this.displayConfig.width - padding, headerHeight / 2, {
       font: this.displayConfig.fontFamily,
-      size: 48,
+      size: 64,
+      weight: 600,
       color: colors.primaryLight,
       align: 'right',
       baseline: 'middle',
@@ -90,8 +93,8 @@ export abstract class BaseSlide {
     ctx.beginPath();
     ctx.moveTo(padding, headerHeight - 2);
     ctx.lineTo(this.displayConfig.width - padding, headerHeight - 2);
-    ctx.strokeStyle = hexToRgba(colors.primary, 0.5);
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = hexToRgba(colors.primaryLight, 0.4);
+    ctx.lineWidth = 3;
     ctx.stroke();
 
     return headerHeight;
@@ -198,7 +201,6 @@ export abstract class BaseSlide {
       color: colors.white,
       align: 'center',
       baseline: 'middle',
-      letterSpacing: 1,
     });
   }
 }

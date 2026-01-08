@@ -6,12 +6,19 @@ import { drawText } from '../components/text.js';
 
 export class RevenueDashboardSlide extends BaseSlide {
   render(ctx: SKRSContext2D, data: DataCache, _deltaTime: number): void {
-    const headerHeight = this.drawHeader(ctx, this.config.title || 'Revenue Dashboard');
+    // Update animations and draw ambient effects
+    this.updateAnimationState(_deltaTime);
+    this.drawAmbientEffects(ctx);
+
+    const headerHeight = this.drawMinimalHeader(ctx, this.config.title || 'Revenue Dashboard');
 
     const revenue = data.revenue.data;
-    if (!revenue) return;
+    if (!revenue) {
+      this.drawConnectionStatus(ctx, data);
+      return;
+    }
 
-    const padding = 60;
+    const padding = this.SCREEN_MARGIN;
     const cardGap = 40;
     const contentY = headerHeight + 60;
 
@@ -85,7 +92,7 @@ export class RevenueDashboardSlide extends BaseSlide {
 
     drawText(ctx, 'Monthly Progress', padding, progressY, {
       font: this.displayConfig.fontFamily,
-      size: 32,
+      size: 36,
       color: 'rgba(255, 255, 255, 0.7)',
     });
     drawProgressBar(
@@ -101,7 +108,7 @@ export class RevenueDashboardSlide extends BaseSlide {
 
     drawText(ctx, 'YTD Progress', this.displayConfig.width / 2 + 20, progressY, {
       font: this.displayConfig.fontFamily,
-      size: 32,
+      size: 36,
       color: 'rgba(255, 255, 255, 0.7)',
     });
     drawProgressBar(
@@ -121,7 +128,7 @@ export class RevenueDashboardSlide extends BaseSlide {
 
     drawText(ctx, 'Monthly Revenue vs Goals', padding, chartY - 40, {
       font: this.displayConfig.fontFamily,
-      size: 36,
+      size: 48,
       color: colors.white,
     });
 
@@ -135,7 +142,10 @@ export class RevenueDashboardSlide extends BaseSlide {
 
     drawBarChart(ctx, chartData, padding, chartY, this.displayConfig.width - padding * 2, chartHeight, {
       barGap: 20,
-      fontSize: 28,
+      fontSize: 36,
     });
+
+    // Draw connection status indicator if not connected
+    this.drawConnectionStatus(ctx, data);
   }
 }

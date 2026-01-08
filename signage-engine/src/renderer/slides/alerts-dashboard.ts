@@ -6,17 +6,14 @@ import { colors, hexToRgba } from '../components/colors.js';
 import { StuckProject, OverdueProject } from '../../data/fetchers/dashboard-metrics.js';
 
 export class AlertsDashboardSlide extends BaseSlide {
-  private pulsePhase = 0;
-
   render(ctx: SKRSContext2D, data: DataCache, deltaTime: number): void {
     // Update animations
     this.updateAnimationState(deltaTime);
-    this.pulsePhase += deltaTime * 3;
 
     // Draw ambient effects
     this.drawAmbientEffects(ctx);
 
-    const headerHeight = this.drawMinimalHeader(ctx, this.config.title || 'Attention Required');
+    const headerHeight = this.drawMinimalHeader(ctx, this.config.title || 'Alerts');
 
     const dashboardMetrics = data.dashboardMetrics.data;
     if (!dashboardMetrics) {
@@ -27,8 +24,8 @@ export class AlertsDashboardSlide extends BaseSlide {
 
     const { alerts } = dashboardMetrics;
     const { width, height } = this.displayConfig;
-    const padding = 80;
-    const contentY = headerHeight + 40;
+    const padding = this.SCREEN_MARGIN;
+    const contentY = headerHeight + 20;
     const contentHeight = height - contentY - padding;
 
     if (!alerts.hasAlerts) {
@@ -108,7 +105,6 @@ export class AlertsDashboardSlide extends BaseSlide {
       weight: 700,
       color: colors.success,
       align: 'center',
-      letterSpacing: 6,
     });
 
     // Subtitle
@@ -130,72 +126,64 @@ export class AlertsDashboardSlide extends BaseSlide {
     width: number,
     height: number
   ): void {
-    // Section header with pulsing effect
-    const pulse = 0.7 + Math.sin(this.pulsePhase) * 0.3;
-
-    // Header background
+    // Header background - static, no pulsing
     ctx.beginPath();
-    ctx.roundRect(x, y, width, 100, 12);
-    ctx.fillStyle = hexToRgba(colors.error, 0.15 * pulse);
+    ctx.roundRect(x, y, width, 120, 12);
+    ctx.fillStyle = hexToRgba(colors.error, 0.15);
     ctx.fill();
 
-    // Pulsing border
-    ctx.save();
-    ctx.shadowColor = colors.error;
-    ctx.shadowBlur = 20 * pulse;
+    // Border
     ctx.beginPath();
-    ctx.roundRect(x, y, width, 100, 12);
-    ctx.strokeStyle = hexToRgba(colors.error, 0.8);
+    ctx.roundRect(x, y, width, 120, 12);
+    ctx.strokeStyle = hexToRgba(colors.error, 0.6);
     ctx.lineWidth = 3;
     ctx.stroke();
-    ctx.restore();
 
-    // Section title and count
-    drawText(ctx, 'OVERDUE', x + 30, y + 40, {
+    // Section title - larger
+    drawText(ctx, 'OVERDUE', x + 40, y + 50, {
       font: this.displayConfig.fontFamily,
-      size: 36,
+      size: 48,
       weight: 700,
       color: colors.error,
-      letterSpacing: 3,
     });
 
-    // Count badge
-    const countBadgeX = x + width - 120;
+    // Count badge - larger
+    const countBadgeX = x + width - 100;
     ctx.beginPath();
-    ctx.arc(countBadgeX, y + 50, 40, 0, Math.PI * 2);
+    ctx.arc(countBadgeX, y + 60, 50, 0, Math.PI * 2);
     ctx.fillStyle = colors.error;
     ctx.fill();
 
-    drawText(ctx, total.toString(), countBadgeX, y + 50, {
+    drawText(ctx, total.toString(), countBadgeX, y + 60, {
       font: this.displayConfig.fontFamily,
-      size: 48,
+      size: 56,
       weight: 700,
       color: colors.white,
       align: 'center',
       baseline: 'middle',
     });
 
-    // Total revenue
-    drawText(ctx, `$${this.formatNumber(totalRevenue)} at risk`, x + 30, y + 75, {
+    // Total revenue - larger
+    drawText(ctx, `$${this.formatNumber(totalRevenue)} at risk`, x + 40, y + 95, {
       font: this.displayConfig.fontFamily,
-      size: 28,
-      color: hexToRgba(colors.error, 0.8),
+      size: 32,
+      color: hexToRgba(colors.error, 0.9),
     });
 
-    // Project list
-    const listY = y + 130;
+    // Project list - show more items with reduced height
+    const listY = y + 150;
     const itemHeight = 100;
-    const maxItems = Math.min(projects.length, 4);
+    const maxItems = Math.min(projects.length, 5);
 
     projects.slice(0, maxItems).forEach((project, index) => {
-      this.drawOverdueItem(ctx, project, x, listY + index * itemHeight, width, itemHeight - 15);
+      this.drawOverdueItem(ctx, project, x, listY + index * itemHeight, width, itemHeight - 10);
     });
 
     if (total > maxItems) {
       drawText(ctx, `+${total - maxItems} more`, x + width / 2, listY + maxItems * itemHeight + 20, {
         font: this.displayConfig.fontFamily,
-        size: 28,
-        color: hexToRgba(colors.white, 0.5),
+        size: 32,
+        color: hexToRgba(colors.white, 0.6),
         align: 'center',
       });
     }
@@ -221,8 +209,8 @@ export class AlertsDashboardSlide extends BaseSlide {
     ctx.fillStyle = colors.error;
     ctx.fill();
 
-    // Client name
-    drawText(ctx, this.truncateText(project.clientName, 25), x + 25, y + 30, {
+    // Client name - allow longer names
+    drawText(ctx, this.truncateText(project.clientName, 30), x + 25, y + 28, {
       font: this.displayConfig.fontFamily,
       size: 36,
       weight: 600,
@@ -240,16 +228,16 @@ export class AlertsDashboardSlide extends BaseSlide {
 
     // Days overdue badge
     const daysText = `${project.daysOverdue} days overdue`;
-    drawText(ctx, daysText, x + 25, y + 65, {
+    drawText(ctx, daysText, x + 25, y + 60, {
       font: this.displayConfig.fontFamily,
-      size: 26,
+      size: 24,
       color: hexToRgba(colors.error, 0.8),
     });
 
     // Goal date
-    drawText(ctx, `Due: ${project.goalDate}`, x + width - 30, y + 65, {
+    drawText(ctx, `Due: ${project.goalDate}`, x + width - 30, y + 60, {
       font: this.displayConfig.fontFamily,
-      size: 26,
+      size: 24,
       color: hexToRgba(colors.white, 0.5),
       align: 'right',
     });
@@ -265,71 +253,64 @@ export class AlertsDashboardSlide extends BaseSlide {
     width: number,
     height: number
   ): void {
-    const pulse = 0.7 + Math.sin(this.pulsePhase + 1) * 0.3;
-
-    // Header background
+    // Header background - static, no pulsing
     ctx.beginPath();
-    ctx.roundRect(x, y, width, 100, 12);
-    ctx.fillStyle = hexToRgba(colors.warning, 0.15 * pulse);
+    ctx.roundRect(x, y, width, 120, 12);
+    ctx.fillStyle = hexToRgba(colors.warning, 0.15);
     ctx.fill();
 
-    // Pulsing border
-    ctx.save();
-    ctx.shadowColor = colors.warning;
-    ctx.shadowBlur = 20 * pulse;
+    // Border
     ctx.beginPath();
-    ctx.roundRect(x, y, width, 100, 12);
-    ctx.strokeStyle = hexToRgba(colors.warning, 0.8);
+    ctx.roundRect(x, y, width, 120, 12);
+    ctx.strokeStyle = hexToRgba(colors.warning, 0.6);
     ctx.lineWidth = 3;
     ctx.stroke();
-    ctx.restore();
 
-    // Section title
-    drawText(ctx, 'STUCK PROJECTS', x + 30, y + 40, {
+    // Section title - larger
+    drawText(ctx, 'STUCK PROJECTS', x + 40, y + 50, {
       font: this.displayConfig.fontFamily,
-      size: 36,
+      size: 48,
       weight: 700,
       color: colors.warning,
-      letterSpacing: 3,
     });
 
-    // Count badge
-    const countBadgeX = x + width - 120;
+    // Count badge - larger
+    const countBadgeX = x + width - 100;
     ctx.beginPath();
-    ctx.arc(countBadgeX, y + 50, 40, 0, Math.PI * 2);
+    ctx.arc(countBadgeX, y + 60, 50, 0, Math.PI * 2);
     ctx.fillStyle = colors.warning;
     ctx.fill();
 
-    drawText(ctx, total.toString(), countBadgeX, y + 50, {
+    drawText(ctx, total.toString(), countBadgeX, y + 60, {
       font: this.displayConfig.fontFamily,
-      size: 48,
+      size: 56,
       weight: 700,
       color: colors.black,
       align: 'center',
       baseline: 'middle',
     });
 
-    // Total revenue
-    drawText(ctx, `$${this.formatNumber(totalRevenue)} blocked`, x + 30, y + 75, {
+    // Total revenue - larger
+    drawText(ctx, `$${this.formatNumber(totalRevenue)} blocked`, x + 40, y + 95, {
       font: this.displayConfig.fontFamily,
-      size: 28,
-      color: hexToRgba(colors.warning, 0.8),
+      size: 32,
+      color: hexToRgba(colors.warning, 0.9),
     });
 
-    // Project list
-    const listY = y + 130;
+    // Project list - show more items with reduced height
+    const listY = y + 150;
     const itemHeight = 100;
-    const maxItems = Math.min(projects.length, 4);
+    const maxItems = Math.min(projects.length, 5);
 
     projects.slice(0, maxItems).forEach((project, index) => {
-      this.drawStuckItem(ctx, project, x, listY + index * itemHeight, width, itemHeight - 15);
+      this.drawStuckItem(ctx, project, x, listY + index * itemHeight, width, itemHeight - 10);
     });
 
     if (total > maxItems) {
       drawText(ctx, `+${total - maxItems} more`, x + width / 2, listY + maxItems * itemHeight + 20, {
         font: this.displayConfig.fontFamily,
-        size: 28,
-        color: hexToRgba(colors.white, 0.5),
+        size: 32,
+        color: hexToRgba(colors.white, 0.6),
         align: 'center',
       });
     }
@@ -355,8 +336,8 @@ export class AlertsDashboardSlide extends BaseSlide {
     ctx.fillStyle = colors.warning;
     ctx.fill();
 
-    // Client name
-    drawText(ctx, this.truncateText(project.clientName, 25), x + 25, y + 30, {
+    // Client name - allow longer names
+    drawText(ctx, this.truncateText(project.clientName, 30), x + 25, y + 28, {
       font: this.displayConfig.fontFamily,
       size: 36,
       weight: 600,
@@ -364,7 +345,7 @@ export class AlertsDashboardSlide extends BaseSlide {
     });
 
     // Amount
-    drawText(ctx, `$${this.formatNumber(project.salesAmount)}`, x + width - 30, y + 30, {
+    drawText(ctx, `$${this.formatNumber(project.salesAmount)}`, x + width - 30, y + 28, {
       font: this.displayConfig.fontFamily,
       size: 36,
       weight: 700,
@@ -373,9 +354,9 @@ export class AlertsDashboardSlide extends BaseSlide {
     });
 
     // Status and days stuck
-    drawText(ctx, project.statusName, x + 25, y + 65, {
+    drawText(ctx, project.statusName, x + 25, y + 60, {
       font: this.displayConfig.fontFamily,
-      size: 26,
+      size: 24,
       color: hexToRgba(colors.white, 0.6),
     });
 
@@ -383,13 +364,13 @@ export class AlertsDashboardSlide extends BaseSlide {
     const daysText = `${project.daysInStatus}d`;
     const badgeWidth = 70;
     ctx.beginPath();
-    ctx.roundRect(x + width - badgeWidth - 20, y + 50, badgeWidth, 30, 6);
+    ctx.roundRect(x + width - badgeWidth - 20, y + 46, badgeWidth, 28, 6);
     ctx.fillStyle = hexToRgba(colors.warning, 0.3);
     ctx.fill();
 
-    drawText(ctx, daysText, x + width - badgeWidth / 2 - 20, y + 65, {
+    drawText(ctx, daysText, x + width - badgeWidth / 2 - 20, y + 60, {
       font: this.displayConfig.fontFamily,
-      size: 24,
+      size: 22,
       weight: 700,
       color: colors.warning,
       align: 'center',

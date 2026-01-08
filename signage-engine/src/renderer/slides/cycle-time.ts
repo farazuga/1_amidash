@@ -20,8 +20,8 @@ export class CycleTimeSlide extends BaseSlide {
 
     const { cycleTime } = dashboardMetrics;
     const { width, height } = this.displayConfig;
-    const padding = 100;
-    const contentY = headerHeight + 60;
+    const padding = this.SCREEN_MARGIN;
+    const contentY = headerHeight + 40;
     const contentHeight = height - contentY - padding;
 
     // Total cycle time summary
@@ -48,57 +48,53 @@ export class CycleTimeSlide extends BaseSlide {
   private drawTotalCycleTime(ctx: SKRSContext2D, totalDays: number, x: number, y: number, width: number): void {
     const centerX = x + width / 2;
 
-    // Background card
-    const cardWidth = 600;
-    const cardHeight = 120;
+    // Background card - larger
+    const cardWidth = 800;
+    const cardHeight = 140;
     const cardX = centerX - cardWidth / 2;
 
     ctx.beginPath();
     ctx.roundRect(cardX, y, cardWidth, cardHeight, 20);
-    ctx.fillStyle = hexToRgba(colors.white, 0.06);
+    ctx.fillStyle = hexToRgba(colors.white, 0.08);
     ctx.fill();
 
-    // Total days value
-    ctx.save();
-    ctx.shadowColor = colors.primaryLight;
-    ctx.shadowBlur = 25;
-    drawText(ctx, totalDays.toString(), centerX - 100, y + cardHeight / 2, {
+    // Total days value - no shadow/glow
+    drawText(ctx, totalDays.toString(), centerX - 120, y + cardHeight / 2, {
       font: this.displayConfig.fontFamily,
-      size: 80,
+      size: 96,
       weight: 700,
       color: colors.primaryLight,
       align: 'right',
       baseline: 'middle',
     });
-    ctx.restore();
 
-    // Label
-    drawText(ctx, 'days', centerX - 70, y + cardHeight / 2 - 15, {
+    // Label - larger
+    drawText(ctx, 'days', centerX - 80, y + cardHeight / 2 - 18, {
+      font: this.displayConfig.fontFamily,
+      size: 40,
+      color: hexToRgba(colors.white, 0.7),
+      baseline: 'middle',
+    });
+
+    drawText(ctx, 'avg total cycle', centerX - 80, y + cardHeight / 2 + 24, {
       font: this.displayConfig.fontFamily,
       size: 32,
       color: hexToRgba(colors.white, 0.6),
       baseline: 'middle',
     });
 
-    drawText(ctx, 'avg total cycle', centerX - 70, y + cardHeight / 2 + 20, {
+    // Description on right side - larger
+    drawText(ctx, 'Average time from PO receipt', centerX + 150, y + cardHeight / 2 - 18, {
       font: this.displayConfig.fontFamily,
-      size: 28,
-      color: hexToRgba(colors.white, 0.5),
+      size: 32,
+      color: hexToRgba(colors.white, 0.6),
       baseline: 'middle',
     });
 
-    // Description on right side
-    drawText(ctx, 'Average time from PO receipt', centerX + 100, y + cardHeight / 2 - 15, {
+    drawText(ctx, 'to project completion', centerX + 150, y + cardHeight / 2 + 18, {
       font: this.displayConfig.fontFamily,
-      size: 26,
-      color: hexToRgba(colors.white, 0.5),
-      baseline: 'middle',
-    });
-
-    drawText(ctx, 'to project completion', centerX + 100, y + cardHeight / 2 + 15, {
-      font: this.displayConfig.fontFamily,
-      size: 26,
-      color: hexToRgba(colors.white, 0.5),
+      size: 32,
+      color: hexToRgba(colors.white, 0.6),
       baseline: 'middle',
     });
   }
@@ -113,13 +109,13 @@ export class CycleTimeSlide extends BaseSlide {
   ): void {
     if (statuses.length === 0) return;
 
-    const labelWidth = 250;
-    const valueWidth = 100;
+    const labelWidth = 320;
+    const valueWidth = 120;
     const chartWidth = width - labelWidth - valueWidth;
     const chartX = x + labelWidth;
 
-    const barHeight = Math.min(80, (height - 40) / statuses.length);
-    const barGap = 15;
+    const barHeight = Math.min(90, (height - 80) / statuses.length);
+    const barGap = 18;
     const maxDays = Math.max(...statuses.map((s) => s.avgDays), 1);
 
     // Draw grid lines
@@ -131,16 +127,16 @@ export class CycleTimeSlide extends BaseSlide {
       // Grid line
       ctx.beginPath();
       ctx.moveTo(lineX, y);
-      ctx.lineTo(lineX, y + height - 60);
+      ctx.lineTo(lineX, y + height - 90);
       ctx.strokeStyle = hexToRgba(colors.white, 0.08);
       ctx.lineWidth = 1;
       ctx.stroke();
 
-      // X-axis label
-      drawText(ctx, `${value}d`, lineX, y + height - 30, {
+      // X-axis label - larger
+      drawText(ctx, `${value}d`, lineX, y + height - 55, {
         font: this.displayConfig.fontFamily,
-        size: 24,
-        color: hexToRgba(colors.white, 0.4),
+        size: 32,
+        color: hexToRgba(colors.white, 0.5),
         align: 'center',
       });
     }
@@ -150,11 +146,11 @@ export class CycleTimeSlide extends BaseSlide {
       const barY = y + index * (barHeight + barGap);
       const barWidth = (status.avgDays / maxDays) * chartWidth;
 
-      // Status label
-      const displayName = status.name.length > 18 ? status.name.substring(0, 15) + '...' : status.name;
-      drawText(ctx, displayName, x + labelWidth - 20, barY + barHeight / 2, {
+      // Status label - larger
+      const displayName = status.name.length > 20 ? status.name.substring(0, 17) + '...' : status.name;
+      drawText(ctx, displayName, x + labelWidth - 30, barY + barHeight / 2, {
         font: this.displayConfig.fontFamily,
-        size: 32,
+        size: 38,
         weight: status.isBottleneck ? 700 : 400,
         color: status.isBottleneck ? colors.warning : colors.white,
         align: 'right',
@@ -163,55 +159,45 @@ export class CycleTimeSlide extends BaseSlide {
 
       // Bar background
       ctx.beginPath();
-      ctx.roundRect(chartX, barY + 5, chartWidth, barHeight - 10, 8);
-      ctx.fillStyle = hexToRgba(colors.white, 0.04);
+      ctx.roundRect(chartX, barY + 8, chartWidth, barHeight - 16, 10);
+      ctx.fillStyle = hexToRgba(colors.white, 0.05);
       ctx.fill();
 
-      // Bar fill with gradient
+      // Bar fill with gradient - no glow
       if (barWidth > 0) {
         const gradient = ctx.createLinearGradient(chartX, barY, chartX + barWidth, barY);
         gradient.addColorStop(0, hexToRgba(status.color, 0.9));
         gradient.addColorStop(1, hexToRgba(status.color, 0.6));
 
         ctx.beginPath();
-        ctx.roundRect(chartX, barY + 5, barWidth, barHeight - 10, 8);
+        ctx.roundRect(chartX, barY + 8, barWidth, barHeight - 16, 10);
         ctx.fillStyle = gradient;
         ctx.fill();
 
-        // Glow for bottleneck
+        // Border for bottleneck (no glow)
         if (status.isBottleneck) {
-          ctx.save();
-          ctx.shadowColor = colors.warning;
-          ctx.shadowBlur = 15;
           ctx.beginPath();
-          ctx.roundRect(chartX, barY + 5, barWidth, barHeight - 10, 8);
+          ctx.roundRect(chartX, barY + 8, barWidth, barHeight - 16, 10);
           ctx.strokeStyle = colors.warning;
-          ctx.lineWidth = 2;
+          ctx.lineWidth = 3;
           ctx.stroke();
-          ctx.restore();
         }
       }
 
-      // Days value
-      ctx.save();
-      if (status.isBottleneck) {
-        ctx.shadowColor = colors.warning;
-        ctx.shadowBlur = 10;
-      }
-      drawText(ctx, `${status.avgDays}d`, chartX + chartWidth + 20, barY + barHeight / 2, {
+      // Days value - larger, no shadow
+      drawText(ctx, `${status.avgDays}d`, chartX + chartWidth + 25, barY + barHeight / 2, {
         font: this.displayConfig.fontFamily,
-        size: 36,
+        size: 44,
         weight: 700,
         color: status.isBottleneck ? colors.warning : colors.white,
         baseline: 'middle',
       });
-      ctx.restore();
 
-      // Bottleneck indicator icon
+      // Bottleneck indicator icon - larger
       if (status.isBottleneck) {
-        drawText(ctx, '⚠', chartX + chartWidth + 80, barY + barHeight / 2, {
+        drawText(ctx, '⚠', chartX + chartWidth + 100, barY + barHeight / 2, {
           font: this.displayConfig.fontFamily,
-          size: 30,
+          size: 36,
           color: colors.warning,
           baseline: 'middle',
         });
@@ -220,26 +206,26 @@ export class CycleTimeSlide extends BaseSlide {
 
     // X-axis line
     ctx.beginPath();
-    ctx.moveTo(chartX, y + height - 60);
-    ctx.lineTo(chartX + chartWidth, y + height - 60);
-    ctx.strokeStyle = hexToRgba(colors.white, 0.2);
+    ctx.moveTo(chartX, y + height - 90);
+    ctx.lineTo(chartX + chartWidth, y + height - 90);
+    ctx.strokeStyle = hexToRgba(colors.white, 0.25);
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Legend
-    const legendY = y + height - 15;
+    // Legend - larger
+    const legendY = y + height - 20;
     const legendX = x + width / 2;
 
     // Bottleneck indicator
     ctx.beginPath();
-    ctx.roundRect(legendX - 150, legendY - 12, 20, 20, 4);
+    ctx.roundRect(legendX - 200, legendY - 15, 26, 26, 5);
     ctx.fillStyle = colors.warning;
     ctx.fill();
 
-    drawText(ctx, '= Potential bottleneck status', legendX - 120, legendY, {
+    drawText(ctx, '= Potential bottleneck status', legendX - 165, legendY, {
       font: this.displayConfig.fontFamily,
-      size: 24,
-      color: hexToRgba(colors.white, 0.5),
+      size: 32,
+      color: hexToRgba(colors.white, 0.6),
       baseline: 'middle',
     });
   }

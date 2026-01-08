@@ -6,9 +6,6 @@ import { drawText } from '../components/text.js';
 import { colors, hexToRgba } from '../components/colors.js';
 
 export class HealthDashboardSlide extends BaseSlide {
-  private celebrationParticles: CelebrationParticle[] = [];
-  private lastHealthy = false;
-
   render(ctx: SKRSContext2D, data: DataCache, deltaTime: number): void {
     // Update animations
     this.updateAnimationState(deltaTime);
@@ -21,12 +18,13 @@ export class HealthDashboardSlide extends BaseSlide {
     const dashboardMetrics = data.dashboardMetrics.data;
     if (!dashboardMetrics) {
       this.drawNoData(ctx, headerHeight);
+      this.drawConnectionStatus(ctx, data);
       return;
     }
 
     const { health } = dashboardMetrics;
     const { width, height } = this.displayConfig;
-    const padding = 100;
+    const padding = this.SCREEN_MARGIN;
     const contentY = headerHeight + 60;
     const contentHeight = height - contentY - padding;
 
@@ -53,23 +51,12 @@ export class HealthDashboardSlide extends BaseSlide {
     });
 
     // Draw diagnosis section below gauges
-    const diagnosisY = gaugeY + gaugeRadius + 80;
+    const diagnosisY = gaugeY + gaugeRadius + 100;
     this.drawDiagnosis(ctx, health.diagnosis, health.message, diagnosisY);
 
-    // Draw bottleneck indicators
-    const bottleneckY = diagnosisY + 120;
+    // Draw bottleneck indicators (with more space to avoid overlap)
+    const bottleneckY = diagnosisY + 180;
     this.drawBottleneckIndicators(ctx, health.bottlenecks, bottleneckY);
-
-    // Check for celebration trigger (both gauges green)
-    const isHealthy = health.salesHealth >= 80 && health.opsHealth >= 80;
-    if (isHealthy && !this.lastHealthy) {
-      // Trigger celebration
-      this.triggerCelebration();
-    }
-    this.lastHealthy = isHealthy;
-
-    // Draw celebration particles
-    this.updateAndDrawCelebration(ctx, deltaTime);
 
     // Draw connection status indicator if not connected
     this.drawConnectionStatus(ctx, data);
@@ -125,15 +112,11 @@ export class HealthDashboardSlide extends BaseSlide {
         break;
     }
 
-    // Draw badge background with glow
-    ctx.save();
-    ctx.shadowColor = badgeColor;
-    ctx.shadowBlur = 30;
+    // Draw badge background (no glow for readability)
     ctx.beginPath();
     ctx.roundRect(badgeX, y, badgeWidth, badgeHeight, 16);
     ctx.fillStyle = hexToRgba(badgeColor, 0.3);
     ctx.fill();
-    ctx.restore();
 
     // Badge border
     ctx.beginPath();
@@ -150,11 +133,10 @@ export class HealthDashboardSlide extends BaseSlide {
       color: badgeColor,
       align: 'center',
       baseline: 'middle',
-      letterSpacing: 3,
     });
 
     // Message below badge
-    drawText(ctx, message, centerX, y + badgeHeight + 30, {
+    drawText(ctx, message, centerX, y + badgeHeight + 50, {
       font: this.displayConfig.fontFamily,
       size: 32,
       color: hexToRgba(colors.white, 0.7),
@@ -195,7 +177,7 @@ export class HealthDashboardSlide extends BaseSlide {
 
       drawText(ctx, `Procurement: ${bottlenecks.procurement}`, procX + badgeWidth / 2, y + badgeHeight / 2, {
         font: this.displayConfig.fontFamily,
-        size: 28,
+        size: 32,
         weight: 600,
         color: colors.warning,
         align: 'center',
@@ -216,7 +198,7 @@ export class HealthDashboardSlide extends BaseSlide {
 
       drawText(ctx, `Engineering: ${bottlenecks.engineering}`, engX + badgeWidth / 2, y + badgeHeight / 2, {
         font: this.displayConfig.fontFamily,
-        size: 28,
+        size: 32,
         weight: 600,
         color: colors.info,
         align: 'center',
@@ -224,75 +206,4 @@ export class HealthDashboardSlide extends BaseSlide {
       });
     }
   }
-
-  private triggerCelebration(): void {
-    // Create celebration particles
-    const { width, height } = this.displayConfig;
-    const centerX = width / 2;
-    const centerY = height / 2;
-
-    for (let i = 0; i < 80; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 200 + Math.random() * 400;
-      const size = 8 + Math.random() * 16;
-
-      this.celebrationParticles.push({
-        x: centerX,
-        y: centerY,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 200, // Upward bias
-        size,
-        color: [colors.success, colors.primaryLight, colors.white, '#FFD700'][
-          Math.floor(Math.random() * 4)
-        ],
-        life: 1,
-        decay: 0.3 + Math.random() * 0.3,
-        rotation: Math.random() * Math.PI * 2,
-        rotationSpeed: (Math.random() - 0.5) * 10,
-      });
-    }
-  }
-
-  private updateAndDrawCelebration(ctx: SKRSContext2D, deltaTime: number): void {
-    const gravity = 400;
-
-    // Update and draw particles
-    this.celebrationParticles = this.celebrationParticles.filter((p) => {
-      // Update physics
-      p.x += p.vx * deltaTime;
-      p.y += p.vy * deltaTime;
-      p.vy += gravity * deltaTime;
-      p.life -= p.decay * deltaTime;
-      p.rotation += p.rotationSpeed * deltaTime;
-
-      if (p.life <= 0) return false;
-
-      // Draw particle
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(p.rotation);
-      ctx.globalAlpha = Math.min(1, p.life);
-
-      // Draw confetti piece (rectangle)
-      ctx.fillStyle = p.color;
-      ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
-
-      ctx.restore();
-
-      return true;
-    });
-  }
-}
-
-interface CelebrationParticle {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  size: number;
-  color: string;
-  life: number;
-  decay: number;
-  rotation: number;
-  rotationSpeed: number;
 }

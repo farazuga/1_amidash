@@ -21,7 +21,7 @@ export class PerformanceMetricsSlide extends BaseSlide {
 
     const { performance } = dashboardMetrics;
     const { width, height } = this.displayConfig;
-    const padding = 80;
+    const padding = this.SCREEN_MARGIN;
     const contentY = headerHeight + 60;
     const contentHeight = height - contentY - padding;
 
@@ -70,10 +70,9 @@ export class PerformanceMetricsSlide extends BaseSlide {
     // Title
     drawText(ctx, 'ON-TIME COMPLETION', x + 40, y + 50, {
       font: this.displayConfig.fontFamily,
-      size: 32,
+      size: 40,
       weight: 700,
       color: hexToRgba(colors.white, 0.7),
-      letterSpacing: 2,
     });
 
     // Large gauge
@@ -89,7 +88,7 @@ export class PerformanceMetricsSlide extends BaseSlide {
 
     drawText(ctx, status, gaugeX, y + height - 50, {
       font: this.displayConfig.fontFamily,
-      size: 28,
+      size: 32,
       weight: 600,
       color: color,
       align: 'center',
@@ -102,10 +101,9 @@ export class PerformanceMetricsSlide extends BaseSlide {
     // Title
     drawText(ctx, 'DAYS TO INVOICE', x + 40, y + 50, {
       font: this.displayConfig.fontFamily,
-      size: 32,
+      size: 40,
       weight: 700,
       color: hexToRgba(colors.white, 0.7),
-      letterSpacing: 2,
     });
 
     // Large value
@@ -129,10 +127,7 @@ export class PerformanceMetricsSlide extends BaseSlide {
       status = 'Needs Improvement';
     }
 
-    // Value with glow
-    ctx.save();
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 30;
+    // Value (no glow for readability)
     drawText(ctx, value.toString(), centerX, centerY, {
       font: this.displayConfig.fontFamily,
       size: 160,
@@ -141,7 +136,6 @@ export class PerformanceMetricsSlide extends BaseSlide {
       align: 'center',
       baseline: 'middle',
     });
-    ctx.restore();
 
     // Unit
     drawText(ctx, 'days avg', centerX, centerY + 80, {
@@ -154,7 +148,7 @@ export class PerformanceMetricsSlide extends BaseSlide {
     // Status
     drawText(ctx, status, centerX, y + height - 50, {
       font: this.displayConfig.fontFamily,
-      size: 28,
+      size: 32,
       weight: 600,
       color: color,
       align: 'center',
@@ -167,10 +161,9 @@ export class PerformanceMetricsSlide extends BaseSlide {
     // Title
     drawText(ctx, 'BACKLOG DEPTH', x + 40, y + 50, {
       font: this.displayConfig.fontFamily,
-      size: 32,
+      size: 40,
       weight: 700,
       color: hexToRgba(colors.white, 0.7),
-      letterSpacing: 2,
     });
 
     const centerX = x + width / 2;
@@ -190,10 +183,7 @@ export class PerformanceMetricsSlide extends BaseSlide {
       status = 'High Backlog';
     }
 
-    // Value with glow
-    ctx.save();
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 30;
+    // Value (no glow for readability)
     drawText(ctx, value.toFixed(1), centerX, centerY, {
       font: this.displayConfig.fontFamily,
       size: 160,
@@ -202,7 +192,6 @@ export class PerformanceMetricsSlide extends BaseSlide {
       align: 'center',
       baseline: 'middle',
     });
-    ctx.restore();
 
     // Unit
     drawText(ctx, 'months of work', centerX, centerY + 80, {
@@ -215,7 +204,7 @@ export class PerformanceMetricsSlide extends BaseSlide {
     // Status
     drawText(ctx, status, centerX, y + height - 50, {
       font: this.displayConfig.fontFamily,
-      size: 28,
+      size: 32,
       weight: 600,
       color: color,
       align: 'center',
@@ -237,10 +226,9 @@ export class PerformanceMetricsSlide extends BaseSlide {
     // Title
     drawText(ctx, 'CUSTOMER CONCENTRATION', x + 40, y + 50, {
       font: this.displayConfig.fontFamily,
-      size: 32,
+      size: 40,
       weight: 700,
       color: hexToRgba(colors.white, 0.7),
-      letterSpacing: 2,
     });
 
     // Risk indicator
@@ -261,10 +249,7 @@ export class PerformanceMetricsSlide extends BaseSlide {
         break;
     }
 
-    // Large percentage
-    ctx.save();
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 20;
+    // Large percentage (no glow for readability)
     drawText(ctx, `${Math.round(value)}%`, x + 120, y + 160, {
       font: this.displayConfig.fontFamily,
       size: 100,
@@ -272,7 +257,6 @@ export class PerformanceMetricsSlide extends BaseSlide {
       color: color,
       align: 'center',
     });
-    ctx.restore();
 
     drawText(ctx, 'from top 3', x + 120, y + 220, {
       font: this.displayConfig.fontFamily,
@@ -321,11 +305,11 @@ export class PerformanceMetricsSlide extends BaseSlide {
         baseline: 'middle',
       });
 
-      // Client name
-      const truncatedName = client.name.length > 18 ? client.name.substring(0, 15) + '...' : client.name;
+      // Client name - allow longer names
+      const truncatedName = client.name.length > 24 ? client.name.substring(0, 21) + '...' : client.name;
       drawText(ctx, truncatedName, listX + 55, itemY + 20, {
         font: this.displayConfig.fontFamily,
-        size: 30,
+        size: 32,
         weight: 600,
         color: colors.white,
       });

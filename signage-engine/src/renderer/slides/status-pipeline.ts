@@ -26,8 +26,8 @@ export class StatusPipelineSlide extends BaseSlide {
 
     const { pipeline } = dashboardMetrics;
     const { width, height } = this.displayConfig;
-    const padding = 100;
-    const contentY = headerHeight + 80;
+    const padding = this.SCREEN_MARGIN;
+    const contentY = headerHeight + 40;
     const contentHeight = height - contentY - padding;
 
     // Summary at top
@@ -54,51 +54,43 @@ export class StatusPipelineSlide extends BaseSlide {
   private drawSummary(ctx: SKRSContext2D, totalProjects: number, totalRevenue: number, x: number, y: number, width: number): void {
     const centerX = x + width / 2;
 
-    // Total projects
-    ctx.save();
-    ctx.shadowColor = colors.primaryLight;
-    ctx.shadowBlur = 20;
-    drawText(ctx, totalProjects.toString(), centerX - 200, y + 40, {
+    // Total projects - no shadow/glow
+    drawText(ctx, totalProjects.toString(), centerX - 250, y + 50, {
       font: this.displayConfig.fontFamily,
-      size: 80,
+      size: 96,
       weight: 700,
       color: colors.primaryLight,
       align: 'center',
     });
-    ctx.restore();
 
-    drawText(ctx, 'Active Projects', centerX - 200, y + 90, {
+    drawText(ctx, 'Active Projects', centerX - 250, y + 110, {
       font: this.displayConfig.fontFamily,
-      size: 28,
-      color: hexToRgba(colors.white, 0.6),
+      size: 36,
+      color: hexToRgba(colors.white, 0.7),
       align: 'center',
     });
 
     // Divider
     ctx.beginPath();
     ctx.moveTo(centerX, y + 20);
-    ctx.lineTo(centerX, y + 100);
-    ctx.strokeStyle = hexToRgba(colors.white, 0.2);
-    ctx.lineWidth = 2;
+    ctx.lineTo(centerX, y + 120);
+    ctx.strokeStyle = hexToRgba(colors.white, 0.3);
+    ctx.lineWidth = 3;
     ctx.stroke();
 
-    // Total revenue
-    ctx.save();
-    ctx.shadowColor = colors.success;
-    ctx.shadowBlur = 20;
-    drawText(ctx, `$${this.formatNumber(totalRevenue)}`, centerX + 200, y + 40, {
+    // Total revenue - no shadow/glow
+    drawText(ctx, `$${this.formatNumber(totalRevenue)}`, centerX + 250, y + 50, {
       font: this.displayConfig.fontFamily,
-      size: 80,
+      size: 96,
       weight: 700,
       color: colors.success,
       align: 'center',
     });
-    ctx.restore();
 
-    drawText(ctx, 'Pipeline Value', centerX + 200, y + 90, {
+    drawText(ctx, 'Pipeline Value', centerX + 250, y + 110, {
       font: this.displayConfig.fontFamily,
-      size: 28,
-      color: hexToRgba(colors.white, 0.6),
+      size: 36,
+      color: hexToRgba(colors.white, 0.7),
       align: 'center',
     });
   }
@@ -113,7 +105,7 @@ export class StatusPipelineSlide extends BaseSlide {
   ): void {
     if (statuses.length === 0) return;
 
-    const stageGap = 20;
+    const stageGap = 12;
     const totalCount = statuses.reduce((sum, s) => sum + s.count, 0);
     const stageWidth = (width - stageGap * (statuses.length - 1)) / statuses.length;
 
@@ -181,7 +173,7 @@ export class StatusPipelineSlide extends BaseSlide {
     totalCount: number
   ): void {
     const proportion = totalCount > 0 ? status.count / totalCount : 0;
-    const stageHeight = height * 0.7;
+    const stageHeight = height * 0.75;
     const stageY = y + (height - stageHeight) / 2;
 
     // Stage background with funnel effect
@@ -243,46 +235,39 @@ export class StatusPipelineSlide extends BaseSlide {
       ctx.restore();
     }
 
-    // Status name
-    const displayName = status.name.length > 12 ? status.name.substring(0, 10) + '...' : status.name;
-    drawText(ctx, displayName.toUpperCase(), x + width / 2, stageY - 25, {
+    // Status name - smaller font allows longer names without truncation
+    const displayName = status.name.length > 24 ? status.name.substring(0, 22) + '...' : status.name;
+    drawText(ctx, displayName.toUpperCase(), x + width / 2, stageY - 30, {
       font: this.displayConfig.fontFamily,
-      size: 28,
+      size: 32,
       weight: 700,
       color: status.isBottleneck ? colors.warning : colors.white,
       align: 'center',
-      letterSpacing: 1,
     });
 
-    // Count (large, centered)
-    ctx.save();
-    if (status.isBottleneck) {
-      ctx.shadowColor = colors.warning;
-      ctx.shadowBlur = 15;
-    }
+    // Count (large, centered) - no shadow glow
     drawText(ctx, status.count.toString(), x + width / 2, stageY + stageHeight / 2 - 10, {
       font: this.displayConfig.fontFamily,
-      size: 72,
+      size: 84,
       weight: 700,
       color: status.isBottleneck ? colors.warning : colors.white,
       align: 'center',
       baseline: 'middle',
     });
-    ctx.restore();
 
-    // Revenue (smaller, below count)
-    drawText(ctx, `$${this.formatNumber(status.revenue)}`, x + width / 2, stageY + stageHeight / 2 + 50, {
+    // Revenue - larger
+    drawText(ctx, `$${this.formatNumber(status.revenue)}`, x + width / 2, stageY + stageHeight / 2 + 60, {
       font: this.displayConfig.fontFamily,
-      size: 32,
-      color: hexToRgba(colors.white, 0.6),
+      size: 40,
+      color: hexToRgba(colors.white, 0.7),
       align: 'center',
     });
 
-    // Bottleneck indicator
+    // Bottleneck indicator - larger
     if (status.isBottleneck) {
-      drawText(ctx, '⚠ Bottleneck', x + width / 2, stageY + stageHeight + 30, {
+      drawText(ctx, '⚠ Bottleneck', x + width / 2, stageY + stageHeight + 35, {
         font: this.displayConfig.fontFamily,
-        size: 22,
+        size: 28,
         weight: 600,
         color: colors.warning,
         align: 'center',

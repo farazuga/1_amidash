@@ -270,4 +270,14 @@ export class SlideManager {
     this.isTransitioning = false;
     this.transitionProgress = 0;
   }
+
+  jumpToSlide(index: number): void {
+    if (index >= 0 && index < this.slides.length) {
+      this.currentSlideIndex = index;
+      this.slideStartTime = Date.now();
+      this.isTransitioning = false;
+      this.transitionProgress = 0;
+      logger.info({ slideIndex: index }, 'Jumped to slide');
+    }
+  }
 }

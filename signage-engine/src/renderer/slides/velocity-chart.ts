@@ -20,7 +20,7 @@ export class VelocityChartSlide extends BaseSlide {
 
     const { velocity } = dashboardMetrics;
     const { width, height } = this.displayConfig;
-    const padding = 100;
+    const padding = this.SCREEN_MARGIN;
     const contentY = headerHeight + 80;
     const contentHeight = height - contentY - padding - 100;
 
@@ -151,21 +151,17 @@ export class VelocityChartSlide extends BaseSlide {
     // Title
     drawText(ctx, title, x + 25, y + 40, {
       font: this.displayConfig.fontFamily,
-      size: 28,
+      size: 36,
       color: hexToRgba(colors.white, 0.6),
     });
 
-    // Value with glow
-    ctx.save();
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 15;
+    // Value (no glow for readability)
     drawText(ctx, value, x + 25, y + 85, {
       font: this.displayConfig.fontFamily,
       size: 52,
       weight: 700,
       color: color,
     });
-    ctx.restore();
 
     // Subtitle if provided
     if (subtitle) {
@@ -211,7 +207,7 @@ export class VelocityChartSlide extends BaseSlide {
       if (i < gridLines) {
         drawText(ctx, value.toString(), x - 20, lineY, {
           font: this.displayConfig.fontFamily,
-          size: 24,
+          size: 28,
           color: hexToRgba(colors.white, 0.4),
           align: 'right',
           baseline: 'middle',
@@ -242,7 +238,7 @@ export class VelocityChartSlide extends BaseSlide {
       if (month.posReceived > 0) {
         drawText(ctx, month.posReceived.toString(), poBarX + barWidth / 2, poBarY - 15, {
           font: this.displayConfig.fontFamily,
-          size: 28,
+          size: 32,
           weight: 600,
           color: '#3b82f6',
           align: 'center',
@@ -268,7 +264,7 @@ export class VelocityChartSlide extends BaseSlide {
       if (month.invoiced > 0) {
         drawText(ctx, month.invoiced.toString(), invBarX + barWidth / 2, invBarY - 15, {
           font: this.displayConfig.fontFamily,
-          size: 28,
+          size: 32,
           weight: 600,
           color: colors.success,
           align: 'center',

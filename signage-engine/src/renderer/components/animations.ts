@@ -171,32 +171,20 @@ export function getAnimatedNumber(
   return Math.round(counter.current + (counter.target - counter.current) * eased);
 }
 
-// Draw pulsing glow behind an element
+// Draw pulsing glow behind an element - DISABLED for cleaner look
 export function drawPulsingGlow(
-  ctx: SKRSContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  phase: number,
-  color: string = colors.primary
+  _ctx: SKRSContext2D,
+  _x: number,
+  _y: number,
+  _width: number,
+  _height: number,
+  _phase: number,
+  _color: string = colors.primary
 ): void {
-  const pulseIntensity = 0.15 + Math.sin(phase * 2) * 0.05;
-  const blurSize = 40 + Math.sin(phase * 2) * 10;
-
-  const gradient = ctx.createRadialGradient(
-    x + width / 2, y + height / 2, 0,
-    x + width / 2, y + height / 2, Math.max(width, height) * 0.8
-  );
-  gradient.addColorStop(0, hexToRgba(color, pulseIntensity));
-  gradient.addColorStop(0.5, hexToRgba(color, pulseIntensity * 0.5));
-  gradient.addColorStop(1, 'transparent');
-
-  ctx.fillStyle = gradient;
-  ctx.fillRect(x - blurSize, y - blurSize, width + blurSize * 2, height + blurSize * 2);
+  // Glow effects disabled for better readability
 }
 
-// Draw animated progress bar that fills up
+// Draw progress bar - simplified without animations for better performance
 export function drawAnimatedProgressBar(
   ctx: SKRSContext2D,
   x: number,
@@ -204,7 +192,7 @@ export function drawAnimatedProgressBar(
   width: number,
   height: number,
   progress: number,
-  phase: number,
+  _phase: number,
   options: {
     backgroundColor?: string;
     fillColor?: string;
@@ -213,9 +201,8 @@ export function drawAnimatedProgressBar(
   } = {}
 ): void {
   const {
-    backgroundColor = 'rgba(255, 255, 255, 0.1)',
+    backgroundColor = 'rgba(255, 255, 255, 0.15)',
     fillColor = colors.primary,
-    glowColor = colors.primaryGlow,
     rounded = true,
   } = options;
 
@@ -231,40 +218,16 @@ export function drawAnimatedProgressBar(
   ctx.fillStyle = backgroundColor;
   ctx.fill();
 
-  // Filled portion with shimmer
+  // Filled portion - simple solid fill, no shimmer or glow
   const fillWidth = width * Math.min(1, progress);
   if (fillWidth > 0) {
-    // Glow effect
-    const glowGradient = ctx.createLinearGradient(x, y, x + fillWidth, y);
-    glowGradient.addColorStop(0, hexToRgba(glowColor, 0.3));
-    glowGradient.addColorStop(0.5, hexToRgba(glowColor, 0.1));
-    glowGradient.addColorStop(1, hexToRgba(glowColor, 0.3));
-
-    ctx.beginPath();
-    if (rounded) {
-      ctx.roundRect(x - 5, y - 5, fillWidth + 10, height + 10, radius + 5);
-    } else {
-      ctx.rect(x - 5, y - 5, fillWidth + 10, height + 10);
-    }
-    ctx.fillStyle = glowGradient;
-    ctx.fill();
-
-    // Main fill with animated shimmer
-    const shimmerOffset = (phase * 100) % (width * 2);
-    const fillGradient = ctx.createLinearGradient(x, y, x + fillWidth, y);
-    fillGradient.addColorStop(0, fillColor);
-    fillGradient.addColorStop(Math.max(0, (shimmerOffset - 50) / width), fillColor);
-    fillGradient.addColorStop(Math.min(1, shimmerOffset / width), hexToRgba('#ffffff', 0.3));
-    fillGradient.addColorStop(Math.min(1, (shimmerOffset + 50) / width), fillColor);
-    fillGradient.addColorStop(1, fillColor);
-
     ctx.beginPath();
     if (rounded) {
       ctx.roundRect(x, y, fillWidth, height, radius);
     } else {
       ctx.rect(x, y, fillWidth, height);
     }
-    ctx.fillStyle = fillGradient;
+    ctx.fillStyle = fillColor;
     ctx.fill();
   }
 }
