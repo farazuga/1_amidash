@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, ExternalLink, Eye, FolderOpen } from 'lucide-react';
+import { Calendar, ExternalLink, Eye, FolderOpen, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { InlineEditField } from './inline-edit-field';
@@ -81,6 +81,7 @@ export function QuickInfo({
   onStatusChange,
 }: QuickInfoProps) {
   const hasProjectDates = Boolean(project.start_date && project.end_date);
+  const isSingleDayProject = hasProjectDates && project.start_date === project.end_date;
 
   // Filter statuses based on project type
   const availableStatuses = project.project_type_id
@@ -193,6 +194,15 @@ export function QuickInfo({
             </Link>
           </Button>
 
+          {isSingleDayProject && project.scope_link && (
+            <Button variant="outline" size="sm" asChild>
+              <a href={project.scope_link} target="_blank" rel="noopener noreferrer">
+                <FileText className="mr-1.5 h-3.5 w-3.5" />
+                Scope
+              </a>
+            </Button>
+          )}
+
           {isAdmin && (
             <DeleteProjectButton
               projectId={project.id}
@@ -289,7 +299,10 @@ export function QuickInfo({
                 />
               ) : project.start_date && project.end_date ? (
                 <span className="font-medium">
-                  {format(new Date(project.start_date), 'MMM d')} — {format(new Date(project.end_date), 'MMM d, yyyy')}
+                  {project.start_date === project.end_date
+                    ? format(new Date(project.start_date), 'MMM d, yyyy')
+                    : `${format(new Date(project.start_date), 'MMM d')} — ${format(new Date(project.end_date), 'MMM d, yyyy')}`
+                  }
                 </span>
               ) : project.start_date ? (
                 <span className="font-medium">

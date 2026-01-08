@@ -48,17 +48,36 @@ export function InlineDateRangePicker({
         }
       : undefined;
 
-  const handleSelect = async (range: DateRange | undefined) => {
-    // Check if from and to are DIFFERENT dates (react-day-picker sets both to same date on first click)
-    const hasCompletedRange = range?.from && range?.to &&
-      range.from.getTime() !== range.to.getTime();
+  // Track clicks on the same date to detect intentional single-day selection
+  const lastClickedDateRef = useRef<string | null>(null);
 
-    // Mid-selection = has from but range not yet complete (same date = first click)
+  const handleSelect = async (range: DateRange | undefined) => {
+    // Check if from and to exist (react-day-picker sets both to same date on first click)
+    const hasBothDates = range?.from && range?.to;
+    const isSameDay = hasBothDates && range.from!.getTime() === range.to!.getTime();
+
+    // If user clicked the same date twice, treat it as a 1-day project selection
+    const clickedDateStr = range?.from ? format(range.from, 'yyyy-MM-dd') : null;
+    const isSecondClickOnSameDate = isSameDay && clickedDateStr === lastClickedDateRef.current;
+
+    if (isSameDay && !isSecondClickOnSameDate) {
+      // First click on a date - store it and wait for second selection
+      lastClickedDateRef.current = clickedDateStr;
+      isMidSelectionRef.current = true;
+      setPendingRange(range);
+      return;
+    }
+
+    // Range is complete: either different dates OR same date clicked twice (1-day project)
+    const hasCompletedRange = hasBothDates && (!isSameDay || isSecondClickOnSameDate);
+
+    // Mid-selection = has from but range not yet complete
     isMidSelectionRef.current = Boolean(range?.from && !hasCompletedRange);
     setPendingRange(range);
 
-    // Auto-save only when range is complete (from and to are DIFFERENT dates)
+    // Auto-save when range is complete
     if (hasCompletedRange && range.from && range.to) {
+      lastClickedDateRef.current = null;
       isMidSelectionRef.current = false;
       setIsSaving(true);
       try {
@@ -95,6 +114,14 @@ export function InlineDateRangePicker({
     }
 
     if (startDate && endDate) {
+      // Check if same day (1-day project)
+      if (startDate === endDate) {
+        return (
+          <span className="font-medium">
+            {format(parseISO(startDate), 'MMM d, yyyy')}
+          </span>
+        );
+      }
       return (
         <span className="font-medium">
           {format(parseISO(startDate), 'MMM d')} — {format(parseISO(endDate), 'MMM d, yyyy')}
@@ -127,8 +154,10 @@ export function InlineDateRangePicker({
       // Start fresh - user must select both dates
       setPendingRange(undefined);
       isMidSelectionRef.current = false;
+      lastClickedDateRef.current = null;
     } else {
       isMidSelectionRef.current = false;
+      lastClickedDateRef.current = null;
       setPendingRange(undefined);
     }
     setOpen(isOpen);
@@ -186,7 +215,7 @@ export function InlineDateRangePicker({
             <p className="text-sm font-medium">Select Date Range</p>
             <p className="text-xs text-muted-foreground">
               {pendingRange?.from && (!pendingRange?.to || pendingRange.from.getTime() === pendingRange.to.getTime())
-                ? 'Now select end date'
+                ? 'Select end date (or click same date for 1-day)'
                 : startDate && endDate
                 ? `Current: ${format(parseISO(startDate), 'MMM d')} — ${format(parseISO(endDate), 'MMM d')}`
                 : 'Click start date, then end date'}
@@ -217,7 +246,7 @@ export function InlineDateRangePicker({
         {pendingRange?.from && (!pendingRange?.to || pendingRange.from.getTime() === pendingRange.to.getTime()) && (
           <div className="p-3 border-t bg-muted/50">
             <p className="text-sm text-muted-foreground">
-              Start: {format(pendingRange.from, 'MMM d, yyyy')} — Now select end date
+              Start: {format(pendingRange.from, 'MMM d, yyyy')} — Select end date or click again for 1-day
             </p>
           </div>
         )}
