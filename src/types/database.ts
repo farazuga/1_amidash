@@ -190,6 +190,7 @@ export type Database = {
           expected_update_date: string | null
           goal_completion_date: string | null
           id: string
+          invoiced_date: string | null
           po_number: string | null
           poc_email: string | null
           poc_name: string | null
@@ -217,6 +218,7 @@ export type Database = {
           expected_update_date?: string | null
           goal_completion_date?: string | null
           id?: string
+          invoiced_date?: string | null
           po_number?: string | null
           poc_email?: string | null
           poc_name?: string | null
@@ -244,6 +246,7 @@ export type Database = {
           expected_update_date?: string | null
           goal_completion_date?: string | null
           id?: string
+          invoiced_date?: string | null
           po_number?: string | null
           poc_email?: string | null
           poc_name?: string | null

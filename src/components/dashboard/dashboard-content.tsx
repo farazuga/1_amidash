@@ -264,16 +264,16 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
   const dateRange = useMemo(() => getDateRange(), [periodType, selectedYear, selectedMonth, selectedQuarter]);
   const invoicedStatus = useMemo(() => statuses.find(s => s.name === 'Invoiced'), [statuses]);
 
-  // Get invoiced projects in period (from status history)
-  const invoicedInPeriod = useMemo(() => statusHistory.filter(h => {
-    if (h.status?.name !== 'Invoiced') return false;
-    const changedAt = new Date(h.changed_at);
-    return changedAt >= dateRange.start && changedAt <= dateRange.end;
-  }), [statusHistory, dateRange]);
+  // Get invoiced projects in period - use invoiced_date field for accuracy
+  const invoicedInPeriod = useMemo(() => projects.filter(p => {
+    if (!p.invoiced_date) return false;
+    const invoicedDate = new Date(p.invoiced_date + 'T00:00:00'); // Parse as local date
+    return invoicedDate >= dateRange.start && invoicedDate <= dateRange.end;
+  }), [projects, dateRange]);
 
   // Revenue invoiced in period
-  const invoicedRevenue = useMemo(() => invoicedInPeriod.reduce((sum, h) => {
-    return sum + (h.project?.sales_amount || 0);
+  const invoicedRevenue = useMemo(() => invoicedInPeriod.reduce((sum, p) => {
+    return sum + (p.sales_amount || 0);
   }, 0), [invoicedInPeriod]);
 
   // Projects created (POs received) in period - use created_date for consistency with projects page
@@ -443,20 +443,20 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
     });
     const prevPosReceived = prevPosProjects.reduce((sum, p) => sum + (p.sales_amount || 0), 0);
 
-    // Invoiced in previous period
-    const prevInvoiced = statusHistory.filter(h => {
-      if (h.status?.name !== 'Invoiced') return false;
-      const changedAt = new Date(h.changed_at);
-      return changedAt >= prevRange.start && changedAt <= prevRange.end;
+    // Invoiced in previous period - use invoiced_date for consistency
+    const prevInvoicedProjects = projects.filter(p => {
+      if (!p.invoiced_date) return false;
+      const invoicedDate = new Date(p.invoiced_date + 'T00:00:00');
+      return invoicedDate >= prevRange.start && invoicedDate <= prevRange.end;
     });
-    const prevInvoicedRevenue = prevInvoiced.reduce((sum, h) => sum + (h.project?.sales_amount || 0), 0);
+    const prevInvoicedRevenue = prevInvoicedProjects.reduce((sum, p) => sum + (p.sales_amount || 0), 0);
 
     return {
       posReceived: prevPosReceived,
       invoiced: prevInvoicedRevenue,
-      projectsCompleted: prevInvoiced.length
+      projectsCompleted: prevInvoicedProjects.length
     };
-  }, [periodType, selectedYear, selectedMonth, selectedQuarter, projects, statusHistory]);
+  }, [periodType, selectedYear, selectedMonth, selectedQuarter, projects]);
 
   // Projects completed count (invoiced this period)
   const projectsCompletedCount = invoicedInPeriod.length;
@@ -747,11 +747,11 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
         return createdDate >= monthStart && createdDate <= monthEnd;
       });
 
-      // Invoiced
-      const invoicedInMonth = statusHistory.filter(h => {
-        if (h.status?.name !== 'Invoiced') return false;
-        const changedAt = new Date(h.changed_at);
-        return changedAt >= monthStart && changedAt <= monthEnd;
+      // Invoiced - use invoiced_date for consistency
+      const invoicedInMonth = projects.filter(p => {
+        if (!p.invoiced_date) return false;
+        const invoicedDate = new Date(p.invoiced_date + 'T00:00:00');
+        return invoicedDate >= monthStart && invoicedDate <= monthEnd;
       });
 
       result.push({
@@ -767,7 +767,7 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
     const netChange = totalPOs - totalInvoiced;
 
     return { monthly: result, totalPOs, totalInvoiced, netChange };
-  }, [projects, statusHistory]);
+  }, [projects]);
 
   // ============================================
   // TIER 3 METRICS

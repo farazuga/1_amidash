@@ -13,6 +13,7 @@ export interface DashboardProject {
   current_status_id: string | null;
   created_at: string | null;
   created_date: string | null;
+  invoiced_date: string | null;
   current_status: { id: string; name: string } | null;
 }
 

@@ -26,6 +26,7 @@ interface QuickInfoProps {
     start_date: string | null;
     end_date: string | null;
     created_at: string | null;
+    invoiced_date: string | null;
     sales_amount: number | null;
     sales_order_number: string | null;
     sales_order_url: string | null;
@@ -330,6 +331,24 @@ export function QuickInfo({
             ) : project.created_at ? (
               <span className="font-medium text-sm">
                 {formatDateForDisplay(project.created_at)}
+              </span>
+            ) : (
+              <span className="text-sm text-muted-foreground italic">Not set</span>
+            )}
+          </div>
+
+          {/* Invoiced Date */}
+          <div className="flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors">
+            <span className="text-sm text-muted-foreground">Invoiced</span>
+            {canEdit ? (
+              <InlineDatePicker
+                value={project.invoiced_date}
+                onSave={(date) => handleDateSave('invoiced_date', date)}
+                label="Invoiced Date"
+              />
+            ) : project.invoiced_date ? (
+              <span className="font-medium text-sm">
+                {formatDateForDisplay(project.invoiced_date)}
               </span>
             ) : (
               <span className="text-sm text-muted-foreground italic">Not set</span>
