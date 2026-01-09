@@ -492,6 +492,8 @@ export async function inlineEditProjectField(data: InlineEditData): Promise<Inli
     sales_order_number: 'sales_order_number',
     sales_order_url: 'sales_order_url',
     status_id: 'current_status_id',
+    created_at: 'created_at',
+    invoiced_date: 'invoiced_date',
   };
 
   const dbField = fieldMap[data.field];
@@ -527,7 +529,7 @@ export async function inlineEditProjectField(data: InlineEditData): Promise<Inli
   // Get current project for audit log and sales order
   const { data: project } = await supabase
     .from('projects')
-    .select('sales_order_number, goal_completion_date, sales_amount, salesperson_id, start_date, end_date, sales_order_url')
+    .select('sales_order_number, goal_completion_date, sales_amount, salesperson_id, start_date, end_date, sales_order_url, created_at, invoiced_date')
     .eq('id', data.projectId)
     .single();
 
