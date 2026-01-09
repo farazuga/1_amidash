@@ -13,7 +13,7 @@ interface SearchParams {
   overdue?: string;
   sort_by?: string;
   sort_order?: string;
-  view?: 'active' | 'archived';
+  view?: 'active' | 'archived' | 'all';
   date_type?: 'created' | 'goal';
   date_presets?: string; // comma-separated presets (this_month, q1, etc.)
   date_years?: string; // comma-separated years (2025, 2026, etc.)
@@ -105,16 +105,17 @@ async function getProjects(searchParams: SearchParams, invoicedStatusId: string 
       )
     `);
 
-  // Apply active/archived filter (default to active)
+  // Apply active/archived/all filter (default to active)
   const view = searchParams.view || 'active';
-  if (invoicedStatusId) {
+  if (invoicedStatusId && view !== 'all') {
     if (view === 'active') {
       // Active = NOT invoiced
       query = query.neq('current_status_id', invoicedStatusId);
-    } else {
+    } else if (view === 'archived') {
       // Archived = invoiced
       query = query.eq('current_status_id', invoicedStatusId);
     }
+    // view === 'all' - no filter, show everything
   }
 
   // Apply search

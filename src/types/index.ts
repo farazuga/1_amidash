@@ -103,6 +103,7 @@ export interface Project {
   created_by: string | null;
   created_at: string | null;
   updated_at: string | null;
+  invoiced_date: string | null;
   // Joined relations
   current_status?: Status | null;
   project_type?: ProjectType | null;

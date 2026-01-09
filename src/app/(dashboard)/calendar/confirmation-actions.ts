@@ -4,6 +4,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import { sendEmail } from '@/lib/email/send';
+import { checkEmailEnabled } from '@/lib/email/settings';
 import { confirmationEmailTemplate, pmConfirmationResponseEmailTemplate } from '@/lib/email/templates';
 import {
   createConfirmationRequestSchema,
@@ -222,26 +223,37 @@ export async function createConfirmationRequest(
       })),
     }));
 
-    // Send confirmation email
-    const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL}/confirm/${request.token}`;
+    // Check if emails are enabled before sending
+    const emailSettings = await checkEmailEnabled(params.projectId, params.sendToEmail);
 
-    const emailHtml = confirmationEmailTemplate({
-      customerName: params.sendToName || project.poc_name || 'Customer',
-      projectName: project.client_name,
-      assignments: scheduleItems,
-      confirmUrl,
-      expiresAt: request.expires_at,
-    });
+    if (emailSettings.canSendEmail) {
+      // Send confirmation email
+      const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL}/confirm/${request.token}`;
 
-    const emailResult = await sendEmail({
-      to: params.sendToEmail,
-      subject: `Please confirm your project dates - ${project.client_name}`,
-      html: emailHtml,
-    });
+      const emailHtml = confirmationEmailTemplate({
+        customerName: params.sendToName || project.poc_name || 'Customer',
+        projectName: project.client_name,
+        assignments: scheduleItems,
+        confirmUrl,
+        expiresAt: request.expires_at,
+      });
 
-    if (!emailResult.success) {
-      console.error('Failed to send confirmation email:', emailResult.error);
-      // Don't fail the whole operation - request was created
+      const emailResult = await sendEmail({
+        to: params.sendToEmail,
+        subject: `Please confirm your project dates - ${project.client_name}`,
+        html: emailHtml,
+      });
+
+      if (!emailResult.success) {
+        console.error('Failed to send confirmation email:', emailResult.error);
+        // Don't fail the whole operation - request was created
+      }
+    } else {
+      console.log('Skipping confirmation email - emails disabled:', {
+        global: emailSettings.globalEnabled,
+        project: emailSettings.projectEnabled,
+        recipient: emailSettings.recipientEnabled,
+      });
     }
 
     revalidatePath('/calendar');
@@ -642,6 +654,21 @@ export async function resendConfirmationEmail(
         endTime: d.end_time,
       })),
     }));
+
+    // Check if emails are enabled before sending
+    const emailSettings = await checkEmailEnabled(request.project_id, request.sent_to_email);
+
+    if (!emailSettings.canSendEmail) {
+      let reason = 'Email notifications disabled';
+      if (!emailSettings.globalEnabled) {
+        reason = 'Client emails are disabled globally';
+      } else if (!emailSettings.projectEnabled) {
+        reason = 'Email notifications disabled for this project';
+      } else if (!emailSettings.recipientEnabled) {
+        reason = 'Recipient has opted out of email notifications';
+      }
+      return { success: false, error: reason };
+    }
 
     // Send email
     const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL}/confirm/${request.token}`;
