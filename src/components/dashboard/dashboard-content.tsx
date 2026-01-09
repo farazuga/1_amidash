@@ -276,11 +276,11 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
     return sum + (h.project?.sales_amount || 0);
   }, 0), [invoicedInPeriod]);
 
-  // Projects created (POs received) in period
+  // Projects created (POs received) in period - use created_date for consistency with projects page
   const projectsCreatedInPeriod = useMemo(() => projects.filter(p => {
-    if (!p.created_at) return false;
-    const createdAt = new Date(p.created_at);
-    return createdAt >= dateRange.start && createdAt <= dateRange.end;
+    if (!p.created_date) return false;
+    const createdDate = new Date(p.created_date + 'T00:00:00'); // Parse as local date
+    return createdDate >= dateRange.start && createdDate <= dateRange.end;
   }), [projects, dateRange]);
 
   // Revenue from POs received in period
@@ -435,11 +435,11 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
   const previousPeriodData = useMemo(() => {
     const prevRange = getPreviousPeriod();
 
-    // POs received in previous period
+    // POs received in previous period - use created_date for consistency
     const prevPosProjects = projects.filter(p => {
-      if (!p.created_at) return false;
-      const createdAt = new Date(p.created_at);
-      return createdAt >= prevRange.start && createdAt <= prevRange.end;
+      if (!p.created_date) return false;
+      const createdDate = new Date(p.created_date + 'T00:00:00');
+      return createdDate >= prevRange.start && createdDate <= prevRange.end;
     });
     const prevPosReceived = prevPosProjects.reduce((sum, p) => sum + (p.sales_amount || 0), 0);
 
@@ -740,11 +740,11 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
       const monthEnd = endOfMonth(date);
       const monthStr = format(date, 'MMM');
 
-      // POs received (projects created)
+      // POs received (projects created) - use created_date for consistency
       const posInMonth = projects.filter(p => {
-        if (!p.created_at) return false;
-        const createdAt = new Date(p.created_at);
-        return createdAt >= monthStart && createdAt <= monthEnd;
+        if (!p.created_date) return false;
+        const createdDate = new Date(p.created_date + 'T00:00:00');
+        return createdDate >= monthStart && createdDate <= monthEnd;
       });
 
       // Invoiced
@@ -989,6 +989,43 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
   const currentMonth = now.getMonth() + 1;
   const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
 
+  // Helper to build URL for projects page with current period filter
+  const getPosReceivedUrl = () => {
+    const params = new URLSearchParams();
+    params.set('view', 'all'); // Show all projects including invoiced
+    params.set('date_type', 'created');
+
+    if (periodType === 'month') {
+      // Map month to quarter preset + year
+      const quarter = Math.ceil(selectedMonth / 3);
+      params.set('date_presets', `q${quarter}`);
+      params.set('date_years', String(selectedYear));
+      // For specific month filtering, we'd need to add month support to projects page
+      // For now, link to the quarter
+    } else if (periodType === 'quarter') {
+      params.set('date_presets', `q${selectedQuarter}`);
+      params.set('date_years', String(selectedYear));
+    } else if (periodType === 'ytd') {
+      params.set('date_presets', 'this_year');
+      params.set('date_years', String(selectedYear));
+    } else {
+      // last12 - use last_3_months as approximation (projects page doesn't have last_12_months)
+      params.set('date_presets', 'last_3_months');
+    }
+
+    return `/projects?${params.toString()}`;
+  };
+
+  const getInvoicedUrl = () => {
+    // For invoiced, link to archived view (invoiced projects)
+    // The date filter on archived will show projects with goal_completion_date in range
+    // Note: This isn't perfect since invoice date != goal date, but it's a reasonable approximation
+    const params = new URLSearchParams();
+    params.set('view', 'archived');
+
+    return `/projects?${params.toString()}`;
+  };
+
   return (
     <div className="space-y-3">
       {/* HERO: Monthly Summary - Most Prominent Metrics */}
@@ -996,58 +1033,62 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="grid grid-cols-2 gap-6 sm:gap-10 flex-1">
             {/* Monthly POs Received */}
-            <MetricTooltip metric="posReceived">
-              <div className="cursor-help">
-                <div className="text-xs sm:text-sm text-white/70 uppercase tracking-wider mb-1 flex items-center gap-1">
-                  {periodType === 'month' ? 'Monthly' : periodType === 'quarter' ? 'Quarterly' : periodType === 'ytd' ? 'YTD' : '12mo'} POs Received
-                  <HelpCircle className="h-3 w-3 opacity-50" />
-                </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl sm:text-5xl font-bold tracking-tight">{formatCurrency(posReceivedRevenue)}</span>
+            <Link href={getPosReceivedUrl()} className="block hover:opacity-90 transition-opacity">
+              <MetricTooltip metric="posReceived">
+                <div className="cursor-pointer">
+                  <div className="text-xs sm:text-sm text-white/70 uppercase tracking-wider mb-1 flex items-center gap-1">
+                    {periodType === 'month' ? 'Monthly' : periodType === 'quarter' ? 'Quarterly' : periodType === 'ytd' ? 'YTD' : '12mo'} POs Received
+                    <HelpCircle className="h-3 w-3 opacity-50" />
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl sm:text-5xl font-bold tracking-tight">{formatCurrency(posReceivedRevenue)}</span>
+                    {periodGoal.revenue > 0 && (
+                      <span className="text-sm sm:text-lg text-white/60">/ {formatCurrency(periodGoal.revenue)}</span>
+                    )}
+                  </div>
                   {periodGoal.revenue > 0 && (
-                    <span className="text-sm sm:text-lg text-white/60">/ {formatCurrency(periodGoal.revenue)}</span>
+                    <div className="mt-2 flex items-center gap-2">
+                      <Progress value={posReceivedProgress} className="h-2 flex-1 bg-white/20 [&>div]:bg-white" />
+                      <span className="text-sm font-semibold">{posReceivedProgress.toFixed(0)}%</span>
+                    </div>
+                  )}
+                  {compareEnabled && previousPeriodData.posReceived > 0 && (
+                    <div className="mt-1">
+                      <TrendIndicator current={posReceivedRevenue} previous={previousPeriodData.posReceived} />
+                    </div>
                   )}
                 </div>
-                {periodGoal.revenue > 0 && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <Progress value={posReceivedProgress} className="h-2 flex-1 bg-white/20 [&>div]:bg-white" />
-                    <span className="text-sm font-semibold">{posReceivedProgress.toFixed(0)}%</span>
-                  </div>
-                )}
-                {compareEnabled && previousPeriodData.posReceived > 0 && (
-                  <div className="mt-1">
-                    <TrendIndicator current={posReceivedRevenue} previous={previousPeriodData.posReceived} />
-                  </div>
-                )}
-              </div>
-            </MetricTooltip>
+              </MetricTooltip>
+            </Link>
 
             {/* Monthly Invoiced */}
-            <MetricTooltip metric="invoiced">
-              <div className="cursor-help">
-                <div className="text-xs sm:text-sm text-white/70 uppercase tracking-wider mb-1 flex items-center gap-1">
-                  {periodType === 'month' ? 'Monthly' : periodType === 'quarter' ? 'Quarterly' : periodType === 'ytd' ? 'YTD' : '12mo'} Invoiced
-                  <HelpCircle className="h-3 w-3 opacity-50" />
-                </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl sm:text-5xl font-bold tracking-tight">{formatCurrency(invoicedRevenue)}</span>
+            <Link href={getInvoicedUrl()} className="block hover:opacity-90 transition-opacity">
+              <MetricTooltip metric="invoiced">
+                <div className="cursor-pointer">
+                  <div className="text-xs sm:text-sm text-white/70 uppercase tracking-wider mb-1 flex items-center gap-1">
+                    {periodType === 'month' ? 'Monthly' : periodType === 'quarter' ? 'Quarterly' : periodType === 'ytd' ? 'YTD' : '12mo'} Invoiced
+                    <HelpCircle className="h-3 w-3 opacity-50" />
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl sm:text-5xl font-bold tracking-tight">{formatCurrency(invoicedRevenue)}</span>
+                    {periodGoal.invoicedRevenue > 0 && (
+                      <span className="text-sm sm:text-lg text-white/60">/ {formatCurrency(periodGoal.invoicedRevenue)}</span>
+                    )}
+                  </div>
                   {periodGoal.invoicedRevenue > 0 && (
-                    <span className="text-sm sm:text-lg text-white/60">/ {formatCurrency(periodGoal.invoicedRevenue)}</span>
+                    <div className="mt-2 flex items-center gap-2">
+                      <Progress value={invoicedRevenueProgress} className="h-2 flex-1 bg-white/20 [&>div]:bg-white" />
+                      <span className="text-sm font-semibold">{invoicedRevenueProgress.toFixed(0)}%</span>
+                    </div>
+                  )}
+                  {compareEnabled && previousPeriodData.invoiced > 0 && (
+                    <div className="mt-1">
+                      <TrendIndicator current={invoicedRevenue} previous={previousPeriodData.invoiced} />
+                    </div>
                   )}
                 </div>
-                {periodGoal.invoicedRevenue > 0 && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <Progress value={invoicedRevenueProgress} className="h-2 flex-1 bg-white/20 [&>div]:bg-white" />
-                    <span className="text-sm font-semibold">{invoicedRevenueProgress.toFixed(0)}%</span>
-                  </div>
-                )}
-                {compareEnabled && previousPeriodData.invoiced > 0 && (
-                  <div className="mt-1">
-                    <TrendIndicator current={invoicedRevenue} previous={previousPeriodData.invoiced} />
-                  </div>
-                )}
-              </div>
-            </MetricTooltip>
+              </MetricTooltip>
+            </Link>
           </div>
 
           {/* Period Selector */}
