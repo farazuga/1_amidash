@@ -187,9 +187,11 @@ export interface RevenueGoal {
 }
 
 // Project Files types
-// Note: 'photos' and 'videos' are kept for backwards compatibility with existing data
-// New uploads should use 'media' instead
-export type FileCategory = 'schematics' | 'sow' | 'media' | 'photos' | 'videos' | 'other';
+// Active categories for new uploads
+export type FileCategory = 'schematics' | 'sow' | 'media' | 'other';
+
+// Legacy type for backwards compatibility with existing data in database
+export type FileCategoryWithLegacy = FileCategory | 'photos' | 'videos';
 
 export type ProjectPhase = 'quoting' | 'engineering' | 'onsite' | 'complete' | 'other';
 
@@ -234,7 +236,7 @@ export interface PresalesFile {
   project_id: string | null;  // Linked after project creation
   file_name: string;
   sharepoint_item_id: string | null;
-  category: FileCategory;
+  category: FileCategoryWithLegacy;  // Can include legacy photos/videos from DB
   file_size: number | null;
   mime_type: string | null;
   file_extension: string | null;
@@ -263,7 +265,7 @@ export interface ProjectFile {
   presales_file_id: string | null;  // Link to original presales file if migrated
   file_name: string;
   sharepoint_item_id: string | null;
-  category: FileCategory;
+  category: FileCategoryWithLegacy;  // Can include legacy photos/videos from DB
   file_size: number | null;
   mime_type: string | null;
   file_extension: string | null;
@@ -302,12 +304,11 @@ export interface ProjectFileAccessLog {
 }
 
 export interface FileCategoryCount {
-  category: FileCategory;
+  category: FileCategoryWithLegacy;  // Can include legacy photos/videos from DB
   count: number;
 }
 
-// File category display configuration
-// Includes legacy 'photos' and 'videos' for backwards compatibility
+// File category display configuration (used in upload dropdowns)
 export const FILE_CATEGORY_CONFIG: Record<FileCategory, { label: string; icon: string; description: string }> = {
   schematics: {
     label: 'Schematics',
@@ -324,7 +325,15 @@ export const FILE_CATEGORY_CONFIG: Record<FileCategory, { label: string; icon: s
     icon: 'Image',
     description: 'Site photos, videos, and recordings',
   },
-  // Legacy categories for backwards compatibility with existing data
+  other: {
+    label: 'Other',
+    icon: 'File',
+    description: 'Miscellaneous files',
+  },
+};
+
+// Legacy category config for displaying existing files with old categories
+export const LEGACY_CATEGORY_CONFIG: Record<'photos' | 'videos', { label: string; icon: string; description: string }> = {
   photos: {
     label: 'Photos',
     icon: 'Image',
@@ -335,11 +344,12 @@ export const FILE_CATEGORY_CONFIG: Record<FileCategory, { label: string; icon: s
     icon: 'Video',
     description: 'Video recordings (legacy)',
   },
-  other: {
-    label: 'Other',
-    icon: 'File',
-    description: 'Miscellaneous files',
-  },
+};
+
+// Maps legacy categories to their current equivalent
+export const LEGACY_CATEGORY_MAP: Record<'photos' | 'videos', FileCategory> = {
+  photos: 'media',
+  videos: 'media',
 };
 
 export const PROJECT_PHASE_CONFIG: Record<ProjectPhase, { label: string }> = {

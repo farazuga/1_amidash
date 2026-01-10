@@ -84,7 +84,7 @@ export interface DeleteFileResult {
 // Helper Functions
 // ============================================================================
 
-async function getMicrosoftConnection(userId: string): Promise<CalendarConnection | null> {
+export async function getMicrosoftConnection(userId: string): Promise<CalendarConnection | null> {
   const supabase = await createServiceClient();
 
   // Use type assertion since calendar_connections may not be in generated types yet
@@ -134,7 +134,7 @@ async function getTypedServiceClient(): Promise<AnySupabaseClient> {
 /**
  * Get the global SharePoint configuration
  */
-async function getGlobalSharePointConfig(): Promise<SharePointGlobalConfig | null> {
+export async function getGlobalSharePointConfig(): Promise<SharePointGlobalConfig | null> {
   const db = await getTypedClient();
   const { data } = await db
     .from('app_settings')
@@ -160,10 +160,12 @@ export async function isSharePointConfigured(): Promise<boolean> {
 /**
  * Ensure a project has a SharePoint folder (auto-create if needed)
  * Uses the global SharePoint configuration
+ * Folder naming format: "S12345 ClientName"
  */
 async function ensureProjectFolder(
   projectId: string,
-  projectName: string,
+  salesOrderNumber: string,
+  clientName: string,
   userId: string,
   msConnection: CalendarConnection
 ): Promise<{ success: boolean; connection?: ProjectSharePointConnection; error?: string }> {
@@ -187,8 +189,9 @@ async function ensureProjectFolder(
   }
 
   try {
-    // Sanitize project name for folder name
-    const folderName = projectName.replace(/[<>:"/\\|?*]/g, '-').trim();
+    // Generate folder name: "S12345 ClientName"
+    const sanitizedClientName = clientName.replace(/[<>:"/\\|?*]/g, '-').trim();
+    const folderName = `${salesOrderNumber} ${sanitizedClientName}`;
 
     // Create project folder under the base folder
     const projectFolder = await sharepoint.createFolder(
@@ -492,13 +495,13 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
     return { success: false, error: `Microsoft connection failed: ${msError instanceof Error ? msError.message : 'Unknown error'}` };
   }
 
-  // Get project name for folder creation
-  let project;
+  // Get project details for folder creation
+  let project: { client_name: string; sales_order_number: string };
   try {
     console.log('[uploadFile] === STEP 5: Getting project ===');
     const { data: projectData, error: projectError } = await db
       .from('projects')
-      .select('client_name')
+      .select('client_name, sales_order_number')
       .eq('id', data.projectId)
       .single();
 
@@ -507,7 +510,7 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
       return { success: false, error: 'Project not found' };
     }
     project = projectData;
-    console.log('[uploadFile] Project found:', project.client_name);
+    console.log('[uploadFile] Project found:', project.sales_order_number, project.client_name);
   } catch (projectFetchError) {
     console.error('[uploadFile] Project fetch exception:', projectFetchError);
     return { success: false, error: `Failed to fetch project: ${projectFetchError instanceof Error ? projectFetchError.message : 'Unknown error'}` };
@@ -519,6 +522,7 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
     console.log('[uploadFile] === STEP 6: Ensuring project folder ===');
     const folderResult = await ensureProjectFolder(
       data.projectId,
+      project.sales_order_number,
       project.client_name,
       user.id,
       msConnection

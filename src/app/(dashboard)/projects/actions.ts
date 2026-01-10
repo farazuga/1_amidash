@@ -2,6 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { createProjectSharePointFolder } from '@/lib/sharepoint/folder-operations';
+import { getGlobalSharePointConfig, getMicrosoftConnection } from '@/app/(dashboard)/projects/[salesOrder]/files/actions';
 
 // Helper to get sales order number from project ID for revalidation
 async function getSalesOrderNumber(projectId: string): Promise<string | null> {
@@ -159,6 +161,50 @@ export async function createProject(data: CreateProjectData): Promise<CreateProj
   } catch (err) {
     console.error('Background tasks error:', err);
     // Don't fail the whole operation for background tasks
+  }
+
+  // Auto-create SharePoint folder (background, non-blocking)
+  // Only if sales_order_number is provided (required for folder naming)
+  if (data.sales_order_number) {
+    (async () => {
+      try {
+        // Check if global SharePoint is configured
+        const globalConfig = await getGlobalSharePointConfig();
+        if (!globalConfig) {
+          console.log('[createProject] SharePoint not configured, skipping folder creation');
+          return;
+        }
+
+        // Get user's Microsoft connection
+        const msConnection = await getMicrosoftConnection(user.id);
+        if (!msConnection) {
+          console.log('[createProject] User not connected to Microsoft, skipping folder creation');
+          return;
+        }
+
+        // Create the SharePoint folder
+        const result = await createProjectSharePointFolder(
+          {
+            projectId: newProject.id,
+            salesOrderNumber: data.sales_order_number!,
+            clientName: data.client_name,
+            userId: user.id,
+            msConnection,
+            globalConfig,
+          },
+          supabase
+        );
+
+        if (result.success) {
+          console.log(`[createProject] SharePoint folder created: ${data.sales_order_number} ${data.client_name}`);
+        } else {
+          console.error('[createProject] SharePoint folder creation failed:', result.error);
+        }
+      } catch (error) {
+        console.error('[createProject] SharePoint folder creation error:', error);
+        // Don't fail - folder can be created later when files are uploaded
+      }
+    })();
   }
 
   revalidatePath('/projects');

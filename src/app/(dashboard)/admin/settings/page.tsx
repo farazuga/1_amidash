@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Loader2, Mail, AlertTriangle, Settings, FolderSync, ExternalLink, Unlink, BarChart3, HelpCircle } from 'lucide-react';
+import { Loader2, Mail, AlertTriangle, Settings, FolderSync, ExternalLink, Unlink, BarChart3, HelpCircle, FolderPlus, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
@@ -21,6 +21,8 @@ import {
   getSharePointConfig,
   removeSharePointConfig,
   checkAdminMicrosoftConnection,
+  createMissingSharePointFolders,
+  getProjectsWithoutFoldersCount,
 } from './sharepoint-actions';
 import type { SharePointGlobalConfig } from '@/types';
 
@@ -131,6 +133,10 @@ export default function AdminSettingsPage() {
   const [showSharepointDialog, setShowSharepointDialog] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
 
+  // Folder migration state
+  const [projectsWithoutFolders, setProjectsWithoutFolders] = useState<{ count: number; total: number }>({ count: 0, total: 0 });
+  const [isCreatingFolders, setIsCreatingFolders] = useState(false);
+
   useEffect(() => {
     const fetchSettings = async () => {
       // Fetch all settings at once
@@ -188,14 +194,15 @@ export default function AdminSettingsPage() {
     fetchSettings();
   }, [supabase]);
 
-  // Fetch SharePoint config and Microsoft connection status
+  // Fetch SharePoint config, Microsoft connection status, and folder counts
   useEffect(() => {
     const fetchSharePointSettings = async () => {
       setSharepointLoading(true);
       try {
-        const [configResult, msResult] = await Promise.all([
+        const [configResult, msResult, folderCount] = await Promise.all([
           getSharePointConfig(),
           checkAdminMicrosoftConnection(),
+          getProjectsWithoutFoldersCount(),
         ]);
 
         if (configResult.success) {
@@ -203,6 +210,7 @@ export default function AdminSettingsPage() {
         }
         setMsConnected(msResult.connected);
         setMsEmail(msResult.email || null);
+        setProjectsWithoutFolders(folderCount);
       } catch (error) {
         console.error('Error fetching SharePoint settings:', error);
       } finally {
@@ -212,6 +220,35 @@ export default function AdminSettingsPage() {
 
     fetchSharePointSettings();
   }, []);
+
+  const handleCreateMissingFolders = async () => {
+    setIsCreatingFolders(true);
+    try {
+      const result = await createMissingSharePointFolders();
+
+      if (result.success) {
+        if (result.created > 0) {
+          toast.success(`Created ${result.created} SharePoint folder${result.created !== 1 ? 's' : ''}`);
+        } else {
+          toast.info('All projects already have SharePoint folders');
+        }
+
+        if (result.errors > 0) {
+          toast.warning(`${result.errors} folder${result.errors !== 1 ? 's' : ''} failed to create`);
+        }
+
+        // Refresh the count
+        const newCount = await getProjectsWithoutFoldersCount();
+        setProjectsWithoutFolders(newCount);
+      } else {
+        toast.error(result.error || 'Failed to create folders');
+      }
+    } catch (error) {
+      toast.error('Failed to create folders');
+    } finally {
+      setIsCreatingFolders(false);
+    }
+  };
 
   const handleDisconnectSharePoint = async () => {
     setIsDisconnecting(true);
@@ -528,11 +565,50 @@ WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND pr
                   <div>
                     <p className="text-sm font-medium">How it works</p>
                     <p className="text-sm text-muted-foreground">
-                      When files are uploaded to a project, a subfolder is automatically
-                      created (e.g., /Projects/ClientName) with category folders for
-                      Schematics, SOW, Photos, Videos, and Other.
+                      When a new project is created, a SharePoint folder is automatically
+                      created (e.g., /Projects/S12345 ClientName) with category folders for
+                      Schematics, SOW, Photos & Videos, and Other.
                     </p>
                   </div>
+                </div>
+              </div>
+
+              {/* Create folders for existing projects */}
+              <div className="rounded-lg border p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium flex items-center gap-2">
+                      <FolderPlus className="h-4 w-4" />
+                      Create Folders for Existing Projects
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {projectsWithoutFolders.count > 0 ? (
+                        <>{projectsWithoutFolders.count} of {projectsWithoutFolders.total} projects need folders</>
+                      ) : (
+                        <span className="flex items-center gap-1 text-green-600">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          All projects have SharePoint folders
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleCreateMissingFolders}
+                    disabled={isCreatingFolders || projectsWithoutFolders.count === 0}
+                    size="sm"
+                  >
+                    {isCreatingFolders ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <FolderPlus className="h-4 w-4 mr-2" />
+                        Create Folders
+                      </>
+                    )}
+                  </Button>
                 </div>
               </div>
             </>

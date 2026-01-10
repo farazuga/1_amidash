@@ -14,7 +14,9 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",
-    "db:types": "supabase gen types typescript --project-id oykexdjigczldljvrozb > src/types/database.ts"
+    "db:types": "supabase gen types typescript --project-id oykexdjigczldljvrozb > src/types/database.ts",
+    "sharepoint:create-folders": "npx tsx scripts/create-sharepoint-folders.ts",
+    "sharepoint:create-folders:dry-run": "npx tsx scripts/create-sharepoint-folders.ts --dry-run"
   },
   "dependencies": {
     "@azure/msal-node": "^3.8.4",

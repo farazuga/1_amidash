@@ -71,9 +71,6 @@ const categoryIcons: Record<FileCategory, React.ComponentType<{ className?: stri
   schematics: FileCode,
   sow: FileText,
   media: Image,
-  // Legacy categories for backwards compatibility
-  photos: Image,
-  videos: Image,
   other: File,
 };
 

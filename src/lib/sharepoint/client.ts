@@ -18,7 +18,7 @@ import type {
   ShareLinkResult,
   CreateShareLinkRequest,
 } from './types';
-import type { FileCategory } from '@/types';
+import type { FileCategory, FileCategoryWithLegacy } from '@/types';
 
 // Re-use the calendar connection for SharePoint (same Microsoft OAuth)
 type MicrosoftConnection = CalendarConnection;
@@ -635,8 +635,9 @@ export async function getThumbnails(
 }
 
 // Helper function to map category to folder name
-function getCategoryFolderName(category: FileCategory): string {
-  const names: Record<FileCategory, string> = {
+// Supports legacy photos/videos categories for existing files
+function getCategoryFolderName(category: FileCategoryWithLegacy): string {
+  const names: Record<FileCategoryWithLegacy, string> = {
     schematics: 'Schematics',
     sow: 'SOW',
     media: 'Photos & Videos',
