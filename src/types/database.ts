@@ -627,51 +627,6 @@ export type Database = {
           },
         ]
       }
-      calendar_subscriptions: {
-        Row: {
-          id: string
-          user_id: string | null
-          feed_type: string
-          project_id: string | null
-          token: string
-          created_at: string | null
-          last_accessed_at: string | null
-        }
-        Insert: {
-          id?: string
-          user_id?: string | null
-          feed_type: string
-          project_id?: string | null
-          token?: string
-          created_at?: string | null
-          last_accessed_at?: string | null
-        }
-        Update: {
-          id?: string
-          user_id?: string | null
-          feed_type?: string
-          project_id?: string | null
-          token?: string
-          created_at?: string | null
-          last_accessed_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "calendar_subscriptions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "calendar_subscriptions_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
     }
     Views: {
       [_ in never]: never
