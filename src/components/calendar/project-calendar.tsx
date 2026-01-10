@@ -21,7 +21,7 @@ import { CalendarLegend } from './calendar-legend';
 import { AssignmentDialog } from './assignment-dialog';
 import { AssignmentSidebar } from './assignment-sidebar';
 import { DraggingUserOverlay } from './draggable-user';
-import { WEEKDAYS, BOOKING_STATUS_CONFIG } from '@/lib/calendar/constants';
+import { WEEKDAYS, BOOKING_STATUS_CONFIG, DEFAULT_WORK_TIMES } from '@/lib/calendar/constants';
 import {
   getCalendarDays,
   getMonthViewRange,
@@ -253,8 +253,8 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
         data: {
           assignmentId: event.assignmentId,
           date,
-          startTime: '08:00:00',
-          endTime: '17:00:00',
+          startTime: DEFAULT_WORK_TIMES.startTime,
+          endTime: DEFAULT_WORK_TIMES.endTime,
           userName: event.userName,
         },
       });
@@ -362,8 +362,8 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
               assignmentId,
               days: [{
                 date: newDateStr,
-                startTime: '08:00:00',
-                endTime: '17:00:00',
+                startTime: DEFAULT_WORK_TIMES.startTime,
+                endTime: DEFAULT_WORK_TIMES.endTime,
               }],
             });
 
@@ -445,8 +445,8 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
                 assignmentId: result.assignment.id,
                 days: [{
                   date: droppedDateStr,
-                  startTime: '08:00:00',
-                  endTime: '17:00:00',
+                  startTime: DEFAULT_WORK_TIMES.startTime,
+                  endTime: DEFAULT_WORK_TIMES.endTime,
                 }],
               });
             } catch (dayError) {

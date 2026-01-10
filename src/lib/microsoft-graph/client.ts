@@ -3,6 +3,7 @@
  */
 
 import { Client } from '@microsoft/microsoft-graph-client';
+import type { Calendar, Event } from '@microsoft/microsoft-graph-types';
 import { refreshAccessToken, isTokenExpired, calculateExpiresAt } from './auth';
 import { createServiceClient } from '@/lib/supabase/server';
 import { decryptToken, encryptToken, isEncryptionConfigured } from '@/lib/crypto';
@@ -13,35 +14,58 @@ import type {
   OutlookEventCreateResponse,
 } from './types';
 
+// Re-export Graph types for use elsewhere
+export type { Calendar, Event };
+
+/**
+ * Custom error for token decryption failures requiring reconnection
+ */
+export class TokenDecryptionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TokenDecryptionError';
+  }
+}
+
 /**
  * Decrypt access token from storage if encryption is configured
+ * Throws TokenDecryptionError if decryption fails - user must reconnect
  */
 function getDecryptedAccessToken(encryptedToken: string): string {
   if (!isEncryptionConfigured()) {
+    // In development without encryption, tokens are stored as-is
     return encryptedToken;
   }
   try {
     return decryptToken(encryptedToken);
-  } catch {
-    // Token might not be encrypted (legacy data)
-    console.warn('Token decryption failed, using raw token (may be legacy unencrypted data)');
-    return encryptedToken;
+  } catch (error) {
+    // Decryption failed - token is corrupted or encryption key changed
+    // User must reconnect to get fresh tokens
+    console.error('Access token decryption failed - user must reconnect:', error);
+    throw new TokenDecryptionError(
+      'Calendar connection invalid - please disconnect and reconnect your Outlook calendar'
+    );
   }
 }
 
 /**
  * Decrypt refresh token from storage if encryption is configured
+ * Throws TokenDecryptionError if decryption fails - user must reconnect
  */
 function getDecryptedRefreshToken(encryptedToken: string): string {
   if (!isEncryptionConfigured()) {
+    // In development without encryption, tokens are stored as-is
     return encryptedToken;
   }
   try {
     return decryptToken(encryptedToken);
-  } catch {
-    // Token might not be encrypted (legacy data)
-    console.warn('Refresh token decryption failed, using raw token (may be legacy unencrypted data)');
-    return encryptedToken;
+  } catch (error) {
+    // Decryption failed - token is corrupted or encryption key changed
+    // User must reconnect to get fresh tokens
+    console.error('Refresh token decryption failed - user must reconnect:', error);
+    throw new TokenDecryptionError(
+      'Calendar connection invalid - please disconnect and reconnect your Outlook calendar'
+    );
   }
 }
 
@@ -210,10 +234,10 @@ export async function getCalendars(
 
   const response = await client.api('/me/calendars').select('id,name,isDefaultCalendar').get();
 
-  return response.value.map((cal: { id: string; name: string; isDefaultCalendar: boolean }) => ({
-    id: cal.id,
-    name: cal.name,
-    isDefault: cal.isDefaultCalendar,
+  return (response.value as Calendar[]).map((cal) => ({
+    id: cal.id || '',
+    name: cal.name || '',
+    isDefault: cal.isDefaultCalendar || false,
   }));
 }
 

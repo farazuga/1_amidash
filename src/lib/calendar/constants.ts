@@ -73,6 +73,12 @@ export const DEFAULT_WORKING_HOURS = {
   end: '16:00',
 } as const;
 
+// Default working hours with seconds (for database storage)
+export const DEFAULT_WORK_TIMES = {
+  startTime: '08:00:00',
+  endTime: '17:00:00',
+} as const;
+
 // Days of the week (weekdays only - no weekends)
 export const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as const;
 export const WEEKDAYS_FULL = [

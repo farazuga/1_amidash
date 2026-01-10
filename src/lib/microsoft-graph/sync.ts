@@ -246,35 +246,52 @@ export async function fullSyncForUser(userId: string): Promise<{
   let failed = 0;
   const errors: string[] = [];
 
-  // Sync each assignment to each connection
-  for (const connection of connections) {
-    for (const assignment of assignments) {
-      const result = await syncAssignmentToOutlook(
-        {
-          id: assignment.id,
-          user_id: assignment.user_id,
-          project_id: assignment.project_id,
-          booking_status: assignment.booking_status,
-          notes: assignment.notes,
-          project: {
-            id: assignment.project.id,
-            client_name: assignment.project.client_name,
-            start_date: assignment.project.start_date!,
-            end_date: assignment.project.end_date!,
+  // Build all sync tasks
+  const syncTasks = connections.flatMap((connection) =>
+    assignments.map((assignment) => ({
+      connection,
+      assignment,
+      execute: () =>
+        syncAssignmentToOutlook(
+          {
+            id: assignment.id,
+            user_id: assignment.user_id,
+            project_id: assignment.project_id,
+            booking_status: assignment.booking_status,
+            notes: assignment.notes,
+            project: {
+              id: assignment.project.id,
+              client_name: assignment.project.client_name,
+              start_date: assignment.project.start_date!,
+              end_date: assignment.project.end_date!,
+            },
           },
-        },
-        connection
-      );
+          connection
+        ),
+    }))
+  );
 
-      if (result.success) {
+  // Process in batches with concurrency limit to avoid overwhelming the API
+  const CONCURRENCY_LIMIT = 5;
+  for (let i = 0; i < syncTasks.length; i += CONCURRENCY_LIMIT) {
+    const batch = syncTasks.slice(i, i + CONCURRENCY_LIMIT);
+    const results = await Promise.allSettled(batch.map((task) => task.execute()));
+
+    results.forEach((result, index) => {
+      const task = batch[index];
+      if (result.status === 'fulfilled' && result.value.success) {
         synced++;
       } else {
         failed++;
-        if (result.error) {
-          errors.push(`${assignment.project.client_name}: ${result.error}`);
+        const errorMsg =
+          result.status === 'fulfilled'
+            ? result.value.error
+            : result.reason?.message || 'Unknown error';
+        if (errorMsg) {
+          errors.push(`${task.assignment.project.client_name}: ${errorMsg}`);
         }
       }
-    }
+    });
   }
 
   return { synced, failed, errors };
@@ -309,4 +326,142 @@ export async function triggerAssignmentDelete(
   await Promise.allSettled(
     connections.map((connection) => deleteAssignmentFromOutlook(assignmentId, connection))
   );
+}
+
+/**
+ * Get recent sync errors for a user
+ * Returns failed syncs from the last 7 days
+ */
+export async function getSyncErrors(userId: string): Promise<{
+  errors: Array<{
+    id: string;
+    assignmentId: string;
+    projectName: string;
+    error: string;
+    lastSyncedAt: string;
+  }>;
+  count: number;
+}> {
+  const supabase = await createServiceClient();
+
+  // Get connections for this user
+  const connections = await getActiveConnections(userId);
+  if (connections.length === 0) {
+    return { errors: [], count: 0 };
+  }
+
+  const connectionIds = connections.map(c => c.id);
+
+  // Get synced events with errors for this user's connections
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from('synced_calendar_events')
+    .select(`
+      id,
+      assignment_id,
+      sync_error,
+      last_synced_at,
+      assignment:project_assignments(
+        id,
+        project:projects(client_name)
+      )
+    `)
+    .in('connection_id', connectionIds)
+    .not('sync_error', 'is', null)
+    .order('last_synced_at', { ascending: false })
+    .limit(20);
+
+  if (error) {
+    console.error('Failed to fetch sync errors:', error);
+    return { errors: [], count: 0 };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const errors = (data || []).map((item: any) => ({
+    id: item.id,
+    assignmentId: item.assignment_id,
+    projectName: item.assignment?.project?.client_name || 'Unknown Project',
+    error: item.sync_error,
+    lastSyncedAt: item.last_synced_at,
+  }));
+
+  return { errors, count: errors.length };
+}
+
+/**
+ * Retry sync for a specific assignment
+ */
+export async function retrySyncForAssignment(
+  assignmentId: string,
+  userId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createServiceClient();
+
+  // Get assignment with project data
+  const { data: assignment, error: fetchError } = await supabase
+    .from('project_assignments')
+    .select(`
+      id, user_id, project_id, booking_status, notes,
+      project:projects(id, client_name, start_date, end_date)
+    `)
+    .eq('id', assignmentId)
+    .single();
+
+  if (fetchError || !assignment) {
+    return { success: false, error: 'Assignment not found' };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const project = (assignment as any).project as { id: string; client_name: string; start_date: string | null; end_date: string | null } | null;
+  if (!project?.start_date || !project?.end_date) {
+    return { success: false, error: 'Project missing dates' };
+  }
+
+  // Get user's connections
+  const connections = await getActiveConnections(userId);
+  if (connections.length === 0) {
+    return { success: false, error: 'No calendar connections found' };
+  }
+
+  // Try to sync to all connections
+  const results = await Promise.allSettled(
+    connections.map((connection) =>
+      syncAssignmentToOutlook(
+        {
+          id: assignment.id,
+          user_id: assignment.user_id,
+          project_id: assignment.project_id,
+          booking_status: assignment.booking_status,
+          notes: assignment.notes,
+          project: {
+            id: project.id,
+            client_name: project.client_name,
+            start_date: project.start_date!, // Already validated above
+            end_date: project.end_date!,     // Already validated above
+          },
+        },
+        connection
+      )
+    )
+  );
+
+  // Check if any succeeded
+  const anySuccess = results.some(
+    (r) => r.status === 'fulfilled' && r.value.success
+  );
+
+  if (anySuccess) {
+    return { success: true };
+  }
+
+  // Get first error
+  const firstError = results.find(
+    (r) => r.status === 'fulfilled' && !r.value.success
+  );
+  const errorMessage =
+    firstError?.status === 'fulfilled' && firstError.value.error
+      ? firstError.value.error
+      : 'Sync failed';
+
+  return { success: false, error: errorMessage };
 }
