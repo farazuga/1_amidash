@@ -241,8 +241,15 @@ export async function getCalendars(
   }));
 }
 
+// Status-specific configuration for Outlook events
+const STATUS_CONFIG: Record<string, { emoji: string; category: string; showAs: 'tentative' | 'busy' }> = {
+  pending_confirm: { emoji: '⏳', category: 'Grey category', showAs: 'tentative' },
+  confirmed: { emoji: '✅', category: 'Green category', showAs: 'busy' },
+};
+
 /**
  * Build an Outlook event object from assignment data
+ * Only pending_confirm and confirmed statuses should reach this function
  */
 export function buildEventFromAssignment(
   assignment: {
@@ -253,20 +260,68 @@ export function buildEventFromAssignment(
       client_name: string;
       start_date: string;
       end_date: string;
+      sales_order?: string | null;
+      poc_name?: string | null;
+      poc_email?: string | null;
+      poc_phone?: string | null;
+      scope_link?: string | null;
+      sales_order_url?: string | null;
     };
+    team_members?: Array<{ full_name: string; booking_status: string }>;
   },
   baseUrl: string
 ): OutlookCalendarEvent {
   const statusLabel = getStatusLabel(assignment.booking_status);
-  const showAs = assignment.booking_status === 'confirmed' ? 'busy' : 'tentative';
+  const config = STATUS_CONFIG[assignment.booking_status] || STATUS_CONFIG.pending_confirm;
 
-  // Build description
-  let description = `Project: ${assignment.project.client_name}\n`;
+  // Build enriched description
+  let description = `📋 Project: ${assignment.project.client_name}\n`;
   description += `Status: ${statusLabel}\n`;
+
+  // Team members section
+  if (assignment.team_members && assignment.team_members.length > 0) {
+    description += `\n👥 Team:\n`;
+    for (const member of assignment.team_members) {
+      const memberStatus = getStatusLabel(member.booking_status).toLowerCase();
+      description += `• ${member.full_name} (${memberStatus})\n`;
+    }
+  }
+
+  // Client POC section
+  if (assignment.project.poc_name || assignment.project.poc_email || assignment.project.poc_phone) {
+    description += `\n📞 Client POC:\n`;
+    const pocParts: string[] = [];
+    if (assignment.project.poc_name) pocParts.push(assignment.project.poc_name);
+    if (assignment.project.poc_email) pocParts.push(assignment.project.poc_email);
+    if (assignment.project.poc_phone) pocParts.push(assignment.project.poc_phone);
+    description += pocParts.join(' | ') + '\n';
+  }
+
+  // Links section
+  const links: string[] = [];
+  const projectPath = assignment.project.sales_order
+    ? `/projects/${assignment.project.sales_order}`
+    : `/projects`;
+  links.push(`Dashboard: ${baseUrl}${projectPath}`);
+
+  if (assignment.project.scope_link) {
+    links.push(`SOW: ${assignment.project.scope_link}`);
+  }
+  if (assignment.project.sales_order_url) {
+    links.push(`Odoo: ${assignment.project.sales_order_url}`);
+  }
+
+  if (links.length > 0) {
+    description += `\n🔗 Links:\n`;
+    for (const link of links) {
+      description += `• ${link}\n`;
+    }
+  }
+
+  // Notes section
   if (assignment.notes) {
     description += `\nNotes: ${assignment.notes}`;
   }
-  description += `\n\nView in AmiDash: ${baseUrl}/calendar`;
 
   // Parse dates - add one day to end date because Outlook end dates are exclusive
   const startDate = new Date(assignment.project.start_date);
@@ -274,7 +329,7 @@ export function buildEventFromAssignment(
   endDate.setDate(endDate.getDate() + 1); // Make end date exclusive
 
   return {
-    subject: `📋 ${assignment.project.client_name}`,
+    subject: `${config.emoji} ${assignment.project.client_name}`,
     body: {
       contentType: 'text',
       content: description,
@@ -288,8 +343,8 @@ export function buildEventFromAssignment(
       timeZone: 'UTC',
     },
     isAllDay: true,
-    showAs,
-    categories: [getStatusCategory(assignment.booking_status)],
+    showAs: config.showAs,
+    categories: [config.category],
     sensitivity: 'normal',
   };
 }
@@ -312,20 +367,3 @@ function getStatusLabel(status: string): string {
   }
 }
 
-/**
- * Get Outlook category based on booking status
- */
-function getStatusCategory(status: string): string {
-  switch (status) {
-    case 'draft':
-      return 'Blue category';
-    case 'tentative':
-      return 'Orange category';
-    case 'pending_confirm':
-      return 'Purple category';
-    case 'confirmed':
-      return 'Green category';
-    default:
-      return 'Blue category';
-  }
-}

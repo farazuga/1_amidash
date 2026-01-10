@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { createProjectSharePointFolder } from '@/lib/sharepoint/folder-operations';
 import { getGlobalSharePointConfig, getMicrosoftConnection } from '@/app/(dashboard)/projects/[salesOrder]/files/actions';
+import { syncProjectAssignmentsToOutlook } from '@/lib/microsoft-graph/sync';
 
 // Helper to get sales order number from project ID for revalidation
 async function getSalesOrderNumber(projectId: string): Promise<string | null> {
@@ -292,6 +293,14 @@ export async function updateProjectDates(data: UpdateProjectDatesData): Promise<
   } catch (err) {
     console.error('Audit log error:', err);
     // Don't fail the whole operation
+  }
+
+  // Sync all assignments for this project to Outlook (dates changed)
+  // Uses the centralized helper that also fetches team members for enriched event body
+  if (data.startDate && data.endDate) {
+    syncProjectAssignmentsToOutlook(data.projectId).catch((err) =>
+      console.error('Error syncing project assignments to Outlook:', err)
+    );
   }
 
   if (project.sales_order_number) {
@@ -615,6 +624,14 @@ export async function inlineEditProjectField(data: InlineEditData): Promise<Inli
     });
   } catch (err) {
     console.error('Audit log error:', err);
+  }
+
+  // If date field changed, sync assignments to Outlook
+  // Uses the centralized helper that also fetches team members for enriched event body
+  if (data.field === 'start_date' || data.field === 'end_date') {
+    syncProjectAssignmentsToOutlook(data.projectId).catch((err) =>
+      console.error('Error syncing project assignments to Outlook:', err)
+    );
   }
 
   // Revalidate paths

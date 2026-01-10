@@ -3,26 +3,13 @@
 import { useState } from 'react';
 import { ProjectCalendar, BulkAssignDialog } from '@/components/calendar';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Link2, ExternalLink, Users, ListTodo, UserPlus } from 'lucide-react';
-import {
-  useCalendarSubscriptions,
-  useCreateCalendarSubscription,
-  useProjectAssignments,
-} from '@/hooks/queries/use-assignments';
+import { Users, ListTodo, UserPlus } from 'lucide-react';
+import { useProjectAssignments } from '@/hooks/queries/use-assignments';
 import { toast } from 'sonner';
 import type { CalendarEvent } from '@/types/calendar';
 import type { Project } from '@/types';
-import { useRouter } from 'next/navigation';
-import { cn } from '@/lib/utils';
 import { BookingStatusBadge } from '@/components/calendar';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface ProjectCalendarContentProps {
@@ -31,13 +18,10 @@ interface ProjectCalendarContentProps {
 }
 
 export function ProjectCalendarContent({ project, isAdmin }: ProjectCalendarContentProps) {
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'calendar' | 'list'>('calendar');
   const [showBulkAssign, setShowBulkAssign] = useState(false);
 
-  const { data: subscriptions } = useCalendarSubscriptions();
   const { data: assignments, isLoading: isLoadingAssignments } = useProjectAssignments(project.id);
-  const createSubscription = useCreateCalendarSubscription();
 
   const handleEventClick = (event: CalendarEvent) => {
     // Could open an assignment detail dialog here
@@ -45,26 +29,6 @@ export function ProjectCalendarContent({ project, isAdmin }: ProjectCalendarCont
       description: `Status: ${event.bookingStatus}`,
     });
   };
-
-  const handleGetICalLink = async () => {
-    try {
-      const result = await createSubscription.mutateAsync({
-        feedType: 'project',
-        projectId: project.id,
-      });
-
-      await navigator.clipboard.writeText(result.url);
-      toast.success('Calendar link copied to clipboard!', {
-        description: 'Paste this URL in your calendar app to subscribe',
-      });
-    } catch (error) {
-      toast.error('Failed to generate calendar link');
-    }
-  };
-
-  const existingProjectSub = subscriptions?.find(
-    s => s.feed_type === 'project' && s.project_id === project.id
-  );
 
   return (
     <div className="space-y-4">
@@ -91,31 +55,6 @@ export function ProjectCalendarContent({ project, isAdmin }: ProjectCalendarCont
             >
               <UserPlus className="mr-2 h-4 w-4" />
               Bulk Assign
-            </Button>
-          )}
-          {existingProjectSub ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={async () => {
-                const baseUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
-                const url = `${baseUrl}/api/calendar/ical/${existingProjectSub.token}`;
-                await navigator.clipboard.writeText(url);
-                toast.success('Calendar link copied!');
-              }}
-            >
-              <Link2 className="mr-2 h-4 w-4" />
-              Copy iCal Link
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleGetICalLink}
-              disabled={createSubscription.isPending}
-            >
-              <ExternalLink className="mr-2 h-4 w-4" />
-              Get Calendar Link
             </Button>
           )}
         </div>

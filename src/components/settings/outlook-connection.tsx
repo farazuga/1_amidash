@@ -165,6 +165,11 @@ export function OutlookConnection({ connection, returnUrl = '/my-schedule' }: Ou
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Info note about which statuses sync */}
+        <div className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
+          <span className="font-medium">Note:</span> Only &quot;Pending Confirmation&quot; and &quot;Confirmed&quot; assignments sync to your Outlook calendar.
+        </div>
+
         {connection ? (
           <>
             <div className="space-y-2 text-sm">
