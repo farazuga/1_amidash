@@ -12,11 +12,32 @@ import {
 import type { CalendarConnection, SyncResult, AssignmentForSync } from './types';
 import { SYNCABLE_STATUSES } from './types';
 
+// Constants for slot reservation (race condition prevention)
+const PENDING_SLOT_MARKER = '__pending__';
+const PENDING_SLOT_TIMEOUT_MS = 30000; // 30 seconds - slots older than this are considered stale
+const MAX_SLOT_RETRIES = 3;
+const INITIAL_RETRY_DELAY_MS = 1000;
+
 /**
  * Get the base URL for the app
  */
 function getBaseUrl(): string {
   return process.env.NEXT_PUBLIC_APP_URL || 'https://app.amidash.com';
+}
+
+/**
+ * Check if a pending slot is stale (older than timeout)
+ */
+function isSlotStale(lastSyncedAt: string): boolean {
+  const slotAge = Date.now() - new Date(lastSyncedAt).getTime();
+  return slotAge > PENDING_SLOT_TIMEOUT_MS;
+}
+
+/**
+ * Sleep for a specified duration
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -52,18 +73,18 @@ export async function getActiveConnections(userId: string): Promise<CalendarConn
 }
 
 /**
- * Get existing synced event mapping
+ * Get existing synced event mapping with timestamp for stale detection
  */
 async function getSyncedEvent(
   assignmentId: string,
   connectionId: string
-): Promise<{ id: string; external_event_id: string } | null> {
+): Promise<{ id: string; external_event_id: string; last_synced_at: string } | null> {
   const supabase = await createServiceClient();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from('synced_calendar_events')
-    .select('id, external_event_id')
+    .select('id, external_event_id, last_synced_at')
     .eq('assignment_id', assignmentId)
     .eq('connection_id', connectionId)
     .single();
@@ -153,42 +174,72 @@ async function deleteSyncedEvent(
 
 /**
  * Reserve a sync slot to prevent race conditions
+ * Handles stale slots (pending for > 30 seconds) by cleaning them up
  * Returns the existing external_event_id if slot was already taken, null if we created it
  */
 async function reserveSyncSlot(
   assignmentId: string,
   connectionId: string
-): Promise<{ isNew: boolean; existingEventId: string | null }> {
+): Promise<{ isNew: boolean; existingEventId: string | null; isPending: boolean }> {
   const supabase = await createServiceClient();
 
-  // Try to insert a placeholder record - if it conflicts, someone else has the slot
+  // First, check if there's an existing record
+  const existing = await getSyncedEvent(assignmentId, connectionId);
+
+  if (existing) {
+    // If it's a completed slot (has real event ID), return it
+    if (existing.external_event_id && existing.external_event_id !== PENDING_SLOT_MARKER) {
+      return { isNew: false, existingEventId: existing.external_event_id, isPending: false };
+    }
+
+    // If it's a pending slot, check if it's stale
+    if (existing.external_event_id === PENDING_SLOT_MARKER) {
+      if (isSlotStale(existing.last_synced_at)) {
+        // Stale pending slot - delete it and try to reserve
+        console.log('Cleaning up stale pending slot for assignment:', assignmentId);
+        await deleteSyncedEvent(assignmentId, connectionId);
+        // Fall through to try inserting a new slot
+      } else {
+        // Active pending slot - another process is working on it
+        return { isNew: false, existingEventId: null, isPending: true };
+      }
+    }
+  }
+
+  // Try to insert a placeholder record - if it conflicts, someone else just took the slot
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: insertError } = await (supabase as any)
     .from('synced_calendar_events')
     .insert({
       assignment_id: assignmentId,
       connection_id: connectionId,
-      external_event_id: '__pending__', // Placeholder to reserve the slot
+      external_event_id: PENDING_SLOT_MARKER,
       last_synced_at: new Date().toISOString(),
       sync_error: null,
     });
 
   if (!insertError) {
     // We successfully reserved the slot
-    return { isNew: true, existingEventId: null };
+    return { isNew: true, existingEventId: null, isPending: false };
   }
 
-  // Insert failed - slot is taken, get the existing record
-  const existing = await getSyncedEvent(assignmentId, connectionId);
-  return {
-    isNew: false,
-    existingEventId: existing?.external_event_id === '__pending__' ? null : existing?.external_event_id || null,
-  };
+  // Insert failed due to race condition - re-check the existing record
+  const recheckExisting = await getSyncedEvent(assignmentId, connectionId);
+  if (recheckExisting?.external_event_id && recheckExisting.external_event_id !== PENDING_SLOT_MARKER) {
+    return { isNew: false, existingEventId: recheckExisting.external_event_id, isPending: false };
+  }
+
+  // Another process just reserved it
+  return { isNew: false, existingEventId: null, isPending: true };
 }
 
 /**
  * Sync a single assignment to Outlook
- * Uses slot reservation to prevent race conditions and duplicate events
+ * Uses slot reservation with retry loop to prevent race conditions and duplicate events
+ *
+ * @param assignment - The assignment data to sync
+ * @param connection - The user's calendar connection
+ * @returns SyncResult with success status and event ID or error
  */
 export async function syncAssignmentToOutlook(
   assignment: AssignmentForSync,
@@ -198,34 +249,44 @@ export async function syncAssignmentToOutlook(
     const baseUrl = getBaseUrl();
     const event = buildEventFromAssignment(assignment, baseUrl);
 
-    // First, try to reserve or get existing slot
-    const { isNew, existingEventId } = await reserveSyncSlot(assignment.id, connection.id);
+    // Retry loop with exponential backoff for handling concurrent syncs
+    for (let attempt = 0; attempt < MAX_SLOT_RETRIES; attempt++) {
+      const { isNew, existingEventId, isPending } = await reserveSyncSlot(assignment.id, connection.id);
 
-    if (!isNew && existingEventId) {
-      // Update existing event
-      await updateCalendarEvent(connection, existingEventId, event);
-      await storeSyncedEvent(assignment.id, connection.id, existingEventId);
-      return { success: true, eventId: existingEventId };
-    }
-
-    if (!isNew && !existingEventId) {
-      // Another process is creating the event (slot has __pending__)
-      // Wait briefly and retry to get the final event ID
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      const existing = await getSyncedEvent(assignment.id, connection.id);
-      if (existing?.external_event_id && existing.external_event_id !== '__pending__') {
-        // Other process finished, update the event
-        await updateCalendarEvent(connection, existing.external_event_id, event);
-        return { success: true, eventId: existing.external_event_id };
+      if (!isNew && existingEventId) {
+        // Update existing event
+        await updateCalendarEvent(connection, existingEventId, event);
+        await storeSyncedEvent(assignment.id, connection.id, existingEventId);
+        return { success: true, eventId: existingEventId };
       }
-      // Still pending or failed, let it fall through to create
+
+      if (isPending) {
+        // Another process is creating the event - wait with exponential backoff and retry
+        const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt); // 1s, 2s, 4s
+        console.log(`Slot pending, waiting ${delay}ms before retry ${attempt + 1}/${MAX_SLOT_RETRIES}`);
+        await sleep(delay);
+
+        // After waiting, check if the other process completed
+        const existing = await getSyncedEvent(assignment.id, connection.id);
+        if (existing?.external_event_id && existing.external_event_id !== PENDING_SLOT_MARKER) {
+          // Other process finished, update the event
+          await updateCalendarEvent(connection, existing.external_event_id, event);
+          return { success: true, eventId: existing.external_event_id };
+        }
+        // Still pending - continue to next retry iteration
+        continue;
+      }
+
+      if (isNew) {
+        // We reserved the slot - create new event
+        const response = await createCalendarEvent(connection, event);
+        await storeSyncedEvent(assignment.id, connection.id, response.id);
+        return { success: true, eventId: response.id };
+      }
     }
 
-    // Create new event (we reserved the slot)
-    const response = await createCalendarEvent(connection, event);
-    await storeSyncedEvent(assignment.id, connection.id, response.id);
-
-    return { success: true, eventId: response.id };
+    // All retries exhausted - this shouldn't normally happen
+    throw new Error('Failed to acquire sync slot after maximum retries');
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Failed to sync assignment to Outlook:', errorMessage);
@@ -302,7 +363,7 @@ export async function fullSyncForUser(userId: string): Promise<{
       )
     `)
     .eq('user_id', userId)
-    .in('booking_status', SYNCABLE_STATUSES as unknown as string[])
+    .in('booking_status', [...SYNCABLE_STATUSES])
     .not('project.start_date', 'is', null)
     .not('project.end_date', 'is', null);
 
@@ -320,10 +381,15 @@ export async function fullSyncForUser(userId: string): Promise<{
 
   // Fetch team members for all projects in one query
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: allProjectMembers } = await (supabase as any)
+  const { data: allProjectMembers, error: membersError } = await (supabase as any)
     .from('project_assignments')
     .select('project_id, user_id, booking_status, profile:profiles(full_name)')
     .in('project_id', projectIds);
+
+  if (membersError) {
+    console.warn('Failed to fetch team members for enriched event body:', membersError);
+    // Continue without team members rather than failing entire sync
+  }
 
   // Build team members map: projectId -> array of team members
   const teamMembersMap = new Map<string, Array<{ user_id: string; full_name: string; booking_status: string }>>();
@@ -412,11 +478,15 @@ export async function fullSyncForUser(userId: string): Promise<{
 }
 
 /**
- * Trigger sync for a specific assignment across all of the user's connections
- * Called from assignment actions
+ * Trigger sync for a specific assignment across all of the user's connections.
+ * This is the main entry point for syncing a single assignment to Outlook.
  *
- * Only syncs if status is pending_confirm or confirmed.
- * If status is draft/tentative, deletes the event from Outlook if it exists.
+ * Behavior by status:
+ * - pending_confirm/confirmed: Creates or updates the Outlook event
+ * - draft/tentative: Deletes the Outlook event if it exists
+ *
+ * @param assignment - The assignment data including project details and team members
+ * @returns Promise that resolves when sync is complete (fire-and-forget safe)
  */
 export async function triggerAssignmentSync(
   assignment: AssignmentForSync
@@ -439,8 +509,12 @@ export async function triggerAssignmentSync(
 }
 
 /**
- * Trigger delete for a specific assignment across all of the user's connections
- * Called from assignment actions when removing
+ * Trigger deletion of a calendar event for an assignment across all user's connections.
+ * Called when an assignment is removed from a project.
+ *
+ * @param assignmentId - The ID of the assignment being removed
+ * @param userId - The user ID whose calendar connections should be updated
+ * @returns Promise that resolves when deletion is complete (fire-and-forget safe)
  */
 export async function triggerAssignmentDelete(
   assignmentId: string,
@@ -458,6 +532,8 @@ export async function triggerAssignmentDelete(
  * Sync all assignments for a project to Outlook
  * Called when project dates or other synced fields change
  * Fetches team members for enriched event body
+ *
+ * @param projectId - The project ID to sync assignments for
  */
 export async function syncProjectAssignmentsToOutlook(projectId: string): Promise<void> {
   const supabase = await createServiceClient();
@@ -469,8 +545,13 @@ export async function syncProjectAssignmentsToOutlook(projectId: string): Promis
     .eq('id', projectId)
     .single();
 
-  if (projectError || !project?.start_date || !project?.end_date) {
-    console.log('Skipping Outlook sync: project missing or incomplete dates');
+  if (projectError) {
+    console.error('Failed to fetch project for Outlook sync:', projectError);
+    return;
+  }
+
+  if (!project?.start_date || !project?.end_date) {
+    console.log('Skipping Outlook sync: project missing start or end dates');
     return;
   }
 
@@ -483,7 +564,12 @@ export async function syncProjectAssignmentsToOutlook(projectId: string): Promis
     `)
     .eq('project_id', projectId);
 
-  if (assignmentsError || !assignments || assignments.length === 0) {
+  if (assignmentsError) {
+    console.error('Failed to fetch assignments for Outlook sync:', assignmentsError);
+    return;
+  }
+
+  if (!assignments || assignments.length === 0) {
     return;
   }
 
