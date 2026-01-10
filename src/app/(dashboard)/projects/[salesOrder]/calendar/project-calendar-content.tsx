@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ProjectCalendar, BulkAssignDialog } from '@/components/calendar';
 import { Button } from '@/components/ui/button';
 import { Users, ListTodo, UserPlus } from 'lucide-react';
@@ -18,16 +19,15 @@ interface ProjectCalendarContentProps {
 }
 
 export function ProjectCalendarContent({ project, isAdmin }: ProjectCalendarContentProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'calendar' | 'list'>('calendar');
   const [showBulkAssign, setShowBulkAssign] = useState(false);
 
   const { data: assignments, isLoading: isLoadingAssignments } = useProjectAssignments(project.id);
 
   const handleEventClick = (event: CalendarEvent) => {
-    // Could open an assignment detail dialog here
-    toast.info(`Selected ${event.userName}'s assignment`, {
-      description: `Status: ${event.bookingStatus}`,
-    });
+    // Navigate to the project page
+    router.push(`/projects/${project.sales_order_number}`);
   };
 
   return (

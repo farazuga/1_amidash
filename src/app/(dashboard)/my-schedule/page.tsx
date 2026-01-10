@@ -29,10 +29,10 @@ export default async function MySchedulePage() {
   }
 
   return (
-    <div className="container mx-auto py-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">My Schedule</h1>
-        <p className="text-muted-foreground">
+    <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-6">
+      <div className="mb-4 sm:mb-6">
+        <h1 className="text-xl sm:text-2xl font-bold">My Schedule</h1>
+        <p className="text-sm sm:text-base text-muted-foreground">
           Your personal project assignments and schedule
         </p>
       </div>

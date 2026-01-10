@@ -310,16 +310,45 @@
 
 /* Print styles for calendar */
 @media print {
+  /* Force landscape orientation for calendars */
+  @page {
+    size: landscape;
+    margin: 0.5in;
+  }
+
   /* Hide non-essential UI elements */
   .sidebar,
   nav,
   aside,
+  header,
+  footer,
   [data-radix-popper-content-wrapper],
-  [data-slot="sidebar"] {
+  [data-slot="sidebar"],
+  [role="dialog"],
+  [role="tooltip"],
+  .fixed,
+  .sticky {
+    display: none !important;
+  }
+
+  /* Tailwind print utilities */
+  .print\:hidden {
+    display: none !important;
+  }
+
+  button:not(.print\:visible) {
     display: none !important;
   }
 
   /* Full width calendar */
+  html, body {
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
   main {
     width: 100% !important;
     max-width: none !important;
@@ -327,20 +356,83 @@
     margin: 0 !important;
   }
 
-  /* Remove fixed/sticky positioning */
-  header {
-    position: static !important;
+  /* Container should fill page */
+  .container {
+    width: 100% !important;
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Calendar grid fills available width */
+  .grid-cols-5,
+  .grid-cols-7 {
+    width: 100% !important;
+  }
+
+  /* Calendar cells expand to fill */
+  .grid-cols-5 > div,
+  .grid-cols-7 > div {
+    min-height: 1.5in !important;
+    page-break-inside: avoid;
   }
 
   /* Status colors print properly */
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    color-adjust: exact !important;
   }
 
-  /* Clean up text */
+  /* Clean up text and backgrounds */
   body {
     background: white !important;
     color: black !important;
+    font-size: 11pt !important;
+  }
+
+  /* Make borders visible */
+  .border,
+  .border-r,
+  .border-b {
+    border-color: #ccc !important;
+  }
+
+  /* Ensure calendar headers are visible */
+  .bg-muted {
+    background-color: #f3f4f6 !important;
+  }
+
+  /* Assignment cards print clearly */
+  [class*="bg-blue-"],
+  [class*="bg-amber-"],
+  [class*="bg-green-"],
+  [class*="bg-purple-"],
+  [class*="bg-gray-"] {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Page title for printed calendars */
+  .print-header {
+    display: block !important;
+    font-size: 18pt !important;
+    font-weight: bold !important;
+    text-align: center !important;
+    margin-bottom: 0.5in !important;
+  }
+
+  /* Avoid page breaks in cells */
+  .min-h-\[100px\],
+  .min-h-\[60px\] {
+    page-break-inside: avoid;
+  }
+
+  /* Make text more readable in print */
+  .text-xs {
+    font-size: 9pt !important;
+  }
+  .text-sm {
+    font-size: 10pt !important;
   }
 }
