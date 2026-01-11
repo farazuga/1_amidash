@@ -11,6 +11,7 @@ import {
   type DragStartEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
+import { cn } from '@/lib/utils';
 import { CalendarHeader } from './calendar-header';
 import { CalendarHeaderWithDates } from './calendar-header-with-dates';
 import { AssignmentCard } from './assignment-card';
@@ -21,7 +22,13 @@ import { CalendarLegend } from './calendar-legend';
 import { AssignmentDialog } from './assignment-dialog';
 import { AssignmentSidebar } from './assignment-sidebar';
 import { DraggingUserOverlay } from './draggable-user';
-import { WEEKDAYS, BOOKING_STATUS_CONFIG, DEFAULT_WORK_TIMES } from '@/lib/calendar/constants';
+import { WEEKDAYS, BOOKING_STATUS_CONFIG, DEFAULT_WORK_TIMES, BOOKING_STATUS_ORDER } from '@/lib/calendar/constants';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import {
   getCalendarDays,
   getMonthViewRange,
@@ -30,6 +37,7 @@ import {
   getEventsForDay,
   sortEventsByStatus,
   convertToCalendarEvents,
+  getWeekViewDays,
 } from '@/lib/calendar/utils';
 import { useCalendarData, useAssignableUsers, useCreateAssignment, useCycleAssignmentStatus, useBulkUpdateAssignmentStatus, useMoveAssignmentDay, useAddAssignmentDays, useRemoveAssignmentDays } from '@/hooks/queries/use-assignments';
 import { AssignmentDaysDialog } from './assignment-days-dialog';
@@ -420,8 +428,6 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
       if (over.data.current?.type === 'day' && active.data.current?.type === 'user') {
         const userId = active.data.current.userId;
         const userName = active.data.current.userName;
-        const droppedDate = over.data.current.date;
-        const droppedDateStr = droppedDate.toISOString().split('T')[0];
 
         // Check if project has dates set
         if (!project.start_date || !project.end_date) {
@@ -431,27 +437,56 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
           return;
         }
 
+        // Determine the booking status to use:
+        // - If there are existing assignments, use the lowest status (draft is lowest)
+        // - Otherwise default to 'draft'
+        // Status priority (lowest to highest): draft < tentative < pending_confirm < confirmed
+        const STATUS_PRIORITY: Record<BookingStatus, number> = {
+          draft: 0,
+          tentative: 1,
+          pending_confirm: 2,
+          confirmed: 3,
+        };
+
+        let newStatus: BookingStatus = 'draft';
+        if (events.length > 0) {
+          // Find the lowest status among existing assignments
+          let lowestPriority = Infinity;
+          for (const event of events) {
+            const priority = STATUS_PRIORITY[event.bookingStatus];
+            if (priority < lowestPriority) {
+              lowestPriority = priority;
+              newStatus = event.bookingStatus;
+            }
+          }
+        }
+
         try {
           const result = await createAssignment.mutateAsync({
             projectId: project.id,
             userId,
-            bookingStatus: 'draft' as BookingStatus,
+            bookingStatus: newStatus,
           });
 
-          // Add the dropped date as a scheduled day so it appears on the calendar
+          // Add ALL weekdays in project range as scheduled days
           if (result.assignment) {
             try {
-              await addAssignmentDays.mutateAsync({
-                assignmentId: result.assignment.id,
-                days: [{
-                  date: droppedDateStr,
-                  startTime: DEFAULT_WORK_TIMES.startTime,
-                  endTime: DEFAULT_WORK_TIMES.endTime,
-                }],
-              });
+              const projectWeekdays = getWeekViewDays(project.start_date, project.end_date);
+              const days = projectWeekdays.map(day => ({
+                date: day.toISOString().split('T')[0],
+                startTime: DEFAULT_WORK_TIMES.startTime,
+                endTime: DEFAULT_WORK_TIMES.endTime,
+              }));
+
+              if (days.length > 0) {
+                await addAssignmentDays.mutateAsync({
+                  assignmentId: result.assignment.id,
+                  days,
+                });
+              }
             } catch (dayError) {
               // Log but don't fail - assignment was created successfully
-              console.error('Failed to add initial scheduled day:', dayError);
+              console.error('Failed to add scheduled days:', dayError);
             }
           }
 
@@ -460,8 +495,9 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
               description: `There are scheduling conflicts. Review in the assignment details.`,
             });
           } else {
+            const dayCount = getWeekViewDays(project.start_date, project.end_date).length;
             toast.success(`${userName} assigned`, {
-              description: `Added to ${project.client_name} on ${droppedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`,
+              description: `Added to ${project.client_name} for ${dayCount} day${dayCount !== 1 ? 's' : ''} (${BOOKING_STATUS_CONFIG[newStatus].label})`,
             });
           }
         } catch (error) {
@@ -471,7 +507,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
         }
       }
     },
-    [project, createAssignment, moveAssignmentDay, addAssignmentDays, activeDragData, pushAction]
+    [project, createAssignment, moveAssignmentDay, addAssignmentDays, activeDragData, pushAction, events]
   );
 
   const renderCalendarGrid = () => (
@@ -580,33 +616,46 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
 
   // Status summary bar component - clickable to bulk change status
   const statusSummaryBar = statusCounts.total > 0 && (
-    <div className="flex items-center gap-2 text-sm bg-muted/50 p-2 rounded-lg">
-      {(['draft', 'tentative', 'pending_confirm', 'confirmed'] as const).map((status) => {
-        const config = BOOKING_STATUS_CONFIG[status];
-        const count = statusCounts[status];
-        const isCurrentStatus = count === statusCounts.total;
-        return (
-          <button
-            key={status}
-            onClick={() => isAdmin && project && handleBulkStatusClick(status)}
-            disabled={!isAdmin || !project || isCurrentStatus}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded transition-colors ${
-              isAdmin && project && !isCurrentStatus
-                ? 'hover:bg-muted cursor-pointer'
-                : 'cursor-default'
-            } ${isCurrentStatus ? 'opacity-50' : ''}`}
-            title={isAdmin && project ? `Change all to ${config.label}` : undefined}
-          >
-            <span className={`h-3 w-3 rounded-full ${config.dotColor}`} />
-            <span className="font-medium">{count}</span>
-            <span className="text-muted-foreground">{config.label}</span>
-          </button>
-        );
-      })}
-      <span className="text-muted-foreground ml-auto">
-        {statusCounts.total} total assignment{statusCounts.total !== 1 ? 's' : ''}
-      </span>
-    </div>
+    <TooltipProvider delayDuration={300}>
+      <div className="flex items-center gap-2 text-sm bg-muted/50 p-2 rounded-lg">
+        {(['draft', 'tentative', 'pending_confirm', 'confirmed'] as const).map((status) => {
+          const config = BOOKING_STATUS_CONFIG[status];
+          const count = statusCounts[status];
+          const isCurrentStatus = count === statusCounts.total;
+          const canClick = isAdmin && project && !isCurrentStatus;
+          return (
+            <Tooltip key={status}>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => canClick && handleBulkStatusClick(status)}
+                  disabled={!canClick}
+                  className={cn(
+                    'flex items-center gap-1.5 px-2 py-1 rounded transition-all',
+                    canClick && 'hover:bg-accent hover:shadow-sm cursor-pointer border border-transparent hover:border-border',
+                    !canClick && 'cursor-default',
+                    isCurrentStatus && 'opacity-50'
+                  )}
+                >
+                  <span className={`h-3 w-3 rounded-full ${config.dotColor}`} />
+                  <span className="font-medium">{count}</span>
+                  <span className="text-muted-foreground">{config.label}</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs">
+                <p className="font-medium">{config.label}</p>
+                <p className="text-xs text-muted-foreground">{config.description}</p>
+                {canClick && (
+                  <p className="text-xs text-primary mt-1">Click to change all to {config.label}</p>
+                )}
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
+        <span className="text-muted-foreground ml-auto">
+          {statusCounts.total} total assignment{statusCounts.total !== 1 ? 's' : ''}
+        </span>
+      </div>
+    </TooltipProvider>
   );
 
   const calendarContent = (
@@ -678,17 +727,36 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
       {/* Row 2: Action buttons on left, Status summary on right */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-2">
-          {/* Manage Schedule button - admin only, requires project with dates */}
-          {isAdmin && project?.start_date && project?.end_date && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setMultiUserDialogOpen(true)}
-              className="gap-2"
-            >
-              <Users className="h-4 w-4" />
-              Manage Schedule
-            </Button>
+          {/* Manage Schedule button - admin only */}
+          {isAdmin && project && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (!project.start_date || !project.end_date) {
+                        toast.error('Project dates required', {
+                          description: 'Please set start and end dates for this project before managing the schedule.',
+                        });
+                        return;
+                      }
+                      setMultiUserDialogOpen(true);
+                    }}
+                    className="gap-2"
+                  >
+                    <Users className="h-4 w-4" />
+                    Manage Schedule
+                  </Button>
+                </TooltipTrigger>
+                {(!project.start_date || !project.end_date) && (
+                  <TooltipContent>
+                    <p>Set project dates first to manage schedule</p>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
           )}
           {/* Send to Customer button - admin only, when there are tentative assignments */}
           {isAdmin && project && statusCounts.tentative > 0 && (

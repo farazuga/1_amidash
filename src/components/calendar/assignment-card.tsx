@@ -175,9 +175,15 @@ export function AssignmentCard({
       ) : (
         <button
           onClick={onStatusClick ? handleStatusClick : undefined}
+          onPointerDown={(e) => {
+            // Stop pointer down from reaching drag listeners so clicks work
+            if (onStatusClick) {
+              e.stopPropagation();
+            }
+          }}
           className={cn(
-            'flex-shrink-0',
-            onStatusClick && 'hover:scale-125 transition-transform cursor-pointer'
+            'flex-shrink-0 -m-1 p-1 rounded-full relative z-10',
+            onStatusClick && 'hover:scale-110 hover:bg-black/10 transition-all cursor-pointer'
           )}
           title={onStatusClick ? 'Click to change status' : undefined}
         >
@@ -188,8 +194,9 @@ export function AssignmentCard({
       {showEditButton && onEditClick && (
         <button
           onClick={handleEditClick}
+          onPointerDown={(e) => e.stopPropagation()}
           className={cn(
-            'flex-shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100',
+            'flex-shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 relative z-10',
             'hover:bg-black/10 transition-all',
             'focus:outline-none focus:opacity-100'
           )}
@@ -260,9 +267,14 @@ export function AssignmentCard({
       ) : (
         <button
           onClick={onStatusClick ? handleStatusClick : undefined}
+          onPointerDown={(e) => {
+            if (onStatusClick) {
+              e.stopPropagation();
+            }
+          }}
           className={cn(
-            'relative z-10 flex-shrink-0',
-            onStatusClick && 'hover:scale-110 transition-transform cursor-pointer'
+            'relative z-10 flex-shrink-0 -m-1 p-1 rounded-full',
+            onStatusClick && 'hover:scale-110 hover:bg-black/10 transition-all cursor-pointer'
           )}
           title={onStatusClick ? 'Click to change status' : undefined}
         >
@@ -273,6 +285,7 @@ export function AssignmentCard({
       {showEditButton && onEditClick && (
         <button
           onClick={handleEditClick}
+          onPointerDown={(e) => e.stopPropagation()}
           className={cn(
             'relative z-10 flex-shrink-0 p-1 rounded',
             'opacity-0 group-hover:opacity-100',
@@ -290,6 +303,7 @@ export function AssignmentCard({
           <DropdownMenuTrigger asChild>
             <button
               onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
               className={cn(
                 'relative z-10 flex-shrink-0 p-1 rounded',
                 'opacity-0 group-hover:opacity-100',
