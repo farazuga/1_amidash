@@ -5,7 +5,12 @@ import { revalidatePath } from 'next/cache';
 import { sendEmail } from '@/lib/email/send';
 import { assignmentCreatedEmail, assignmentStatusChangedEmail } from '@/lib/email/templates';
 import { checkEmailEnabled } from '@/lib/email/settings';
-import { triggerAssignmentSync, triggerAssignmentDelete } from '@/lib/microsoft-graph';
+import {
+  triggerAssignmentSync,
+  triggerAssignmentDelete,
+  triggerSingleDaySync,
+  triggerAssignmentDayDelete,
+} from '@/lib/microsoft-graph';
 import type {
   BookingStatus,
   ProjectAssignment,
@@ -1195,12 +1200,20 @@ export async function addAssignmentDays(data: {
     return { success: false, error: 'Failed to add assignment days' };
   }
 
-  // Trigger Outlook sync (fire and forget)
+  // Trigger Outlook sync for each new day (fire and forget)
   const assignmentForSync = await getAssignmentForSync(supabase, data.assignmentId);
   if (assignmentForSync) {
-    triggerAssignmentSync(assignmentForSync).catch((err) =>
-      console.error('Outlook sync error after adding days:', err)
-    );
+    // Sync each inserted day individually with times
+    for (const day of inserted as AssignmentDay[]) {
+      triggerSingleDaySync(assignmentForSync, {
+        id: day.id,
+        work_date: day.work_date,
+        start_time: day.start_time,
+        end_time: day.end_time,
+      }).catch((err) =>
+        console.error('Outlook sync error after adding day:', err)
+      );
+    }
   }
 
   revalidatePath('/calendar');
@@ -1226,11 +1239,11 @@ export async function updateAssignmentDay(data: {
     return { success: false, error: 'End time must be after start time' };
   }
 
-  // First get the day to find assignment_id for sync
+  // First get the day to find assignment_id and work_date for sync
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: day, error: fetchError } = await (supabase as any)
     .from('assignment_days')
-    .select('assignment_id')
+    .select('assignment_id, work_date')
     .eq('id', data.dayId)
     .single();
 
@@ -1252,10 +1265,15 @@ export async function updateAssignmentDay(data: {
     return { success: false, error: 'Failed to update assignment day' };
   }
 
-  // Trigger Outlook sync (fire and forget)
+  // Trigger Outlook sync for the updated day (fire and forget)
   const assignmentForSync = await getAssignmentForSync(supabase, day.assignment_id);
   if (assignmentForSync) {
-    triggerAssignmentSync(assignmentForSync).catch((err) =>
+    triggerSingleDaySync(assignmentForSync, {
+      id: data.dayId,
+      work_date: day.work_date,
+      start_time: data.startTime,
+      end_time: data.endTime,
+    }).catch((err) =>
       console.error('Outlook sync error after updating day:', err)
     );
   }
@@ -1322,10 +1340,15 @@ export async function moveAssignmentDay(data: {
     return { success: false, error: 'Failed to move assignment day' };
   }
 
-  // Trigger Outlook sync (fire and forget)
+  // Trigger Outlook sync for the moved day (fire and forget)
   const assignmentForSync = await getAssignmentForSync(supabase, day.assignment_id);
   if (assignmentForSync) {
-    triggerAssignmentSync(assignmentForSync).catch((err) =>
+    triggerSingleDaySync(assignmentForSync, {
+      id: data.dayId,
+      work_date: data.newDate,
+      start_time: day.start_time,
+      end_time: day.end_time,
+    }).catch((err) =>
       console.error('Outlook sync error after moving day:', err)
     );
   }
@@ -1350,30 +1373,17 @@ export async function removeAssignmentDays(dayIds: string[]): Promise<ActionResu
     return { success: false, error: 'No day IDs provided' };
   }
 
-  // First get the days to find assignment_ids for sync
+  // First get the days with assignment info for sync BEFORE deleting
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: days, error: fetchError } = await (supabase as any)
     .from('assignment_days')
-    .select('assignment_id')
+    .select('id, assignment_id, assignment:project_assignments(user_id)')
     .in('id', dayIds);
 
   if (fetchError) {
     console.error('Fetch assignment days error:', fetchError);
     return { success: false, error: 'Failed to fetch assignment days' };
   }
-
-  // Get unique assignment IDs for sync
-  const assignmentIds = Array.from(new Set<string>((days || []).map((d: { assignment_id: string }) => d.assignment_id)));
-
-  // Batch fetch all assignments for sync BEFORE deleting (single query instead of N)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: assignmentsData } = await (supabase as any)
-    .from('project_assignments')
-    .select(`
-      id, user_id, project_id, booking_status, notes,
-      project:projects(id, client_name, start_date, end_date)
-    `)
-    .in('id', assignmentIds);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: deleteError } = await (supabase as any)
@@ -1386,26 +1396,14 @@ export async function removeAssignmentDays(dayIds: string[]): Promise<ActionResu
     return { success: false, error: 'Failed to remove assignment days' };
   }
 
-  // Trigger Outlook sync for each affected assignment (fire and forget)
-  // Using batch-fetched data instead of N individual queries
-  if (assignmentsData) {
-    for (const assignment of assignmentsData) {
-      const project = assignment.project as { id: string; client_name: string; start_date: string | null; end_date: string | null } | null;
-      if (project?.start_date && project?.end_date) {
-        triggerAssignmentSync({
-          id: assignment.id,
-          user_id: assignment.user_id,
-          project_id: assignment.project_id,
-          booking_status: assignment.booking_status,
-          notes: assignment.notes,
-          project: {
-            id: project.id,
-            client_name: project.client_name,
-            start_date: project.start_date,
-            end_date: project.end_date,
-          },
-        }).catch((err) =>
-          console.error('Outlook sync error after removing days:', err)
+  // Trigger Outlook event deletion for each removed day (fire and forget)
+  if (days) {
+    for (const day of days) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const userId = (day.assignment as any)?.user_id;
+      if (userId) {
+        triggerAssignmentDayDelete(day.id, userId).catch((err) =>
+          console.error('Outlook sync error after removing day:', err)
         );
       }
     }

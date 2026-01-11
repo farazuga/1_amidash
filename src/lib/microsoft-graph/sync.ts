@@ -8,8 +8,9 @@ import {
   updateCalendarEvent,
   deleteCalendarEvent,
   buildEventFromAssignment,
+  buildEventFromAssignmentDay,
 } from './client';
-import type { CalendarConnection, SyncResult, AssignmentForSync } from './types';
+import type { CalendarConnection, SyncResult, AssignmentForSync, AssignmentDayForSync } from './types';
 import { SYNCABLE_STATUSES } from './types';
 
 // Constants for slot reservation (race condition prevention)
@@ -753,4 +754,176 @@ export async function retrySyncForAssignment(
       : 'Sync failed';
 
   return { success: false, error: errorMessage };
+}
+
+// ============================================
+// Per-Day Event Sync Functions (with times)
+// ============================================
+
+/**
+ * Get existing synced day event mapping
+ */
+async function getSyncedDayEvent(
+  assignmentDayId: string,
+  connectionId: string
+): Promise<{ id: string; external_event_id: string; last_synced_at: string } | null> {
+  const supabase = await createServiceClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from('synced_calendar_day_events')
+    .select('id, external_event_id, last_synced_at')
+    .eq('assignment_day_id', assignmentDayId)
+    .eq('connection_id', connectionId)
+    .single();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Store synced day event mapping
+ */
+async function storeSyncedDayEvent(
+  assignmentDayId: string,
+  connectionId: string,
+  externalEventId: string
+): Promise<void> {
+  const supabase = await createServiceClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from('synced_calendar_day_events').upsert(
+    {
+      assignment_day_id: assignmentDayId,
+      connection_id: connectionId,
+      external_event_id: externalEventId,
+      last_synced_at: new Date().toISOString(),
+      sync_error: null,
+    },
+    {
+      onConflict: 'assignment_day_id,connection_id',
+    }
+  );
+
+  if (error) {
+    console.error('Failed to store synced day event:', error);
+  }
+}
+
+/**
+ * Delete synced day event mapping
+ */
+async function deleteSyncedDayEvent(
+  assignmentDayId: string,
+  connectionId: string
+): Promise<void> {
+  const supabase = await createServiceClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any)
+    .from('synced_calendar_day_events')
+    .delete()
+    .eq('assignment_day_id', assignmentDayId)
+    .eq('connection_id', connectionId);
+}
+
+/**
+ * Sync a single assignment day to Outlook with specific times
+ */
+export async function syncAssignmentDayToOutlook(
+  assignment: AssignmentForSync,
+  day: AssignmentDayForSync,
+  connection: CalendarConnection
+): Promise<SyncResult> {
+  try {
+    const baseUrl = getBaseUrl();
+    const event = buildEventFromAssignmentDay(assignment, day, baseUrl);
+
+    // Check for existing synced event
+    const existing = await getSyncedDayEvent(day.id, connection.id);
+
+    if (existing?.external_event_id) {
+      // Update existing event
+      await updateCalendarEvent(connection, existing.external_event_id, event);
+      await storeSyncedDayEvent(day.id, connection.id, existing.external_event_id);
+      return { success: true, eventId: existing.external_event_id };
+    }
+
+    // Create new event
+    const response = await createCalendarEvent(connection, event);
+    await storeSyncedDayEvent(day.id, connection.id, response.id);
+    return { success: true, eventId: response.id };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Failed to sync assignment day to Outlook:', errorMessage);
+    return { success: false, error: errorMessage };
+  }
+}
+
+/**
+ * Delete an assignment day from Outlook
+ */
+export async function deleteAssignmentDayFromOutlook(
+  assignmentDayId: string,
+  connection: CalendarConnection
+): Promise<SyncResult> {
+  try {
+    const existingSync = await getSyncedDayEvent(assignmentDayId, connection.id);
+
+    if (existingSync?.external_event_id) {
+      await deleteCalendarEvent(connection, existingSync.external_event_id);
+    }
+
+    await deleteSyncedDayEvent(assignmentDayId, connection.id);
+
+    return { success: true };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Failed to delete assignment day from Outlook:', errorMessage);
+    return { success: false, error: errorMessage };
+  }
+}
+
+/**
+ * Trigger deletion of a specific day event across all user's connections.
+ * Called when a day is removed from an assignment.
+ */
+export async function triggerAssignmentDayDelete(
+  assignmentDayId: string,
+  userId: string
+): Promise<void> {
+  const connections = await getActiveConnections(userId);
+
+  await Promise.allSettled(
+    connections.map((connection) => deleteAssignmentDayFromOutlook(assignmentDayId, connection))
+  );
+}
+
+/**
+ * Sync a single day event after add/update
+ * Called from addAssignmentDays, updateAssignmentDay, moveAssignmentDay
+ */
+export async function triggerSingleDaySync(
+  assignment: AssignmentForSync,
+  day: AssignmentDayForSync
+): Promise<void> {
+  const connections = await getActiveConnections(assignment.user_id);
+  if (connections.length === 0) return;
+
+  // Check if this status should be synced
+  if (!SYNCABLE_STATUSES.includes(assignment.booking_status as typeof SYNCABLE_STATUSES[number])) {
+    // Status is draft or tentative - delete from Outlook if exists
+    await Promise.allSettled(
+      connections.map((connection) => deleteAssignmentDayFromOutlook(day.id, connection))
+    );
+    return;
+  }
+
+  // Sync to all connections
+  await Promise.allSettled(
+    connections.map((connection) => syncAssignmentDayToOutlook(assignment, day, connection))
+  );
 }
