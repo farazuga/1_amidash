@@ -22,6 +22,25 @@ interface MyScheduleCalendarViewProps {
   currentDate: Date;
 }
 
+/**
+ * Format time string (HH:MM:SS or HH:MM) to short display format (h:mm a)
+ */
+function formatTime(time: string): string {
+  if (!time) return '';
+  const [hours, minutes] = time.split(':').map(Number);
+  const period = hours >= 12 ? 'p' : 'a';
+  const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+  return `${displayHours}:${minutes.toString().padStart(2, '0')}${period}`;
+}
+
+/**
+ * Format time range for display
+ */
+function formatTimeRange(startTime: string, endTime: string): string {
+  if (!startTime || !endTime) return '';
+  return `${formatTime(startTime)}-${formatTime(endTime)}`;
+}
+
 export function MyScheduleCalendarView({ userId, userName, currentDate }: MyScheduleCalendarViewProps) {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -94,12 +113,17 @@ export function MyScheduleCalendarView({ userId, userName, currentDate }: MySche
                   {format(date, 'd')}
                 </div>
 
-                {/* Assignments for this day */}
+                {/* Assignments for this day - sorted by start time */}
                 <div className="space-y-0.5">
-                  {daySchedule.slice(0, 3).map((item, i) => {
+                  {daySchedule
+                    .slice()
+                    .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''))
+                    .slice(0, 3)
+                    .map((item, i) => {
                     const statusConfig = BOOKING_STATUS_CONFIG[item.booking_status as BookingStatus];
+                    const timeRange = formatTimeRange(item.start_time, item.end_time);
                     return (
-                      <Tooltip key={`${item.assignment_id}-${i}`}>
+                      <Tooltip key={`${item.day_id || item.assignment_id}-${i}`}>
                         <TooltipTrigger asChild>
                           <Link
                             href={`/projects/${item.sales_order_number || item.project_id}`}
@@ -109,11 +133,15 @@ export function MyScheduleCalendarView({ userId, userName, currentDate }: MySche
                               statusConfig?.textColor || 'text-gray-800'
                             )}
                           >
+                            {timeRange && <span className="font-medium">{formatTime(item.start_time)} </span>}
                             {item.project_name}
                           </Link>
                         </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-[200px]">
+                        <TooltipContent side="top" className="max-w-[220px]">
                           <p className="font-medium">{item.project_name}</p>
+                          {timeRange && (
+                            <p className="text-xs text-muted-foreground">{timeRange}</p>
+                          )}
                           <p className="text-xs text-muted-foreground">
                             {statusConfig?.label || item.booking_status}
                           </p>

@@ -91,6 +91,14 @@ export interface TeamMemberForSync {
   booking_status: string;
 }
 
+// Assignment day with times for sync
+export interface AssignmentDayForSync {
+  id: string;                // assignment_day.id
+  work_date: string;         // YYYY-MM-DD
+  start_time: string;        // HH:MM:SS
+  end_time: string;          // HH:MM:SS
+}
+
 // For assignment data passed to sync
 export interface AssignmentForSync {
   id: string;
@@ -113,4 +121,16 @@ export interface AssignmentForSync {
   };
   // Other team members on this project (excluding this user)
   team_members?: TeamMemberForSync[];
+  // Scheduled days with times (for per-day event sync)
+  days?: AssignmentDayForSync[];
+}
+
+// Synced calendar day event tracking
+export interface SyncedCalendarDayEvent {
+  id: string;
+  assignment_day_id: string;
+  connection_id: string;
+  external_event_id: string;
+  last_synced_at: string;
+  sync_error: string | null;
 }

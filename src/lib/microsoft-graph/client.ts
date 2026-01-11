@@ -12,6 +12,7 @@ import type {
   MicrosoftUserInfo,
   OutlookCalendarEvent,
   OutlookEventCreateResponse,
+  AssignmentDayForSync,
 } from './types';
 
 // Re-export Graph types for use elsewhere
@@ -365,5 +366,117 @@ function getStatusLabel(status: string): string {
     default:
       return status;
   }
+}
+
+/**
+ * Format time string (HH:MM:SS or HH:MM) to display format (h:mm AM/PM)
+ */
+function formatTimeForDisplay(time: string): string {
+  const [hours, minutes] = time.split(':').map(Number);
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+  return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+}
+
+/**
+ * Build an Outlook event object for a specific assignment day with times
+ * Creates timed events instead of all-day events for proper calendar sync
+ */
+export function buildEventFromAssignmentDay(
+  assignment: {
+    id: string;
+    booking_status: string;
+    notes: string | null;
+    project: {
+      client_name: string;
+      sales_order?: string | null;
+      poc_name?: string | null;
+      poc_email?: string | null;
+      poc_phone?: string | null;
+      scope_link?: string | null;
+      sales_order_url?: string | null;
+    };
+    team_members?: Array<{ full_name: string; booking_status: string }>;
+  },
+  day: AssignmentDayForSync,
+  baseUrl: string
+): OutlookCalendarEvent {
+  const statusLabel = getStatusLabel(assignment.booking_status);
+  const config = STATUS_CONFIG[assignment.booking_status] || STATUS_CONFIG.pending_confirm;
+
+  // Build enriched description
+  let description = `📋 Project: ${assignment.project.client_name}\n`;
+  description += `Status: ${statusLabel}\n`;
+  description += `Time: ${formatTimeForDisplay(day.start_time)} - ${formatTimeForDisplay(day.end_time)}\n`;
+
+  // Team members section
+  if (assignment.team_members && assignment.team_members.length > 0) {
+    description += `\n👥 Team:\n`;
+    for (const member of assignment.team_members) {
+      const memberStatus = getStatusLabel(member.booking_status).toLowerCase();
+      description += `• ${member.full_name} (${memberStatus})\n`;
+    }
+  }
+
+  // Client POC section
+  if (assignment.project.poc_name || assignment.project.poc_email || assignment.project.poc_phone) {
+    description += `\n📞 Client POC:\n`;
+    const pocParts: string[] = [];
+    if (assignment.project.poc_name) pocParts.push(assignment.project.poc_name);
+    if (assignment.project.poc_email) pocParts.push(assignment.project.poc_email);
+    if (assignment.project.poc_phone) pocParts.push(assignment.project.poc_phone);
+    description += pocParts.join(' | ') + '\n';
+  }
+
+  // Links section
+  const links: string[] = [];
+  const projectPath = assignment.project.sales_order
+    ? `/projects/${assignment.project.sales_order}`
+    : `/projects`;
+  links.push(`Dashboard: ${baseUrl}${projectPath}`);
+
+  if (assignment.project.scope_link) {
+    links.push(`SOW: ${assignment.project.scope_link}`);
+  }
+  if (assignment.project.sales_order_url) {
+    links.push(`Odoo: ${assignment.project.sales_order_url}`);
+  }
+
+  if (links.length > 0) {
+    description += `\n🔗 Links:\n`;
+    for (const link of links) {
+      description += `• ${link}\n`;
+    }
+  }
+
+  // Notes section
+  if (assignment.notes) {
+    description += `\nNotes: ${assignment.notes}`;
+  }
+
+  // Build ISO datetime strings for start and end
+  // day.work_date is YYYY-MM-DD, times are HH:MM:SS
+  const startDateTime = `${day.work_date}T${day.start_time}`;
+  const endDateTime = `${day.work_date}T${day.end_time}`;
+
+  return {
+    subject: `${config.emoji} ${assignment.project.client_name}`,
+    body: {
+      contentType: 'text',
+      content: description,
+    },
+    start: {
+      dateTime: startDateTime,
+      timeZone: 'America/Chicago', // Central time for the company
+    },
+    end: {
+      dateTime: endDateTime,
+      timeZone: 'America/Chicago',
+    },
+    isAllDay: false, // Timed event, not all-day
+    showAs: config.showAs,
+    categories: [config.category],
+    sensitivity: 'normal',
+  };
 }
 

@@ -28,6 +28,25 @@ interface UserScheduleViewProps {
 
 const ALL_STATUSES: BookingStatus[] = ['draft', 'tentative', 'pending_confirm', 'confirmed'];
 
+/**
+ * Format time string (HH:MM:SS or HH:MM) to display format (h:mm AM/PM)
+ */
+function formatTime(time: string): string {
+  if (!time) return '';
+  const [hours, minutes] = time.split(':').map(Number);
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+  return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+}
+
+/**
+ * Format time range for display
+ */
+function formatTimeRange(startTime: string, endTime: string): string {
+  if (!startTime || !endTime) return '';
+  return `${formatTime(startTime)} - ${formatTime(endTime)}`;
+}
+
 export function UserScheduleView({ userId, userName, currentDate }: UserScheduleViewProps) {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -160,19 +179,30 @@ export function UserScheduleView({ userId, userName, currentDate }: UserSchedule
               </CardHeader>
               <CardContent className="py-2 px-4">
                 <div className="space-y-2">
-                  {daySchedule.map((item, index) => (
-                    <Link
-                      key={`${item.assignment_id}-${index}`}
-                      href={`/projects/${item.sales_order_number || item.project_id}`}
-                      className="flex items-center justify-between p-2 rounded-md hover:bg-muted transition-colors"
-                    >
-                      <span className="font-medium">{item.project_name}</span>
-                      <BookingStatusBadge
-                        status={item.booking_status as BookingStatus}
-                        size="sm"
-                      />
-                    </Link>
-                  ))}
+                  {daySchedule
+                    .slice()
+                    .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''))
+                    .map((item, index) => {
+                    const timeRange = formatTimeRange(item.start_time, item.end_time);
+                    return (
+                      <Link
+                        key={`${item.day_id || item.assignment_id}-${index}`}
+                        href={`/projects/${item.sales_order_number || item.project_id}`}
+                        className="flex items-center justify-between p-2 rounded-md hover:bg-muted transition-colors"
+                      >
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-medium">{item.project_name}</span>
+                          {timeRange && (
+                            <span className="text-xs text-muted-foreground">{timeRange}</span>
+                          )}
+                        </div>
+                        <BookingStatusBadge
+                          status={item.booking_status as BookingStatus}
+                          size="sm"
+                        />
+                      </Link>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
