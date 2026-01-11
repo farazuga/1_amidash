@@ -44,8 +44,8 @@ export function AssignmentDaysDialog({
   projectEndDate,
 }: AssignmentDaysDialogProps) {
   const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
-  const [defaultStartTime, setDefaultStartTime] = useState('08:00');
-  const [defaultEndTime, setDefaultEndTime] = useState('17:00');
+  const [defaultStartTime, setDefaultStartTime] = useState('08:30');
+  const [defaultEndTime, setDefaultEndTime] = useState('16:30');
 
   const { data: existingDays = [], isLoading, refetch } = useAssignmentDays(assignmentId);
   const addDays = useAddAssignmentDays();
@@ -54,8 +54,8 @@ export function AssignmentDaysDialog({
   // Reset state when assignment changes
   useEffect(() => {
     setSelectedDates(new Set());
-    setDefaultStartTime('08:00');
-    setDefaultEndTime('17:00');
+    setDefaultStartTime('08:30');
+    setDefaultEndTime('16:30');
   }, [assignmentId]);
 
   // Reset selection and refetch when dialog opens
