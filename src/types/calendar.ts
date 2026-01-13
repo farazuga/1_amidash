@@ -296,8 +296,12 @@ export interface UserScheduleResult {
   schedule_date: string;
   project_id: string;
   project_name: string;
+  sales_order_number: string | null;
   booking_status: BookingStatus;
   assignment_id: string;
+  start_time: string;
+  end_time: string;
+  day_id: string;
 }
 
 // Result from get_calendar_assignments database function

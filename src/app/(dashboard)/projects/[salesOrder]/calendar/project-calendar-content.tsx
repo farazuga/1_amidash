@@ -1,15 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { ProjectCalendar, BulkAssignDialog } from '@/components/calendar';
+import { ProjectCalendar, BulkAssignDialog, AssignmentDaysDialog } from '@/components/calendar';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Link2, ExternalLink, Users, ListTodo, UserPlus } from 'lucide-react';
 import {
   useCalendarSubscriptions,
@@ -19,10 +12,8 @@ import {
 import { toast } from 'sonner';
 import type { CalendarEvent } from '@/types/calendar';
 import type { Project } from '@/types';
-import { useRouter } from 'next/navigation';
-import { cn } from '@/lib/utils';
 import { BookingStatusBadge } from '@/components/calendar';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface ProjectCalendarContentProps {
@@ -31,17 +22,21 @@ interface ProjectCalendarContentProps {
 }
 
 export function ProjectCalendarContent({ project, isAdmin }: ProjectCalendarContentProps) {
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'calendar' | 'list'>('calendar');
   const [showBulkAssign, setShowBulkAssign] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [showScheduleDialog, setShowScheduleDialog] = useState(false);
 
   const { data: subscriptions } = useCalendarSubscriptions();
   const { data: assignments, isLoading: isLoadingAssignments } = useProjectAssignments(project.id);
   const createSubscription = useCreateCalendarSubscription();
 
   const handleEventClick = (event: CalendarEvent) => {
-    // Navigate to the project page
-    router.push(`/projects/${project.sales_order_number}`);
+    // Open the Manage Schedule dialog for this assignment
+    if (project.start_date && project.end_date) {
+      setSelectedEvent(event);
+      setShowScheduleDialog(true);
+    }
   };
 
   const handleGetICalLink = async () => {
@@ -55,7 +50,7 @@ export function ProjectCalendarContent({ project, isAdmin }: ProjectCalendarCont
       toast.success('Calendar link copied to clipboard!', {
         description: 'Paste this URL in your calendar app to subscribe',
       });
-    } catch (error) {
+    } catch {
       toast.error('Failed to generate calendar link');
     }
   };
@@ -193,6 +188,19 @@ export function ProjectCalendarContent({ project, isAdmin }: ProjectCalendarCont
         projectId={project.id}
         projectName={project.client_name}
       />
+
+      {/* Assignment Days Dialog - opens when clicking on an event */}
+      {selectedEvent && project.start_date && project.end_date && (
+        <AssignmentDaysDialog
+          open={showScheduleDialog}
+          onOpenChange={setShowScheduleDialog}
+          assignmentId={selectedEvent.assignmentId}
+          userName={selectedEvent.userName}
+          projectName={project.client_name}
+          projectStartDate={project.start_date}
+          projectEndDate={project.end_date}
+        />
+      )}
     </div>
   );
 }

@@ -105,7 +105,7 @@ export function MyScheduleCalendarView({ userId, userName, currentDate }: MySche
                       <Tooltip key={`${item.assignment_id}-${i}`}>
                         <TooltipTrigger asChild>
                           <Link
-                            href={`/projects/${item.project_id}/calendar`}
+                            href={item.sales_order_number ? `/projects/${item.sales_order_number}/calendar` : '#'}
                             className={cn(
                               'block text-[10px] sm:text-xs px-1 sm:px-1.5 py-0.5 rounded truncate transition-opacity hover:opacity-80',
                               statusConfig?.bgColor || 'bg-gray-100',
@@ -121,6 +121,11 @@ export function MyScheduleCalendarView({ userId, userName, currentDate }: MySche
                             <p className="text-xs text-muted-foreground">
                               Status: {statusConfig?.label || item.booking_status}
                             </p>
+                            {item.start_time && item.end_time && (
+                              <p className="text-xs text-muted-foreground">
+                                Time: {item.start_time.slice(0, 5)} - {item.end_time.slice(0, 5)}
+                              </p>
+                            )}
                             <p className="text-xs text-muted-foreground">
                               Click to view project schedule
                             </p>

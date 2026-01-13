@@ -163,10 +163,17 @@ export function UserScheduleView({ userId, userName, currentDate }: UserSchedule
                   {daySchedule.map((item, index) => (
                     <Link
                       key={`${item.assignment_id}-${index}`}
-                      href={`/projects/${item.project_id}/calendar`}
+                      href={item.sales_order_number ? `/projects/${item.sales_order_number}/calendar` : '#'}
                       className="flex items-center justify-between p-2 rounded-md hover:bg-muted transition-colors"
                     >
-                      <span className="font-medium">{item.project_name}</span>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{item.project_name}</span>
+                        {item.start_time && item.end_time && (
+                          <span className="text-xs text-muted-foreground">
+                            {item.start_time.slice(0, 5)} - {item.end_time.slice(0, 5)}
+                          </span>
+                        )}
+                      </div>
                       <BookingStatusBadge
                         status={item.booking_status as BookingStatus}
                         size="sm"
