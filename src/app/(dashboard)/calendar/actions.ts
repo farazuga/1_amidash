@@ -245,13 +245,49 @@ export async function createAssignment(data: {
     return { success: false, error: conflictCheck.error, conflicts: conflictCheck };
   }
 
+  // Determine booking status: use provided status, or match lowest existing status on project
+  let bookingStatus: BookingStatus = data.bookingStatus || 'draft';
+
+  if (!data.bookingStatus) {
+    // Check existing assignments on this project to match the lowest status
+    const { data: existingAssignments } = await supabase
+      .from('project_assignments')
+      .select('booking_status')
+      .eq('project_id', data.projectId);
+
+    if (existingAssignments && existingAssignments.length > 0) {
+      // Status hierarchy: draft (lowest) -> tentative -> pending_confirm -> confirmed (highest)
+      const statusPriority: Record<BookingStatus, number> = {
+        draft: 0,
+        tentative: 1,
+        pending_confirm: 2,
+        confirmed: 3,
+      };
+
+      // Find the lowest status among existing assignments
+      let lowestPriority = 4; // Higher than any valid status
+      for (const assignment of existingAssignments) {
+        const priority = statusPriority[assignment.booking_status as BookingStatus] ?? 4;
+        if (priority < lowestPriority) {
+          lowestPriority = priority;
+        }
+      }
+
+      // Map priority back to status
+      const priorityToStatus: BookingStatus[] = ['draft', 'tentative', 'pending_confirm', 'confirmed'];
+      if (lowestPriority < 4) {
+        bookingStatus = priorityToStatus[lowestPriority];
+      }
+    }
+  }
+
   // Create the assignment
   const { data: assignment, error: insertError } = await supabase
     .from('project_assignments')
     .insert({
       project_id: data.projectId,
       user_id: data.userId,
-      booking_status: data.bookingStatus || 'draft',
+      booking_status: bookingStatus,
       notes: data.notes || null,
       created_by: user.id,
     })
