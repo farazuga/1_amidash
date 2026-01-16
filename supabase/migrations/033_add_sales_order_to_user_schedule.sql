@@ -1,6 +1,9 @@
 -- Migration: Add sales_order_number to get_user_schedule RPC
 -- This allows the My Schedule page to link directly to project calendar pages
 
+-- Drop existing function first (required when changing return type)
+DROP FUNCTION IF EXISTS get_user_schedule(UUID, DATE, DATE);
+
 CREATE OR REPLACE FUNCTION get_user_schedule(
   p_user_id UUID,
   p_start_date DATE,
