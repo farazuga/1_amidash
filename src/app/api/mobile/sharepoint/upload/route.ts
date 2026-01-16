@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { uploadFile } from '@/app/(dashboard)/projects/[salesOrder]/files/actions';
-import type { FileCategory } from '@/types';
+import type { FileCategory, FileCategoryWithLegacy } from '@/types';
 
 /**
  * Mobile API endpoint for uploading files to SharePoint
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const projectId = formData.get('projectId') as string | null;
-    let category = formData.get('category') as FileCategory | null;
+    const rawCategory = formData.get('category') as FileCategoryWithLegacy | null;
     const notes = formData.get('notes') as string | null;
 
     // 4. Validate required fields
@@ -52,21 +52,20 @@ export async function POST(request: Request) {
     if (!projectId) {
       return Response.json({ error: 'Project ID is required' }, { status: 400 });
     }
-    if (!category) {
+    if (!rawCategory) {
       return Response.json({ error: 'Category is required' }, { status: 400 });
     }
 
     // 5. Map legacy category values to current values
     // photos and videos are legacy values that map to media
-    if (category === 'photos' || category === 'videos') {
-      category = 'media' as FileCategory;
-    }
-
-    // Validate category is a valid value
-    const validCategories: FileCategory[] = ['schematics', 'sow', 'media', 'other'];
-    if (!validCategories.includes(category)) {
+    let category: FileCategory;
+    if (rawCategory === 'photos' || rawCategory === 'videos') {
+      category = 'media';
+    } else if (['schematics', 'sow', 'media', 'other'].includes(rawCategory)) {
+      category = rawCategory as FileCategory;
+    } else {
       return Response.json(
-        { error: `Invalid category. Valid values: ${validCategories.join(', ')}` },
+        { error: `Invalid category. Valid values: schematics, sow, media, other` },
         { status: 400 }
       );
     }
