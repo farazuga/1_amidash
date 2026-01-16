@@ -138,6 +138,27 @@ export function createAPIServer(
     res.json(logs);
   });
 
+  // Jump to specific slide
+  app.post('/control/slide/:index', (req: Request, res: Response) => {
+    try {
+      const state = getState();
+      if (!state.slideManager) {
+        res.status(503).json({ error: 'Engine is not running' });
+        return;
+      }
+      const index = parseInt(req.params.index);
+      const total = state.slideManager.getSlideCount();
+      if (isNaN(index) || index < 0 || index >= total) {
+        res.status(400).json({ error: `Invalid slide index. Must be 0-${total - 1}` });
+        return;
+      }
+      state.slideManager.jumpToSlide(index);
+      res.json({ success: true, currentSlide: index, totalSlides: total });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to change slide', details: String(error) });
+    }
+  });
+
   return app;
 }
 

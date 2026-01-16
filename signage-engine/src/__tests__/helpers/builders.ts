@@ -118,9 +118,19 @@ export function buildScheduleEntries(count: number = 3): ScheduleEntry[] {
 export function buildProjectMetrics(overrides: Partial<ProjectMetrics> = {}): ProjectMetrics {
   return {
     total: 50,
-    active: 20,
-    completed: 25,
-    pending: 5,
+    byStatus: [
+      { status_name: 'In Progress', status_color: '#3b82f6', count: 20 },
+      { status_name: 'Complete', status_color: '#10b981', count: 25 },
+      { status_name: 'Pending', status_color: '#6b7280', count: 5 },
+    ],
+    byType: [
+      { type_name: 'Integration', count: 30 },
+      { type_name: 'Development', count: 20 },
+    ],
+    completedThisWeek: 5,
+    completedThisMonth: 15,
+    upcomingDeadlines: 3,
+    overdueCount: 2,
     ...overrides,
   };
 }
@@ -135,8 +145,6 @@ export function buildSignageSlide(overrides: Partial<SignageSlide> = {}): Signag
     display_order: 1,
     duration_ms: 15000,
     config: {},
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
     ...overrides,
   };
 }

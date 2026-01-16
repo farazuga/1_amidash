@@ -5,6 +5,8 @@ import { fetchRevenueData, RevenueData } from './fetchers/revenue.js';
 import { fetchScheduleData, ScheduleEntry } from './fetchers/schedule.js';
 import { fetchProjectMetrics, ProjectMetrics } from './fetchers/metrics.js';
 import { fetchSlideConfig, SignageSlide } from './fetchers/slide-config.js';
+import { fetchDashboardMetrics, DashboardMetrics } from './fetchers/dashboard-metrics.js';
+import { isSupabaseConfigured } from './supabase-client.js';
 import { PollingConfig } from '../config/schema.js';
 
 export interface DataCache {
@@ -14,6 +16,8 @@ export interface DataCache {
   schedule: { data: ScheduleEntry[]; lastUpdated: Date | null };
   metrics: { data: ProjectMetrics | null; lastUpdated: Date | null };
   slideConfig: { data: SignageSlide[]; lastUpdated: Date | null };
+  dashboardMetrics: { data: DashboardMetrics | null; lastUpdated: Date | null };
+  connectionStatus: { isConnected: boolean; usingMockData: boolean; lastError: string | null };
 }
 
 export class PollingManager {
@@ -24,6 +28,8 @@ export class PollingManager {
     schedule: { data: [], lastUpdated: null },
     metrics: { data: null, lastUpdated: null },
     slideConfig: { data: [], lastUpdated: null },
+    dashboardMetrics: { data: null, lastUpdated: null },
+    connectionStatus: { isConnected: false, usingMockData: true, lastError: null },
   };
 
   private intervals: NodeJS.Timeout[] = [];
@@ -36,6 +42,18 @@ export class PollingManager {
   async start(): Promise<void> {
     logger.info('Starting polling manager');
 
+    // Check Supabase connection status
+    const connected = isSupabaseConfigured();
+    this.cache.connectionStatus = {
+      isConnected: connected,
+      usingMockData: !connected,
+      lastError: connected ? null : 'Supabase not configured - displaying mock data',
+    };
+
+    if (!connected) {
+      logger.warn('Supabase not configured - signage will display mock data');
+    }
+
     // Initial fetch
     await this.fetchAll();
 
@@ -46,7 +64,8 @@ export class PollingManager {
       setInterval(() => this.fetchRevenue(), this.config.revenue),
       setInterval(() => this.fetchSchedule(), this.config.schedule),
       setInterval(() => this.fetchMetrics(), this.config.projects), // Same as projects
-      setInterval(() => this.fetchSlideConfig(), 60000) // Every 60 seconds
+      setInterval(() => this.fetchSlideConfig(), 60000), // Every 60 seconds
+      setInterval(() => this.fetchDashboardMetrics(), 30000) // Every 30 seconds for dashboard metrics
     );
 
     logger.info({ config: this.config }, 'Polling intervals configured');
@@ -66,6 +85,7 @@ export class PollingManager {
       this.fetchSchedule(),
       this.fetchMetrics(),
       this.fetchSlideConfig(),
+      this.fetchDashboardMetrics(),
     ]);
   }
 
@@ -129,6 +149,16 @@ export class PollingManager {
     }
   }
 
+  private async fetchDashboardMetrics(): Promise<void> {
+    try {
+      const data = await fetchDashboardMetrics();
+      this.cache.dashboardMetrics = { data, lastUpdated: new Date() };
+      logger.debug('Fetched dashboard metrics');
+    } catch (error) {
+      logger.error({ error }, 'Failed to fetch dashboard metrics');
+    }
+  }
+
   getCache(): DataCache {
     return this.cache;
   }
@@ -141,6 +171,7 @@ export class PollingManager {
       this.cache.revenue.lastUpdated,
       this.cache.schedule.lastUpdated,
       this.cache.metrics.lastUpdated,
+      this.cache.dashboardMetrics.lastUpdated,
     ];
 
     return checks.some((date) => {

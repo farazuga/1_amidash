@@ -32,7 +32,26 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, GripVertical, Pencil, Trash2, LayoutDashboard, List, TrendingUp, Clock, Users, CalendarDays, PlayCircle, BarChart3, AlertTriangle, Trophy } from 'lucide-react';
+import {
+  Plus,
+  GripVertical,
+  Pencil,
+  Trash2,
+  LayoutDashboard,
+  List,
+  TrendingUp,
+  Clock,
+  Users,
+  Heart,
+  AlertTriangle,
+  Gauge,
+  BarChart3,
+  GitBranch,
+  Timer,
+  CalendarDays,
+  PlayCircle,
+  Trophy,
+} from 'lucide-react';
 import {
   createSlide,
   updateSlide,
@@ -48,12 +67,20 @@ interface SlideEditorProps {
 }
 
 const SLIDE_TYPES: { value: SlideType; label: string; icon: React.ReactNode; description: string }[] = [
+  // Original slides
   { value: 'project-list', label: 'Project List', icon: <List className="h-4 w-4" />, description: 'Grid view of active projects with status, client, and dates' },
   { value: 'project-metrics', label: 'Project Metrics', icon: <TrendingUp className="h-4 w-4" />, description: 'KPIs and charts showing project counts and trends' },
   { value: 'po-ticker', label: 'PO Ticker', icon: <Clock className="h-4 w-4" />, description: 'Scrolling ticker of recent purchase orders' },
   { value: 'revenue-dashboard', label: 'Revenue Dashboard', icon: <LayoutDashboard className="h-4 w-4" />, description: 'Revenue goals, actuals, and monthly breakdown' },
   { value: 'team-schedule', label: 'Team Schedule', icon: <Users className="h-4 w-4" />, description: 'Team member availability and assignments' },
-  // New slide types
+  // New dashboard slides
+  { value: 'health-dashboard', label: 'Health Dashboard', icon: <Heart className="h-4 w-4" />, description: 'Business health gauges showing sales and operations health percentages' },
+  { value: 'alerts-dashboard', label: 'Alerts Dashboard', icon: <AlertTriangle className="h-4 w-4" />, description: 'Overdue and stuck projects with attention indicators' },
+  { value: 'performance-metrics', label: 'Performance Metrics', icon: <Gauge className="h-4 w-4" />, description: 'KPIs: On-time %, DTI, backlog depth, customer concentration' },
+  { value: 'velocity-chart', label: 'Velocity Chart', icon: <BarChart3 className="h-4 w-4" />, description: 'PO intake vs invoice completion trend over 6 months' },
+  { value: 'status-pipeline', label: 'Status Pipeline', icon: <GitBranch className="h-4 w-4" />, description: 'Project workflow funnel with counts and revenue per status' },
+  { value: 'cycle-time', label: 'Cycle Time', icon: <Timer className="h-4 w-4" />, description: 'Average days spent in each status stage' },
+  // Additional slide types
   { value: 'upcoming-projects', label: 'Upcoming Projects', icon: <CalendarDays className="h-4 w-4" />, description: 'Projects starting in the next 30 days, prioritized by value' },
   { value: 'in-progress', label: 'In Progress', icon: <PlayCircle className="h-4 w-4" />, description: 'Currently active projects with timeline progress' },
   { value: 'monthly-scorecard', label: 'Monthly Scorecard', icon: <BarChart3 className="h-4 w-4" />, description: 'Monthly summary of POs received, invoiced, and project KPIs' },

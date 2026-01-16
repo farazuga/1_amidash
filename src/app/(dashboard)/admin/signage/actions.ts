@@ -11,7 +11,15 @@ export type SlideType =
   | 'po-ticker'
   | 'revenue-dashboard'
   | 'team-schedule'
-  // New slide types
+  | 'active-projects'
+  // New dashboard slides
+  | 'health-dashboard'
+  | 'alerts-dashboard'
+  | 'performance-metrics'
+  | 'velocity-chart'
+  | 'status-pipeline'
+  | 'cycle-time'
+  // Additional slide types
   | 'upcoming-projects'
   | 'in-progress'
   | 'monthly-scorecard'

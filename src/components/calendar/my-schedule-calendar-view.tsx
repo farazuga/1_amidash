@@ -102,7 +102,7 @@ export function MyScheduleCalendarView({ userId, userName, currentDate }: MySche
                       <Tooltip key={`${item.assignment_id}-${i}`}>
                         <TooltipTrigger asChild>
                           <Link
-                            href={`/projects/${item.sales_order_number || item.project_id}`}
+                            href={item.sales_order_number ? `/projects/${item.sales_order_number}/calendar` : '#'}
                             className={cn(
                               'block text-xs px-1.5 py-0.5 rounded truncate transition-opacity hover:opacity-80',
                               statusConfig?.bgColor || 'bg-gray-100',
@@ -112,11 +112,21 @@ export function MyScheduleCalendarView({ userId, userName, currentDate }: MySche
                             {item.project_name}
                           </Link>
                         </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-[200px]">
-                          <p className="font-medium">{item.project_name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {statusConfig?.label || item.booking_status}
-                          </p>
+                        <TooltipContent side="top" className="max-w-[250px]">
+                          <div className="space-y-1">
+                            <p className="font-medium">{item.project_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Status: {statusConfig?.label || item.booking_status}
+                            </p>
+                            {item.start_time && item.end_time && (
+                              <p className="text-xs text-muted-foreground">
+                                Time: {item.start_time.slice(0, 5)} - {item.end_time.slice(0, 5)}
+                              </p>
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                              Click to view project schedule
+                            </p>
+                          </div>
                         </TooltipContent>
                       </Tooltip>
                     );
