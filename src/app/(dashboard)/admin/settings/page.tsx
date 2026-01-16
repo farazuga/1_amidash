@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Loader2, Mail, AlertTriangle, Settings, FolderSync, ExternalLink, Unlink, BarChart3, HelpCircle } from 'lucide-react';
+import { Loader2, Mail, AlertTriangle, Settings, FolderSync, ExternalLink, Unlink, BarChart3, HelpCircle, FolderPlus, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
@@ -21,6 +21,8 @@ import {
   getSharePointConfig,
   removeSharePointConfig,
   checkAdminMicrosoftConnection,
+  createMissingSharePointFolders,
+  getProjectsWithoutFoldersCount,
 } from './sharepoint-actions';
 import type { SharePointGlobalConfig } from '@/types';
 
@@ -39,6 +41,11 @@ interface DashboardSettings {
   concentrationHighThreshold: number;
   concentrationMediumThreshold: number;
   backlogWarningMonths: number;
+  // New settings for dashboard improvements
+  notScheduledWarningDays: number;
+  lowInvoiceWarningPercent: number;
+  signageMinProjectValue: number;
+  signageUpcomingDays: number;
 }
 
 const DEFAULT_DASHBOARD_SETTINGS: DashboardSettings = {
@@ -50,6 +57,11 @@ const DEFAULT_DASHBOARD_SETTINGS: DashboardSettings = {
   concentrationHighThreshold: 70,
   concentrationMediumThreshold: 50,
   backlogWarningMonths: 6,
+  // New settings for dashboard improvements
+  notScheduledWarningDays: 14,
+  lowInvoiceWarningPercent: 80,
+  signageMinProjectValue: 10000,
+  signageUpcomingDays: 30,
 };
 
 const SETTING_TOOLTIPS: Record<keyof DashboardSettings, { label: string; tooltip: string }> = {
@@ -85,6 +97,23 @@ const SETTING_TOOLTIPS: Record<keyof DashboardSettings, { label: string; tooltip
     label: 'Backlog Warning (months)',
     tooltip: 'Backlog depth above this shows warning. Recommended: 6 months. Too much backlog may indicate capacity issues.',
   },
+  // New settings for dashboard improvements
+  notScheduledWarningDays: {
+    label: 'Not Scheduled Warning (days)',
+    tooltip: 'Projects waiting longer than this without being scheduled trigger an alert. Recommended: 14 days.',
+  },
+  lowInvoiceWarningPercent: {
+    label: 'Low Invoice Warning (%)',
+    tooltip: 'If projected invoicing for the month is below this percentage of goal, show a warning. Recommended: 80%.',
+  },
+  signageMinProjectValue: {
+    label: 'Signage Min Project Value ($)',
+    tooltip: 'Only show projects with value above this threshold on digital signage. Helps prioritize Solutions over Box Sales.',
+  },
+  signageUpcomingDays: {
+    label: 'Signage Upcoming Days',
+    tooltip: 'Number of days to look ahead for "Upcoming Projects" on signage. Recommended: 30 days.',
+  },
 };
 
 export default function AdminSettingsPage() {
@@ -103,6 +132,10 @@ export default function AdminSettingsPage() {
   const [msEmail, setMsEmail] = useState<string | null>(null);
   const [showSharepointDialog, setShowSharepointDialog] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+
+  // Folder migration state
+  const [projectsWithoutFolders, setProjectsWithoutFolders] = useState<{ count: number; total: number }>({ count: 0, total: 0 });
+  const [isCreatingFolders, setIsCreatingFolders] = useState(false);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -136,6 +169,11 @@ export default function AdminSettingsPage() {
           'dashboard_concentration_high_threshold': 'concentrationHighThreshold',
           'dashboard_concentration_medium_threshold': 'concentrationMediumThreshold',
           'dashboard_backlog_warning_months': 'backlogWarningMonths',
+          // New settings
+          'dashboard_not_scheduled_warning_days': 'notScheduledWarningDays',
+          'dashboard_low_invoice_warning_percent': 'lowInvoiceWarningPercent',
+          'dashboard_signage_min_project_value': 'signageMinProjectValue',
+          'dashboard_signage_upcoming_days': 'signageUpcomingDays',
         };
 
         data.forEach((setting: AppSetting) => {
@@ -156,14 +194,15 @@ export default function AdminSettingsPage() {
     fetchSettings();
   }, [supabase]);
 
-  // Fetch SharePoint config and Microsoft connection status
+  // Fetch SharePoint config, Microsoft connection status, and folder counts
   useEffect(() => {
     const fetchSharePointSettings = async () => {
       setSharepointLoading(true);
       try {
-        const [configResult, msResult] = await Promise.all([
+        const [configResult, msResult, folderCount] = await Promise.all([
           getSharePointConfig(),
           checkAdminMicrosoftConnection(),
+          getProjectsWithoutFoldersCount(),
         ]);
 
         if (configResult.success) {
@@ -171,6 +210,7 @@ export default function AdminSettingsPage() {
         }
         setMsConnected(msResult.connected);
         setMsEmail(msResult.email || null);
+        setProjectsWithoutFolders(folderCount);
       } catch (error) {
         console.error('Error fetching SharePoint settings:', error);
       } finally {
@@ -180,6 +220,35 @@ export default function AdminSettingsPage() {
 
     fetchSharePointSettings();
   }, []);
+
+  const handleCreateMissingFolders = async () => {
+    setIsCreatingFolders(true);
+    try {
+      const result = await createMissingSharePointFolders();
+
+      if (result.success) {
+        if (result.created > 0) {
+          toast.success(`Created ${result.created} SharePoint folder${result.created !== 1 ? 's' : ''}`);
+        } else {
+          toast.info('All projects already have SharePoint folders');
+        }
+
+        if (result.errors > 0) {
+          toast.warning(`${result.errors} folder${result.errors !== 1 ? 's' : ''} failed to create`);
+        }
+
+        // Refresh the count
+        const newCount = await getProjectsWithoutFoldersCount();
+        setProjectsWithoutFolders(newCount);
+      } else {
+        toast.error(result.error || 'Failed to create folders');
+      }
+    } catch (error) {
+      toast.error('Failed to create folders');
+    } finally {
+      setIsCreatingFolders(false);
+    }
+  };
 
   const handleDisconnectSharePoint = async () => {
     setIsDisconnecting(true);
@@ -235,6 +304,11 @@ export default function AdminSettingsPage() {
       concentrationHighThreshold: 'dashboard_concentration_high_threshold',
       concentrationMediumThreshold: 'dashboard_concentration_medium_threshold',
       backlogWarningMonths: 'dashboard_backlog_warning_months',
+      // New settings
+      notScheduledWarningDays: 'dashboard_not_scheduled_warning_days',
+      lowInvoiceWarningPercent: 'dashboard_low_invoice_warning_percent',
+      signageMinProjectValue: 'dashboard_signage_min_project_value',
+      signageUpcomingDays: 'dashboard_signage_upcoming_days',
     };
 
     try {
@@ -491,11 +565,50 @@ WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND pr
                   <div>
                     <p className="text-sm font-medium">How it works</p>
                     <p className="text-sm text-muted-foreground">
-                      When files are uploaded to a project, a subfolder is automatically
-                      created (e.g., /Projects/ClientName) with category folders for
-                      Schematics, SOW, Photos, Videos, and Other.
+                      When a new project is created, a SharePoint folder is automatically
+                      created (e.g., /Projects/S12345 ClientName) with category folders for
+                      Schematics, SOW, Photos & Videos, and Other.
                     </p>
                   </div>
+                </div>
+              </div>
+
+              {/* Create folders for existing projects */}
+              <div className="rounded-lg border p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium flex items-center gap-2">
+                      <FolderPlus className="h-4 w-4" />
+                      Create Folders for Existing Projects
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {projectsWithoutFolders.count > 0 ? (
+                        <>{projectsWithoutFolders.count} of {projectsWithoutFolders.total} projects need folders</>
+                      ) : (
+                        <span className="flex items-center gap-1 text-green-600">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          All projects have SharePoint folders
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleCreateMissingFolders}
+                    disabled={isCreatingFolders || projectsWithoutFolders.count === 0}
+                    size="sm"
+                  >
+                    {isCreatingFolders ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <FolderPlus className="h-4 w-4 mr-2" />
+                        Create Folders
+                      </>
+                    )}
+                  </Button>
                 </div>
               </div>
             </>
@@ -682,6 +795,72 @@ WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND pr
                       type="number"
                       min={0}
                       max={100}
+                      value={dashboardSettings[key]}
+                      onChange={(e) => handleDashboardSettingChange(key, e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Dashboard Alert Thresholds */}
+            <div>
+              <h3 className="text-sm font-semibold mb-4">Dashboard Alerts</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {(['notScheduledWarningDays', 'lowInvoiceWarningPercent'] as const).map(key => (
+                  <div key={key} className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor={key} className="text-sm">
+                        {SETTING_TOOLTIPS[key].label}
+                      </Label>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p>{SETTING_TOOLTIPS[key].tooltip}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <Input
+                      id={key}
+                      type="number"
+                      min={key === 'notScheduledWarningDays' ? 1 : 0}
+                      max={key === 'notScheduledWarningDays' ? 90 : 100}
+                      value={dashboardSettings[key]}
+                      onChange={(e) => handleDashboardSettingChange(key, e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Digital Signage Settings */}
+            <div>
+              <h3 className="text-sm font-semibold mb-4">Digital Signage</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {(['signageMinProjectValue', 'signageUpcomingDays'] as const).map(key => (
+                  <div key={key} className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor={key} className="text-sm">
+                        {SETTING_TOOLTIPS[key].label}
+                      </Label>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p>{SETTING_TOOLTIPS[key].tooltip}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <Input
+                      id={key}
+                      type="number"
+                      min={key === 'signageMinProjectValue' ? 0 : 1}
+                      max={key === 'signageMinProjectValue' ? 1000000 : 365}
                       value={dashboardSettings[key]}
                       onChange={(e) => handleDashboardSettingChange(key, e.target.value)}
                       className="w-full"

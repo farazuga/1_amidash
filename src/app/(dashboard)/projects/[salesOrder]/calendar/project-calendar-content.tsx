@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ProjectCalendar, BulkAssignDialog, AssignmentDaysDialog } from '@/components/calendar';
 import { Button } from '@/components/ui/button';
-import { Link2, ExternalLink, Users, ListTodo, UserPlus } from 'lucide-react';
+import { Users, ListTodo, UserPlus } from 'lucide-react';
 import {
   useCalendarSubscriptions,
   useCreateCalendarSubscription,
@@ -27,9 +27,7 @@ export function ProjectCalendarContent({ project, isAdmin }: ProjectCalendarCont
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
 
-  const { data: subscriptions } = useCalendarSubscriptions();
   const { data: assignments, isLoading: isLoadingAssignments } = useProjectAssignments(project.id);
-  const createSubscription = useCreateCalendarSubscription();
 
   const handleEventClick = (event: CalendarEvent) => {
     // Open the Manage Schedule dialog for this assignment
@@ -38,26 +36,6 @@ export function ProjectCalendarContent({ project, isAdmin }: ProjectCalendarCont
       setShowScheduleDialog(true);
     }
   };
-
-  const handleGetICalLink = async () => {
-    try {
-      const result = await createSubscription.mutateAsync({
-        feedType: 'project',
-        projectId: project.id,
-      });
-
-      await navigator.clipboard.writeText(result.url);
-      toast.success('Calendar link copied to clipboard!', {
-        description: 'Paste this URL in your calendar app to subscribe',
-      });
-    } catch {
-      toast.error('Failed to generate calendar link');
-    }
-  };
-
-  const existingProjectSub = subscriptions?.find(
-    s => s.feed_type === 'project' && s.project_id === project.id
-  );
 
   return (
     <div className="space-y-4">
@@ -84,31 +62,6 @@ export function ProjectCalendarContent({ project, isAdmin }: ProjectCalendarCont
             >
               <UserPlus className="mr-2 h-4 w-4" />
               Bulk Assign
-            </Button>
-          )}
-          {existingProjectSub ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={async () => {
-                const baseUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
-                const url = `${baseUrl}/api/calendar/ical/${existingProjectSub.token}`;
-                await navigator.clipboard.writeText(url);
-                toast.success('Calendar link copied!');
-              }}
-            >
-              <Link2 className="mr-2 h-4 w-4" />
-              Copy iCal Link
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleGetICalLink}
-              disabled={createSubscription.isPending}
-            >
-              <ExternalLink className="mr-2 h-4 w-4" />
-              Get Calendar Link
             </Button>
           )}
         </div>

@@ -9,7 +9,7 @@ import {
   File,
   FolderOpen
 } from 'lucide-react';
-import type { FileCategory, FileCategoryCount } from '@/types';
+import type { FileCategory, FileCategoryCount, FileCategoryWithLegacy } from '@/types';
 import { cn } from '@/lib/utils';
 
 interface FileCategoryTabsProps {
@@ -19,6 +19,7 @@ interface FileCategoryTabsProps {
   className?: string;
 }
 
+// Tab categories (4 main categories + 'all')
 const categoryConfig: Record<FileCategory | 'all', {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -44,23 +45,18 @@ const categoryConfig: Record<FileCategory | 'all', {
     icon: Image,
     color: 'text-green-600',
   },
-  // Legacy categories (for backwards compatibility)
-  photos: {
-    label: 'Photos',
-    icon: Image,
-    color: 'text-green-600',
-  },
-  videos: {
-    label: 'Videos',
-    icon: Image,
-    color: 'text-green-600',
-  },
   other: {
     label: 'Other',
     icon: File,
     color: 'text-gray-600',
   },
 };
+
+// Helper to normalize legacy categories to current ones for counting
+function normalizeCategory(category: FileCategoryWithLegacy): FileCategory {
+  if (category === 'photos' || category === 'videos') return 'media';
+  return category;
+}
 
 export function FileCategoryTabs({
   activeCategory,

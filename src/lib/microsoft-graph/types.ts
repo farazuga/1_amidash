@@ -81,6 +81,16 @@ export interface MicrosoftOAuthConfig {
   scopes: string[];
 }
 
+// Statuses that should be synced to Outlook
+export const SYNCABLE_STATUSES = ['pending_confirm', 'confirmed'] as const;
+export type SyncableStatus = (typeof SYNCABLE_STATUSES)[number];
+
+// Team member info for event body
+export interface TeamMemberForSync {
+  full_name: string;
+  booking_status: string;
+}
+
 // For assignment data passed to sync
 export interface AssignmentForSync {
   id: string;
@@ -93,13 +103,14 @@ export interface AssignmentForSync {
     client_name: string;
     start_date: string;
     end_date: string;
-    sales_order_number?: string | null;
-    sales_order_url?: string | null;
+    // Extended fields for enriched event body
+    sales_order?: string | null;
     poc_name?: string | null;
     poc_email?: string | null;
     poc_phone?: string | null;
-    goal_completion_date?: string | null;
+    scope_link?: string | null;
+    sales_order_url?: string | null;
   };
-  // Other engineers assigned to the same project (excluding current user)
-  other_engineers?: string[];
+  // Other team members on this project (excluding this user)
+  team_members?: TeamMemberForSync[];
 }

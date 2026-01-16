@@ -1128,193 +1128,60 @@ export async function getAdminUsersForAssignment(): Promise<ActionResult<{ id: s
 }
 
 // ============================================
-// Calendar subscription operations
-// ============================================
-
-export async function createCalendarSubscription(data: {
-  feedType: 'master' | 'personal' | 'project';
-  projectId?: string;
-}): Promise<ActionResult<{ token: string; url: string }>> {
-  const { error: authError, supabase, user } = await getAuthenticatedClient();
-  if (authError || !supabase || !user) {
-    return { success: false, error: authError || 'Authentication failed' };
-  }
-
-  // Check if subscription already exists
-  let query = supabase
-    .from('calendar_subscriptions')
-    .select('id, token')
-    .eq('user_id', user.id)
-    .eq('feed_type', data.feedType);
-
-  if (data.projectId) {
-    query = query.eq('project_id', data.projectId);
-  } else {
-    query = query.is('project_id', null);
-  }
-
-  const { data: existing } = await query.maybeSingle();
-
-  if (existing) {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    return {
-      success: true,
-      data: {
-        token: existing.token,
-        url: `${baseUrl}/api/calendar/ical/${existing.token}`,
-      },
-    };
-  }
-
-  // Create new subscription
-  const { data: subscription, error: insertError } = await supabase
-    .from('calendar_subscriptions')
-    .insert({
-      user_id: user.id,
-      feed_type: data.feedType,
-      project_id: data.projectId || null,
-    })
-    .select('token')
-    .single();
-
-  if (insertError) {
-    console.error('Create subscription error:', insertError);
-    return { success: false, error: 'Failed to create subscription' };
-  }
-
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  return {
-    success: true,
-    data: {
-      token: subscription.token,
-      url: `${baseUrl}/api/calendar/ical/${subscription.token}`,
-    },
-  };
-}
-
-export async function getMySubscriptions(): Promise<ActionResult<{
-  id: string;
-  feed_type: string;
-  project_id: string | null;
-  token: string;
-  created_at: string | null;
-}[]>> {
-  const { error: authError, supabase, user } = await getAuthenticatedClient();
-  if (authError || !supabase || !user) {
-    return { success: false, error: authError || 'Authentication failed' };
-  }
-
-  const { data, error } = await supabase
-    .from('calendar_subscriptions')
-    .select('id, feed_type, project_id, token, created_at')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('Get subscriptions error:', error);
-    return { success: false, error: 'Failed to fetch subscriptions' };
-  }
-
-  return { success: true, data: data || [] };
-}
-
-/**
- * Create a personal calendar subscription for a specific user (admin only)
- * This allows admins to generate iCal links for team members
- */
-export async function createCalendarSubscriptionForUser(
-  targetUserId: string
-): Promise<ActionResult<{ token: string; url: string }>> {
-  // First verify the caller is an admin
-  const { error: authError, supabase } = await requireAdmin();
-  if (authError || !supabase) {
-    return { success: false, error: authError || 'Authentication failed' };
-  }
-
-  // Try to use service client to bypass RLS, fall back to regular client
-  let dbClient;
-  try {
-    dbClient = await createServiceClient();
-  } catch (e) {
-    // Service role key not available, try with regular client
-    console.warn('Service client not available, using regular client:', e);
-    dbClient = supabase;
-  }
-
-  // Check if subscription already exists for target user
-  const { data: existing, error: selectError } = await dbClient
-    .from('calendar_subscriptions')
-    .select('id, token')
-    .eq('user_id', targetUserId)
-    .eq('feed_type', 'personal')
-    .is('project_id', null)
-    .maybeSingle();
-
-  if (selectError) {
-    console.error('Error checking existing subscription:', selectError);
-    return { success: false, error: `Database error: ${selectError.message}` };
-  }
-
-  if (existing) {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    return {
-      success: true,
-      data: {
-        token: existing.token,
-        url: `${baseUrl}/api/calendar/ical/${existing.token}`,
-      },
-    };
-  }
-
-  // Create new subscription for target user
-  const { data: subscription, error: insertError } = await dbClient
-    .from('calendar_subscriptions')
-    .insert({
-      user_id: targetUserId,
-      feed_type: 'personal',
-      project_id: null,
-    })
-    .select('token')
-    .single();
-
-  if (insertError) {
-    console.error('Create subscription for user error:', insertError);
-    return { success: false, error: `Failed to create subscription: ${insertError.message}` };
-  }
-
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  return {
-    success: true,
-    data: {
-      token: subscription.token,
-      url: `${baseUrl}/api/calendar/ical/${subscription.token}`,
-    },
-  };
-}
-
-export async function deleteCalendarSubscription(subscriptionId: string): Promise<ActionResult> {
-  const { error: authError, supabase, user } = await getAuthenticatedClient();
-  if (authError || !supabase || !user) {
-    return { success: false, error: authError || 'Authentication failed' };
-  }
-
-  const { error: deleteError } = await supabase
-    .from('calendar_subscriptions')
-    .delete()
-    .eq('id', subscriptionId)
-    .eq('user_id', user.id);
-
-  if (deleteError) {
-    console.error('Delete subscription error:', deleteError);
-    return { success: false, error: 'Failed to delete subscription' };
-  }
-
-  return { success: true };
-}
-
-// ============================================
 // Assignment Days operations (new model)
 // ============================================
+
+/**
+ * Helper to get assignment data for Outlook sync
+ */
+async function getAssignmentForSync(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  assignmentId: string
+): Promise<{
+  id: string;
+  user_id: string;
+  project_id: string;
+  booking_status: string;
+  notes: string | null;
+  project: {
+    id: string;
+    client_name: string;
+    start_date: string;
+    end_date: string;
+  };
+} | null> {
+  const { data, error } = await supabase
+    .from('project_assignments')
+    .select(`
+      id, user_id, project_id, booking_status, notes,
+      project:projects(id, client_name, start_date, end_date)
+    `)
+    .eq('id', assignmentId)
+    .single();
+
+  if (error || !data) {
+    return null;
+  }
+
+  const project = data.project as { id: string; client_name: string; start_date: string | null; end_date: string | null } | null;
+  if (!project?.start_date || !project?.end_date) {
+    return null;
+  }
+
+  return {
+    id: data.id,
+    user_id: data.user_id,
+    project_id: data.project_id,
+    booking_status: data.booking_status,
+    notes: data.notes,
+    project: {
+      id: project.id,
+      client_name: project.client_name,
+      start_date: project.start_date,
+      end_date: project.end_date,
+    },
+  };
+}
 
 /**
  * Add days to an assignment with start/end times
@@ -1364,6 +1231,14 @@ export async function addAssignmentDays(data: {
     return { success: false, error: 'Failed to add assignment days' };
   }
 
+  // Trigger Outlook sync (fire and forget)
+  const assignmentForSync = await getAssignmentForSync(supabase, data.assignmentId);
+  if (assignmentForSync) {
+    triggerAssignmentSync(assignmentForSync).catch((err) =>
+      console.error('Outlook sync error after adding days:', err)
+    );
+  }
+
   revalidatePath('/calendar');
   revalidatePath('/my-schedule');
 
@@ -1387,6 +1262,18 @@ export async function updateAssignmentDay(data: {
     return { success: false, error: 'End time must be after start time' };
   }
 
+  // First get the day to find assignment_id for sync
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: day, error: fetchError } = await (supabase as any)
+    .from('assignment_days')
+    .select('assignment_id')
+    .eq('id', data.dayId)
+    .single();
+
+  if (fetchError || !day) {
+    return { success: false, error: 'Assignment day not found' };
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: updateError } = await (supabase as any)
     .from('assignment_days')
@@ -1399,6 +1286,14 @@ export async function updateAssignmentDay(data: {
   if (updateError) {
     console.error('Assignment day update error:', updateError);
     return { success: false, error: 'Failed to update assignment day' };
+  }
+
+  // Trigger Outlook sync (fire and forget)
+  const assignmentForSync = await getAssignmentForSync(supabase, day.assignment_id);
+  if (assignmentForSync) {
+    triggerAssignmentSync(assignmentForSync).catch((err) =>
+      console.error('Outlook sync error after updating day:', err)
+    );
   }
 
   revalidatePath('/calendar');
@@ -1463,6 +1358,14 @@ export async function moveAssignmentDay(data: {
     return { success: false, error: 'Failed to move assignment day' };
   }
 
+  // Trigger Outlook sync (fire and forget)
+  const assignmentForSync = await getAssignmentForSync(supabase, day.assignment_id);
+  if (assignmentForSync) {
+    triggerAssignmentSync(assignmentForSync).catch((err) =>
+      console.error('Outlook sync error after moving day:', err)
+    );
+  }
+
   revalidatePath('/calendar');
   revalidatePath('/my-schedule');
   revalidatePath('/projects');
@@ -1483,6 +1386,31 @@ export async function removeAssignmentDays(dayIds: string[]): Promise<ActionResu
     return { success: false, error: 'No day IDs provided' };
   }
 
+  // First get the days to find assignment_ids for sync
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: days, error: fetchError } = await (supabase as any)
+    .from('assignment_days')
+    .select('assignment_id')
+    .in('id', dayIds);
+
+  if (fetchError) {
+    console.error('Fetch assignment days error:', fetchError);
+    return { success: false, error: 'Failed to fetch assignment days' };
+  }
+
+  // Get unique assignment IDs for sync
+  const assignmentIds = Array.from(new Set<string>((days || []).map((d: { assignment_id: string }) => d.assignment_id)));
+
+  // Batch fetch all assignments for sync BEFORE deleting (single query instead of N)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: assignmentsData } = await (supabase as any)
+    .from('project_assignments')
+    .select(`
+      id, user_id, project_id, booking_status, notes,
+      project:projects(id, client_name, start_date, end_date)
+    `)
+    .in('id', assignmentIds);
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: deleteError } = await (supabase as any)
     .from('assignment_days')
@@ -1492,6 +1420,31 @@ export async function removeAssignmentDays(dayIds: string[]): Promise<ActionResu
   if (deleteError) {
     console.error('Assignment days delete error:', deleteError);
     return { success: false, error: 'Failed to remove assignment days' };
+  }
+
+  // Trigger Outlook sync for each affected assignment (fire and forget)
+  // Using batch-fetched data instead of N individual queries
+  if (assignmentsData) {
+    for (const assignment of assignmentsData) {
+      const project = assignment.project as { id: string; client_name: string; start_date: string | null; end_date: string | null } | null;
+      if (project?.start_date && project?.end_date) {
+        triggerAssignmentSync({
+          id: assignment.id,
+          user_id: assignment.user_id,
+          project_id: assignment.project_id,
+          booking_status: assignment.booking_status,
+          notes: assignment.notes,
+          project: {
+            id: project.id,
+            client_name: project.client_name,
+            start_date: project.start_date,
+            end_date: project.end_date,
+          },
+        }).catch((err) =>
+          console.error('Outlook sync error after removing days:', err)
+        );
+      }
+    }
   }
 
   revalidatePath('/calendar');

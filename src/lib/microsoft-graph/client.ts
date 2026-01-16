@@ -3,6 +3,7 @@
  */
 
 import { Client } from '@microsoft/microsoft-graph-client';
+import type { Calendar, Event } from '@microsoft/microsoft-graph-types';
 import { refreshAccessToken, isTokenExpired, calculateExpiresAt } from './auth';
 import { createServiceClient } from '@/lib/supabase/server';
 import { decryptToken, encryptToken, isEncryptionConfigured } from '@/lib/crypto';
@@ -13,35 +14,58 @@ import type {
   OutlookEventCreateResponse,
 } from './types';
 
+// Re-export Graph types for use elsewhere
+export type { Calendar, Event };
+
+/**
+ * Custom error for token decryption failures requiring reconnection
+ */
+export class TokenDecryptionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TokenDecryptionError';
+  }
+}
+
 /**
  * Decrypt access token from storage if encryption is configured
+ * Throws TokenDecryptionError if decryption fails - user must reconnect
  */
 function getDecryptedAccessToken(encryptedToken: string): string {
   if (!isEncryptionConfigured()) {
+    // In development without encryption, tokens are stored as-is
     return encryptedToken;
   }
   try {
     return decryptToken(encryptedToken);
-  } catch {
-    // Token might not be encrypted (legacy data)
-    console.warn('Token decryption failed, using raw token (may be legacy unencrypted data)');
-    return encryptedToken;
+  } catch (error) {
+    // Decryption failed - token is corrupted or encryption key changed
+    // User must reconnect to get fresh tokens
+    console.error('Access token decryption failed - user must reconnect:', error);
+    throw new TokenDecryptionError(
+      'Calendar connection invalid - please disconnect and reconnect your Outlook calendar'
+    );
   }
 }
 
 /**
  * Decrypt refresh token from storage if encryption is configured
+ * Throws TokenDecryptionError if decryption fails - user must reconnect
  */
 function getDecryptedRefreshToken(encryptedToken: string): string {
   if (!isEncryptionConfigured()) {
+    // In development without encryption, tokens are stored as-is
     return encryptedToken;
   }
   try {
     return decryptToken(encryptedToken);
-  } catch {
-    // Token might not be encrypted (legacy data)
-    console.warn('Refresh token decryption failed, using raw token (may be legacy unencrypted data)');
-    return encryptedToken;
+  } catch (error) {
+    // Decryption failed - token is corrupted or encryption key changed
+    // User must reconnect to get fresh tokens
+    console.error('Refresh token decryption failed - user must reconnect:', error);
+    throw new TokenDecryptionError(
+      'Calendar connection invalid - please disconnect and reconnect your Outlook calendar'
+    );
   }
 }
 
@@ -210,15 +234,22 @@ export async function getCalendars(
 
   const response = await client.api('/me/calendars').select('id,name,isDefaultCalendar').get();
 
-  return response.value.map((cal: { id: string; name: string; isDefaultCalendar: boolean }) => ({
-    id: cal.id,
-    name: cal.name,
-    isDefault: cal.isDefaultCalendar,
+  return (response.value as Calendar[]).map((cal) => ({
+    id: cal.id || '',
+    name: cal.name || '',
+    isDefault: cal.isDefaultCalendar || false,
   }));
 }
 
+// Status-specific configuration for Outlook events
+const STATUS_CONFIG: Record<string, { emoji: string; category: string; showAs: 'tentative' | 'busy' }> = {
+  pending_confirm: { emoji: '⏳', category: 'Grey category', showAs: 'tentative' },
+  confirmed: { emoji: '✅', category: 'Green category', showAs: 'busy' },
+};
+
 /**
  * Build an Outlook event object from assignment data
+ * Only pending_confirm and confirmed statuses should reach this function
  */
 export function buildEventFromAssignment(
   assignment: {
@@ -229,71 +260,68 @@ export function buildEventFromAssignment(
       client_name: string;
       start_date: string;
       end_date: string;
-      sales_order_number?: string | null;
-      sales_order_url?: string | null;
+      sales_order?: string | null;
       poc_name?: string | null;
       poc_email?: string | null;
       poc_phone?: string | null;
-      goal_completion_date?: string | null;
+      scope_link?: string | null;
+      sales_order_url?: string | null;
     };
-    other_engineers?: string[];
+    team_members?: Array<{ full_name: string; booking_status: string }>;
   },
   baseUrl: string
 ): OutlookCalendarEvent {
   const statusLabel = getStatusLabel(assignment.booking_status);
-  const showAs = assignment.booking_status === 'confirmed' ? 'busy' : 'tentative';
+  const config = STATUS_CONFIG[assignment.booking_status] || STATUS_CONFIG.pending_confirm;
 
-  // Build description with enhanced details
-  let description = `Project: ${assignment.project.client_name}\n`;
+  // Build enriched description
+  let description = `📋 Project: ${assignment.project.client_name}\n`;
   description += `Status: ${statusLabel}\n`;
 
-  // Add sales order info
-  if (assignment.project.sales_order_number) {
-    description += `\nSales Order: ${assignment.project.sales_order_number}`;
-    if (assignment.project.sales_order_url) {
-      description += `\nSales Order Link: ${assignment.project.sales_order_url}`;
+  // Team members section
+  if (assignment.team_members && assignment.team_members.length > 0) {
+    description += `\n👥 Team:\n`;
+    for (const member of assignment.team_members) {
+      const memberStatus = getStatusLabel(member.booking_status).toLowerCase();
+      description += `• ${member.full_name} (${memberStatus})\n`;
     }
   }
 
-  // Add completion date
-  if (assignment.project.goal_completion_date) {
-    const completionDate = new Date(assignment.project.goal_completion_date);
-    description += `\nCompletion Date: ${completionDate.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    })}`;
-  }
-
-  // Add POC details
+  // Client POC section
   if (assignment.project.poc_name || assignment.project.poc_email || assignment.project.poc_phone) {
-    description += `\n\n--- Point of Contact ---`;
-    if (assignment.project.poc_name) {
-      description += `\nName: ${assignment.project.poc_name}`;
-    }
-    if (assignment.project.poc_email) {
-      description += `\nEmail: ${assignment.project.poc_email}`;
-    }
-    if (assignment.project.poc_phone) {
-      description += `\nPhone: ${assignment.project.poc_phone}`;
+    description += `\n📞 Client POC:\n`;
+    const pocParts: string[] = [];
+    if (assignment.project.poc_name) pocParts.push(assignment.project.poc_name);
+    if (assignment.project.poc_email) pocParts.push(assignment.project.poc_email);
+    if (assignment.project.poc_phone) pocParts.push(assignment.project.poc_phone);
+    description += pocParts.join(' | ') + '\n';
+  }
+
+  // Links section
+  const links: string[] = [];
+  const projectPath = assignment.project.sales_order
+    ? `/projects/${assignment.project.sales_order}`
+    : `/projects`;
+  links.push(`Dashboard: ${baseUrl}${projectPath}`);
+
+  if (assignment.project.scope_link) {
+    links.push(`SOW: ${assignment.project.scope_link}`);
+  }
+  if (assignment.project.sales_order_url) {
+    links.push(`Odoo: ${assignment.project.sales_order_url}`);
+  }
+
+  if (links.length > 0) {
+    description += `\n🔗 Links:\n`;
+    for (const link of links) {
+      description += `• ${link}\n`;
     }
   }
 
-  // Add other engineers
-  if (assignment.other_engineers && assignment.other_engineers.length > 0) {
-    description += `\n\n--- Other Engineers ---`;
-    description += `\n${assignment.other_engineers.join(', ')}`;
-  }
-
-  // Add notes if present
+  // Notes section
   if (assignment.notes) {
-    description += `\n\nNotes: ${assignment.notes}`;
+    description += `\nNotes: ${assignment.notes}`;
   }
-
-  // Add link to AmiDash
-  description += `\n\n--- Links ---`;
-  description += `\nView in AmiDash: ${baseUrl}/projects/${assignment.project.sales_order_number || assignment.id}/calendar`;
 
   // Parse dates - add one day to end date because Outlook end dates are exclusive
   const startDate = new Date(assignment.project.start_date);
@@ -301,7 +329,7 @@ export function buildEventFromAssignment(
   endDate.setDate(endDate.getDate() + 1); // Make end date exclusive
 
   return {
-    subject: `📋 ${assignment.project.client_name}`,
+    subject: `${config.emoji} ${assignment.project.client_name}`,
     body: {
       contentType: 'text',
       content: description,
@@ -315,8 +343,8 @@ export function buildEventFromAssignment(
       timeZone: 'UTC',
     },
     isAllDay: true,
-    showAs,
-    categories: [getStatusCategory(assignment.booking_status)],
+    showAs: config.showAs,
+    categories: [config.category],
     sensitivity: 'normal',
   };
 }
@@ -339,20 +367,3 @@ function getStatusLabel(status: string): string {
   }
 }
 
-/**
- * Get Outlook category based on booking status
- */
-function getStatusCategory(status: string): string {
-  switch (status) {
-    case 'draft':
-      return 'Blue category';
-    case 'tentative':
-      return 'Orange category';
-    case 'pending_confirm':
-      return 'Purple category';
-    case 'confirmed':
-      return 'Green category';
-    default:
-      return 'Blue category';
-  }
-}

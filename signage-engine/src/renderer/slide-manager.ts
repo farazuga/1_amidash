@@ -16,6 +16,12 @@ import { PerformanceMetricsSlide } from './slides/performance-metrics.js';
 import { VelocityChartSlide } from './slides/velocity-chart.js';
 import { StatusPipelineSlide } from './slides/status-pipeline.js';
 import { CycleTimeSlide } from './slides/cycle-time.js';
+// Additional slides
+import { UpcomingProjectsSlide } from './slides/upcoming-projects.js';
+import { InProgressSlide } from './slides/in-progress.js';
+import { MonthlyScorecardSlide } from './slides/monthly-scorecard.js';
+import { BottleneckAlertSlide } from './slides/bottleneck-alert.js';
+import { RecentWinsSlide } from './slides/recent-wins.js';
 import { logger } from '../utils/logger.js';
 
 export class SlideManager {
@@ -75,6 +81,17 @@ export class SlideManager {
         return new StatusPipelineSlide(config, this.displayConfig);
       case 'cycle-time':
         return new CycleTimeSlide(config, this.displayConfig);
+      // Additional slides
+      case 'upcoming-projects':
+        return new UpcomingProjectsSlide(config, this.displayConfig);
+      case 'in-progress':
+        return new InProgressSlide(config, this.displayConfig);
+      case 'monthly-scorecard':
+        return new MonthlyScorecardSlide(config, this.displayConfig);
+      case 'bottleneck-alert':
+        return new BottleneckAlertSlide(config, this.displayConfig);
+      case 'recent-wins':
+        return new RecentWinsSlide(config, this.displayConfig);
       default:
         logger.warn({ type: config.type }, 'Unknown slide type');
         return null;
@@ -130,6 +147,12 @@ export class SlideManager {
       'velocity-chart': 'velocity-chart',
       'status-pipeline': 'status-pipeline',
       'cycle-time': 'cycle-time',
+      // Additional slide types
+      'upcoming-projects': 'upcoming-projects',
+      'in-progress': 'in-progress',
+      'monthly-scorecard': 'monthly-scorecard',
+      'bottleneck-alert': 'bottleneck-alert',
+      'recent-wins': 'recent-wins',
     };
     return typeMap[dbType] || 'active-projects';
   }

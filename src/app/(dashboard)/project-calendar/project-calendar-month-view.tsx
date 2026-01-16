@@ -274,7 +274,7 @@ export function ProjectCalendarMonthView({
                     <Tooltip key={`${bar.project.id}-${weekIndex}`}>
                       <TooltipTrigger asChild>
                         <Link
-                          href={`/projects/${bar.project.id}`}
+                          href={`/projects/${bar.project.sales_order_number || bar.project.id}`}
                           className={cn(
                             'absolute h-[22px] flex items-center px-2 text-xs font-medium truncate',
                             'rounded border hover:opacity-80 transition-opacity',

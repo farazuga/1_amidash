@@ -301,6 +301,7 @@ export function FileBrowser({
             <FileCard
               key={file.id}
               file={file}
+              folderUrl={connection?.folder_url}
               onDownload={onDownload}
               onDelete={onDelete}
               onShare={onShare}
@@ -314,6 +315,7 @@ export function FileBrowser({
             <FileCardCompact
               key={file.id}
               file={file}
+              folderUrl={connection?.folder_url}
               onDownload={onDownload}
               onDelete={onDelete}
               onShare={onShare}

@@ -14,6 +14,12 @@ export const SlideTypeSchema = z.enum([
   'velocity-chart',
   'status-pipeline',
   'cycle-time',
+  // Additional slide types
+  'upcoming-projects',
+  'in-progress',
+  'monthly-scorecard',
+  'bottleneck-alert',
+  'recent-wins',
 ]);
 export type SlideType = z.infer<typeof SlideTypeSchema>;
 

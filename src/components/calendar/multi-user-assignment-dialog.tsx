@@ -21,6 +21,7 @@ import {
 import type { AssignmentDay } from '@/types/calendar';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { DEFAULT_WORK_TIMES } from '@/lib/calendar/constants';
 
 interface MultiUserAssignmentDialogProps {
   open: boolean;
@@ -277,8 +278,8 @@ export function MultiUserAssignmentDialog({
             assignmentId,
             days: toAdd.map((date) => ({
               date,
-              startTime: '08:00:00',
-              endTime: '17:00:00',
+              startTime: DEFAULT_WORK_TIMES.startTime,
+              endTime: DEFAULT_WORK_TIMES.endTime,
             })),
           });
           addCount += toAdd.length;

@@ -2,6 +2,9 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { createProjectSharePointFolder } from '@/lib/sharepoint/folder-operations';
+import { getGlobalSharePointConfig, getMicrosoftConnection } from '@/app/(dashboard)/projects/[salesOrder]/files/actions';
+import { syncProjectAssignmentsToOutlook } from '@/lib/microsoft-graph/sync';
 
 // Helper to get sales order number from project ID for revalidation
 async function getSalesOrderNumber(projectId: string): Promise<string | null> {
@@ -161,6 +164,50 @@ export async function createProject(data: CreateProjectData): Promise<CreateProj
     // Don't fail the whole operation for background tasks
   }
 
+  // Auto-create SharePoint folder (background, non-blocking)
+  // Only if sales_order_number is provided (required for folder naming)
+  if (data.sales_order_number) {
+    (async () => {
+      try {
+        // Check if global SharePoint is configured
+        const globalConfig = await getGlobalSharePointConfig();
+        if (!globalConfig) {
+          console.log('[createProject] SharePoint not configured, skipping folder creation');
+          return;
+        }
+
+        // Get user's Microsoft connection
+        const msConnection = await getMicrosoftConnection(user.id);
+        if (!msConnection) {
+          console.log('[createProject] User not connected to Microsoft, skipping folder creation');
+          return;
+        }
+
+        // Create the SharePoint folder
+        const result = await createProjectSharePointFolder(
+          {
+            projectId: newProject.id,
+            salesOrderNumber: data.sales_order_number!,
+            clientName: data.client_name,
+            userId: user.id,
+            msConnection,
+            globalConfig,
+          },
+          supabase
+        );
+
+        if (result.success) {
+          console.log(`[createProject] SharePoint folder created: ${data.sales_order_number} ${data.client_name}`);
+        } else {
+          console.error('[createProject] SharePoint folder creation failed:', result.error);
+        }
+      } catch (error) {
+        console.error('[createProject] SharePoint folder creation error:', error);
+        // Don't fail - folder can be created later when files are uploaded
+      }
+    })();
+  }
+
   revalidatePath('/projects');
 
   return {
@@ -186,8 +233,8 @@ export interface UpdateStatusResult {
 
 export interface UpdateProjectDatesData {
   projectId: string;
-  startDate: string;
-  endDate: string;
+  startDate: string | null;
+  endDate: string | null;
 }
 
 export interface UpdateProjectDatesResult {
@@ -239,11 +286,21 @@ export async function updateProjectDates(data: UpdateProjectDatesData): Promise<
       old_value: project.start_date && project.end_date
         ? `${project.start_date} to ${project.end_date}`
         : null,
-      new_value: `${data.startDate} to ${data.endDate}`,
+      new_value: data.startDate && data.endDate
+        ? `${data.startDate} to ${data.endDate}`
+        : null,
     });
   } catch (err) {
     console.error('Audit log error:', err);
     // Don't fail the whole operation
+  }
+
+  // Sync all assignments for this project to Outlook (dates changed)
+  // Uses the centralized helper that also fetches team members for enriched event body
+  if (data.startDate && data.endDate) {
+    syncProjectAssignmentsToOutlook(data.projectId).catch((err) =>
+      console.error('Error syncing project assignments to Outlook:', err)
+    );
   }
 
   if (project.sales_order_number) {
@@ -490,6 +547,8 @@ export async function inlineEditProjectField(data: InlineEditData): Promise<Inli
     sales_order_number: 'sales_order_number',
     sales_order_url: 'sales_order_url',
     status_id: 'current_status_id',
+    created_at: 'created_at',
+    invoiced_date: 'invoiced_date',
   };
 
   const dbField = fieldMap[data.field];
@@ -525,7 +584,7 @@ export async function inlineEditProjectField(data: InlineEditData): Promise<Inli
   // Get current project for audit log and sales order
   const { data: project } = await supabase
     .from('projects')
-    .select('sales_order_number, goal_completion_date, sales_amount, salesperson_id, start_date, end_date, sales_order_url')
+    .select('sales_order_number, goal_completion_date, sales_amount, salesperson_id, start_date, end_date, sales_order_url, created_at, invoiced_date')
     .eq('id', data.projectId)
     .single();
 
@@ -567,6 +626,14 @@ export async function inlineEditProjectField(data: InlineEditData): Promise<Inli
     console.error('Audit log error:', err);
   }
 
+  // If date field changed, sync assignments to Outlook
+  // Uses the centralized helper that also fetches team members for enriched event body
+  if (data.field === 'start_date' || data.field === 'end_date') {
+    syncProjectAssignmentsToOutlook(data.projectId).catch((err) =>
+      console.error('Error syncing project assignments to Outlook:', err)
+    );
+  }
+
   // Revalidate paths
   if (project.sales_order_number) {
     revalidatePath(`/projects/${project.sales_order_number}`);
@@ -575,4 +642,125 @@ export async function inlineEditProjectField(data: InlineEditData): Promise<Inli
   revalidatePath('/project-calendar');
 
   return { success: true };
+}
+
+// ============================================
+// Get Project Scheduled Hours
+// ============================================
+
+export interface ProjectScheduledHoursResult {
+  success: boolean;
+  data?: {
+    totalHours: number;
+    totalDays: number;
+    byEngineer: Array<{
+      userId: string;
+      userName: string;
+      hours: number;
+      days: number;
+    }>;
+  };
+  error?: string;
+}
+
+export async function getProjectScheduledHours(projectId: string): Promise<ProjectScheduledHoursResult> {
+  const supabase = await createClient();
+
+  // Define types for the query result
+  interface AssignmentDayRow {
+    work_date: string;
+    start_time: string;
+    end_time: string;
+  }
+
+  interface AssignmentRow {
+    id: string;
+    user_id: string;
+    user: { id: string; full_name: string | null; email: string } | null;
+    assignment_days: AssignmentDayRow[] | null;
+  }
+
+  // Fetch all assignments for this project with their assignment days
+  const { data: assignments, error } = await supabase
+    .from('project_assignments')
+    .select(`
+      id,
+      user_id,
+      user:profiles!project_assignments_user_id_fkey(id, full_name, email),
+      assignment_days(
+        work_date,
+        start_time,
+        end_time
+      )
+    `)
+    .eq('project_id', projectId);
+
+  if (error) {
+    console.error('Error fetching project hours:', error);
+    return { success: false, error: error.message };
+  }
+
+  if (!assignments || assignments.length === 0) {
+    return {
+      success: true,
+      data: {
+        totalHours: 0,
+        totalDays: 0,
+        byEngineer: [],
+      },
+    };
+  }
+
+  // Type assertion for assignments
+  const typedAssignments = assignments as unknown as AssignmentRow[];
+
+  // Calculate hours per engineer
+  const byEngineer: Array<{
+    userId: string;
+    userName: string;
+    hours: number;
+    days: number;
+  }> = [];
+
+  let totalHours = 0;
+  let totalDays = 0;
+
+  // Parse time string to decimal hours
+  const parseTime = (timeStr: string): number => {
+    const parts = timeStr.split(':');
+    const hours = parseInt(parts[0], 10);
+    const minutes = parseInt(parts[1] || '0', 10);
+    return hours + minutes / 60;
+  };
+
+  for (const assignment of typedAssignments) {
+    const days = assignment.assignment_days || [];
+    let engineerHours = 0;
+
+    for (const day of days) {
+      const startHour = parseTime(day.start_time || '07:00');
+      const endHour = parseTime(day.end_time || '16:00');
+      const hoursWorked = Math.max(0, endHour - startHour);
+      engineerHours += hoursWorked;
+    }
+
+    byEngineer.push({
+      userId: assignment.user_id,
+      userName: assignment.user?.full_name || assignment.user?.email || 'Unknown',
+      hours: Math.round(engineerHours * 10) / 10, // Round to 1 decimal
+      days: days.length,
+    });
+
+    totalHours += engineerHours;
+    totalDays += days.length;
+  }
+
+  return {
+    success: true,
+    data: {
+      totalHours: Math.round(totalHours * 10) / 10,
+      totalDays,
+      byEngineer,
+    },
+  };
 }

@@ -10,6 +10,11 @@ export interface DashboardThresholds {
   concentrationHighThreshold: number;
   concentrationMediumThreshold: number;
   backlogWarningMonths: number;
+  // New thresholds for dashboard improvements
+  notScheduledWarningDays: number;
+  lowInvoiceWarningPercent: number;
+  signageMinProjectValue: number;
+  signageUpcomingDays: number;
 }
 
 export const DEFAULT_THRESHOLDS: DashboardThresholds = {
@@ -21,4 +26,9 @@ export const DEFAULT_THRESHOLDS: DashboardThresholds = {
   concentrationHighThreshold: 70,
   concentrationMediumThreshold: 50,
   backlogWarningMonths: 6,
+  // New thresholds for dashboard improvements
+  notScheduledWarningDays: 14,
+  lowInvoiceWarningPercent: 80,
+  signageMinProjectValue: 10000,
+  signageUpcomingDays: 30,
 };

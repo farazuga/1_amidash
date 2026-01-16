@@ -10,7 +10,7 @@ import { FilterPopover } from './filter-popover';
 interface FilterBarProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   statuses: any[];
-  currentView: 'active' | 'archived';
+  currentView: 'active' | 'archived' | 'all';
 }
 
 export function FilterBar({ statuses, currentView }: FilterBarProps) {
@@ -67,7 +67,7 @@ export function FilterBar({ statuses, currentView }: FilterBarProps) {
     };
   }, [search, searchParams, pathname, router, createQueryString]);
 
-  const handleViewChange = (view: 'active' | 'archived') => {
+  const handleViewChange = (view: 'active' | 'archived' | 'all') => {
     startTransition(() => {
       const newParams = new URLSearchParams(searchParams.toString());
       if (view === 'active') {
@@ -141,7 +141,7 @@ export function FilterBar({ statuses, currentView }: FilterBarProps) {
     <div className="space-y-3">
       {/* Main filter row */}
       <div className="flex flex-col sm:flex-row gap-3">
-        {/* Active/Archived Toggle */}
+        {/* Active/Archived/All Toggle */}
         <div className="inline-flex rounded-lg border bg-muted p-1 shrink-0">
           <button
             onClick={() => handleViewChange('active')}
@@ -163,12 +163,23 @@ export function FilterBar({ statuses, currentView }: FilterBarProps) {
           >
             Archived
           </button>
+          <button
+            onClick={() => handleViewChange('all')}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              currentView === 'all'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            All
+          </button>
         </div>
 
         {/* Search */}
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
+            autoFocus
             placeholder="Search clients, PO#, sales order..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}

@@ -7,11 +7,13 @@ import type { DashboardThresholds } from '@/lib/dashboard-thresholds';
 export interface DashboardProject {
   id: string;
   client_name: string;
+  sales_order_number: string | null;
   sales_amount: number | null;
   goal_completion_date: string | null;
   current_status_id: string | null;
   created_at: string | null;
   created_date: string | null; // User-editable PO received date (use this for PO date calculations)
+  invoiced_date: string | null;
   current_status: { id: string; name: string } | null;
 }
 
@@ -27,7 +29,7 @@ export interface DashboardStatusHistoryItem {
   status_id: string;
   changed_at: string;
   status: { name: string } | null;
-  project?: { id: string; client_name: string; sales_amount: number | null } | null;
+  project?: { id: string; client_name: string; sales_order_number: string | null; sales_amount: number | null } | null;
 }
 
 export interface DashboardRevenueGoal {
@@ -52,7 +54,7 @@ export async function getDashboardData(): Promise<DashboardData> {
   const [projectsRes, statusesRes, historyRes, goalsRes, settingsRes] = await Promise.all([
     supabase.from('projects').select(`*, current_status:statuses(*)`),
     supabase.from('statuses').select('*').order('display_order'),
-    supabase.from('status_history').select(`*, status:statuses(*), project:projects(id, client_name, sales_amount)`).order('changed_at', { ascending: false }),
+    supabase.from('status_history').select(`*, status:statuses(*), project:projects(id, client_name, sales_order_number, sales_amount)`).order('changed_at', { ascending: false }),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase.from as any)('revenue_goals').select('*'),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -70,6 +72,10 @@ export async function getDashboardData(): Promise<DashboardData> {
     'dashboard_concentration_high_threshold': 'concentrationHighThreshold',
     'dashboard_concentration_medium_threshold': 'concentrationMediumThreshold',
     'dashboard_backlog_warning_months': 'backlogWarningMonths',
+    'dashboard_not_scheduled_warning_days': 'notScheduledWarningDays',
+    'dashboard_low_invoice_warning_percent': 'lowInvoiceWarningPercent',
+    'dashboard_signage_min_project_value': 'signageMinProjectValue',
+    'dashboard_signage_upcoming_days': 'signageUpcomingDays',
   };
 
   if (settingsRes.data) {

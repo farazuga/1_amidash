@@ -104,17 +104,24 @@ export async function GET(request: NextRequest) {
     const msUserInfo = await getUserInfo(tokens.access_token);
 
     // Encrypt tokens before storage for security
-    // If TOKEN_ENCRYPTION_KEY is not set, tokens are stored as-is (with warning in logs)
+    // In production, encryption is REQUIRED - refuse to proceed without it
     let accessTokenToStore = tokens.access_token;
     let refreshTokenToStore = tokens.refresh_token;
 
     if (isEncryptionConfigured()) {
       accessTokenToStore = encryptToken(tokens.access_token);
       refreshTokenToStore = encryptToken(tokens.refresh_token);
+    } else if (process.env.NODE_ENV === 'production') {
+      // In production, we must have encryption configured
+      console.error('TOKEN_ENCRYPTION_KEY is required in production');
+      const url = new URL(returnUrl, origin);
+      url.searchParams.set('outlook_error', 'Server configuration error - encryption not configured');
+      return NextResponse.redirect(url);
     } else {
+      // Development only: allow unencrypted tokens with warning
       console.warn(
         'TOKEN_ENCRYPTION_KEY not configured - OAuth tokens will be stored unencrypted. ' +
-          'Set this environment variable for production deployments.'
+          'This is only allowed in development. Set this environment variable for production.'
       );
     }
 

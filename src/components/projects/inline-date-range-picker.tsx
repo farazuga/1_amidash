@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,7 +9,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { Pencil, Loader2 } from 'lucide-react';
+import { Pencil, Loader2, X } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 
@@ -32,6 +32,9 @@ export function InlineDateRangePicker({
   const [isSaving, setIsSaving] = useState(false);
   const [pendingRange, setPendingRange] = useState<DateRange | undefined>(undefined);
 
+  // Ref to track mid-selection state synchronously (avoids race condition with popover close)
+  const isMidSelectionRef = useRef(false);
+
   const dateRange: DateRange | undefined =
     startDate && endDate
       ? {
@@ -45,11 +48,37 @@ export function InlineDateRangePicker({
         }
       : undefined;
 
+  // Track clicks on the same date to detect intentional single-day selection
+  const lastClickedDateRef = useRef<string | null>(null);
+
   const handleSelect = async (range: DateRange | undefined) => {
+    // Check if from and to exist (react-day-picker sets both to same date on first click)
+    const hasBothDates = range?.from && range?.to;
+    const isSameDay = hasBothDates && range.from!.getTime() === range.to!.getTime();
+
+    // If user clicked the same date twice, treat it as a 1-day project selection
+    const clickedDateStr = range?.from ? format(range.from, 'yyyy-MM-dd') : null;
+    const isSecondClickOnSameDate = isSameDay && clickedDateStr === lastClickedDateRef.current;
+
+    if (isSameDay && !isSecondClickOnSameDate) {
+      // First click on a date - store it and wait for second selection
+      lastClickedDateRef.current = clickedDateStr;
+      isMidSelectionRef.current = true;
+      setPendingRange(range);
+      return;
+    }
+
+    // Range is complete: either different dates OR same date clicked twice (1-day project)
+    const hasCompletedRange = hasBothDates && (!isSameDay || isSecondClickOnSameDate);
+
+    // Mid-selection = has from but range not yet complete
+    isMidSelectionRef.current = Boolean(range?.from && !hasCompletedRange);
     setPendingRange(range);
 
-    // Auto-save when both dates are selected
-    if (range?.from && range?.to) {
+    // Auto-save when range is complete
+    if (hasCompletedRange && range.from && range.to) {
+      lastClickedDateRef.current = null;
+      isMidSelectionRef.current = false;
       setIsSaving(true);
       try {
         const newStartDate = format(range.from, 'yyyy-MM-dd');
@@ -65,12 +94,34 @@ export function InlineDateRangePicker({
     }
   };
 
+  const handleClear = async () => {
+    isMidSelectionRef.current = false;
+    setIsSaving(true);
+    try {
+      await onSave(null, null);
+      setPendingRange(undefined);
+      setOpen(false);
+    } catch (error) {
+      console.error('Failed to clear dates:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const formatDateRange = () => {
     if (!startDate && !endDate) {
       return <span className="text-muted-foreground italic">Not set</span>;
     }
 
     if (startDate && endDate) {
+      // Check if same day (1-day project)
+      if (startDate === endDate) {
+        return (
+          <span className="font-medium">
+            {format(parseISO(startDate), 'MMM d, yyyy')}
+          </span>
+        );
+      }
       return (
         <span className="font-medium">
           {format(parseISO(startDate), 'MMM d')} — {format(parseISO(endDate), 'MMM d, yyyy')}
@@ -93,8 +144,27 @@ export function InlineDateRangePicker({
     return <div className={className}>{formatDateRange()}</div>;
   }
 
+  const handleOpenChange = (isOpen: boolean) => {
+    // Prevent closing if we're mid-selection (use ref for synchronous check)
+    if (!isOpen && isMidSelectionRef.current) {
+      return;
+    }
+    // Reset state when opening or closing
+    if (isOpen) {
+      // Start fresh - user must select both dates
+      setPendingRange(undefined);
+      isMidSelectionRef.current = false;
+      lastClickedDateRef.current = null;
+    } else {
+      isMidSelectionRef.current = false;
+      lastClickedDateRef.current = null;
+      setPendingRange(undefined);
+    }
+    setOpen(isOpen);
+  };
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange} modal>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -114,24 +184,69 @@ export function InlineDateRangePicker({
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="end">
-        <div className="p-3 border-b">
-          <p className="text-sm font-medium">Select Date Range</p>
-          <p className="text-xs text-muted-foreground">
-            Click start date, then end date
-          </p>
+      <PopoverContent
+        className="w-auto p-0"
+        align="end"
+        onInteractOutside={(e) => {
+          if (isMidSelectionRef.current) {
+            e.preventDefault();
+          }
+        }}
+        onPointerDownOutside={(e) => {
+          if (isMidSelectionRef.current) {
+            e.preventDefault();
+          }
+        }}
+        onFocusOutside={(e) => {
+          if (isMidSelectionRef.current) {
+            e.preventDefault();
+          }
+        }}
+        onEscapeKeyDown={(e) => {
+          // Allow escape to cancel mid-selection, but reset the ref
+          if (isMidSelectionRef.current) {
+            isMidSelectionRef.current = false;
+            setPendingRange(undefined);
+          }
+        }}
+      >
+        <div className="p-3 border-b flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium">Select Date Range</p>
+            <p className="text-xs text-muted-foreground">
+              {pendingRange?.from && (!pendingRange?.to || pendingRange.from.getTime() === pendingRange.to.getTime())
+                ? 'Select end date (or click same date for 1-day)'
+                : startDate && endDate
+                ? `Current: ${format(parseISO(startDate), 'MMM d')} — ${format(parseISO(endDate), 'MMM d')}`
+                : 'Click start date, then end date'}
+            </p>
+          </div>
+          {(startDate || endDate || pendingRange?.from) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-muted-foreground hover:text-destructive"
+              onClick={handleClear}
+              disabled={isSaving}
+            >
+              <X className="h-4 w-4 mr-1" />
+              Clear
+            </Button>
+          )}
         </div>
-        <Calendar
-          mode="range"
-          defaultMonth={dateRange?.from || pendingRange?.from}
-          selected={pendingRange || dateRange}
-          onSelect={handleSelect}
-          numberOfMonths={2}
-        />
-        {pendingRange?.from && !pendingRange?.to && (
+        <div onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+          <Calendar
+            mode="range"
+            defaultMonth={pendingRange?.from || dateRange?.from}
+            selected={pendingRange}
+            onSelect={handleSelect}
+            numberOfMonths={2}
+          />
+        </div>
+        {pendingRange?.from && (!pendingRange?.to || pendingRange.from.getTime() === pendingRange.to.getTime()) && (
           <div className="p-3 border-t bg-muted/50">
             <p className="text-sm text-muted-foreground">
-              Start: {format(pendingRange.from, 'MMM d, yyyy')} — Now select end date
+              Start: {format(pendingRange.from, 'MMM d, yyyy')} — Select end date or click again for 1-day
             </p>
           </div>
         )}

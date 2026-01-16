@@ -136,6 +136,7 @@ export function convertToCalendarEvents(
     end: parseISO(assignment.project_end_date),
     projectId: assignment.project_id,
     projectName: assignment.project_name,
+    salesOrderNumber: assignment.sales_order_number,
     userId: assignment.user_id,
     userName: assignment.user_name || 'Unknown',
     bookingStatus: assignment.booking_status,

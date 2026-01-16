@@ -18,7 +18,13 @@ export type SlideType =
   | 'performance-metrics'
   | 'velocity-chart'
   | 'status-pipeline'
-  | 'cycle-time';
+  | 'cycle-time'
+  // Additional slide types
+  | 'upcoming-projects'
+  | 'in-progress'
+  | 'monthly-scorecard'
+  | 'bottleneck-alert'
+  | 'recent-wins';
 
 export interface SignageSlide {
   id: string;

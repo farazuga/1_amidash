@@ -71,9 +71,6 @@ const categoryIcons: Record<FileCategory, React.ComponentType<{ className?: stri
   schematics: FileCode,
   sow: FileText,
   media: Image,
-  // Legacy categories for backwards compatibility
-  photos: Image,
-  videos: Image,
   other: File,
 };
 
@@ -118,7 +115,6 @@ export function FileUploadDialog({
 }: FileUploadDialogProps) {
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [globalCategory, setGlobalCategory] = useState<FileCategory>(defaultCategory);
   const [globalNotes, setGlobalNotes] = useState('');
   const [showCustomCamera, setShowCustomCamera] = useState(false);
   const [cameraSupported, setCameraSupported] = useState(false);
@@ -478,27 +474,9 @@ export function FileUploadDialog({
           </div>
         )}
 
-        {/* Global settings */}
+        {/* Global notes */}
         {pendingFiles.length > 0 && (
           <div className="space-y-4 pt-4 border-t">
-            <div>
-              <Label htmlFor="global-category">Default Category</Label>
-              <Select
-                value={globalCategory}
-                onValueChange={(value) => setGlobalCategory(value as FileCategory)}
-              >
-                <SelectTrigger id="global-category">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(FILE_CATEGORY_CONFIG).map(([key, config]) => (
-                    <SelectItem key={key} value={key}>
-                      {config.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <div>
               <Label htmlFor="global-notes">Notes (optional)</Label>
               <Textarea

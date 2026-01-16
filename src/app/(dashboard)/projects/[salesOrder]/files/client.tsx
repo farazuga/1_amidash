@@ -10,7 +10,6 @@ import {
   syncFilesFromSharePoint,
   deleteFile,
   getDownloadUrl,
-  createShareLink,
   getProjectFiles,
 } from './actions';
 import { generateFileThumbnail } from '@/lib/image-utils';
@@ -122,7 +121,20 @@ export function ProjectFilesClient({
           });
           toast.success(`Uploaded ${data.file.name}`);
         } else {
-          toast.error(result.error || `Failed to upload ${data.file.name}`);
+          // Check if user needs to reconnect Microsoft account
+          if (result.requiresReconnect) {
+            toast.error(result.error || 'Microsoft connection expired', {
+              duration: 10000,
+              action: {
+                label: 'Reconnect',
+                onClick: () => window.location.href = '/settings',
+              },
+            });
+            // Stop processing more files since they will all fail
+            break;
+          } else {
+            toast.error(result.error || `Failed to upload ${data.file.name}`);
+          }
         }
       } catch (error) {
         console.error('Upload error:', error);
@@ -182,15 +194,32 @@ export function ProjectFilesClient({
     });
   }, []);
 
-  // Handle file share
+  // Handle file share - copy the file's SharePoint URL
   const handleShare = useCallback(async (file: ProjectFile) => {
-    const result = await createShareLink(file.id);
+    if (!file.web_url) {
+      toast.error('Share link not available for this file');
+      return;
+    }
 
-    if (result.success && result.url) {
-      await navigator.clipboard.writeText(result.url);
-      toast.success('Share link copied to clipboard');
-    } else {
-      toast.error(result.error || 'Failed to create share link');
+    // Try to copy to clipboard
+    try {
+      await navigator.clipboard.writeText(file.web_url);
+      toast.success('Link copied to clipboard');
+    } catch {
+      // Clipboard failed (permissions), show the link instead
+      toast.success(
+        <div className="flex flex-col gap-1">
+          <span>Share link:</span>
+          <input
+            type="text"
+            value={file.web_url}
+            readOnly
+            className="text-xs bg-gray-100 px-2 py-1 rounded w-full"
+            onClick={(e) => (e.target as HTMLInputElement).select()}
+          />
+        </div>,
+        { duration: 10000 }
+      );
     }
   }, []);
 

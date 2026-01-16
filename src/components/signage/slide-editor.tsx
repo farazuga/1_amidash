@@ -48,6 +48,9 @@ import {
   BarChart3,
   GitBranch,
   Timer,
+  CalendarDays,
+  PlayCircle,
+  Trophy,
 } from 'lucide-react';
 import {
   createSlide,
@@ -77,6 +80,12 @@ const SLIDE_TYPES: { value: SlideType; label: string; icon: React.ReactNode; des
   { value: 'velocity-chart', label: 'Velocity Chart', icon: <BarChart3 className="h-4 w-4" />, description: 'PO intake vs invoice completion trend over 6 months' },
   { value: 'status-pipeline', label: 'Status Pipeline', icon: <GitBranch className="h-4 w-4" />, description: 'Project workflow funnel with counts and revenue per status' },
   { value: 'cycle-time', label: 'Cycle Time', icon: <Timer className="h-4 w-4" />, description: 'Average days spent in each status stage' },
+  // Additional slide types
+  { value: 'upcoming-projects', label: 'Upcoming Projects', icon: <CalendarDays className="h-4 w-4" />, description: 'Projects starting in the next 30 days, prioritized by value' },
+  { value: 'in-progress', label: 'In Progress', icon: <PlayCircle className="h-4 w-4" />, description: 'Currently active projects with timeline progress' },
+  { value: 'monthly-scorecard', label: 'Monthly Scorecard', icon: <BarChart3 className="h-4 w-4" />, description: 'Monthly summary of POs received, invoiced, and project KPIs' },
+  { value: 'bottleneck-alert', label: 'Bottleneck Alert', icon: <AlertTriangle className="h-4 w-4" />, description: 'Highlights projects stuck in Engineering, Procurement, or Hold' },
+  { value: 'recent-wins', label: 'Recent Wins', icon: <Trophy className="h-4 w-4" />, description: 'Celebrates recent new sales with value and client info' },
 ];
 
 function getSlideTypeInfo(type: SlideType) {

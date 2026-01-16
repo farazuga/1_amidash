@@ -190,6 +190,7 @@ export type Database = {
           expected_update_date: string | null
           goal_completion_date: string | null
           id: string
+          invoiced_date: string | null
           po_number: string | null
           poc_email: string | null
           poc_name: string | null
@@ -217,6 +218,7 @@ export type Database = {
           expected_update_date?: string | null
           goal_completion_date?: string | null
           id?: string
+          invoiced_date?: string | null
           po_number?: string | null
           poc_email?: string | null
           poc_name?: string | null
@@ -244,6 +246,7 @@ export type Database = {
           expected_update_date?: string | null
           goal_completion_date?: string | null
           id?: string
+          invoiced_date?: string | null
           po_number?: string | null
           poc_email?: string | null
           poc_name?: string | null
@@ -620,51 +623,6 @@ export type Database = {
             columns: ["changed_by"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      calendar_subscriptions: {
-        Row: {
-          id: string
-          user_id: string | null
-          feed_type: string
-          project_id: string | null
-          token: string
-          created_at: string | null
-          last_accessed_at: string | null
-        }
-        Insert: {
-          id?: string
-          user_id?: string | null
-          feed_type: string
-          project_id?: string | null
-          token?: string
-          created_at?: string | null
-          last_accessed_at?: string | null
-        }
-        Update: {
-          id?: string
-          user_id?: string | null
-          feed_type?: string
-          project_id?: string | null
-          token?: string
-          created_at?: string | null
-          last_accessed_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "calendar_subscriptions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "calendar_subscriptions_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]

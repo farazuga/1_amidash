@@ -266,3 +266,219 @@ export async function getAdminMicrosoftConnection(): Promise<CalendarConnection 
 
   return data as CalendarConnection;
 }
+
+// ============================================================================
+// Bulk Folder Creation
+// ============================================================================
+
+export interface CreateMissingFoldersResult {
+  success: boolean;
+  processed: number;
+  created: number;
+  skipped: number;
+  errors: number;
+  errorDetails?: string[];
+  error?: string;
+}
+
+/**
+ * Create SharePoint folders for all projects that don't have one
+ * (Admin only)
+ */
+export async function createMissingSharePointFolders(): Promise<CreateMissingFoldersResult> {
+  // Import dynamically to avoid circular dependencies
+  const { generateProjectFolderName } = await import('@/lib/sharepoint/folder-operations');
+  const sharepoint = await import('@/lib/sharepoint/client');
+  const { decryptToken, isEncryptionConfigured } = await import('@/lib/crypto');
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { success: false, processed: 0, created: 0, skipped: 0, errors: 0, error: 'Authentication required' };
+    }
+
+    // Verify admin role
+    if (!(await isAdmin(user.id))) {
+      return { success: false, processed: 0, created: 0, skipped: 0, errors: 0, error: 'Admin access required' };
+    }
+
+    const supabase = await createServiceClient() as AnySupabaseClient;
+
+    // Get global SharePoint config
+    const { data: configData } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'sharepoint_config')
+      .maybeSingle();
+
+    if (!configData?.value) {
+      return { success: false, processed: 0, created: 0, skipped: 0, errors: 0, error: 'SharePoint not configured' };
+    }
+
+    const globalConfig = configData.value as SharePointGlobalConfig;
+
+    // Get admin's Microsoft connection
+    const { data: msConnectionData } = await supabase
+      .from('calendar_connections')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('provider', 'microsoft')
+      .maybeSingle();
+
+    if (!msConnectionData) {
+      return { success: false, processed: 0, created: 0, skipped: 0, errors: 0, error: 'Microsoft account not connected' };
+    }
+
+    // Decrypt tokens if needed
+    let msConnection = { ...msConnectionData };
+    if (isEncryptionConfigured()) {
+      try {
+        msConnection.access_token = decryptToken(msConnectionData.access_token);
+        msConnection.refresh_token = decryptToken(msConnectionData.refresh_token);
+      } catch {
+        // Use raw tokens if decryption fails
+      }
+    }
+
+    // Get all projects with sales_order_number
+    const { data: allProjects } = await supabase
+      .from('projects')
+      .select('id, client_name, sales_order_number')
+      .not('sales_order_number', 'is', null);
+
+    // Get projects that already have SharePoint connections
+    const { data: existingConnections } = await supabase
+      .from('project_sharepoint_connections')
+      .select('project_id');
+
+    const connectedProjectIds = new Set(
+      existingConnections?.map((c: { project_id: string }) => c.project_id) || []
+    );
+
+    // Filter to projects without connections
+    const projectsWithoutFolders = (allProjects || []).filter(
+      (p: { id: string; sales_order_number: string | null }) =>
+        p.sales_order_number && !connectedProjectIds.has(p.id)
+    );
+
+    let created = 0;
+    let skipped = 0;
+    let errors = 0;
+    const errorDetails: string[] = [];
+
+    for (const project of projectsWithoutFolders) {
+      try {
+        const folderName = generateProjectFolderName(project.sales_order_number, project.client_name);
+
+        // Create project folder
+        const projectFolder = await sharepoint.createFolder(
+          msConnection as CalendarConnection,
+          globalConfig.drive_id,
+          globalConfig.base_folder_id,
+          folderName
+        );
+
+        // Create category subfolders
+        const categories = ['schematics', 'sow', 'media', 'other'] as const;
+        for (const category of categories) {
+          const categoryFolderName = sharepoint.getCategoryFolderName(category);
+          try {
+            await sharepoint.createFolder(
+              msConnection as CalendarConnection,
+              globalConfig.drive_id,
+              projectFolder.id,
+              categoryFolderName
+            );
+          } catch {
+            // Folder may already exist
+          }
+        }
+
+        // Save connection to database
+        const folderPath = globalConfig.base_folder_path === '/' || globalConfig.base_folder_path === 'Root'
+          ? `/${folderName}`
+          : `${globalConfig.base_folder_path}/${folderName}`;
+
+        await supabase
+          .from('project_sharepoint_connections')
+          .insert({
+            project_id: project.id,
+            site_id: globalConfig.site_id,
+            drive_id: globalConfig.drive_id,
+            folder_id: projectFolder.id,
+            folder_path: folderPath,
+            folder_url: projectFolder.webUrl,
+            connected_by: user.id,
+            auto_created: true,
+          });
+
+        created++;
+
+        // Rate limiting
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+      } catch (error) {
+        errors++;
+        const errorMsg = `${project.sales_order_number}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        errorDetails.push(errorMsg);
+        console.error(`[CreateMissingFolders] Error for ${project.sales_order_number}:`, error);
+      }
+    }
+
+    skipped = connectedProjectIds.size;
+
+    return {
+      success: true,
+      processed: projectsWithoutFolders.length,
+      created,
+      skipped,
+      errors,
+      errorDetails: errorDetails.length > 0 ? errorDetails.slice(0, 10) : undefined,
+    };
+
+  } catch (error) {
+    console.error('[CreateMissingFolders] Fatal error:', error);
+    return {
+      success: false,
+      processed: 0,
+      created: 0,
+      skipped: 0,
+      errors: 0,
+      error: error instanceof Error ? error.message : 'Failed to create folders',
+    };
+  }
+}
+
+/**
+ * Get count of projects without SharePoint folders
+ */
+export async function getProjectsWithoutFoldersCount(): Promise<{ count: number; total: number }> {
+  try {
+    const supabase = await createServiceClient() as AnySupabaseClient;
+
+    // Get all projects with sales_order_number
+    const { data: allProjects } = await supabase
+      .from('projects')
+      .select('id')
+      .not('sales_order_number', 'is', null);
+
+    // Get projects that already have SharePoint connections
+    const { data: existingConnections } = await supabase
+      .from('project_sharepoint_connections')
+      .select('project_id');
+
+    const connectedProjectIds = new Set(
+      existingConnections?.map((c: { project_id: string }) => c.project_id) || []
+    );
+
+    const total = allProjects?.length || 0;
+    const withFolders = connectedProjectIds.size;
+    const withoutFolders = (allProjects || []).filter(
+      (p: { id: string }) => !connectedProjectIds.has(p.id)
+    ).length;
+
+    return { count: withoutFolders, total };
+  } catch {
+    return { count: 0, total: 0 };
+  }
+}

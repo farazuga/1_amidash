@@ -40,16 +40,26 @@ export async function GET(request: NextRequest) {
     path: '/',
   });
 
-  // Store return URL if provided
+  // Store return URL if provided (validated to prevent open redirects)
   const returnUrl = request.nextUrl.searchParams.get('return_url');
   if (returnUrl) {
-    cookieStore.set('microsoft_oauth_return', returnUrl, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 10,
-      path: '/',
-    });
+    // Only allow relative paths starting with / and not containing protocol indicators
+    const isValidReturnUrl =
+      returnUrl.startsWith('/') &&
+      !returnUrl.startsWith('//') &&
+      !returnUrl.includes('://') &&
+      !/^\/[\\@]/.test(returnUrl); // Block /\ and /@ which some browsers interpret as protocol-relative
+
+    if (isValidReturnUrl) {
+      cookieStore.set('microsoft_oauth_return', returnUrl, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 10,
+        path: '/',
+      });
+    }
+    // Invalid return URLs are silently ignored - user will be redirected to default
   }
 
   // Redirect to Microsoft OAuth

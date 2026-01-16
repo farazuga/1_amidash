@@ -20,9 +20,6 @@ import {
   checkConflicts,
   overrideConflict,
   getAdminUsersForAssignment,
-  createCalendarSubscription,
-  getMySubscriptions,
-  deleteCalendarSubscription,
   // New actions for Gantt/day management
   addAssignmentDays,
   updateAssignmentDay,
@@ -55,7 +52,6 @@ export const ASSIGNMENTS_KEY = ['assignments'];
 export const CALENDAR_KEY = ['calendar'];
 export const USER_SCHEDULE_KEY = ['userSchedule'];
 export const ADMIN_USERS_KEY = ['adminUsers'];
-export const SUBSCRIPTIONS_KEY = ['calendarSubscriptions'];
 export const ASSIGNABLE_USERS_KEY = ['assignableUsers'];
 export const ASSIGNMENT_DAYS_KEY = ['assignmentDays'];
 export const GANTT_KEY = ['gantt'];
@@ -214,18 +210,6 @@ export function useAssignment(assignmentId: string) {
     },
     staleTime: THIRTY_SECONDS,
     enabled: !!assignmentId,
-  });
-}
-
-export function useCalendarSubscriptions() {
-  return useQuery({
-    queryKey: SUBSCRIPTIONS_KEY,
-    queryFn: async () => {
-      const result = await getMySubscriptions();
-      if (!result.success) throw new Error(result.error);
-      return result.data || [];
-    },
-    staleTime: ONE_MINUTE,
   });
 }
 
@@ -407,39 +391,6 @@ export function useOverrideConflict() {
       queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
       queryClient.invalidateQueries({ queryKey: GANTT_KEY });
       queryClient.invalidateQueries({ queryKey: CONFLICTS_KEY });
-    },
-  });
-}
-
-export function useCreateCalendarSubscription() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (data: {
-      feedType: 'master' | 'personal' | 'project';
-      projectId?: string;
-    }) => {
-      const result = await createCalendarSubscription(data);
-      if (!result.success) throw new Error(result.error);
-      return result.data!;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: SUBSCRIPTIONS_KEY });
-    },
-  });
-}
-
-export function useDeleteCalendarSubscription() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (subscriptionId: string) => {
-      const result = await deleteCalendarSubscription(subscriptionId);
-      if (!result.success) throw new Error(result.error);
-      return result;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: SUBSCRIPTIONS_KEY });
     },
   });
 }

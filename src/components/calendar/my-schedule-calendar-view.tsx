@@ -54,23 +54,21 @@ export function MyScheduleCalendarView({ userId, userName, currentDate }: MySche
 
   return (
     <TooltipProvider>
-      <div className="border rounded-lg overflow-hidden overflow-x-auto">
+      <div className="border rounded-lg overflow-hidden">
         {/* Weekday headers */}
-        <div className="grid grid-cols-7 bg-muted min-w-[350px]">
-          {WEEKDAYS.map((day, index) => (
+        <div className="grid grid-cols-7 bg-muted">
+          {WEEKDAYS.map((day) => (
             <div
               key={day}
-              className="p-1 sm:p-2 text-center text-xs sm:text-sm font-medium border-r last:border-r-0"
+              className="p-2 text-center text-sm font-medium border-r last:border-r-0"
             >
-              {/* Show abbreviated day on mobile */}
-              <span className="sm:hidden">{day.slice(0, 1)}</span>
-              <span className="hidden sm:inline">{day}</span>
+              {day}
             </div>
           ))}
         </div>
 
         {/* Calendar grid */}
-        <div className="grid grid-cols-7 min-w-[350px]">
+        <div className="grid grid-cols-7">
           {days.map((date, index) => {
             const dateStr = format(date, 'yyyy-MM-dd');
             const daySchedule = scheduleByDate.get(dateStr) || [];
@@ -82,7 +80,7 @@ export function MyScheduleCalendarView({ userId, userName, currentDate }: MySche
               <div
                 key={index}
                 className={cn(
-                  'min-h-[60px] sm:min-h-[100px] p-0.5 sm:p-1 border-b border-r last:border-r-0',
+                  'min-h-[100px] p-1 border-b border-r last:border-r-0',
                   !isCurrentMonth && 'bg-muted/30 text-muted-foreground',
                   isWeekend && isCurrentMonth && 'bg-muted/20',
                   isToday && 'ring-2 ring-primary ring-inset'
@@ -90,7 +88,7 @@ export function MyScheduleCalendarView({ userId, userName, currentDate }: MySche
               >
                 {/* Date number */}
                 <div className={cn(
-                  'text-xs sm:text-sm font-medium mb-0.5 sm:mb-1 px-0.5 sm:px-1',
+                  'text-sm font-medium mb-1 px-1',
                   isToday && 'text-primary'
                 )}>
                   {format(date, 'd')}
@@ -98,8 +96,7 @@ export function MyScheduleCalendarView({ userId, userName, currentDate }: MySche
 
                 {/* Assignments for this day */}
                 <div className="space-y-0.5">
-                  {/* Show fewer items on mobile */}
-                  {daySchedule.slice(0, 2).map((item, i) => {
+                  {daySchedule.slice(0, 3).map((item, i) => {
                     const statusConfig = BOOKING_STATUS_CONFIG[item.booking_status as BookingStatus];
                     return (
                       <Tooltip key={`${item.assignment_id}-${i}`}>
@@ -107,7 +104,7 @@ export function MyScheduleCalendarView({ userId, userName, currentDate }: MySche
                           <Link
                             href={item.sales_order_number ? `/projects/${item.sales_order_number}/calendar` : '#'}
                             className={cn(
-                              'block text-[10px] sm:text-xs px-1 sm:px-1.5 py-0.5 rounded truncate transition-opacity hover:opacity-80',
+                              'block text-xs px-1.5 py-0.5 rounded truncate transition-opacity hover:opacity-80',
                               statusConfig?.bgColor || 'bg-gray-100',
                               statusConfig?.textColor || 'text-gray-800'
                             )}
@@ -134,9 +131,9 @@ export function MyScheduleCalendarView({ userId, userName, currentDate }: MySche
                       </Tooltip>
                     );
                   })}
-                  {daySchedule.length > 2 && (
-                    <div className="text-[10px] sm:text-xs text-muted-foreground px-0.5 sm:px-1">
-                      +{daySchedule.length - 2} more
+                  {daySchedule.length > 3 && (
+                    <div className="text-xs text-muted-foreground px-1">
+                      +{daySchedule.length - 3} more
                     </div>
                   )}
                 </div>

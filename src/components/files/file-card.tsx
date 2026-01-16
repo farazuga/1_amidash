@@ -28,12 +28,13 @@ import {
   AlertCircle,
   Eye,
 } from 'lucide-react';
-import type { ProjectFile, FileCategory, UploadStatus } from '@/types';
+import type { ProjectFile, FileCategoryWithLegacy, UploadStatus } from '@/types';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 
 interface FileCardProps {
   file: ProjectFile;
+  folderUrl?: string;
   onDownload?: (file: ProjectFile) => void;
   onDelete?: (file: ProjectFile) => void;
   onShare?: (file: ProjectFile) => void;
@@ -41,21 +42,21 @@ interface FileCardProps {
   className?: string;
 }
 
-const categoryIcons: Record<FileCategory, React.ComponentType<{ className?: string }>> = {
+const categoryIcons: Record<FileCategoryWithLegacy, React.ComponentType<{ className?: string }>> = {
   schematics: FileCode,
   sow: FileText,
   media: Image,
-  // Legacy categories
+  // Legacy categories (for existing DB data)
   photos: Image,
   videos: Image,
   other: File,
 };
 
-const categoryColors: Record<FileCategory, string> = {
+const categoryColors: Record<FileCategoryWithLegacy, string> = {
   schematics: 'bg-blue-100 text-blue-700',
   sow: 'bg-purple-100 text-purple-700',
   media: 'bg-green-100 text-green-700',
-  // Legacy categories
+  // Legacy categories (for existing DB data)
   photos: 'bg-green-100 text-green-700',
   videos: 'bg-green-100 text-green-700',
   other: 'bg-gray-100 text-gray-700',
@@ -111,6 +112,7 @@ function UploadStatusBadge({ status }: { status: UploadStatus }) {
 
 export function FileCard({
   file,
+  folderUrl,
   onDownload,
   onDelete,
   onShare,
@@ -254,9 +256,9 @@ export function FileCard({
                     Download
                   </DropdownMenuItem>
                 )}
-                {file.web_url && (
+                {folderUrl && (
                   <DropdownMenuItem asChild>
-                    <a href={file.web_url} target="_blank" rel="noopener noreferrer">
+                    <a href={folderUrl} target="_blank" rel="noopener noreferrer">
                       <ExternalLink className="h-4 w-4 mr-2" />
                       Open in SharePoint
                     </a>
@@ -299,6 +301,7 @@ export function FileCard({
 // Compact list view variant
 export function FileCardCompact({
   file,
+  folderUrl,
   onDownload,
   onDelete,
   onShare,
@@ -382,9 +385,9 @@ export function FileCardCompact({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {file.web_url && (
+              {folderUrl && (
                 <DropdownMenuItem asChild>
-                  <a href={file.web_url} target="_blank" rel="noopener noreferrer">
+                  <a href={folderUrl} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="h-4 w-4 mr-2" />
                     Open in SharePoint
                   </a>

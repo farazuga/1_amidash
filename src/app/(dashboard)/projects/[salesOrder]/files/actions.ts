@@ -3,6 +3,8 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import * as sharepoint from '@/lib/sharepoint/client';
+import { MicrosoftAuthError } from '@/lib/sharepoint/client';
+import { decryptToken, isEncryptionConfigured } from '@/lib/crypto';
 import type { CalendarConnection } from '@/lib/microsoft-graph/types';
 import type {
   ProjectFile,
@@ -55,6 +57,7 @@ export interface UploadFileResult {
   success: boolean;
   file?: ProjectFile;
   error?: string;
+  requiresReconnect?: boolean;
 }
 
 export interface GetFilesResult {
@@ -81,7 +84,7 @@ export interface DeleteFileResult {
 // Helper Functions
 // ============================================================================
 
-async function getMicrosoftConnection(userId: string): Promise<CalendarConnection | null> {
+export async function getMicrosoftConnection(userId: string): Promise<CalendarConnection | null> {
   const supabase = await createServiceClient();
 
   // Use type assertion since calendar_connections may not be in generated types yet
@@ -95,6 +98,20 @@ async function getMicrosoftConnection(userId: string): Promise<CalendarConnectio
 
   if (error || !data) {
     return null;
+  }
+
+  // Decrypt tokens if encryption is configured
+  // Tokens are encrypted at rest for security
+  if (isEncryptionConfigured() && data.access_token) {
+    try {
+      data.access_token = decryptToken(data.access_token);
+      if (data.refresh_token) {
+        data.refresh_token = decryptToken(data.refresh_token);
+      }
+    } catch (err) {
+      console.error('[getMicrosoftConnection] Token decryption failed:', err);
+      return null;
+    }
   }
 
   return data as CalendarConnection;
@@ -117,7 +134,7 @@ async function getTypedServiceClient(): Promise<AnySupabaseClient> {
 /**
  * Get the global SharePoint configuration
  */
-async function getGlobalSharePointConfig(): Promise<SharePointGlobalConfig | null> {
+export async function getGlobalSharePointConfig(): Promise<SharePointGlobalConfig | null> {
   const db = await getTypedClient();
   const { data } = await db
     .from('app_settings')
@@ -143,10 +160,12 @@ export async function isSharePointConfigured(): Promise<boolean> {
 /**
  * Ensure a project has a SharePoint folder (auto-create if needed)
  * Uses the global SharePoint configuration
+ * Folder naming format: "S12345 ClientName"
  */
 async function ensureProjectFolder(
   projectId: string,
-  projectName: string,
+  salesOrderNumber: string,
+  clientName: string,
   userId: string,
   msConnection: CalendarConnection
 ): Promise<{ success: boolean; connection?: ProjectSharePointConnection; error?: string }> {
@@ -170,8 +189,9 @@ async function ensureProjectFolder(
   }
 
   try {
-    // Sanitize project name for folder name
-    const folderName = projectName.replace(/[<>:"/\\|?*]/g, '-').trim();
+    // Generate folder name: "S12345 ClientName"
+    const sanitizedClientName = clientName.replace(/[<>:"/\\|?*]/g, '-').trim();
+    const folderName = `${salesOrderNumber} ${sanitizedClientName}`;
 
     // Create project folder under the base folder
     const projectFolder = await sharepoint.createFolder(
@@ -475,13 +495,13 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
     return { success: false, error: `Microsoft connection failed: ${msError instanceof Error ? msError.message : 'Unknown error'}` };
   }
 
-  // Get project name for folder creation
-  let project;
+  // Get project details for folder creation
+  let project: { client_name: string; sales_order_number: string };
   try {
     console.log('[uploadFile] === STEP 5: Getting project ===');
     const { data: projectData, error: projectError } = await db
       .from('projects')
-      .select('client_name')
+      .select('client_name, sales_order_number')
       .eq('id', data.projectId)
       .single();
 
@@ -490,7 +510,7 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
       return { success: false, error: 'Project not found' };
     }
     project = projectData;
-    console.log('[uploadFile] Project found:', project.client_name);
+    console.log('[uploadFile] Project found:', project.sales_order_number, project.client_name);
   } catch (projectFetchError) {
     console.error('[uploadFile] Project fetch exception:', projectFetchError);
     return { success: false, error: `Failed to fetch project: ${projectFetchError instanceof Error ? projectFetchError.message : 'Unknown error'}` };
@@ -502,6 +522,7 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
     console.log('[uploadFile] === STEP 6: Ensuring project folder ===');
     const folderResult = await ensureProjectFolder(
       data.projectId,
+      project.sales_order_number,
       project.client_name,
       user.id,
       msConnection
@@ -647,6 +668,16 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
   } catch (error) {
     console.error('[uploadFile] Unexpected error:', error);
     console.error('[uploadFile] Error stack:', error instanceof Error ? error.stack : 'No stack');
+
+    // Check if this is a Microsoft authentication error requiring reconnection
+    if (error instanceof MicrosoftAuthError) {
+      return {
+        success: false,
+        error: error.message,
+        requiresReconnect: error.requiresReconnect,
+      };
+    }
+
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Upload failed',
@@ -937,15 +968,18 @@ export async function createShareLink(
   fileId: string,
   type: 'view' | 'edit' = 'view'
 ): Promise<{ success: boolean; url?: string; error?: string }> {
+  console.log('[createShareLink] Starting for fileId:', fileId);
   const supabase = await createClient();
   const db = await getTypedClient();
 
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
+    console.log('[createShareLink] Auth error:', userError);
     return { success: false, error: 'Authentication required' };
   }
+  console.log('[createShareLink] User:', user.id);
 
-  const { data: file } = await db
+  const { data: file, error: fileError } = await db
     .from('project_files')
     .select(`
       sharepoint_item_id,
@@ -954,22 +988,27 @@ export async function createShareLink(
     .eq('id', fileId)
     .single();
 
+  console.log('[createShareLink] File lookup:', { file, fileError });
+
   if (!file || !file.sharepoint_item_id || !file.connection) {
     return { success: false, error: 'File not found or not connected to SharePoint' };
   }
 
   const msConnection = await getMicrosoftConnection(user.id);
+  console.log('[createShareLink] MS Connection:', msConnection ? 'found' : 'not found');
   if (!msConnection) {
     return { success: false, error: 'Please connect your Microsoft account' };
   }
 
   try {
+    console.log('[createShareLink] Calling sharepoint.createShareLink...');
     const result = await sharepoint.createShareLink(
       msConnection,
       file.connection.drive_id,
       file.sharepoint_item_id,
       { type, scope: 'organization' }
     );
+    console.log('[createShareLink] SharePoint result:', result);
 
     // Log access
     await db.from('project_file_access_logs').insert({
@@ -980,7 +1019,7 @@ export async function createShareLink(
 
     return { success: true, url: result.link.webUrl };
   } catch (error) {
-    console.error('Create share link error:', error);
+    console.error('[createShareLink] Error:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to create share link',
