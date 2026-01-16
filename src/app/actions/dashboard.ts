@@ -12,7 +12,7 @@ export interface DashboardProject {
   goal_completion_date: string | null;
   current_status_id: string | null;
   created_at: string | null;
-  created_date: string | null;
+  created_date: string | null; // User-editable PO received date (use this for PO date calculations)
   invoiced_date: string | null;
   current_status: { id: string; name: string } | null;
 }

@@ -11,10 +11,10 @@ export class POTickerSlide extends BaseSlide {
     this.updateAnimationState(_deltaTime);
     this.drawAmbientEffects(ctx);
 
-    const headerHeight = this.drawMinimalHeader(ctx, this.config.title || 'Purchase Orders');
+    const headerHeight = this.drawMinimalHeader(ctx, this.config.title || 'Recent Purchase Orders');
 
     const { width, height } = this.displayConfig;
-    const padding = 80;
+    const padding = this.SCREEN_MARGIN;
 
     // Filter POs from last 10 days
     const tenDaysAgo = subDays(new Date(), 10);
@@ -49,13 +49,12 @@ export class POTickerSlide extends BaseSlide {
     const bottomSectionY = headerHeight + padding + topSectionHeight + 40;
     const bottomSectionHeight = height - bottomSectionY - padding;
 
-    // Draw "TOP ORDERS" section label
-    drawText(ctx, 'LARGEST ORDERS (LAST 10 DAYS)', padding, headerHeight + padding - 10, {
+    // Draw "TOP ORDERS" section label - larger
+    drawText(ctx, 'LARGEST ORDERS (LAST 10 DAYS)', padding, headerHeight + 30, {
       font: this.displayConfig.fontFamily,
-      size: 28,
+      size: 36,
       weight: 600,
-      color: hexToRgba(colors.white, 0.6),
-      letterSpacing: 2,
+      color: hexToRgba(colors.white, 0.7),
     });
 
     // Draw top 3 large cards
@@ -73,10 +72,9 @@ export class POTickerSlide extends BaseSlide {
     if (recentOthers.length > 0) {
       drawText(ctx, 'RECENT ORDERS (LAST 7 DAYS)', padding, bottomSectionY - 20, {
         font: this.displayConfig.fontFamily,
-        size: 28,
+        size: 36,
         weight: 600,
-        color: hexToRgba(colors.white, 0.6),
-        letterSpacing: 2,
+        color: hexToRgba(colors.white, 0.7),
       });
 
       // Draw remaining POs in a grid
@@ -105,83 +103,83 @@ export class POTickerSlide extends BaseSlide {
     height: number,
     rank: number
   ): void {
-    const cardPadding = 32;
+    const cardPadding = 40;
 
     // Card background
     roundRect(ctx, x, y, width, height, 16);
     ctx.fillStyle = hexToRgba(colors.white, 0.1);
     ctx.fill();
 
-    // Rank badge (gold, silver, bronze)
+    // Rank badge (gold, silver, bronze) - larger
     const rankColors = [colors.amber, '#C0C0C0', '#CD7F32'];
     const rankColor = rankColors[rank - 1] || colors.mauve;
 
     ctx.beginPath();
-    ctx.arc(x + cardPadding + 30, y + cardPadding + 30, 30, 0, Math.PI * 2);
+    ctx.arc(x + cardPadding + 35, y + cardPadding + 35, 38, 0, Math.PI * 2);
     ctx.fillStyle = rankColor;
     ctx.fill();
 
-    drawText(ctx, `#${rank}`, x + cardPadding + 30, y + cardPadding + 30, {
+    drawText(ctx, `#${rank}`, x + cardPadding + 35, y + cardPadding + 35, {
       font: this.displayConfig.fontFamily,
-      size: 28,
+      size: 36,
       weight: 700,
       color: colors.white,
       align: 'center',
       baseline: 'middle',
     });
 
-    // PO Number
-    drawText(ctx, po.po_number, x + cardPadding + 80, y + cardPadding + 30, {
+    // PO Number - larger
+    drawText(ctx, po.po_number, x + cardPadding + 95, y + cardPadding + 35, {
       font: this.displayConfig.fontFamily,
-      size: 32,
+      size: 40,
       weight: 600,
       color: colors.primaryLight,
       baseline: 'middle',
     });
 
-    // Amount - LARGE
+    // Amount - LARGER
     const amountStr = `$${po.amount.toLocaleString()}`;
-    drawText(ctx, amountStr, x + width / 2, y + height / 2 - 20, {
+    drawText(ctx, amountStr, x + width / 2, y + height / 2 - 10, {
       font: this.displayConfig.fontFamily,
-      size: 72,
+      size: 88,
       weight: 700,
       color: colors.primaryLight,
       align: 'center',
     });
 
-    // Project name
+    // Project name - larger
     drawText(
       ctx,
-      truncateText(ctx, po.project_name, width - cardPadding * 2, this.displayConfig.fontFamily, 36),
+      truncateText(ctx, po.project_name, width - cardPadding * 2, this.displayConfig.fontFamily, 44),
       x + cardPadding,
-      y + height - cardPadding - 70,
+      y + height - cardPadding - 85,
       {
         font: this.displayConfig.fontFamily,
-        size: 36,
+        size: 44,
         weight: 600,
         color: colors.white,
       }
     );
 
-    // Client name
+    // Client name - larger
     drawText(
       ctx,
-      truncateText(ctx, po.client_name, width - cardPadding * 2, this.displayConfig.fontFamily, 28),
+      truncateText(ctx, po.client_name, width - cardPadding * 2, this.displayConfig.fontFamily, 36),
       x + cardPadding,
-      y + height - cardPadding - 30,
+      y + height - cardPadding - 35,
       {
         font: this.displayConfig.fontFamily,
-        size: 28,
-        color: hexToRgba(colors.white, 0.6),
+        size: 36,
+        color: hexToRgba(colors.white, 0.7),
       }
     );
 
-    // Time ago
+    // Time ago - larger
     const timeAgo = formatDistanceToNow(new Date(po.created_at), { addSuffix: true });
-    drawText(ctx, timeAgo, x + width - cardPadding, y + cardPadding + 30, {
+    drawText(ctx, timeAgo, x + width - cardPadding, y + cardPadding + 35, {
       font: this.displayConfig.fontFamily,
-      size: 24,
-      color: hexToRgba(colors.white, 0.5),
+      size: 32,
+      color: hexToRgba(colors.white, 0.6),
       align: 'right',
       baseline: 'middle',
     });
@@ -195,7 +193,7 @@ export class POTickerSlide extends BaseSlide {
     width: number,
     height: number
   ): void {
-    const cardPadding = 20;
+    const cardPadding = 28;
 
     // Card background
     roundRect(ctx, x, y, width, height, 12);
@@ -204,68 +202,68 @@ export class POTickerSlide extends BaseSlide {
 
     // Left accent bar
     ctx.beginPath();
-    ctx.roundRect(x, y, 6, height, [12, 0, 0, 12]);
+    ctx.roundRect(x, y, 8, height, [12, 0, 0, 12]);
     ctx.fillStyle = colors.mauve;
     ctx.fill();
 
-    // PO Number badge
-    roundRect(ctx, x + cardPadding + 10, y + cardPadding, 140, 36, 6);
-    ctx.fillStyle = hexToRgba(colors.mauve, 0.3);
+    // PO Number badge - larger
+    roundRect(ctx, x + cardPadding + 10, y + cardPadding, 180, 44, 8);
+    ctx.fillStyle = hexToRgba(colors.mauve, 0.35);
     ctx.fill();
 
-    drawText(ctx, po.po_number, x + cardPadding + 80, y + cardPadding + 18, {
+    drawText(ctx, po.po_number, x + cardPadding + 100, y + cardPadding + 22, {
       font: this.displayConfig.fontFamily,
-      size: 22,
+      size: 28,
       weight: 600,
       color: colors.mauve,
       align: 'center',
       baseline: 'middle',
     });
 
-    // Project name
+    // Project name - larger
     drawText(
       ctx,
-      truncateText(ctx, po.project_name, width * 0.5, this.displayConfig.fontFamily, 28),
+      truncateText(ctx, po.project_name, width * 0.55, this.displayConfig.fontFamily, 36),
       x + cardPadding + 10,
-      y + cardPadding + 60,
+      y + cardPadding + 75,
       {
         font: this.displayConfig.fontFamily,
-        size: 28,
+        size: 36,
         weight: 600,
         color: colors.white,
       }
     );
 
-    // Client
+    // Client - larger
     drawText(
       ctx,
-      truncateText(ctx, po.client_name, width * 0.4, this.displayConfig.fontFamily, 22),
+      truncateText(ctx, po.client_name, width * 0.45, this.displayConfig.fontFamily, 28),
       x + cardPadding + 10,
-      y + cardPadding + 95,
+      y + cardPadding + 115,
       {
         font: this.displayConfig.fontFamily,
-        size: 22,
-        color: hexToRgba(colors.white, 0.6),
+        size: 28,
+        color: hexToRgba(colors.white, 0.7),
       }
     );
 
-    // Amount on right
+    // Amount on right - larger
     const amountStr = `$${po.amount.toLocaleString()}`;
     drawText(ctx, amountStr, x + width - cardPadding, y + height / 2, {
       font: this.displayConfig.fontFamily,
-      size: 36,
+      size: 44,
       weight: 700,
       color: colors.primaryLight,
       align: 'right',
       baseline: 'middle',
     });
 
-    // Time ago
+    // Time ago - larger
     const timeAgo = formatDistanceToNow(new Date(po.created_at), { addSuffix: true });
-    drawText(ctx, timeAgo, x + width - cardPadding, y + cardPadding + 18, {
+    drawText(ctx, timeAgo, x + width - cardPadding, y + cardPadding + 22, {
       font: this.displayConfig.fontFamily,
-      size: 20,
-      color: hexToRgba(colors.white, 0.4),
+      size: 26,
+      color: hexToRgba(colors.white, 0.5),
       align: 'right',
       baseline: 'middle',
     });

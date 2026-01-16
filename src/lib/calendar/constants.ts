@@ -67,10 +67,10 @@ export const BOOKING_STATUS_CONFIG: Record<
   },
 };
 
-// Default working hours (7am - 4pm)
+// Default working hours (8:30am - 4:30pm)
 export const DEFAULT_WORKING_HOURS = {
-  start: '07:00',
-  end: '16:00',
+  start: '08:30',
+  end: '16:30',
 } as const;
 
 // Default working hours with seconds (for database storage)

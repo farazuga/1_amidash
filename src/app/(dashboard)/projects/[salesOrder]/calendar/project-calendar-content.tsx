@@ -1,11 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { ProjectCalendar, BulkAssignDialog } from '@/components/calendar';
+import { ProjectCalendar, BulkAssignDialog, AssignmentDaysDialog } from '@/components/calendar';
 import { Button } from '@/components/ui/button';
-import { Users, ListTodo, UserPlus } from 'lucide-react';
-import { useProjectAssignments } from '@/hooks/queries/use-assignments';
+import { Link2, ExternalLink, Users, ListTodo, UserPlus } from 'lucide-react';
+import {
+  useCalendarSubscriptions,
+  useCreateCalendarSubscription,
+  useProjectAssignments,
+} from '@/hooks/queries/use-assignments';
 import { toast } from 'sonner';
 import type { CalendarEvent } from '@/types/calendar';
 import type { Project } from '@/types';
@@ -19,16 +22,42 @@ interface ProjectCalendarContentProps {
 }
 
 export function ProjectCalendarContent({ project, isAdmin }: ProjectCalendarContentProps) {
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'calendar' | 'list'>('calendar');
   const [showBulkAssign, setShowBulkAssign] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [showScheduleDialog, setShowScheduleDialog] = useState(false);
 
+  const { data: subscriptions } = useCalendarSubscriptions();
   const { data: assignments, isLoading: isLoadingAssignments } = useProjectAssignments(project.id);
+  const createSubscription = useCreateCalendarSubscription();
 
   const handleEventClick = (event: CalendarEvent) => {
-    // Navigate to the project page
-    router.push(`/projects/${project.sales_order_number}`);
+    // Open the Manage Schedule dialog for this assignment
+    if (project.start_date && project.end_date) {
+      setSelectedEvent(event);
+      setShowScheduleDialog(true);
+    }
   };
+
+  const handleGetICalLink = async () => {
+    try {
+      const result = await createSubscription.mutateAsync({
+        feedType: 'project',
+        projectId: project.id,
+      });
+
+      await navigator.clipboard.writeText(result.url);
+      toast.success('Calendar link copied to clipboard!', {
+        description: 'Paste this URL in your calendar app to subscribe',
+      });
+    } catch {
+      toast.error('Failed to generate calendar link');
+    }
+  };
+
+  const existingProjectSub = subscriptions?.find(
+    s => s.feed_type === 'project' && s.project_id === project.id
+  );
 
   return (
     <div className="space-y-4">
@@ -55,6 +84,31 @@ export function ProjectCalendarContent({ project, isAdmin }: ProjectCalendarCont
             >
               <UserPlus className="mr-2 h-4 w-4" />
               Bulk Assign
+            </Button>
+          )}
+          {existingProjectSub ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                const baseUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+                const url = `${baseUrl}/api/calendar/ical/${existingProjectSub.token}`;
+                await navigator.clipboard.writeText(url);
+                toast.success('Calendar link copied!');
+              }}
+            >
+              <Link2 className="mr-2 h-4 w-4" />
+              Copy iCal Link
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleGetICalLink}
+              disabled={createSubscription.isPending}
+            >
+              <ExternalLink className="mr-2 h-4 w-4" />
+              Get Calendar Link
             </Button>
           )}
         </div>
@@ -134,6 +188,19 @@ export function ProjectCalendarContent({ project, isAdmin }: ProjectCalendarCont
         projectId={project.id}
         projectName={project.client_name}
       />
+
+      {/* Assignment Days Dialog - opens when clicking on an event */}
+      {selectedEvent && project.start_date && project.end_date && (
+        <AssignmentDaysDialog
+          open={showScheduleDialog}
+          onOpenChange={setShowScheduleDialog}
+          assignmentId={selectedEvent.assignmentId}
+          userName={selectedEvent.userName}
+          projectName={project.client_name}
+          projectStartDate={project.start_date}
+          projectEndDate={project.end_date}
+        />
+      )}
     </div>
   );
 }
