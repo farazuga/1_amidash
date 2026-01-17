@@ -45,7 +45,7 @@ export async function GET(request: Request) {
       .eq('provider', 'microsoft')
       .maybeSingle();
 
-    console.log('[Mobile Microsoft Status] Query result:', { connection, dbError });
+    console.log('[Mobile Microsoft Status] Query result:', JSON.stringify({ connection, dbError }));
 
     return Response.json({
       connected: !!connection,
