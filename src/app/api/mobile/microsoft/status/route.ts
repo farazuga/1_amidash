@@ -37,14 +37,14 @@ export async function GET(request: Request) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: connection } = await (serviceClient as any)
       .from('calendar_connections')
-      .select('email, token_expires_at')
+      .select('outlook_email, token_expires_at')
       .eq('user_id', user.id)
       .eq('provider', 'microsoft')
       .maybeSingle();
 
     return Response.json({
       connected: !!connection,
-      email: connection?.email ?? null,
+      email: connection?.outlook_email ?? null,
       expires_at: connection?.token_expires_at ?? null,
     });
   } catch (error) {
