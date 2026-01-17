@@ -360,7 +360,7 @@ TOKEN="your-supabase-jwt"
 
 # 1. Check Microsoft connection status
 curl -H "Authorization: Bearer $TOKEN" \
-  https://amidash.vercel.app/api/mobile/microsoft/status
+  https://dash.amitrace.com/api/mobile/microsoft/status
 
 # 2. Upload a file (replace PROJECT_UUID with actual project ID)
 curl -X POST \
@@ -368,7 +368,7 @@ curl -X POST \
   -F "file=@test.jpg" \
   -F "projectId=PROJECT_UUID" \
   -F "category=media" \
-  https://amidash.vercel.app/api/mobile/sharepoint/upload
+  https://dash.amitrace.com/api/mobile/sharepoint/upload
 ```
 
 ### Getting a Test Token
