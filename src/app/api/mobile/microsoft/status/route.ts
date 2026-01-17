@@ -34,13 +34,18 @@ export async function GET(request: Request) {
 
     // 2. Check for Microsoft connection
     const serviceClient = await createServiceClient();
+
+    console.log('[Mobile Microsoft Status] Checking for user:', user.id);
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: connection } = await (serviceClient as any)
+    const { data: connection, error: dbError } = await (serviceClient as any)
       .from('calendar_connections')
       .select('outlook_email, token_expires_at')
       .eq('user_id', user.id)
       .eq('provider', 'microsoft')
       .maybeSingle();
+
+    console.log('[Mobile Microsoft Status] Query result:', { connection, dbError });
 
     return Response.json({
       connected: !!connection,
