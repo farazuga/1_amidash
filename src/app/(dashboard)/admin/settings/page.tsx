@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Loader2, Mail, AlertTriangle, Settings, FolderSync, ExternalLink, Unlink, BarChart3, HelpCircle, FolderPlus, CheckCircle2 } from 'lucide-react';
+import { Loader2, Mail, AlertTriangle, Settings, FolderSync, ExternalLink, Unlink, BarChart3, HelpCircle, FolderPlus, CheckCircle2, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
@@ -634,6 +634,45 @@ WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND pr
               )}
             </>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Microsoft Token Status Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <KeyRound className="h-5 w-5" />
+            Microsoft Token Status
+          </CardTitle>
+          <CardDescription>
+            Debug Microsoft authentication tokens for all users
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-lg border p-4 space-y-3">
+            <div className="flex items-start gap-3">
+              <Settings className="h-5 w-5 text-muted-foreground mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium">Token Health Check</p>
+                <p className="text-sm text-muted-foreground mb-3">
+                  View access token expiration, refresh token health, and identify users who may need to reconnect their Microsoft account.
+                </p>
+                <a
+                  href="/api/admin/token-status"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+                >
+                  View Token Status
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 text-xs text-muted-foreground">
+            <p><strong>Access tokens:</strong> Last ~1 hour, auto-refresh using refresh token</p>
+            <p><strong>Refresh tokens:</strong> Last 90 days of inactivity, each use extends the window</p>
+          </div>
         </CardContent>
       </Card>
 
