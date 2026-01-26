@@ -649,5 +649,58 @@ function getCategoryFolderName(category: FileCategoryWithLegacy): string {
   return names[category];
 }
 
+/**
+ * Get or create the archive folder structure: _archive/{year}
+ * Returns the year folder ID for moving project folders into
+ */
+export async function getOrCreateArchiveFolder(
+  connection: MicrosoftConnection,
+  driveId: string,
+  baseFolderId: string,
+  baseFolderPath: string,
+  year: number
+): Promise<{ archiveFolderId: string; yearFolderId: string; yearFolderPath: string }> {
+  const archiveFolderName = '_archive';
+  const yearFolderName = String(year);
+
+  // Try to get _archive folder
+  let archiveFolder: SharePointDriveItem | null = null;
+  const archivePath = baseFolderPath === '/' || baseFolderPath === 'Root'
+    ? `/${archiveFolderName}`
+    : `${baseFolderPath}/${archiveFolderName}`;
+
+  try {
+    archiveFolder = await getItemByPath(connection, driveId, archivePath);
+  } catch {
+    // Folder doesn't exist
+  }
+
+  // Create _archive folder if it doesn't exist
+  if (!archiveFolder) {
+    archiveFolder = await createFolder(connection, driveId, baseFolderId, archiveFolderName);
+  }
+
+  // Try to get year folder
+  let yearFolder: SharePointDriveItem | null = null;
+  const yearPath = `${archivePath}/${yearFolderName}`;
+
+  try {
+    yearFolder = await getItemByPath(connection, driveId, yearPath);
+  } catch {
+    // Folder doesn't exist
+  }
+
+  // Create year folder if it doesn't exist
+  if (!yearFolder) {
+    yearFolder = await createFolder(connection, driveId, archiveFolder.id, yearFolderName);
+  }
+
+  return {
+    archiveFolderId: archiveFolder.id,
+    yearFolderId: yearFolder.id,
+    yearFolderPath: yearPath,
+  };
+}
+
 // Export folder name helper for use elsewhere
 export { getCategoryFolderName };

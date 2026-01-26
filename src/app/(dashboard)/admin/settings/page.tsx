@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Loader2, Mail, AlertTriangle, Settings, FolderSync, ExternalLink, Unlink, BarChart3, HelpCircle, FolderPlus, CheckCircle2, KeyRound } from 'lucide-react';
+import { Loader2, Mail, AlertTriangle, Settings, FolderSync, ExternalLink, Unlink, BarChart3, HelpCircle, FolderPlus, CheckCircle2, KeyRound, Archive } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
@@ -23,6 +23,8 @@ import {
   checkAdminMicrosoftConnection,
   createMissingSharePointFolders,
   getProjectsWithoutFoldersCount,
+  getInvoicedProjectsWithFoldersCount,
+  archiveInvoicedProjects,
 } from './sharepoint-actions';
 import type { SharePointGlobalConfig } from '@/types';
 
@@ -152,6 +154,10 @@ export default function AdminSettingsPage() {
   const [projectsWithoutFolders, setProjectsWithoutFolders] = useState<{ count: number; total: number }>({ count: 0, total: 0 });
   const [isCreatingFolders, setIsCreatingFolders] = useState(false);
 
+  // Archive invoiced projects state
+  const [invoicedProjectsCount, setInvoicedProjectsCount] = useState<number>(0);
+  const [isArchiving, setIsArchiving] = useState(false);
+
   // Token status state
   const [tokenStatus, setTokenStatus] = useState<TokenStatusSummary | null>(null);
   const [tokenStatusLoading, setTokenStatusLoading] = useState(true);
@@ -219,10 +225,11 @@ export default function AdminSettingsPage() {
     const fetchSharePointSettings = async () => {
       setSharepointLoading(true);
       try {
-        const [configResult, msResult, folderCount] = await Promise.all([
+        const [configResult, msResult, folderCount, invoicedCount] = await Promise.all([
           getSharePointConfig(),
           checkAdminMicrosoftConnection(),
           getProjectsWithoutFoldersCount(),
+          getInvoicedProjectsWithFoldersCount(),
         ]);
 
         if (configResult.success) {
@@ -231,6 +238,7 @@ export default function AdminSettingsPage() {
         setMsConnected(msResult.connected);
         setMsEmail(msResult.email || null);
         setProjectsWithoutFolders(folderCount);
+        setInvoicedProjectsCount(invoicedCount.count);
       } catch (error) {
         console.error('Error fetching SharePoint settings:', error);
       } finally {
@@ -312,6 +320,35 @@ export default function AdminSettingsPage() {
       toast.error('Failed to disconnect SharePoint');
     } finally {
       setIsDisconnecting(false);
+    }
+  };
+
+  const handleArchiveInvoicedProjects = async () => {
+    setIsArchiving(true);
+    try {
+      const result = await archiveInvoicedProjects();
+
+      if (result.success) {
+        if (result.archived > 0) {
+          toast.success(`Archived ${result.archived} project${result.archived !== 1 ? 's' : ''} to _archive folder`);
+        } else {
+          toast.info('No projects to archive');
+        }
+
+        if (result.errors > 0) {
+          toast.warning(`${result.errors} project${result.errors !== 1 ? 's' : ''} failed to archive`);
+        }
+
+        // Refresh the count
+        const newCount = await getInvoicedProjectsWithFoldersCount();
+        setInvoicedProjectsCount(newCount.count);
+      } else {
+        toast.error(result.error || 'Failed to archive projects');
+      }
+    } catch (error) {
+      toast.error('Failed to archive projects');
+    } finally {
+      setIsArchiving(false);
     }
   };
 
@@ -658,6 +695,49 @@ WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND pr
                     )}
                   </Button>
                 </div>
+              </div>
+
+              {/* Archive invoiced projects */}
+              <div className="rounded-lg border p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium flex items-center gap-2">
+                      <Archive className="h-4 w-4" />
+                      Archive Invoiced Projects
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {invoicedProjectsCount > 0 ? (
+                        <>{invoicedProjectsCount} invoiced project{invoicedProjectsCount !== 1 ? 's' : ''} ready to archive</>
+                      ) : (
+                        <span className="flex items-center gap-1 text-green-600">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          All invoiced projects are archived
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleArchiveInvoicedProjects}
+                    disabled={isArchiving || invoicedProjectsCount === 0}
+                    size="sm"
+                    variant="outline"
+                  >
+                    {isArchiving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Archiving...
+                      </>
+                    ) : (
+                      <>
+                        <Archive className="h-4 w-4 mr-2" />
+                        Archive Projects
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Moves project folders to _archive/{'{'}year{'}'} based on invoiced date
+                </p>
               </div>
             </>
           ) : (

@@ -330,7 +330,7 @@ export async function createMissingSharePointFolders(): Promise<CreateMissingFol
     }
 
     // Decrypt tokens if needed
-    let msConnection = { ...msConnectionData };
+    const msConnection = { ...msConnectionData };
     if (isEncryptionConfigured()) {
       try {
         msConnection.access_token = decryptToken(msConnectionData.access_token);
@@ -472,7 +472,6 @@ export async function getProjectsWithoutFoldersCount(): Promise<{ count: number;
     );
 
     const total = allProjects?.length || 0;
-    const withFolders = connectedProjectIds.size;
     const withoutFolders = (allProjects || []).filter(
       (p: { id: string }) => !connectedProjectIds.has(p.id)
     ).length;
@@ -480,5 +479,241 @@ export async function getProjectsWithoutFoldersCount(): Promise<{ count: number;
     return { count: withoutFolders, total };
   } catch {
     return { count: 0, total: 0 };
+  }
+}
+
+// ============================================================================
+// Archive Invoiced Projects
+// ============================================================================
+
+export interface ArchiveInvoicedProjectsResult {
+  success: boolean;
+  processed: number;
+  archived: number;
+  skipped: number;
+  errors: number;
+  errorDetails?: string[];
+  error?: string;
+}
+
+/**
+ * Get count of invoiced projects that have SharePoint folders (ready for archiving)
+ */
+export async function getInvoicedProjectsWithFoldersCount(): Promise<{ count: number }> {
+  try {
+    const supabase = await createServiceClient() as AnySupabaseClient;
+
+    // Get the Invoiced status ID
+    const { data: invoicedStatus } = await supabase
+      .from('statuses')
+      .select('id')
+      .eq('name', 'Invoiced')
+      .single();
+
+    if (!invoicedStatus) {
+      return { count: 0 };
+    }
+
+    // Get invoiced projects with SharePoint connections that are not already archived
+    const { data: projects, count } = await supabase
+      .from('projects')
+      .select(`
+        id,
+        project_sharepoint_connections!inner(id, folder_path)
+      `, { count: 'exact' })
+      .eq('current_status_id', invoicedStatus.id)
+      .not('project_sharepoint_connections.folder_path', 'like', '%/_archive/%');
+
+    return { count: count || projects?.length || 0 };
+  } catch {
+    return { count: 0 };
+  }
+}
+
+/**
+ * Archive all invoiced projects by moving their SharePoint folders to _archive/{year}
+ * (Admin only)
+ */
+export async function archiveInvoicedProjects(): Promise<ArchiveInvoicedProjectsResult> {
+  const sharepoint = await import('@/lib/sharepoint/client');
+  const { decryptToken, isEncryptionConfigured } = await import('@/lib/crypto');
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { success: false, processed: 0, archived: 0, skipped: 0, errors: 0, error: 'Authentication required' };
+    }
+
+    // Verify admin role
+    if (!(await isAdmin(user.id))) {
+      return { success: false, processed: 0, archived: 0, skipped: 0, errors: 0, error: 'Admin access required' };
+    }
+
+    const supabase = await createServiceClient() as AnySupabaseClient;
+
+    // Get global SharePoint config
+    const { data: configData } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'sharepoint_config')
+      .maybeSingle();
+
+    if (!configData?.value) {
+      return { success: false, processed: 0, archived: 0, skipped: 0, errors: 0, error: 'SharePoint not configured' };
+    }
+
+    const globalConfig = configData.value as SharePointGlobalConfig;
+
+    // Get admin's Microsoft connection
+    const { data: msConnectionData } = await supabase
+      .from('calendar_connections')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('provider', 'microsoft')
+      .maybeSingle();
+
+    if (!msConnectionData) {
+      return { success: false, processed: 0, archived: 0, skipped: 0, errors: 0, error: 'Microsoft account not connected' };
+    }
+
+    // Decrypt tokens if needed
+    const msConnection = { ...msConnectionData };
+    if (isEncryptionConfigured()) {
+      try {
+        msConnection.access_token = decryptToken(msConnectionData.access_token);
+        msConnection.refresh_token = decryptToken(msConnectionData.refresh_token);
+      } catch {
+        // Use raw tokens if decryption fails
+      }
+    }
+
+    // Get the Invoiced status ID
+    const { data: invoicedStatus } = await supabase
+      .from('statuses')
+      .select('id')
+      .eq('name', 'Invoiced')
+      .single();
+
+    if (!invoicedStatus) {
+      return { success: false, processed: 0, archived: 0, skipped: 0, errors: 0, error: 'Invoiced status not found' };
+    }
+
+    // Get invoiced projects with SharePoint connections that are not already archived
+    const { data: projectsToArchive } = await supabase
+      .from('projects')
+      .select(`
+        id,
+        sales_order_number,
+        client_name,
+        invoiced_date,
+        project_sharepoint_connections(id, drive_id, folder_id, folder_path, folder_url)
+      `)
+      .eq('current_status_id', invoicedStatus.id)
+      .not('project_sharepoint_connections.folder_path', 'like', '%/_archive/%');
+
+    if (!projectsToArchive || projectsToArchive.length === 0) {
+      return { success: true, processed: 0, archived: 0, skipped: 0, errors: 0 };
+    }
+
+    // Filter to only projects that have a SharePoint connection
+    const projectsWithFolders = projectsToArchive.filter(
+      (p: { project_sharepoint_connections: unknown[] | null }) =>
+        p.project_sharepoint_connections && p.project_sharepoint_connections.length > 0
+    );
+
+    let archived = 0;
+    let skipped = 0;
+    let errors = 0;
+    const errorDetails: string[] = [];
+
+    // Cache for year folders to avoid creating duplicates
+    const yearFolderCache = new Map<number, { yearFolderId: string; yearFolderPath: string }>();
+
+    for (const project of projectsWithFolders) {
+      try {
+        const connection = project.project_sharepoint_connections[0];
+
+        // Skip if already in archive folder
+        if (connection.folder_path?.includes('/_archive/')) {
+          skipped++;
+          continue;
+        }
+
+        // Determine the year (use invoiced_date year or current year)
+        const year = project.invoiced_date
+          ? new Date(project.invoiced_date).getFullYear()
+          : new Date().getFullYear();
+
+        // Get or create the archive year folder (use cache)
+        let yearFolderInfo = yearFolderCache.get(year);
+        if (!yearFolderInfo) {
+          const result = await sharepoint.getOrCreateArchiveFolder(
+            msConnection as CalendarConnection,
+            globalConfig.drive_id,
+            globalConfig.base_folder_id,
+            globalConfig.base_folder_path,
+            year
+          );
+          yearFolderInfo = { yearFolderId: result.yearFolderId, yearFolderPath: result.yearFolderPath };
+          yearFolderCache.set(year, yearFolderInfo);
+        }
+
+        // Move the project folder to the archive year folder
+        const movedItem = await sharepoint.moveItem(
+          msConnection as CalendarConnection,
+          connection.drive_id,
+          connection.folder_id,
+          yearFolderInfo.yearFolderId
+        );
+
+        // Extract folder name from original path
+        const folderName = connection.folder_path?.split('/').pop() || '';
+        const newFolderPath = `${yearFolderInfo.yearFolderPath}/${folderName}`;
+
+        // Update the database record with new path and URL
+        await supabase
+          .from('project_sharepoint_connections')
+          .update({
+            folder_path: newFolderPath,
+            folder_url: movedItem.webUrl,
+          })
+          .eq('id', connection.id);
+
+        archived++;
+
+        // Rate limiting to avoid throttling
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+      } catch (error) {
+        errors++;
+        const errorMsg = `${project.sales_order_number}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        errorDetails.push(errorMsg);
+        console.error(`[ArchiveInvoicedProjects] Error for ${project.sales_order_number}:`, error);
+      }
+    }
+
+    // Count skipped as projects that were already in archive
+    const alreadyArchived = projectsToArchive.length - projectsWithFolders.length;
+    skipped += alreadyArchived;
+
+    return {
+      success: true,
+      processed: projectsWithFolders.length,
+      archived,
+      skipped,
+      errors,
+      errorDetails: errorDetails.length > 0 ? errorDetails.slice(0, 10) : undefined,
+    };
+
+  } catch (error) {
+    console.error('[ArchiveInvoicedProjects] Fatal error:', error);
+    return {
+      success: false,
+      processed: 0,
+      archived: 0,
+      skipped: 0,
+      errors: 0,
+      error: error instanceof Error ? error.message : 'Failed to archive projects',
+    };
   }
 }
