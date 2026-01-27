@@ -34,11 +34,11 @@ export async function fetchActiveProjects(): Promise<ActiveProject[]> {
   }
 
   try {
-    // First get completed/cancelled status IDs to filter them out
+    // First get completed/cancelled/invoiced status IDs to filter them out
     const { data: excludeStatuses } = await supabase
       .from('statuses')
       .select('id')
-      .or('name.ilike.%complete%,name.ilike.%cancelled%');
+      .or('name.ilike.%complete%,name.ilike.%cancelled%,name.ilike.%invoiced%');
 
     const excludeIds = (excludeStatuses || []).map(s => s.id);
 
