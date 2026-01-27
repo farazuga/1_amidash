@@ -54,8 +54,8 @@ export class HealthDashboardSlide extends BaseSlide {
     const diagnosisY = gaugeY + gaugeRadius + 100;
     this.drawDiagnosis(ctx, health.diagnosis, health.message, diagnosisY);
 
-    // Draw bottleneck indicators (with more space to avoid overlap)
-    const bottleneckY = diagnosisY + 180;
+    // Draw bottleneck indicators closer to badge (reduced empty space)
+    const bottleneckY = diagnosisY + 120;
     this.drawBottleneckIndicators(ctx, health.bottlenecks, bottleneckY);
 
     // Draw connection status indicator if not connected
@@ -170,13 +170,15 @@ export class HealthDashboardSlide extends BaseSlide {
       baseline: 'middle',
     });
 
-    // Message below badge
-    drawText(ctx, message, centerX, y + badgeHeight + 50, {
-      font: this.displayConfig.fontFamily,
-      size: this.FONT_SIZE.MINIMUM,
-      color: hexToRgba(colors.white, 0.7),
-      align: 'center',
-    });
+    // Only show message if it's different from the status text (avoid redundancy)
+    if (diagnosis !== 'healthy') {
+      drawText(ctx, message, centerX, y + badgeHeight + 50, {
+        font: this.displayConfig.fontFamily,
+        size: this.FONT_SIZE.MINIMUM,
+        color: hexToRgba(colors.white, 0.7),
+        align: 'center',
+      });
+    }
   }
 
   private drawBottleneckIndicators(
@@ -191,26 +193,26 @@ export class HealthDashboardSlide extends BaseSlide {
       return;
     }
 
-    // Container for bottleneck badges - increased for TV readability
-    const badgeWidth = 340;
+    // Container for bottleneck badges - wide enough for text
+    const badgeWidth = 420;
     const badgeHeight = 80;
-    const gap = 60;
-    const totalWidth = badgeWidth * 2 + gap;
+    const gap = 80;
 
-    const startX = centerX - totalWidth / 2;
+    // Position badges side by side, centered
+    const procBadgeX = centerX - badgeWidth - gap / 2;
+    const engBadgeX = centerX + gap / 2;
 
-    // Procurement badge - larger text
+    // Procurement badge
     if (bottlenecks.procurement > 0) {
-      const procX = startX;
       ctx.beginPath();
-      ctx.roundRect(procX, y, badgeWidth, badgeHeight, 12);
+      ctx.roundRect(procBadgeX, y, badgeWidth, badgeHeight, 12);
       ctx.fillStyle = hexToRgba(colors.warning, 0.2);
       ctx.fill();
       ctx.strokeStyle = colors.warning;
       ctx.lineWidth = 3;
       ctx.stroke();
 
-      drawText(ctx, `Procurement: ${bottlenecks.procurement}`, procX + badgeWidth / 2, y + badgeHeight / 2, {
+      drawText(ctx, `Procurement: ${bottlenecks.procurement} stuck`, procBadgeX + badgeWidth / 2, y + badgeHeight / 2, {
         font: this.displayConfig.fontFamily,
         size: this.FONT_SIZE.BODY,
         weight: 700,
@@ -222,16 +224,15 @@ export class HealthDashboardSlide extends BaseSlide {
 
     // Engineering badge
     if (bottlenecks.engineering > 0) {
-      const engX = startX + badgeWidth + gap;
       ctx.beginPath();
-      ctx.roundRect(engX, y, badgeWidth, badgeHeight, 12);
+      ctx.roundRect(engBadgeX, y, badgeWidth, badgeHeight, 12);
       ctx.fillStyle = hexToRgba(colors.info, 0.2);
       ctx.fill();
       ctx.strokeStyle = colors.info;
       ctx.lineWidth = 3;
       ctx.stroke();
 
-      drawText(ctx, `Engineering: ${bottlenecks.engineering}`, engX + badgeWidth / 2, y + badgeHeight / 2, {
+      drawText(ctx, `Engineering: ${bottlenecks.engineering} stuck`, engBadgeX + badgeWidth / 2, y + badgeHeight / 2, {
         font: this.displayConfig.fontFamily,
         size: this.FONT_SIZE.BODY,
         weight: 700,

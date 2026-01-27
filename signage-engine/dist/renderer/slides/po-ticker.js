@@ -59,12 +59,14 @@ export class POTickerSlide extends BaseSlide {
                 weight: 600,
                 color: hexToRgba(colors.white, 0.7),
             });
-            // Draw remaining POs in a grid - more compact
-            const smallCardGap = 20;
+            // Draw remaining POs in a grid - fill available space
+            const smallCardGap = 24;
             const cols = Math.min(3, recentOthers.length);
             const rows = Math.ceil(recentOthers.length / cols);
             const smallCardWidth = (width - padding * 2 - smallCardGap * (cols - 1)) / cols;
-            const smallCardHeight = Math.min(120, (bottomSectionHeight - smallCardGap * (rows - 1)) / rows);
+            // Allow cards to expand to fill remaining space (account for demo banner)
+            const availableHeight = bottomSectionHeight - 80; // Leave room for connection status
+            const smallCardHeight = (availableHeight - smallCardGap * (rows - 1)) / rows;
             recentOthers.forEach((po, index) => {
                 const col = index % cols;
                 const row = Math.floor(index / cols);
@@ -136,56 +138,51 @@ export class POTickerSlide extends BaseSlide {
         });
     }
     drawSmallPOCard(ctx, po, x, y, width, height) {
-        const cardPadding = 20;
+        const cardPadding = 30;
         // Card background
-        roundRect(ctx, x, y, width, height, 10);
+        roundRect(ctx, x, y, width, height, 12);
         ctx.fillStyle = hexToRgba(colors.white, 0.08);
         ctx.fill();
         // Left accent bar
         ctx.beginPath();
-        ctx.roundRect(x, y, 6, height, [10, 0, 0, 10]);
+        ctx.roundRect(x, y, 8, height, [12, 0, 0, 12]);
         ctx.fillStyle = colors.mauve;
         ctx.fill();
-        // PO Number badge - compact
-        roundRect(ctx, x + cardPadding + 8, y + cardPadding - 2, 150, 36, 6);
+        // PO Number badge - top left
+        roundRect(ctx, x + cardPadding + 10, y + cardPadding - 5, 200, 50, 8);
         ctx.fillStyle = hexToRgba(colors.mauve, 0.35);
         ctx.fill();
-        drawText(ctx, po.po_number, x + cardPadding + 83, y + cardPadding + 16, {
+        drawText(ctx, po.po_number, x + cardPadding + 110, y + cardPadding + 20, {
             font: this.displayConfig.fontFamily,
-            size: 24,
+            size: 34,
             weight: 600,
             color: colors.mauve,
             align: 'center',
             baseline: 'middle',
         });
-        // Project name - compact
-        drawText(ctx, truncateText(ctx, po.project_name, width * 0.50, this.displayConfig.fontFamily, 28), x + cardPadding + 8, y + cardPadding + 52, {
+        // Project name - large, vertically centered
+        const contentCenterY = y + height / 2 + 15;
+        drawText(ctx, truncateText(ctx, po.project_name, width * 0.58, this.displayConfig.fontFamily, 44), x + cardPadding + 10, contentCenterY, {
             font: this.displayConfig.fontFamily,
-            size: 28,
+            size: 44,
             weight: 600,
             color: colors.white,
         });
-        // Client - compact
-        drawText(ctx, truncateText(ctx, po.client_name, width * 0.40, this.displayConfig.fontFamily, 22), x + cardPadding + 8, y + cardPadding + 82, {
-            font: this.displayConfig.fontFamily,
-            size: 22,
-            color: hexToRgba(colors.white, 0.7),
-        });
-        // Amount on right
+        // Amount on right - large and centered
         const amountStr = `$${po.amount.toLocaleString()}`;
-        drawText(ctx, amountStr, x + width - cardPadding, y + height / 2 + 5, {
+        drawText(ctx, amountStr, x + width - cardPadding, contentCenterY, {
             font: this.displayConfig.fontFamily,
-            size: 36,
+            size: 56,
             weight: 700,
             color: colors.primaryLight,
             align: 'right',
             baseline: 'middle',
         });
-        // Time ago
+        // Time ago - top right
         const timeAgo = formatDistanceToNow(new Date(po.created_at), { addSuffix: true });
-        drawText(ctx, timeAgo, x + width - cardPadding, y + cardPadding + 16, {
+        drawText(ctx, timeAgo, x + width - cardPadding, y + cardPadding + 20, {
             font: this.displayConfig.fontFamily,
-            size: 22,
+            size: 28,
             color: hexToRgba(colors.white, 0.5),
             align: 'right',
             baseline: 'middle',

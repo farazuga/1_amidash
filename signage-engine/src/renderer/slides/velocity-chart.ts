@@ -28,13 +28,14 @@ export class VelocityChartSlide extends BaseSlide {
     // Summary cards at top
     this.drawSummaryCards(ctx, velocity, padding, contentY, width - padding * 2);
 
-    // Main bar chart - leave room for legend above banner
-    const chartY = contentY + 160;
-    const chartHeight = contentHeight - 160;
-    this.drawVelocityChart(ctx, velocity.monthly, padding, chartY, width - padding * 2, chartHeight);
+    // Legend below summary cards
+    const legendY = contentY + 150;
+    this.drawLegend(ctx, padding, legendY, width - padding * 2);
 
-    // Legend above the banner zone
-    this.drawLegend(ctx, padding, height - this.SAFE_AREA.bottom - 30, width - padding * 2);
+    // Main bar chart - leave room for legend and month labels
+    const chartY = legendY + 70;
+    const chartHeight = contentHeight - 220;
+    this.drawVelocityChart(ctx, velocity.monthly, padding + 60, chartY, width - padding * 2 - 60, chartHeight);
 
     // Draw connection status indicator if not connected
     this.drawConnectionStatus(ctx, data);

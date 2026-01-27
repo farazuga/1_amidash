@@ -43,38 +43,38 @@ export class StatusPipelineSlide extends BaseSlide {
         const centerX = x + width / 2;
         // Use proportional spacing to prevent overlap
         const sectionOffset = Math.min(300, width * 0.2);
-        // Total projects - left section
-        drawText(ctx, totalProjects.toString(), centerX - sectionOffset, y + 50, {
+        // Total projects - left section (adjusted Y positions for better spacing)
+        drawText(ctx, totalProjects.toString(), centerX - sectionOffset, y + 40, {
             font: this.displayConfig.fontFamily,
-            size: 80,
+            size: 72,
             weight: 700,
             color: colors.primaryLight,
             align: 'center',
         });
-        drawText(ctx, 'Active Projects', centerX - sectionOffset, y + 105, {
+        drawText(ctx, 'Active Projects', centerX - sectionOffset, y + 90, {
             font: this.displayConfig.fontFamily,
-            size: this.FONT_SIZE.MINIMUM,
+            size: 32,
             color: hexToRgba(colors.white, 0.7),
             align: 'center',
         });
         // Divider
         ctx.beginPath();
-        ctx.moveTo(centerX, y + 20);
-        ctx.lineTo(centerX, y + 110);
+        ctx.moveTo(centerX, y + 10);
+        ctx.lineTo(centerX, y + 100);
         ctx.strokeStyle = hexToRgba(colors.white, 0.3);
         ctx.lineWidth = 3;
         ctx.stroke();
         // Total revenue - right section
-        drawText(ctx, `$${this.formatNumber(totalRevenue)}`, centerX + sectionOffset, y + 50, {
+        drawText(ctx, `$${this.formatNumber(totalRevenue)}`, centerX + sectionOffset, y + 40, {
             font: this.displayConfig.fontFamily,
-            size: 80,
+            size: 72,
             weight: 700,
             color: colors.success,
             align: 'center',
         });
-        drawText(ctx, 'Pipeline Value', centerX + sectionOffset, y + 105, {
+        drawText(ctx, 'Pipeline Value', centerX + sectionOffset, y + 90, {
             font: this.displayConfig.fontFamily,
-            size: this.FONT_SIZE.MINIMUM,
+            size: 32,
             color: hexToRgba(colors.white, 0.7),
             align: 'center',
         });
@@ -176,28 +176,28 @@ export class StatusPipelineSlide extends BaseSlide {
             ctx.fillRect(x, fillY, width, fillHeight);
             ctx.restore();
         }
-        // Status name - use LABEL size for readability
-        const displayName = status.name.length > 20 ? status.name.substring(0, 18) + '...' : status.name;
-        drawText(ctx, displayName.toUpperCase(), x + width / 2, stageY - 30, {
+        // Status name - inside box at top
+        const displayName = status.name.length > 12 ? status.name.substring(0, 10) + '...' : status.name;
+        drawText(ctx, displayName.toUpperCase(), x + width / 2, stageY + 45, {
             font: this.displayConfig.fontFamily,
-            size: this.FONT_SIZE.LABEL,
+            size: 32,
             weight: 700,
             color: status.isBottleneck ? colors.warning : colors.white,
             align: 'center',
         });
-        // Count (large, centered) - no shadow glow
-        drawText(ctx, status.count.toString(), x + width / 2, stageY + stageHeight / 2 - 10, {
+        // Count (large, centered below label) - no shadow glow
+        drawText(ctx, status.count.toString(), x + width / 2, stageY + stageHeight / 2 + 20, {
             font: this.displayConfig.fontFamily,
-            size: 84,
+            size: 80,
             weight: 700,
             color: status.isBottleneck ? colors.warning : colors.white,
             align: 'center',
             baseline: 'middle',
         });
-        // Revenue - larger
-        drawText(ctx, `$${this.formatNumber(status.revenue)}`, x + width / 2, stageY + stageHeight / 2 + 60, {
+        // Revenue - below count
+        drawText(ctx, `$${this.formatNumber(status.revenue)}`, x + width / 2, stageY + stageHeight / 2 + 85, {
             font: this.displayConfig.fontFamily,
-            size: 40,
+            size: 36,
             color: hexToRgba(colors.white, 0.7),
             align: 'center',
         });

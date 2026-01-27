@@ -115,9 +115,14 @@ export class CycleTimeSlide extends BaseSlide {
     const chartWidth = width - labelWidth - valueWidth;
     const chartX = x + labelWidth;
 
-    const barHeight = Math.min(90, (height - 80) / statuses.length);
+    // Reserve space for X-axis labels (55px) and legend (60px) at bottom
+    const bottomPadding = 120;
+    const barHeight = Math.min(90, (height - bottomPadding) / statuses.length);
     const barGap = 18;
     const maxDays = Math.max(...statuses.map((s) => s.avgDays), 1);
+
+    // Calculate bar area height (excludes bottom padding for labels)
+    const barAreaHeight = height - bottomPadding;
 
     // Draw grid lines
     const gridLines = 5;
@@ -125,16 +130,16 @@ export class CycleTimeSlide extends BaseSlide {
       const lineX = chartX + (i / gridLines) * chartWidth;
       const value = Math.round((maxDays * i) / gridLines);
 
-      // Grid line
+      // Grid line - only extends to bar area
       ctx.beginPath();
       ctx.moveTo(lineX, y);
-      ctx.lineTo(lineX, y + height - 90);
+      ctx.lineTo(lineX, y + barAreaHeight);
       ctx.strokeStyle = hexToRgba(colors.white, 0.08);
       ctx.lineWidth = 1;
       ctx.stroke();
 
-      // X-axis label - larger
-      drawText(ctx, `${value}d`, lineX, y + height - 55, {
+      // X-axis label - below bar area
+      drawText(ctx, `${value}d`, lineX, y + barAreaHeight + 40, {
         font: this.displayConfig.fontFamily,
         size: this.FONT_SIZE.MINIMUM,
         color: hexToRgba(colors.white, 0.5),
@@ -205,16 +210,16 @@ export class CycleTimeSlide extends BaseSlide {
       }
     });
 
-    // X-axis line
+    // X-axis line - at bottom of bar area
     ctx.beginPath();
-    ctx.moveTo(chartX, y + height - 90);
-    ctx.lineTo(chartX + chartWidth, y + height - 90);
+    ctx.moveTo(chartX, y + barAreaHeight);
+    ctx.lineTo(chartX + chartWidth, y + barAreaHeight);
     ctx.strokeStyle = hexToRgba(colors.white, 0.25);
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Legend - positioned above the X-axis labels
-    const legendY = y + height - 100;
+    // Legend - positioned below X-axis labels
+    const legendY = y + barAreaHeight + 85;
     const legendX = x + width / 2;
 
     // Bottleneck indicator - larger box and text

@@ -92,5 +92,8 @@ function getMockProjects(): ActiveProject[] {
     { id: '1', name: 'Project Alpha', client_name: 'Client A', status: 'In Progress', status_color: '#3b82f6', project_type: 'Integration', salesperson: 'John Doe', start_date: '2024-01-01', due_date: '2024-06-01', total_value: 50000 },
     { id: '2', name: 'Project Beta', client_name: 'Client B', status: 'Review', status_color: '#f59e0b', project_type: 'Custom Dev', salesperson: 'Jane Smith', start_date: '2024-02-01', due_date: '2024-05-01', total_value: 35000 },
     { id: '3', name: 'Project Gamma', client_name: 'Client C', status: 'Design', status_color: '#8b5cf6', project_type: 'Support', salesperson: 'Bob Wilson', start_date: '2024-03-01', due_date: '2024-07-01', total_value: 75000 },
+    { id: '4', name: 'Project Delta', client_name: 'Client D', status: 'Testing', status_color: '#06b6d4', project_type: 'Integration', salesperson: 'Alice Brown', start_date: '2024-01-15', due_date: '2024-04-15', total_value: 42000 },
+    { id: '5', name: 'Project Epsilon', client_name: 'Client E', status: 'In Progress', status_color: '#3b82f6', project_type: 'Custom Dev', salesperson: 'John Doe', start_date: '2024-02-20', due_date: '2024-08-01', total_value: 95000 },
+    { id: '6', name: 'Project Zeta', client_name: 'Client F', status: 'Planning', status_color: '#8b5cf6', project_type: 'Support', salesperson: 'Jane Smith', start_date: '2024-03-10', due_date: '2024-09-01', total_value: 28000 },
   ];
 }

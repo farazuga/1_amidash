@@ -19,27 +19,57 @@ polling:
   purchaseOrders: 15000
 
 slides:
+  - type: "health-dashboard"
+    enabled: true
+    duration: 12000
+    title: "Business Health"
+
+  - type: "revenue-dashboard"
+    enabled: true
+    duration: 15000
+    title: "Revenue Dashboard"
+
   - type: "active-projects"
     enabled: true
     duration: 15000
     title: "Active Projects"
-    maxItems: 4
+    maxItems: 6
 
-  - type: "po-ticker"
+  - type: "performance-metrics"
     enabled: true
     duration: 15000
-    title: "Purchase Orders"
-
-  - type: "revenue-dashboard"
-    enabled: true
-    duration: 20000
-    title: "Revenue Dashboard"
+    title: "Performance Metrics"
 
   - type: "team-schedule"
     enabled: true
     duration: 15000
     title: "Team Schedule"
     daysToShow: 14
+
+  - type: "alerts-dashboard"
+    enabled: true
+    duration: 12000
+    title: "Alerts"
+
+  - type: "velocity-chart"
+    enabled: true
+    duration: 12000
+    title: "Velocity"
+
+  - type: "status-pipeline"
+    enabled: true
+    duration: 15000
+    title: "Status Pipeline"
+
+  - type: "po-ticker"
+    enabled: true
+    duration: 15000
+    title: "Recent POs"
+
+  - type: "cycle-time"
+    enabled: true
+    duration: 12000
+    title: "Cycle Time"
 
 transitions:
   type: "fade"

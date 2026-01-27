@@ -287,51 +287,53 @@ export class PerformanceMetricsSlide extends BaseSlide {
 
     // Top clients list - right side with clear separation
     const listX = x + leftSectionWidth + 20;
-    const listY = y + 100;
-    const itemHeight = 80;
+    const listY = y + 80;
+    const itemHeight = 90;
     const availableListWidth = width - leftSectionWidth - 60;
 
     topClients.slice(0, 3).forEach((client, index) => {
       const itemY = listY + index * itemHeight;
 
-      // Rank badge - larger
+      // Rank badge - vertically centered in row
       ctx.beginPath();
-      ctx.arc(listX + 28, itemY + 32, 30, 0, Math.PI * 2);
+      ctx.arc(listX + 24, itemY + 35, 26, 0, Math.PI * 2);
       ctx.fillStyle = hexToRgba(colors.white, 0.15);
       ctx.fill();
 
-      drawText(ctx, (index + 1).toString(), listX + 28, itemY + 32, {
+      drawText(ctx, (index + 1).toString(), listX + 24, itemY + 35, {
         font: this.displayConfig.fontFamily,
-        size: this.FONT_SIZE.MINIMUM,
+        size: 28,
         weight: 700,
         color: colors.white,
         align: 'center',
         baseline: 'middle',
       });
 
-      // Client name - cleaner layout with percentage on same line
-      const truncatedName = client.name.length > 18 ? client.name.substring(0, 15) + '...' : client.name;
-      drawText(ctx, truncatedName, listX + 75, itemY + 28, {
+      // Client name - clearly above the progress bar
+      const truncatedName = client.name.length > 15 ? client.name.substring(0, 12) + '...' : client.name;
+      const textStartX = listX + 65;
+
+      drawText(ctx, truncatedName, textStartX, itemY + 25, {
         font: this.displayConfig.fontFamily,
-        size: this.FONT_SIZE.MINIMUM,
+        size: 36,
         weight: 600,
         color: colors.white,
       });
 
       // Percentage - right aligned on same line as name
-      drawText(ctx, `${Math.round(client.percent)}%`, listX + availableListWidth - 20, itemY + 28, {
+      drawText(ctx, `${Math.round(client.percent)}%`, listX + availableListWidth - 20, itemY + 25, {
         font: this.displayConfig.fontFamily,
-        size: this.FONT_SIZE.MINIMUM,
+        size: 36,
         weight: 700,
         color: hexToRgba(colors.white, 0.8),
         align: 'right',
       });
 
-      // Progress bar below - per DESIGN.md increased for visibility
-      const barWidth = availableListWidth - 90;
-      const barHeight = 20;  // Increased from 12px for better visibility
-      const barX = listX + 75;
-      const barY = itemY + 55;
+      // Progress bar - well below text with clear separation
+      const barWidth = availableListWidth - 75;
+      const barHeight = 18;
+      const barX = textStartX;
+      const barY = itemY + 58;
 
       ctx.beginPath();
       ctx.roundRect(barX, barY, barWidth, barHeight, 6);
