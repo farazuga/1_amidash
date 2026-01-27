@@ -28,6 +28,34 @@ export class TokenDecryptionError extends Error {
 }
 
 /**
+ * Custom error for CAE claims challenges
+ * When Microsoft returns a claims challenge, the token needs to be refreshed
+ * with the challenge included
+ */
+export class ClaimsChallengeError extends Error {
+  constructor(public readonly claims: string) {
+    super('CAE claims challenge received - user must reauthenticate');
+    this.name = 'ClaimsChallengeError';
+  }
+}
+
+/**
+ * Parse claims challenge from WWW-Authenticate header
+ * CAE-enabled APIs return this when a token is revoked by policy
+ */
+function parseClaimsChallenge(wwwAuthHeader: string): string | null {
+  const match = wwwAuthHeader.match(/claims="([^"]+)"/);
+  if (match && match[1]) {
+    try {
+      return Buffer.from(match[1], 'base64').toString('utf-8');
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
  * Decrypt access token from storage if encryption is configured
  * Throws TokenDecryptionError if decryption fails - user must reconnect
  */
@@ -134,6 +162,41 @@ export async function getGraphClient(
       return { client, connection: currentConnection };
     } catch (error) {
       console.error('Token refresh failed:', error);
+
+      const errorMessage = error instanceof Error ? error.message : '';
+
+      // Detect specific Microsoft Conditional Access / policy errors
+      if (errorMessage.includes('AADSTS50173')) {
+        // Fresh auth required due to policy
+        throw new TokenDecryptionError(
+          'Your session has expired due to organization policy. Please reconnect your Microsoft account.'
+        );
+      }
+      if (errorMessage.includes('AADSTS700082')) {
+        // Refresh token expired
+        throw new TokenDecryptionError(
+          'Your refresh token has expired. Please reconnect your Microsoft account.'
+        );
+      }
+      if (errorMessage.includes('AADSTS50078') || errorMessage.includes('AADSTS50076')) {
+        // MFA required
+        throw new TokenDecryptionError(
+          'Your organization requires additional verification. Please reconnect your Microsoft account.'
+        );
+      }
+      if (errorMessage.includes('AADSTS65001')) {
+        // Consent required
+        throw new TokenDecryptionError(
+          'Additional permissions are required. Please reconnect your Microsoft account.'
+        );
+      }
+      if (errorMessage.includes('AADSTS50058')) {
+        // Silent sign-in failed
+        throw new TokenDecryptionError(
+          'Your session has ended. Please reconnect your Microsoft account.'
+        );
+      }
+
       throw new Error('Failed to refresh access token. User may need to reconnect.');
     }
   }

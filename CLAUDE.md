@@ -11,6 +11,7 @@ AmiDash - A project management dashboard built with Next.js, TypeScript, and Sup
 - **Framework:** Next.js 16 (App Router)
 - **Language:** TypeScript
 - **Database:** Supabase (PostgreSQL)
+- **Hosting:** Railway
 - **Styling:** Tailwind CSS
 - **UI Components:** shadcn/ui, Radix UI
 - **State Management:** Zustand, TanStack Query
@@ -102,3 +103,19 @@ Required for Supabase connection:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
+
+Required for Microsoft OAuth:
+- `MICROSOFT_CLIENT_ID`
+- `MICROSOFT_CLIENT_SECRET`
+- `MICROSOFT_REDIRECT_URI`
+- `MICROSOFT_TENANT_ID`
+- `TOKEN_ENCRYPTION_KEY`
+
+## Background Jobs
+
+The app uses internal cron jobs via `node-cron` (no external services needed):
+
+- **Token refresh**: Runs every 4 hours in production
+  - Keeps Microsoft OAuth tokens active
+  - Initialized via `src/instrumentation.ts` on server startup
+  - Implementation: `src/lib/cron/token-refresh.ts`

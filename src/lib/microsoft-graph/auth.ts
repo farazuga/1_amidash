@@ -52,9 +52,21 @@ export function isMicrosoftConfigured(): boolean {
 
 /**
  * Generate the Microsoft OAuth authorization URL
+ * Includes CAE (Continuous Access Evaluation) support for 28-hour tokens
  */
 export function getAuthUrl(state: string): string {
   const config = getConfig();
+
+  // CAE claims request - declare cp1 capability for extended token lifetime
+  // With CAE, tokens can last up to 28 hours instead of 1 hour
+  // See: https://learn.microsoft.com/en-us/entra/identity-platform/claims-challenge
+  const claimsRequest = {
+    access_token: {
+      xms_cc: {
+        values: ['cp1'],
+      },
+    },
+  };
 
   const params = new URLSearchParams({
     client_id: config.clientId,
@@ -64,6 +76,7 @@ export function getAuthUrl(state: string): string {
     scope: config.scopes.join(' '),
     state,
     prompt: 'consent', // Force consent to get refresh token
+    claims: JSON.stringify(claimsRequest), // CAE support
   });
 
   return `https://login.microsoftonline.com/${config.tenantId}/oauth2/v2.0/authorize?${params.toString()}`;
