@@ -49,7 +49,7 @@ export const DisplayConfigSchema = z.object({
   height: z.number().default(2160),
   backgroundColor: z.string().default('#053B2C'),     // Amitrace Main Dark Green background
   accentColor: z.string().default('#C2E0AD'),         // Amitrace Main Light Green accent
-  fontFamily: z.string().default('Karla, Inter, Arial, sans-serif'),  // Amitrace brand font
+  fontFamily: z.string().default('Inter'),  // Default to Inter for canvas rendering
   logoPath: z.string().optional(),
 });
 export type DisplayConfig = z.infer<typeof DisplayConfigSchema>;

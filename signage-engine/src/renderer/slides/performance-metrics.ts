@@ -88,7 +88,7 @@ export class PerformanceMetricsSlide extends BaseSlide {
 
     drawText(ctx, status, gaugeX, y + height - 50, {
       font: this.displayConfig.fontFamily,
-      size: 32,
+      size: this.FONT_SIZE.MINIMUM,
       weight: 600,
       color: color,
       align: 'center',
@@ -148,7 +148,7 @@ export class PerformanceMetricsSlide extends BaseSlide {
     // Status
     drawText(ctx, status, centerX, y + height - 50, {
       font: this.displayConfig.fontFamily,
-      size: 32,
+      size: this.FONT_SIZE.MINIMUM,
       weight: 600,
       color: color,
       align: 'center',
@@ -204,7 +204,7 @@ export class PerformanceMetricsSlide extends BaseSlide {
     // Status
     drawText(ctx, status, centerX, y + height - 50, {
       font: this.displayConfig.fontFamily,
-      size: 32,
+      size: this.FONT_SIZE.MINIMUM,
       weight: 600,
       color: color,
       align: 'center',
@@ -249,91 +249,97 @@ export class PerformanceMetricsSlide extends BaseSlide {
         break;
     }
 
-    // Large percentage (no glow for readability)
-    drawText(ctx, `${Math.round(value)}%`, x + 120, y + 160, {
+    // Large percentage (no glow for readability) - moved left side
+    const leftSectionWidth = 200;
+    const leftCenterX = x + 40 + leftSectionWidth / 2;
+
+    drawText(ctx, `${Math.round(value)}%`, leftCenterX, y + 160, {
       font: this.displayConfig.fontFamily,
-      size: 100,
+      size: 96,
       weight: 700,
       color: color,
       align: 'center',
     });
 
-    drawText(ctx, 'from top 3', x + 120, y + 220, {
+    drawText(ctx, 'from top 3', leftCenterX, y + 220, {
       font: this.displayConfig.fontFamily,
-      size: 28,
-      color: hexToRgba(colors.white, 0.5),
+      size: this.FONT_SIZE.MINIMUM,
+      color: hexToRgba(colors.white, 0.6),
       align: 'center',
     });
 
-    // Risk badge
-    const badgeWidth = 150;
-    const badgeX = x + 120 - badgeWidth / 2;
+    // Risk badge - larger
+    const badgeWidth = 180;
+    const badgeX = leftCenterX - badgeWidth / 2;
     ctx.beginPath();
-    ctx.roundRect(badgeX, y + 250, badgeWidth, 40, 8);
+    ctx.roundRect(badgeX, y + 260, badgeWidth, 56, 10);
     ctx.fillStyle = hexToRgba(color, 0.3);
     ctx.fill();
 
-    drawText(ctx, riskLabel, x + 120, y + 270, {
+    drawText(ctx, riskLabel, leftCenterX, y + 288, {
       font: this.displayConfig.fontFamily,
-      size: 24,
-      weight: 600,
+      size: this.FONT_SIZE.MINIMUM,
+      weight: 700,
       color: color,
       align: 'center',
       baseline: 'middle',
     });
 
-    // Top clients list
-    const listX = x + 260;
-    const listY = y + 110;
-    const itemHeight = 70;
+    // Top clients list - right side with more space
+    const listX = x + leftSectionWidth + 80;
+    const listY = y + 100;
+    const itemHeight = 85; // More vertical space between items
+    const availableListWidth = width - leftSectionWidth - 120;
 
     topClients.slice(0, 3).forEach((client, index) => {
       const itemY = listY + index * itemHeight;
 
-      // Rank badge
+      // Rank badge - larger
       ctx.beginPath();
-      ctx.arc(listX + 20, itemY + 25, 20, 0, Math.PI * 2);
-      ctx.fillStyle = hexToRgba(colors.white, 0.1);
+      ctx.arc(listX + 28, itemY + 32, 30, 0, Math.PI * 2);
+      ctx.fillStyle = hexToRgba(colors.white, 0.15);
       ctx.fill();
 
-      drawText(ctx, (index + 1).toString(), listX + 20, itemY + 25, {
+      drawText(ctx, (index + 1).toString(), listX + 28, itemY + 32, {
         font: this.displayConfig.fontFamily,
-        size: 24,
+        size: this.FONT_SIZE.MINIMUM,
         weight: 700,
         color: colors.white,
         align: 'center',
         baseline: 'middle',
       });
 
-      // Client name - allow longer names
-      const truncatedName = client.name.length > 24 ? client.name.substring(0, 21) + '...' : client.name;
-      drawText(ctx, truncatedName, listX + 55, itemY + 20, {
+      // Client name - cleaner layout with percentage on same line
+      const truncatedName = client.name.length > 18 ? client.name.substring(0, 15) + '...' : client.name;
+      drawText(ctx, truncatedName, listX + 75, itemY + 28, {
         font: this.displayConfig.fontFamily,
-        size: 32,
+        size: this.FONT_SIZE.MINIMUM,
         weight: 600,
         color: colors.white,
       });
 
-      // Percentage
-      drawText(ctx, `${Math.round(client.percent)}%`, listX + 55, itemY + 52, {
+      // Percentage - right aligned on same line as name
+      drawText(ctx, `${Math.round(client.percent)}%`, listX + availableListWidth - 20, itemY + 28, {
         font: this.displayConfig.fontFamily,
-        size: 24,
-        color: hexToRgba(colors.white, 0.5),
+        size: this.FONT_SIZE.MINIMUM,
+        weight: 700,
+        color: hexToRgba(colors.white, 0.8),
+        align: 'right',
       });
 
-      // Mini progress bar
-      const barWidth = width - 340;
-      const barHeight = 8;
-      const barX = listX + 130;
-      const barY = itemY + 47;
+      // Progress bar below - per DESIGN.md increased for visibility
+      const barWidth = availableListWidth - 90;
+      const barHeight = 20;  // Increased from 12px for better visibility
+      const barX = listX + 75;
+      const barY = itemY + 55;
 
       ctx.beginPath();
-      ctx.roundRect(barX, barY, barWidth, barHeight, 4);
+      ctx.roundRect(barX, barY, barWidth, barHeight, 6);
       ctx.fillStyle = hexToRgba(colors.white, 0.1);
       ctx.fill();
 
       ctx.beginPath();
-      ctx.roundRect(barX, barY, (client.percent / 100) * barWidth, barHeight, 4);
+      ctx.roundRect(barX, barY, (client.percent / 100) * barWidth, barHeight, 6);
       ctx.fillStyle = index === 0 ? color : hexToRgba(color, 0.6);
       ctx.fill();
     });

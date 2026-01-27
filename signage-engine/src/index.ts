@@ -1,4 +1,7 @@
 import 'dotenv/config';
+import { GlobalFonts } from '@napi-rs/canvas';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { initConfig, getConfig, updateConfig as updateConfigFn, SignageConfig } from './config/index.js';
 import { PollingManager } from './data/polling-manager.js';
 import { CanvasManager } from './renderer/canvas-manager.js';
@@ -6,6 +9,23 @@ import { SlideManager } from './renderer/slide-manager.js';
 import { NDIOutput } from './ndi/output.js';
 import { createAPIServer, startServer, EngineState } from './api/server.js';
 import { logger } from './utils/logger.js';
+
+// Get the directory of the current module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Register fonts at startup
+function registerFonts(): void {
+  const fontsDir = join(__dirname, '..', 'assets', 'fonts');
+  try {
+    GlobalFonts.registerFromPath(join(fontsDir, 'Inter-Regular.ttf'), 'Inter');
+    GlobalFonts.registerFromPath(join(fontsDir, 'Inter-Bold.ttf'), 'Inter');
+    GlobalFonts.registerFromPath(join(fontsDir, 'Inter-SemiBold.ttf'), 'Inter');
+    logger.info({ families: GlobalFonts.families.map(f => f.family) }, 'Fonts registered');
+  } catch (err) {
+    logger.warn({ error: err }, 'Failed to register custom fonts, text may not render correctly');
+  }
+}
 
 class SignageEngine {
   private state: EngineState;
@@ -132,6 +152,9 @@ class SignageEngine {
 // Main entry point
 async function main(): Promise<void> {
   logger.info('Initializing Amidash Digital Signage Engine');
+
+  // Register fonts before initializing engine
+  registerFonts();
 
   const engine = new SignageEngine();
   const config = getConfig();

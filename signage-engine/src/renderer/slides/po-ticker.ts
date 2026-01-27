@@ -44,29 +44,48 @@ export class POTickerSlide extends BaseSlide {
       .filter(po => !top3Ids.has(po.id) && isAfter(new Date(po.created_at), sevenDaysAgo))
       .slice(0, 6);
 
-    // Layout calculations
-    const topSectionHeight = (height - headerHeight - padding * 2) * 0.55;
-    const bottomSectionY = headerHeight + padding + topSectionHeight + 40;
-    const bottomSectionHeight = height - bottomSectionY - padding;
+    // Use safe area bounds per DESIGN.md
+    const bounds = this.getContentBounds();
+
+    // Determine layout based on whether we have additional POs
+    const hasRecentOthers = recentOthers.length > 0;
+
+    // Calculate card dimensions - larger cards when no bottom section needed
+    const topCardGap = 40;
+    const topCardWidth = (width - padding * 2 - topCardGap * 2) / 3;
+
+    // If no recent others, use more vertical space and center the cards
+    const topCardHeight = hasRecentOthers
+      ? bounds.height * 0.55 - 40
+      : bounds.height * 0.7;  // Taller cards when no bottom section
+
+    // Calculate vertical position - center when no bottom section
+    const labelHeight = 50;
+    const totalTopHeight = labelHeight + topCardHeight;
+    const verticalOffset = hasRecentOthers
+      ? 0
+      : (bounds.height - totalTopHeight) / 2;
+
+    const topSectionY = bounds.y + verticalOffset;
 
     // Draw "TOP ORDERS" section label - larger
-    drawText(ctx, 'LARGEST ORDERS (LAST 10 DAYS)', padding, headerHeight + 30, {
+    drawText(ctx, 'LARGEST ORDERS (LAST 10 DAYS)', padding, topSectionY, {
       font: this.displayConfig.fontFamily,
-      size: 36,
+      size: this.FONT_SIZE.MINIMUM,
       weight: 600,
       color: hexToRgba(colors.white, 0.7),
     });
 
     // Draw top 3 large cards
-    const topCardGap = 40;
-    const topCardWidth = (width - padding * 2 - topCardGap * 2) / 3;
-    const topCardHeight = topSectionHeight - 40;
-
     top3.forEach((po, index) => {
       const cardX = padding + index * (topCardWidth + topCardGap);
-      const cardY = headerHeight + padding + 30;
+      const cardY = topSectionY + labelHeight;
       this.drawLargePOCard(ctx, po, cardX, cardY, topCardWidth, topCardHeight, index + 1);
     });
+
+    // Calculate bottom section position
+    const bottomSectionY = topSectionY + labelHeight + topCardHeight + this.SPACING.md;
+    const bottomSectionHeight = bounds.y + bounds.height - bottomSectionY;
 
     // Draw "RECENT" section label if there are other POs
     if (recentOthers.length > 0) {
@@ -178,7 +197,7 @@ export class POTickerSlide extends BaseSlide {
     const timeAgo = formatDistanceToNow(new Date(po.created_at), { addSuffix: true });
     drawText(ctx, timeAgo, x + width - cardPadding, y + cardPadding + 35, {
       font: this.displayConfig.fontFamily,
-      size: 32,
+      size: this.FONT_SIZE.MINIMUM,
       color: hexToRgba(colors.white, 0.6),
       align: 'right',
       baseline: 'middle',
@@ -207,13 +226,13 @@ export class POTickerSlide extends BaseSlide {
     ctx.fill();
 
     // PO Number badge - larger
-    roundRect(ctx, x + cardPadding + 10, y + cardPadding, 180, 44, 8);
+    roundRect(ctx, x + cardPadding + 10, y + cardPadding, 200, 50, 8);
     ctx.fillStyle = hexToRgba(colors.mauve, 0.35);
     ctx.fill();
 
-    drawText(ctx, po.po_number, x + cardPadding + 100, y + cardPadding + 22, {
+    drawText(ctx, po.po_number, x + cardPadding + 110, y + cardPadding + 25, {
       font: this.displayConfig.fontFamily,
-      size: 28,
+      size: this.FONT_SIZE.MINIMUM,
       weight: 600,
       color: colors.mauve,
       align: 'center',
@@ -237,12 +256,12 @@ export class POTickerSlide extends BaseSlide {
     // Client - larger
     drawText(
       ctx,
-      truncateText(ctx, po.client_name, width * 0.45, this.displayConfig.fontFamily, 28),
+      truncateText(ctx, po.client_name, width * 0.45, this.displayConfig.fontFamily, this.FONT_SIZE.MINIMUM),
       x + cardPadding + 10,
-      y + cardPadding + 115,
+      y + cardPadding + 120,
       {
         font: this.displayConfig.fontFamily,
-        size: 28,
+        size: this.FONT_SIZE.MINIMUM,
         color: hexToRgba(colors.white, 0.7),
       }
     );
@@ -260,9 +279,9 @@ export class POTickerSlide extends BaseSlide {
 
     // Time ago - larger
     const timeAgo = formatDistanceToNow(new Date(po.created_at), { addSuffix: true });
-    drawText(ctx, timeAgo, x + width - cardPadding, y + cardPadding + 22, {
+    drawText(ctx, timeAgo, x + width - cardPadding, y + cardPadding + 25, {
       font: this.displayConfig.fontFamily,
-      size: 26,
+      size: this.FONT_SIZE.MINIMUM,
       color: hexToRgba(colors.white, 0.5),
       align: 'right',
       baseline: 'middle',

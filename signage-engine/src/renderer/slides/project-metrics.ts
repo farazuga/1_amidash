@@ -174,7 +174,7 @@ export class ProjectMetricsSlide extends BaseSlide {
     // Subtitle - larger
     drawText(ctx, subtitle, x + padding, y + 230, {
       font: this.displayConfig.fontFamily,
-      size: 28,
+      size: this.FONT_SIZE.MINIMUM,
       color: hexToRgba(colors.white, 0.7),
     });
   }
@@ -239,7 +239,7 @@ export class ProjectMetricsSlide extends BaseSlide {
       // Status name on the bar - larger text
       drawText(ctx, `${status.status_name} (${status.count})`, x + padding + 15, itemY + barHeight / 2, {
         font: this.displayConfig.fontFamily,
-        size: 24,
+        size: 32,
         weight: 600,
         color: colors.white,
         baseline: 'middle',

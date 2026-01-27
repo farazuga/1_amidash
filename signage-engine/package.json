@@ -15,6 +15,7 @@
     "test:ui": "vitest --ui"
   },
   "dependencies": {
+    "@esbuild/linux-arm64": "^0.27.2",
     "@napi-rs/canvas": "^0.1.88",
     "@supabase/supabase-js": "^2.86.0",
     "@vygr-labs/ndi-node": "^1.0.0",

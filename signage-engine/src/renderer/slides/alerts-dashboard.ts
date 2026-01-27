@@ -166,14 +166,14 @@ export class AlertsDashboardSlide extends BaseSlide {
     // Total revenue - larger
     drawText(ctx, `$${this.formatNumber(totalRevenue)} at risk`, x + 40, y + 95, {
       font: this.displayConfig.fontFamily,
-      size: 32,
+      size: this.FONT_SIZE.MINIMUM,
       color: hexToRgba(colors.error, 0.9),
     });
 
-    // Project list - show more items with reduced height
+    // Project list - larger items for readability
     const listY = y + 150;
-    const itemHeight = 100;
-    const maxItems = Math.min(projects.length, 5);
+    const itemHeight = 120;
+    const maxItems = Math.min(projects.length, 4);
 
     projects.slice(0, maxItems).forEach((project, index) => {
       this.drawOverdueItem(ctx, project, x, listY + index * itemHeight, width, itemHeight - 10);
@@ -182,7 +182,7 @@ export class AlertsDashboardSlide extends BaseSlide {
     if (total > maxItems) {
       drawText(ctx, `+${total - maxItems} more`, x + width / 2, listY + maxItems * itemHeight + 20, {
         font: this.displayConfig.fontFamily,
-        size: 32,
+        size: this.FONT_SIZE.MINIMUM,
         color: hexToRgba(colors.white, 0.6),
         align: 'center',
       });
@@ -228,17 +228,17 @@ export class AlertsDashboardSlide extends BaseSlide {
 
     // Days overdue badge
     const daysText = `${project.daysOverdue} days overdue`;
-    drawText(ctx, daysText, x + 25, y + 60, {
+    drawText(ctx, daysText, x + 25, y + 72, {
       font: this.displayConfig.fontFamily,
-      size: 24,
+      size: this.FONT_SIZE.LABEL,
       color: hexToRgba(colors.error, 0.8),
     });
 
     // Goal date
-    drawText(ctx, `Due: ${project.goalDate}`, x + width - 30, y + 60, {
+    drawText(ctx, `Due: ${project.goalDate}`, x + width - 30, y + 72, {
       font: this.displayConfig.fontFamily,
-      size: 24,
-      color: hexToRgba(colors.white, 0.5),
+      size: this.FONT_SIZE.LABEL,
+      color: hexToRgba(colors.white, 0.6),
       align: 'right',
     });
   }
@@ -293,14 +293,14 @@ export class AlertsDashboardSlide extends BaseSlide {
     // Total revenue - larger
     drawText(ctx, `$${this.formatNumber(totalRevenue)} blocked`, x + 40, y + 95, {
       font: this.displayConfig.fontFamily,
-      size: 32,
+      size: this.FONT_SIZE.MINIMUM,
       color: hexToRgba(colors.warning, 0.9),
     });
 
-    // Project list - show more items with reduced height
+    // Project list - larger items for readability
     const listY = y + 150;
-    const itemHeight = 100;
-    const maxItems = Math.min(projects.length, 5);
+    const itemHeight = 120;
+    const maxItems = Math.min(projects.length, 4);
 
     projects.slice(0, maxItems).forEach((project, index) => {
       this.drawStuckItem(ctx, project, x, listY + index * itemHeight, width, itemHeight - 10);
@@ -309,7 +309,7 @@ export class AlertsDashboardSlide extends BaseSlide {
     if (total > maxItems) {
       drawText(ctx, `+${total - maxItems} more`, x + width / 2, listY + maxItems * itemHeight + 20, {
         font: this.displayConfig.fontFamily,
-        size: 32,
+        size: this.FONT_SIZE.MINIMUM,
         color: hexToRgba(colors.white, 0.6),
         align: 'center',
       });
@@ -354,26 +354,28 @@ export class AlertsDashboardSlide extends BaseSlide {
     });
 
     // Status and days stuck
-    drawText(ctx, project.statusName, x + 25, y + 60, {
+    drawText(ctx, project.statusName, x + 25, y + 72, {
       font: this.displayConfig.fontFamily,
-      size: 24,
-      color: hexToRgba(colors.white, 0.6),
+      size: this.FONT_SIZE.LABEL,
+      color: hexToRgba(colors.white, 0.7),
     });
 
-    // Days badge
+    // Days badge - larger for readability
     const daysText = `${project.daysInStatus}d`;
-    const badgeWidth = 70;
+    const badgeWidth = 100;
+    const badgeHeight = 48;
     ctx.beginPath();
-    ctx.roundRect(x + width - badgeWidth - 20, y + 46, badgeWidth, 28, 6);
+    ctx.roundRect(x + width - badgeWidth - 20, y + 50, badgeWidth, badgeHeight, 8);
     ctx.fillStyle = hexToRgba(colors.warning, 0.3);
     ctx.fill();
 
-    drawText(ctx, daysText, x + width - badgeWidth / 2 - 20, y + 60, {
+    drawText(ctx, daysText, x + width - badgeWidth / 2 - 20, y + 50 + badgeHeight / 2, {
       font: this.displayConfig.fontFamily,
-      size: 22,
+      size: this.FONT_SIZE.MINIMUM,
       weight: 700,
       color: colors.warning,
       align: 'center',
+      baseline: 'middle',
     });
   }
 

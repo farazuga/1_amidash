@@ -125,7 +125,7 @@ export function drawGauge(
 
   // Draw percentage value in center
   drawText(ctx, `${Math.round(displayValue)}%`, centerX, centerY + 5, {
-    font: 'Karla, Inter',
+    font: 'Inter',
     size: radius * 0.35,
     weight: 700,
     color: colors.white,
@@ -136,7 +136,7 @@ export function drawGauge(
   // Draw title above gauge
   if (title) {
     drawText(ctx, title.toUpperCase(), centerX, centerY - radius - 30, {
-      font: 'Karla, Inter',
+      font: 'Inter',
       size: radius * 0.18,
       weight: 700,
       color: colors.white,
@@ -149,7 +149,7 @@ export function drawGauge(
   if (subtitle || valueLabel) {
     const label = valueLabel || subtitle;
     drawText(ctx, label!, centerX, centerY + radius * 0.45, {
-      font: 'Karla, Inter',
+      font: 'Inter',
       size: radius * 0.14,
       color: hexToRgba(colors.white, 0.7),
       align: 'center',
@@ -255,7 +255,7 @@ export function drawMiniGauge(
 
   // Value text
   drawText(ctx, `${Math.round(value)}%`, centerX, centerY - 5, {
-    font: 'Karla, Inter',
+    font: 'Inter',
     size: radius * 0.5,
     weight: 700,
     color: fillColor,
@@ -265,7 +265,7 @@ export function drawMiniGauge(
 
   // Label
   drawText(ctx, label, centerX, centerY + radius * 0.6, {
-    font: 'Karla, Inter',
+    font: 'Inter',
     size: radius * 0.25,
     color: hexToRgba(colors.white, 0.7),
     align: 'center',
@@ -325,7 +325,7 @@ export function drawHorizontalGauge(
   // Label on left
   if (label) {
     drawText(ctx, label, x - 10, y + height / 2, {
-      font: 'Karla, Inter',
+      font: 'Inter',
       size: height * 0.7,
       color: hexToRgba(colors.white, 0.7),
       align: 'right',
@@ -336,7 +336,7 @@ export function drawHorizontalGauge(
   // Value on right
   if (showValue) {
     drawText(ctx, `${Math.round(value)}%`, x + width + 15, y + height / 2, {
-      font: 'Karla, Inter',
+      font: 'Inter',
       size: height * 0.8,
       weight: 700,
       color: fillColor,

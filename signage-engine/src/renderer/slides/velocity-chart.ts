@@ -155,10 +155,10 @@ export class VelocityChartSlide extends BaseSlide {
       color: hexToRgba(colors.white, 0.6),
     });
 
-    // Value (no glow for readability)
-    drawText(ctx, value, x + 25, y + 85, {
+    // Value - per DESIGN.md KPI values should be FONT_SIZE.LARGE (72px)
+    drawText(ctx, value, x + 25, y + 90, {
       font: this.displayConfig.fontFamily,
-      size: 52,
+      size: this.FONT_SIZE.LARGE,
       weight: 700,
       color: color,
     });
@@ -167,7 +167,7 @@ export class VelocityChartSlide extends BaseSlide {
     if (subtitle) {
       drawText(ctx, subtitle, x + width - 25, y + height - 25, {
         font: this.displayConfig.fontFamily,
-        size: 22,
+        size: this.FONT_SIZE.MINIMUM,
         color: hexToRgba(color, 0.8),
         align: 'right',
       });
@@ -207,7 +207,7 @@ export class VelocityChartSlide extends BaseSlide {
       if (i < gridLines) {
         drawText(ctx, value.toString(), x - 20, lineY, {
           font: this.displayConfig.fontFamily,
-          size: 28,
+          size: this.FONT_SIZE.MINIMUM,
           color: hexToRgba(colors.white, 0.4),
           align: 'right',
           baseline: 'middle',
@@ -234,12 +234,12 @@ export class VelocityChartSlide extends BaseSlide {
       ctx.fillStyle = poGradient;
       ctx.fill();
 
-      // PO value on top of bar
+      // PO value on top of bar - larger for readability
       if (month.posReceived > 0) {
-        drawText(ctx, month.posReceived.toString(), poBarX + barWidth / 2, poBarY - 15, {
+        drawText(ctx, month.posReceived.toString(), poBarX + barWidth / 2, poBarY - 20, {
           font: this.displayConfig.fontFamily,
-          size: 32,
-          weight: 600,
+          size: 40,
+          weight: 700,
           color: '#3b82f6',
           align: 'center',
         });
@@ -260,21 +260,21 @@ export class VelocityChartSlide extends BaseSlide {
       ctx.fillStyle = invGradient;
       ctx.fill();
 
-      // Invoice value on top of bar
+      // Invoice value on top of bar - larger for readability
       if (month.invoiced > 0) {
-        drawText(ctx, month.invoiced.toString(), invBarX + barWidth / 2, invBarY - 15, {
+        drawText(ctx, month.invoiced.toString(), invBarX + barWidth / 2, invBarY - 20, {
           font: this.displayConfig.fontFamily,
-          size: 32,
-          weight: 600,
+          size: 40,
+          weight: 700,
           color: colors.success,
           align: 'center',
         });
       }
 
-      // Month label
-      drawText(ctx, month.month, groupX, y + height + 40, {
+      // Month label - larger for readability
+      drawText(ctx, month.month, groupX, y + height + 50, {
         font: this.displayConfig.fontFamily,
-        size: 32,
+        size: this.FONT_SIZE.MINIMUM,
         weight: 600,
         color: colors.white,
         align: 'center',
@@ -296,26 +296,26 @@ export class VelocityChartSlide extends BaseSlide {
 
     // PO legend
     ctx.beginPath();
-    ctx.roundRect(centerX - legendSpacing - 20, y, 30, 30, 6);
+    ctx.roundRect(centerX - legendSpacing - 20, y, 36, 36, 6);
     ctx.fillStyle = '#3b82f6';
     ctx.fill();
 
-    drawText(ctx, 'POs Received', centerX - legendSpacing + 25, y + 15, {
+    drawText(ctx, 'POs Received', centerX - legendSpacing + 25, y + 18, {
       font: this.displayConfig.fontFamily,
-      size: 28,
+      size: this.FONT_SIZE.MINIMUM,
       color: hexToRgba(colors.white, 0.7),
       baseline: 'middle',
     });
 
     // Invoice legend
     ctx.beginPath();
-    ctx.roundRect(centerX + 50, y, 30, 30, 6);
+    ctx.roundRect(centerX + 50, y, 36, 36, 6);
     ctx.fillStyle = colors.success;
     ctx.fill();
 
-    drawText(ctx, 'Invoiced', centerX + 95, y + 15, {
+    drawText(ctx, 'Invoiced', centerX + 100, y + 18, {
       font: this.displayConfig.fontFamily,
-      size: 28,
+      size: this.FONT_SIZE.MINIMUM,
       color: hexToRgba(colors.white, 0.7),
       baseline: 'middle',
     });

@@ -16,7 +16,7 @@ export class ActiveProjectsSlide extends BaseSlide {
     const headerHeight = this.drawMinimalHeader(ctx, this.config.title || 'Active Projects');
 
     const projects = data.projects.data.slice(0, this.config.maxItems || 4);
-    const { width, height } = this.displayConfig;
+    const { width } = this.displayConfig;
     const padding = this.SCREEN_MARGIN;
     const cardGap = 50;
 
@@ -25,13 +25,40 @@ export class ActiveProjectsSlide extends BaseSlide {
       return;
     }
 
-    // Calculate card layout - 2 columns, 2 rows max for large readable cards
-    const contentHeight = height - headerHeight - padding - this.SCREEN_MARGIN;
-    const cols = 2;
-    const rows = Math.min(2, Math.ceil(projects.length / cols));
+    // Use safe area bounds per DESIGN.md
+    const bounds = this.getContentBounds();
+    const projectCount = projects.length;
+
+    // Dynamic grid logic - adjust based on project count
+    let cols: number;
+    let rows: number;
+
+    if (projectCount === 1) {
+      cols = 1;
+      rows = 1;
+    } else if (projectCount === 2) {
+      cols = 2;
+      rows = 1;
+    } else if (projectCount <= 4) {
+      cols = 2;
+      rows = 2;
+    } else if (projectCount <= 6) {
+      cols = 3;
+      rows = 2;
+    } else {
+      cols = 3;
+      rows = Math.ceil(projectCount / 3);
+    }
+
+    // Calculate card dimensions based on grid
     const cardWidth = (width - padding * 2 - cardGap * (cols - 1)) / cols;
-    const cardHeight = (contentHeight - cardGap * (rows - 1)) / rows;
-    const startY = headerHeight + 40;
+    const cardHeight = (bounds.height - cardGap * (rows - 1)) / rows;
+
+    // Vertical centering when content doesn't fill all rows
+    const actualRows = Math.ceil(projectCount / cols);
+    const totalContentHeight = actualRows * cardHeight + (actualRows - 1) * cardGap;
+    const verticalOffset = (bounds.height - totalContentHeight) / 2;
+    const startY = bounds.y + verticalOffset;
 
     projects.forEach((project, index) => {
       const col = index % cols;

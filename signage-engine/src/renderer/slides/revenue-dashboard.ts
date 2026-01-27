@@ -86,9 +86,9 @@ export class RevenueDashboardSlide extends BaseSlide {
       }
     );
 
-    // Progress bars
+    // Progress bars - per DESIGN.md "40-60px minimum"
     const progressY = contentY + cardHeight + 60;
-    const progressHeight = 40;
+    const progressHeight = 50;
 
     drawText(ctx, 'Monthly Progress', padding, progressY, {
       font: this.displayConfig.fontFamily,
@@ -103,7 +103,7 @@ export class RevenueDashboardSlide extends BaseSlide {
       progressY + 45,
       (this.displayConfig.width - padding * 2) / 2 - 20,
       progressHeight,
-      { fillColor: colors.info }
+      { fillColor: colors.chartPrimary }
     );
 
     drawText(ctx, 'YTD Progress', this.displayConfig.width / 2 + 20, progressY, {
@@ -122,9 +122,9 @@ export class RevenueDashboardSlide extends BaseSlide {
       { fillColor: colors.success }
     );
 
-    // Monthly Bar Chart
+    // Monthly Bar Chart - respect safe area per DESIGN.md
     const chartY = progressY + progressHeight + 100;
-    const chartHeight = this.displayConfig.height - chartY - 80;
+    const chartHeight = this.displayConfig.height - chartY - this.SAFE_AREA.bottom;
 
     drawText(ctx, 'Monthly Revenue vs Goals', padding, chartY - 40, {
       font: this.displayConfig.fontFamily,
@@ -132,10 +132,11 @@ export class RevenueDashboardSlide extends BaseSlide {
       color: colors.white,
     });
 
+    // Use chartPrimary (blue) per DESIGN.md "Chart Color Palette"
     const chartData = revenue.monthlyData.map((m) => ({
       label: m.month,
       value: m.revenue,
-      color: colors.info,
+      color: colors.chartPrimary,
       secondaryValue: m.goal,
       secondaryColor: 'rgba(255, 255, 255, 0.2)',
     }));

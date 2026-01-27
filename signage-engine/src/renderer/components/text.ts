@@ -34,8 +34,22 @@ export function drawText(
   } = style;
 
   // Build font string with weight
-  const fontWeight = typeof weight === 'number' ? weight : weight;
-  ctx.font = `${fontWeight} ${size}px ${font}`;
+  // @napi-rs/canvas requires proper CSS font shorthand format
+  // Convert numeric weights to CSS keywords for better compatibility
+  let fontWeight: string;
+  if (typeof weight === 'number') {
+    if (weight >= 700) {
+      fontWeight = 'bold';
+    } else if (weight >= 600) {
+      fontWeight = '600';
+    } else {
+      fontWeight = 'normal';
+    }
+  } else {
+    fontWeight = weight;
+  }
+  // Use font with fallback to system fonts
+  ctx.font = `${fontWeight} ${size}px ${font}, sans-serif`;
   ctx.fillStyle = color;
   ctx.textAlign = align;
   ctx.textBaseline = baseline;

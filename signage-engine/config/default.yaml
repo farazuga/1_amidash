@@ -2,7 +2,7 @@
 
 ndi:
   name: "Amidash Signage"
-  frameRate: 30
+  frameRate: 60
 
 display:
   width: 3840

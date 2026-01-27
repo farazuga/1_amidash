@@ -138,7 +138,7 @@ export class HealthDashboardSlide extends BaseSlide {
     // Message below badge
     drawText(ctx, message, centerX, y + badgeHeight + 50, {
       font: this.displayConfig.fontFamily,
-      size: 32,
+      size: this.FONT_SIZE.MINIMUM,
       color: hexToRgba(colors.white, 0.7),
       align: 'center',
     });
@@ -156,15 +156,15 @@ export class HealthDashboardSlide extends BaseSlide {
       return;
     }
 
-    // Container for bottleneck badges
-    const totalWidth = 500;
-    const badgeWidth = 200;
-    const badgeHeight = 60;
-    const gap = 40;
+    // Container for bottleneck badges - larger for readability
+    const badgeWidth = 280;
+    const badgeHeight = 70;
+    const gap = 50;
+    const totalWidth = badgeWidth * 2 + gap;
 
     const startX = centerX - totalWidth / 2;
 
-    // Procurement badge
+    // Procurement badge - larger text
     if (bottlenecks.procurement > 0) {
       const procX = startX;
       ctx.beginPath();
@@ -172,20 +172,20 @@ export class HealthDashboardSlide extends BaseSlide {
       ctx.fillStyle = hexToRgba(colors.warning, 0.2);
       ctx.fill();
       ctx.strokeStyle = colors.warning;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 3;
       ctx.stroke();
 
       drawText(ctx, `Procurement: ${bottlenecks.procurement}`, procX + badgeWidth / 2, y + badgeHeight / 2, {
         font: this.displayConfig.fontFamily,
-        size: 32,
-        weight: 600,
+        size: this.FONT_SIZE.MINIMUM,
+        weight: 700,
         color: colors.warning,
         align: 'center',
         baseline: 'middle',
       });
     }
 
-    // Engineering badge
+    // Engineering badge - larger text
     if (bottlenecks.engineering > 0) {
       const engX = startX + badgeWidth + gap;
       ctx.beginPath();
@@ -193,13 +193,13 @@ export class HealthDashboardSlide extends BaseSlide {
       ctx.fillStyle = hexToRgba(colors.info, 0.2);
       ctx.fill();
       ctx.strokeStyle = colors.info;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 3;
       ctx.stroke();
 
       drawText(ctx, `Engineering: ${bottlenecks.engineering}`, engX + badgeWidth / 2, y + badgeHeight / 2, {
         font: this.displayConfig.fontFamily,
-        size: 32,
-        weight: 600,
+        size: this.FONT_SIZE.MINIMUM,
+        weight: 700,
         color: colors.info,
         align: 'center',
         baseline: 'middle',

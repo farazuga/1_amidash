@@ -78,7 +78,7 @@ export class CycleTimeSlide extends BaseSlide {
 
     drawText(ctx, 'avg total cycle', centerX - 80, y + cardHeight / 2 + 24, {
       font: this.displayConfig.fontFamily,
-      size: 32,
+      size: this.FONT_SIZE.MINIMUM,
       color: hexToRgba(colors.white, 0.6),
       baseline: 'middle',
     });
@@ -86,14 +86,14 @@ export class CycleTimeSlide extends BaseSlide {
     // Description on right side - larger
     drawText(ctx, 'Average time from PO receipt', centerX + 150, y + cardHeight / 2 - 18, {
       font: this.displayConfig.fontFamily,
-      size: 32,
+      size: this.FONT_SIZE.MINIMUM,
       color: hexToRgba(colors.white, 0.6),
       baseline: 'middle',
     });
 
     drawText(ctx, 'to project completion', centerX + 150, y + cardHeight / 2 + 18, {
       font: this.displayConfig.fontFamily,
-      size: 32,
+      size: this.FONT_SIZE.MINIMUM,
       color: hexToRgba(colors.white, 0.6),
       baseline: 'middle',
     });
@@ -135,7 +135,7 @@ export class CycleTimeSlide extends BaseSlide {
       // X-axis label - larger
       drawText(ctx, `${value}d`, lineX, y + height - 55, {
         font: this.displayConfig.fontFamily,
-        size: 32,
+        size: this.FONT_SIZE.MINIMUM,
         color: hexToRgba(colors.white, 0.5),
         align: 'center',
       });
@@ -212,20 +212,20 @@ export class CycleTimeSlide extends BaseSlide {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Legend - larger
+    // Legend - larger for TV readability
     const legendY = y + height - 20;
     const legendX = x + width / 2;
 
-    // Bottleneck indicator
+    // Bottleneck indicator - larger box and text
     ctx.beginPath();
-    ctx.roundRect(legendX - 200, legendY - 15, 26, 26, 5);
+    ctx.roundRect(legendX - 220, legendY - 18, 32, 32, 6);
     ctx.fillStyle = colors.warning;
     ctx.fill();
 
-    drawText(ctx, '= Potential bottleneck status', legendX - 165, legendY, {
+    drawText(ctx, '= Potential bottleneck status', legendX - 175, legendY, {
       font: this.displayConfig.fontFamily,
-      size: 32,
-      color: hexToRgba(colors.white, 0.6),
+      size: this.FONT_SIZE.MINIMUM,
+      color: hexToRgba(colors.white, 0.7),
       baseline: 'middle',
     });
   }

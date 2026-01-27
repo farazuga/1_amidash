@@ -235,11 +235,11 @@ export class StatusPipelineSlide extends BaseSlide {
       ctx.restore();
     }
 
-    // Status name - smaller font allows longer names without truncation
-    const displayName = status.name.length > 24 ? status.name.substring(0, 22) + '...' : status.name;
+    // Status name - use LABEL size for readability
+    const displayName = status.name.length > 20 ? status.name.substring(0, 18) + '...' : status.name;
     drawText(ctx, displayName.toUpperCase(), x + width / 2, stageY - 30, {
       font: this.displayConfig.fontFamily,
-      size: 32,
+      size: this.FONT_SIZE.LABEL,
       weight: 700,
       color: status.isBottleneck ? colors.warning : colors.white,
       align: 'center',
@@ -265,9 +265,9 @@ export class StatusPipelineSlide extends BaseSlide {
 
     // Bottleneck indicator - larger
     if (status.isBottleneck) {
-      drawText(ctx, '⚠ Bottleneck', x + width / 2, stageY + stageHeight + 35, {
+      drawText(ctx, '⚠ Bottleneck', x + width / 2, stageY + stageHeight + 40, {
         font: this.displayConfig.fontFamily,
-        size: 28,
+        size: this.FONT_SIZE.MINIMUM,
         weight: 600,
         color: colors.warning,
         align: 'center',

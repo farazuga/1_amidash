@@ -17,6 +17,35 @@ export abstract class BaseSlide {
   protected logo: Image | null = null;
   protected animationState: AnimationState;
 
+  // Font size constants for 4K TV readability (viewed from 10-20 feet)
+  // Reference: DESIGN.md "Typography: Font Sizes for 4K"
+  protected readonly FONT_SIZE = {
+    HERO: 120,      // Giant KPI numbers
+    LARGE: 72,      // Primary values
+    HEADER: 56,     // Section headers
+    BODY: 48,       // Card text, names
+    LABEL: 40,      // Secondary labels
+    MINIMUM: 36,    // Absolute minimum - NOTHING smaller
+  };
+
+  // Safe area constants per DESIGN.md "Layout & Grid: Screen Zones"
+  // Ensures content never clips at edges and leaves room for footer banners
+  protected readonly SAFE_AREA = {
+    top: 180,      // Header zone height
+    bottom: 240,   // Footer zone height (for banners, legends)
+    left: 140,     // Side margin
+    right: 140,    // Side margin
+  } as const;
+
+  // Spacing scale per DESIGN.md "Layout & Grid: Spacing Scale"
+  protected readonly SPACING = {
+    xs: 20,   // Tight internal padding
+    sm: 40,   // Standard gaps between elements
+    md: 60,   // Section separation
+    lg: 80,   // Major section breaks
+    xl: 120,  // Header/footer separation
+  } as const;
+
   constructor(config: SlideConfig, displayConfig: DisplayConfig) {
     this.config = config;
     this.displayConfig = displayConfig;
@@ -79,7 +108,7 @@ export abstract class BaseSlide {
     });
 
     // Timestamp with accent color - larger
-    const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
     drawText(ctx, now, this.displayConfig.width - padding, headerHeight / 2, {
       font: this.displayConfig.fontFamily,
       size: 64,
@@ -113,8 +142,8 @@ export abstract class BaseSlide {
     if (!isStale) return;
 
     const padding = 20;
-    const boxWidth = 200;
-    const boxHeight = 40;
+    const boxWidth = 480;
+    const boxHeight = 80;
 
     let x: number, y: number;
 
@@ -142,22 +171,68 @@ export abstract class BaseSlide {
 
     drawText(ctx, '⚠ Data may be stale', x + boxWidth / 2, y + boxHeight / 2, {
       font: this.displayConfig.fontFamily,
-      size: 18,
+      size: this.FONT_SIZE.BODY,
       color: colors.black,
       align: 'center',
       baseline: 'middle',
     });
   }
 
+  /**
+   * Get the safe content bounds per DESIGN.md "Layout & Grid: Screen Zones"
+   * Returns the area where content should be rendered to avoid clipping
+   */
+  protected getContentBounds(): {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    centerX: number;
+    centerY: number;
+  } {
+    const x = this.SAFE_AREA.left;
+    const y = this.SAFE_AREA.top;
+    const width = this.displayConfig.width - this.SAFE_AREA.left - this.SAFE_AREA.right;
+    const height = this.displayConfig.height - this.SAFE_AREA.top - this.SAFE_AREA.bottom;
+
+    return {
+      x,
+      y,
+      width,
+      height,
+      centerX: x + width / 2,
+      centerY: y + height / 2,
+    };
+  }
+
+  /**
+   * Check if a rectangle would be clipped by safe area bounds
+   * Use this to validate element positioning during development
+   */
+  protected isWithinSafeArea(
+    elementX: number,
+    elementY: number,
+    elementWidth: number,
+    elementHeight: number
+  ): boolean {
+    const bounds = this.getContentBounds();
+    return (
+      elementX >= bounds.x &&
+      elementY >= bounds.y &&
+      elementX + elementWidth <= bounds.x + bounds.width &&
+      elementY + elementHeight <= bounds.y + bounds.height
+    );
+  }
+
   protected drawConnectionStatus(ctx: SKRSContext2D, data: DataCache): void {
     const { connectionStatus } = data;
     if (connectionStatus.isConnected && !connectionStatus.usingMockData) return;
 
-    const padding = 40;
-    const boxWidth = 480;
-    const boxHeight = 60;
+    const boxWidth = 800;
+    const boxHeight = 80;
     const x = (this.displayConfig.width - boxWidth) / 2;
-    const y = this.displayConfig.height - boxHeight - padding;
+    // Position in footer zone per DESIGN.md, not overlapping content
+    const y = this.displayConfig.height - this.SAFE_AREA.bottom / 2 - boxHeight / 2;
 
     // Semi-transparent red background with rounded corners
     ctx.beginPath();
@@ -181,9 +256,9 @@ export abstract class BaseSlide {
     ctx.stroke();
 
     // Warning icon
-    drawText(ctx, '⚠', x + 30, y + boxHeight / 2, {
+    drawText(ctx, '⚠', x + 50, y + boxHeight / 2, {
       font: this.displayConfig.fontFamily,
-      size: 32,
+      size: 44,
       color: colors.white,
       align: 'center',
       baseline: 'middle',
@@ -196,7 +271,7 @@ export abstract class BaseSlide {
 
     drawText(ctx, message, x + boxWidth / 2 + 15, y + boxHeight / 2, {
       font: this.displayConfig.fontFamily,
-      size: 24,
+      size: this.FONT_SIZE.MINIMUM,
       weight: 600,
       color: colors.white,
       align: 'center',
