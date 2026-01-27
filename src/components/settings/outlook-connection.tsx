@@ -4,7 +4,25 @@ import { useState, useTransition, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Mail, RefreshCw, Unlink, ExternalLink, AlertCircle, RotateCw } from 'lucide-react';
+import { Loader2, RefreshCw, Unlink, ExternalLink, AlertCircle, RotateCw } from 'lucide-react';
+
+/**
+ * Microsoft logo (4-color squares)
+ */
+function MicrosoftLogo({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 23 23"
+      className={className}
+    >
+      <rect x="1" y="1" width="10" height="10" fill="#f25022" />
+      <rect x="12" y="1" width="10" height="10" fill="#7fba00" />
+      <rect x="1" y="12" width="10" height="10" fill="#00a4ef" />
+      <rect x="12" y="12" width="10" height="10" fill="#ffb900" />
+    </svg>
+  );
+}
 import { useRouter } from 'next/navigation';
 
 interface CalendarConnection {
@@ -151,8 +169,8 @@ export function OutlookConnection({ connection, returnUrl = '/my-schedule' }: Ou
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Mail className="h-5 w-5" />
-            <CardTitle className="text-lg">Outlook Calendar</CardTitle>
+            <MicrosoftLogo className="h-5 w-5" />
+            <CardTitle className="text-lg">Microsoft Account</CardTitle>
           </div>
           {connection ? (
             <Badge variant="default" className="bg-green-600">Connected</Badge>
@@ -161,13 +179,13 @@ export function OutlookConnection({ connection, returnUrl = '/my-schedule' }: Ou
           )}
         </div>
         <CardDescription>
-          Sync your project assignments to Microsoft Outlook calendar
+          Connect to sync calendar events and access SharePoint files
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Info note about which statuses sync */}
         <div className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
-          <span className="font-medium">Note:</span> Only &quot;Pending Confirmation&quot; and &quot;Confirmed&quot; assignments sync to your Outlook calendar.
+          <span className="font-medium">Note:</span> Only &quot;Pending Confirmation&quot; and &quot;Confirmed&quot; assignments sync to your calendar.
         </div>
 
         {connection ? (
@@ -269,8 +287,8 @@ export function OutlookConnection({ connection, returnUrl = '/my-schedule' }: Ou
         ) : (
           <>
             <p className="text-sm text-muted-foreground">
-              Connect your Outlook calendar to automatically sync your project assignments.
-              Events will be created and updated when assignments change.
+              Connect your Microsoft account to sync calendar events and access SharePoint files.
+              Calendar events will be created and updated when assignments change.
             </p>
 
             {error && (
@@ -280,8 +298,8 @@ export function OutlookConnection({ connection, returnUrl = '/my-schedule' }: Ou
             )}
 
             <Button onClick={handleConnect} className="w-full sm:w-auto">
-              <ExternalLink className="mr-2 h-4 w-4" />
-              Connect Outlook Calendar
+              <MicrosoftLogo className="mr-2 h-4 w-4" />
+              Connect Microsoft Account
             </Button>
           </>
         )}

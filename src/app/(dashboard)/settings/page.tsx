@@ -109,7 +109,7 @@ export default async function SettingsPage() {
               <CardTitle>Calendar Integration</CardTitle>
             </div>
             <CardDescription>
-              Connect your Microsoft Outlook calendar to sync your project schedules
+              Connect your Microsoft account to sync calendars and access SharePoint
             </CardDescription>
           </CardHeader>
           <CardContent>
