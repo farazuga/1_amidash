@@ -331,12 +331,16 @@ export default function AdminSettingsPage() {
       if (result.success) {
         if (result.archived > 0) {
           toast.success(`Archived ${result.archived} project${result.archived !== 1 ? 's' : ''} to _archive folder`);
-        } else {
+        } else if (result.errors === 0) {
           toast.info('No projects to archive');
         }
 
         if (result.errors > 0) {
-          toast.warning(`${result.errors} project${result.errors !== 1 ? 's' : ''} failed to archive`);
+          const errorMsg = result.errorDetails?.length
+            ? `${result.errors} failed: ${result.errorDetails[0]}${result.errorDetails.length > 1 ? ` (+${result.errorDetails.length - 1} more)` : ''}`
+            : `${result.errors} project${result.errors !== 1 ? 's' : ''} failed to archive`;
+          toast.error(errorMsg, { duration: 10000 });
+          console.error('[Archive] Error details:', result.errorDetails);
         }
 
         // Refresh the count
@@ -346,6 +350,7 @@ export default function AdminSettingsPage() {
         toast.error(result.error || 'Failed to archive projects');
       }
     } catch (error) {
+      console.error('[Archive] Unexpected error:', error);
       toast.error('Failed to archive projects');
     } finally {
       setIsArchiving(false);

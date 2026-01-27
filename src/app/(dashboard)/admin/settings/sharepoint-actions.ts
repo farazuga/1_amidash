@@ -629,7 +629,22 @@ export async function archiveInvoicedProjects(): Promise<ArchiveInvoicedProjects
 
     for (const project of projectsWithFolders) {
       try {
-        const connection = project.project_sharepoint_connections[0];
+        // Handle both array and single object formats from Supabase join
+        const connections = project.project_sharepoint_connections;
+        const connection = Array.isArray(connections) ? connections[0] : connections;
+
+        if (!connection) {
+          console.error(`[ArchiveInvoicedProjects] No connection found for project ${project.sales_order_number}`);
+          errors++;
+          errorDetails.push(`${project.sales_order_number}: No SharePoint connection found`);
+          continue;
+        }
+
+        console.log(`[ArchiveInvoicedProjects] Processing ${project.sales_order_number}:`, {
+          folder_id: connection.folder_id,
+          folder_path: connection.folder_path,
+          drive_id: connection.drive_id,
+        });
 
         // Skip if already in archive folder
         if (connection.folder_path?.includes('/_archive/')) {
