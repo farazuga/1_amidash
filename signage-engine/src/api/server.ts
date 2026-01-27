@@ -40,11 +40,19 @@ export function createAPIServer(
   // Get engine status
   app.get('/status', (_req: Request, res: Response) => {
     const state = getState();
+    const currentSlideIndex = state.slideManager?.getCurrentSlideIndex() ?? 0;
     res.json({
       isRunning: state.isRunning,
       uptime: state.startTime ? Date.now() - state.startTime.getTime() : 0,
-      currentSlide: state.slideManager?.getCurrentSlideIndex() ?? 0,
+      currentSlide: currentSlideIndex,
+      currentSlideType: state.config.slides[currentSlideIndex]?.type ?? null,
       totalSlides: state.slideManager?.getSlideCount() ?? 0,
+      slides: state.config.slides.map((s, i) => ({
+        index: i,
+        type: s.type,
+        enabled: s.enabled,
+        title: s.title,
+      })),
       fps: state.ndiOutput?.getFPS() ?? 0,
       frameCount: state.ndiOutput?.getFrameCount() ?? 0,
       dataStale: state.pollingManager?.isDataStale(state.config.staleData.warningThresholdMs) ?? false,
