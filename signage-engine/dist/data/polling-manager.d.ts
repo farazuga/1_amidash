@@ -4,6 +4,7 @@ import { RevenueData } from './fetchers/revenue.js';
 import { ScheduleEntry } from './fetchers/schedule.js';
 import { ProjectMetrics } from './fetchers/metrics.js';
 import { SignageSlide } from './fetchers/slide-config.js';
+import { DashboardMetrics } from './fetchers/dashboard-metrics.js';
 import { PollingConfig } from '../config/schema.js';
 export interface DataCache {
     projects: {
@@ -30,6 +31,15 @@ export interface DataCache {
         data: SignageSlide[];
         lastUpdated: Date | null;
     };
+    dashboardMetrics: {
+        data: DashboardMetrics | null;
+        lastUpdated: Date | null;
+    };
+    connectionStatus: {
+        isConnected: boolean;
+        usingMockData: boolean;
+        lastError: string | null;
+    };
 }
 export declare class PollingManager {
     private cache;
@@ -45,6 +55,7 @@ export declare class PollingManager {
     private fetchSchedule;
     private fetchMetrics;
     private fetchSlideConfig;
+    private fetchDashboardMetrics;
     getCache(): DataCache;
     isDataStale(thresholdMs: number): boolean;
 }

@@ -6,12 +6,13 @@ export const SlideTypeSchema = z.enum([
     'po-ticker',
     'revenue-dashboard',
     'team-schedule',
-    // New slide types
-    'upcoming-projects',
-    'in-progress',
-    'monthly-scorecard',
-    'bottleneck-alert',
-    'recent-wins',
+    // New dashboard slides
+    'health-dashboard',
+    'alerts-dashboard',
+    'performance-metrics',
+    'velocity-chart',
+    'status-pipeline',
+    'cycle-time',
 ]);
 export const SlideConfigSchema = z.object({
     type: SlideTypeSchema,
@@ -21,6 +22,16 @@ export const SlideConfigSchema = z.object({
     maxItems: z.number().optional(),
     scrollSpeed: z.number().optional(),
     daysToShow: z.number().optional(),
+    // Optional slide-specific config properties
+    showStatus: z.boolean().optional(),
+    showDueDate: z.boolean().optional(),
+    showSalesAmount: z.boolean().optional(),
+    showMonthlyGoals: z.boolean().optional(),
+    showQuarterlyProgress: z.boolean().optional(),
+    showWeekends: z.boolean().optional(),
+    chartType: z.string().optional(),
+    // Alerts slide specific
+    priorityInsertion: z.boolean().optional(),
 });
 export const NDIConfigSchema = z.object({
     name: z.string().default('Amidash Signage'),
@@ -31,7 +42,7 @@ export const DisplayConfigSchema = z.object({
     height: z.number().default(2160),
     backgroundColor: z.string().default('#053B2C'), // Amitrace Main Dark Green background
     accentColor: z.string().default('#C2E0AD'), // Amitrace Main Light Green accent
-    fontFamily: z.string().default('Karla, Inter, Arial, sans-serif'), // Amitrace brand font
+    fontFamily: z.string().default('Inter'), // Default to Inter for canvas rendering
     logoPath: z.string().optional(),
 });
 export const PollingConfigSchema = z.object({

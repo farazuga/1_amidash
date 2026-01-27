@@ -25,4 +25,5 @@ export declare class SlideManager {
     getCurrentSlideIndex(): number;
     getSlideCount(): number;
     reset(): void;
+    jumpToSlide(index: number): void;
 }

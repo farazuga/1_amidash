@@ -92,7 +92,7 @@ export class RevenueDashboardSlide extends BaseSlide {
 
     drawText(ctx, 'Monthly Progress', padding, progressY, {
       font: this.displayConfig.fontFamily,
-      size: 36,
+      size: this.FONT_SIZE.LABEL,
       color: 'rgba(255, 255, 255, 0.7)',
     });
     drawProgressBar(
@@ -108,7 +108,7 @@ export class RevenueDashboardSlide extends BaseSlide {
 
     drawText(ctx, 'YTD Progress', this.displayConfig.width / 2 + 20, progressY, {
       font: this.displayConfig.fontFamily,
-      size: 36,
+      size: this.FONT_SIZE.LABEL,
       color: 'rgba(255, 255, 255, 0.7)',
     });
     drawProgressBar(

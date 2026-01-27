@@ -16,6 +16,14 @@ export const colors = {
     warning: '#F59F43', // Amber for warning
     error: '#DE3829', // Coral for errors
     info: '#C67CA8', // Mauve for info
+    // Chart data series colors per DESIGN.md "Chart Color Palette"
+    // Use these for bar charts, line charts, data visualization
+    chartPrimary: '#3B82F6', // Blue - primary data series
+    chartSecondary: '#22C55E', // Green - secondary series
+    chartTertiary: '#F59E0B', // Amber - tertiary series
+    chartQuaternary: '#8B5CF6', // Purple
+    chartQuinary: '#EC4899', // Pink
+    chartSenary: '#06B6D4', // Cyan
     // Neutral
     white: '#ffffff',
     black: '#000000',

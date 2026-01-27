@@ -168,7 +168,8 @@ function drawNeedle(
   angle: number,
   color: string
 ): void {
-  const needleLength = radius * 0.7;
+  // Shortened needle to avoid overlapping center percentage text
+  const needleLength = radius * 0.55;
   const needleWidth = radius * 0.04;
 
   ctx.save();

@@ -1,5 +1,5 @@
 export function drawBarChart(ctx, data, x, y, width, height, options = {}) {
-    const { barGap = 10, labelColor = '#ffffff', fontSize = 18, showLabels = true, maxValue = Math.max(...data.map((d) => Math.max(d.value, d.secondaryValue || 0))), } = options;
+    const { barGap = 10, labelColor = '#ffffff', fontSize = 36, showLabels = true, maxValue = Math.max(...data.map((d) => Math.max(d.value, d.secondaryValue || 0))), } = options;
     const barWidth = (width - barGap * (data.length - 1)) / data.length;
     const chartHeight = showLabels ? height - fontSize - 10 : height;
     data.forEach((item, index) => {
@@ -16,12 +16,13 @@ export function drawBarChart(ctx, data, x, y, width, height, options = {}) {
         // Draw primary bar
         ctx.fillStyle = item.color || '#3b82f6';
         ctx.fillRect(barX, barY, barWidth, barHeight);
-        // Draw label
+        // Draw label - positioned below the bar with proper spacing
         if (showLabels) {
             ctx.fillStyle = labelColor;
             ctx.font = `${fontSize}px Inter`;
             ctx.textAlign = 'center';
-            ctx.fillText(item.label, barX + barWidth / 2, y + chartHeight + 5);
+            ctx.textBaseline = 'top';
+            ctx.fillText(item.label, barX + barWidth / 2, y + chartHeight + 15);
         }
     });
 }
@@ -62,16 +63,16 @@ export function drawKPICard(ctx, title, value, subtitle, x, y, width, height, op
     const padding = 24;
     // Title
     ctx.fillStyle = titleColor;
-    ctx.font = '32px Karla, Inter';
+    ctx.font = '40px Inter';
     ctx.textAlign = 'left';
-    ctx.fillText(title, x + padding, y + padding + 32);
+    ctx.fillText(title, x + padding, y + padding + 40);
     // Value
     ctx.fillStyle = valueColor;
-    ctx.font = 'bold 64px Karla, Inter';
+    ctx.font = 'bold 64px Inter';
     ctx.fillText(value, x + padding, y + padding + 110);
     // Subtitle
     ctx.fillStyle = subtitleColor;
-    ctx.font = '28px Karla, Inter';
-    ctx.fillText(subtitle, x + padding, y + padding + 150);
+    ctx.font = '36px Inter';
+    ctx.fillText(subtitle, x + padding, y + padding + 160);
 }
 //# sourceMappingURL=charts.js.map

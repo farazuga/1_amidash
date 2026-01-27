@@ -26,7 +26,8 @@ export class AlertsDashboardSlide extends BaseSlide {
     const { width, height } = this.displayConfig;
     const padding = this.SCREEN_MARGIN;
     const contentY = headerHeight + 20;
-    const contentHeight = height - contentY - padding;
+    // Use SAFE_AREA.bottom for connection banner space
+    const contentHeight = height - contentY - this.SAFE_AREA.bottom;
 
     if (!alerts.hasAlerts) {
       this.drawAllClear(ctx, contentY, contentHeight);
@@ -170,10 +171,11 @@ export class AlertsDashboardSlide extends BaseSlide {
       color: hexToRgba(colors.error, 0.9),
     });
 
-    // Project list - larger items for readability
+    // Project list - dynamic item height to fill available space
     const listY = y + 150;
-    const itemHeight = 120;
-    const maxItems = Math.min(projects.length, 4);
+    const availableHeight = height - 180;
+    const maxItems = Math.min(projects.length, 5);
+    const itemHeight = Math.min(140, Math.max(100, availableHeight / Math.max(maxItems, 2)));
 
     projects.slice(0, maxItems).forEach((project, index) => {
       this.drawOverdueItem(ctx, project, x, listY + index * itemHeight, width, itemHeight - 10);
@@ -297,10 +299,11 @@ export class AlertsDashboardSlide extends BaseSlide {
       color: hexToRgba(colors.warning, 0.9),
     });
 
-    // Project list - larger items for readability
+    // Project list - dynamic item height to fill available space
     const listY = y + 150;
-    const itemHeight = 120;
-    const maxItems = Math.min(projects.length, 4);
+    const availableHeight = height - 180;
+    const maxItems = Math.min(projects.length, 5);
+    const itemHeight = Math.min(140, Math.max(100, availableHeight / Math.max(maxItems, 2)));
 
     projects.slice(0, maxItems).forEach((project, index) => {
       this.drawStuckItem(ctx, project, x, listY + index * itemHeight, width, itemHeight - 10);
@@ -336,42 +339,48 @@ export class AlertsDashboardSlide extends BaseSlide {
     ctx.fillStyle = colors.warning;
     ctx.fill();
 
-    // Client name - allow longer names
-    drawText(ctx, this.truncateText(project.clientName, 30), x + 25, y + 28, {
+    // Client name - left side
+    drawText(ctx, this.truncateText(project.clientName, 25), x + 25, y + 28, {
       font: this.displayConfig.fontFamily,
       size: 36,
       weight: 600,
       color: colors.white,
     });
 
-    // Amount
-    drawText(ctx, `$${this.formatNumber(project.salesAmount)}`, x + width - 30, y + 28, {
-      font: this.displayConfig.fontFamily,
-      size: 36,
-      weight: 700,
-      color: colors.warning,
-      align: 'right',
-    });
-
-    // Status and days stuck
+    // Status - below client name
     drawText(ctx, project.statusName, x + 25, y + 72, {
       font: this.displayConfig.fontFamily,
       size: this.FONT_SIZE.LABEL,
       color: hexToRgba(colors.white, 0.7),
     });
 
-    // Days badge - larger for readability
+    // Right side: Amount and days stacked vertically with clear separation
+    const rightX = x + width - 30;
+
+    // Amount at top right
+    drawText(ctx, `$${this.formatNumber(project.salesAmount)}`, rightX, y + 30, {
+      font: this.displayConfig.fontFamily,
+      size: 40,
+      weight: 700,
+      color: colors.warning,
+      align: 'right',
+    });
+
+    // Days badge below amount
     const daysText = `${project.daysInStatus}d`;
-    const badgeWidth = 100;
-    const badgeHeight = 48;
+    const badgeWidth = 80;
+    const badgeHeight = 36;
+    const badgeX = rightX - badgeWidth;
+    const badgeY = y + 58;
+
     ctx.beginPath();
-    ctx.roundRect(x + width - badgeWidth - 20, y + 50, badgeWidth, badgeHeight, 8);
+    ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 6);
     ctx.fillStyle = hexToRgba(colors.warning, 0.3);
     ctx.fill();
 
-    drawText(ctx, daysText, x + width - badgeWidth / 2 - 20, y + 50 + badgeHeight / 2, {
+    drawText(ctx, daysText, badgeX + badgeWidth / 2, badgeY + badgeHeight / 2, {
       font: this.displayConfig.fontFamily,
-      size: this.FONT_SIZE.MINIMUM,
+      size: 28,
       weight: 700,
       color: colors.warning,
       align: 'center',

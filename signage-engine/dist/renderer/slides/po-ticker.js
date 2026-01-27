@@ -7,9 +7,9 @@ export class POTickerSlide extends BaseSlide {
         // Update animations
         this.updateAnimationState(_deltaTime);
         this.drawAmbientEffects(ctx);
-        const headerHeight = this.drawMinimalHeader(ctx, this.config.title || 'Purchase Orders');
+        const headerHeight = this.drawMinimalHeader(ctx, this.config.title || 'Recent Purchase Orders');
         const { width, height } = this.displayConfig;
-        const padding = 80;
+        const padding = this.SCREEN_MARGIN;
         // Filter POs from last 10 days
         const tenDaysAgo = subDays(new Date(), 10);
         const sevenDaysAgo = subDays(new Date(), 7);
@@ -31,35 +31,47 @@ export class POTickerSlide extends BaseSlide {
         const recentOthers = recentPOs
             .filter(po => !top3Ids.has(po.id) && isAfter(new Date(po.created_at), sevenDaysAgo))
             .slice(0, 6);
-        // Layout calculations
-        const topSectionHeight = (height - headerHeight - padding * 2) * 0.55;
-        const bottomSectionY = headerHeight + padding + topSectionHeight + 40;
-        const bottomSectionHeight = height - bottomSectionY - padding;
-        // Draw "TOP ORDERS" section label
-        drawText(ctx, 'LARGEST ORDERS (LAST 10 DAYS)', padding, headerHeight + padding - 10, {
-            font: this.displayConfig.fontFamily,
-            size: 28,
-            weight: 600,
-            color: hexToRgba(colors.white, 0.6),
-            letterSpacing: 2,
-        });
-        // Draw top 3 large cards
+        // Use safe area bounds per DESIGN.md
+        const bounds = this.getContentBounds();
+        // Determine layout based on whether we have additional POs
+        const hasRecentOthers = recentOthers.length > 0;
+        // Calculate card dimensions - larger cards when no bottom section needed
         const topCardGap = 40;
         const topCardWidth = (width - padding * 2 - topCardGap * 2) / 3;
-        const topCardHeight = topSectionHeight - 40;
+        // If no recent others, use more vertical space and center the cards
+        const topCardHeight = hasRecentOthers
+            ? bounds.height * 0.55 - 40
+            : bounds.height * 0.7; // Taller cards when no bottom section
+        // Calculate vertical position - center when no bottom section
+        const labelHeight = 50;
+        const totalTopHeight = labelHeight + topCardHeight;
+        const verticalOffset = hasRecentOthers
+            ? 0
+            : (bounds.height - totalTopHeight) / 2;
+        const topSectionY = bounds.y + verticalOffset;
+        // Draw "TOP ORDERS" section label - larger
+        drawText(ctx, 'LARGEST ORDERS (LAST 10 DAYS)', padding, topSectionY, {
+            font: this.displayConfig.fontFamily,
+            size: this.FONT_SIZE.MINIMUM,
+            weight: 600,
+            color: hexToRgba(colors.white, 0.7),
+        });
+        // Draw top 3 large cards
         top3.forEach((po, index) => {
             const cardX = padding + index * (topCardWidth + topCardGap);
-            const cardY = headerHeight + padding + 30;
+            const cardY = topSectionY + labelHeight;
             this.drawLargePOCard(ctx, po, cardX, cardY, topCardWidth, topCardHeight, index + 1);
         });
+        // Calculate bottom section position
+        const bottomSectionY = topSectionY + labelHeight + topCardHeight + this.SPACING.md;
+        const bottomSectionHeight = bounds.y + bounds.height - bottomSectionY;
         // Draw "RECENT" section label if there are other POs
         if (recentOthers.length > 0) {
             drawText(ctx, 'RECENT ORDERS (LAST 7 DAYS)', padding, bottomSectionY - 20, {
                 font: this.displayConfig.fontFamily,
-                size: 28,
+                size: 36,
                 weight: 600,
-                color: hexToRgba(colors.white, 0.6),
-                letterSpacing: 2,
+                color: hexToRgba(colors.white, 0.7),
             });
             // Draw remaining POs in a grid
             const smallCardGap = 24;
@@ -77,118 +89,118 @@ export class POTickerSlide extends BaseSlide {
         }
     }
     drawLargePOCard(ctx, po, x, y, width, height, rank) {
-        const cardPadding = 32;
+        const cardPadding = 40;
         // Card background
         roundRect(ctx, x, y, width, height, 16);
         ctx.fillStyle = hexToRgba(colors.white, 0.1);
         ctx.fill();
-        // Rank badge (gold, silver, bronze)
+        // Rank badge (gold, silver, bronze) - larger
         const rankColors = [colors.amber, '#C0C0C0', '#CD7F32'];
         const rankColor = rankColors[rank - 1] || colors.mauve;
         ctx.beginPath();
-        ctx.arc(x + cardPadding + 30, y + cardPadding + 30, 30, 0, Math.PI * 2);
+        ctx.arc(x + cardPadding + 35, y + cardPadding + 35, 38, 0, Math.PI * 2);
         ctx.fillStyle = rankColor;
         ctx.fill();
-        drawText(ctx, `#${rank}`, x + cardPadding + 30, y + cardPadding + 30, {
-            font: this.displayConfig.fontFamily,
-            size: 28,
-            weight: 700,
-            color: colors.white,
-            align: 'center',
-            baseline: 'middle',
-        });
-        // PO Number
-        drawText(ctx, po.po_number, x + cardPadding + 80, y + cardPadding + 30, {
-            font: this.displayConfig.fontFamily,
-            size: 32,
-            weight: 600,
-            color: colors.primaryLight,
-            baseline: 'middle',
-        });
-        // Amount - LARGE
-        const amountStr = `$${po.amount.toLocaleString()}`;
-        drawText(ctx, amountStr, x + width / 2, y + height / 2 - 20, {
-            font: this.displayConfig.fontFamily,
-            size: 72,
-            weight: 700,
-            color: colors.primaryLight,
-            align: 'center',
-        });
-        // Project name
-        drawText(ctx, truncateText(ctx, po.project_name, width - cardPadding * 2, this.displayConfig.fontFamily, 36), x + cardPadding, y + height - cardPadding - 70, {
+        drawText(ctx, `#${rank}`, x + cardPadding + 35, y + cardPadding + 35, {
             font: this.displayConfig.fontFamily,
             size: 36,
+            weight: 700,
+            color: colors.white,
+            align: 'center',
+            baseline: 'middle',
+        });
+        // PO Number - larger
+        drawText(ctx, po.po_number, x + cardPadding + 95, y + cardPadding + 35, {
+            font: this.displayConfig.fontFamily,
+            size: 40,
+            weight: 600,
+            color: colors.primaryLight,
+            baseline: 'middle',
+        });
+        // Amount - LARGER
+        const amountStr = `$${po.amount.toLocaleString()}`;
+        drawText(ctx, amountStr, x + width / 2, y + height / 2 - 10, {
+            font: this.displayConfig.fontFamily,
+            size: 88,
+            weight: 700,
+            color: colors.primaryLight,
+            align: 'center',
+        });
+        // Project name - larger
+        drawText(ctx, truncateText(ctx, po.project_name, width - cardPadding * 2, this.displayConfig.fontFamily, 44), x + cardPadding, y + height - cardPadding - 85, {
+            font: this.displayConfig.fontFamily,
+            size: 44,
             weight: 600,
             color: colors.white,
         });
-        // Client name
-        drawText(ctx, truncateText(ctx, po.client_name, width - cardPadding * 2, this.displayConfig.fontFamily, 28), x + cardPadding, y + height - cardPadding - 30, {
+        // Client name - larger
+        drawText(ctx, truncateText(ctx, po.client_name, width - cardPadding * 2, this.displayConfig.fontFamily, 36), x + cardPadding, y + height - cardPadding - 35, {
             font: this.displayConfig.fontFamily,
-            size: 28,
-            color: hexToRgba(colors.white, 0.6),
+            size: 36,
+            color: hexToRgba(colors.white, 0.7),
         });
-        // Time ago
+        // Time ago - larger
         const timeAgo = formatDistanceToNow(new Date(po.created_at), { addSuffix: true });
-        drawText(ctx, timeAgo, x + width - cardPadding, y + cardPadding + 30, {
+        drawText(ctx, timeAgo, x + width - cardPadding, y + cardPadding + 35, {
             font: this.displayConfig.fontFamily,
-            size: 24,
-            color: hexToRgba(colors.white, 0.5),
+            size: this.FONT_SIZE.MINIMUM,
+            color: hexToRgba(colors.white, 0.6),
             align: 'right',
             baseline: 'middle',
         });
     }
     drawSmallPOCard(ctx, po, x, y, width, height) {
-        const cardPadding = 20;
+        const cardPadding = 28;
         // Card background
         roundRect(ctx, x, y, width, height, 12);
         ctx.fillStyle = hexToRgba(colors.white, 0.08);
         ctx.fill();
         // Left accent bar
         ctx.beginPath();
-        ctx.roundRect(x, y, 6, height, [12, 0, 0, 12]);
+        ctx.roundRect(x, y, 8, height, [12, 0, 0, 12]);
         ctx.fillStyle = colors.mauve;
         ctx.fill();
-        // PO Number badge
-        roundRect(ctx, x + cardPadding + 10, y + cardPadding, 140, 36, 6);
-        ctx.fillStyle = hexToRgba(colors.mauve, 0.3);
+        // PO Number badge - larger
+        roundRect(ctx, x + cardPadding + 10, y + cardPadding, 200, 50, 8);
+        ctx.fillStyle = hexToRgba(colors.mauve, 0.35);
         ctx.fill();
-        drawText(ctx, po.po_number, x + cardPadding + 80, y + cardPadding + 18, {
+        drawText(ctx, po.po_number, x + cardPadding + 110, y + cardPadding + 25, {
             font: this.displayConfig.fontFamily,
-            size: 22,
+            size: this.FONT_SIZE.MINIMUM,
             weight: 600,
             color: colors.mauve,
             align: 'center',
             baseline: 'middle',
         });
-        // Project name
-        drawText(ctx, truncateText(ctx, po.project_name, width * 0.5, this.displayConfig.fontFamily, 28), x + cardPadding + 10, y + cardPadding + 60, {
+        // Project name - larger
+        drawText(ctx, truncateText(ctx, po.project_name, width * 0.55, this.displayConfig.fontFamily, 36), x + cardPadding + 10, y + cardPadding + 75, {
             font: this.displayConfig.fontFamily,
-            size: 28,
+            size: 36,
             weight: 600,
             color: colors.white,
         });
-        // Client
-        drawText(ctx, truncateText(ctx, po.client_name, width * 0.4, this.displayConfig.fontFamily, 22), x + cardPadding + 10, y + cardPadding + 95, {
+        // Client - larger
+        drawText(ctx, truncateText(ctx, po.client_name, width * 0.45, this.displayConfig.fontFamily, this.FONT_SIZE.MINIMUM), x + cardPadding + 10, y + cardPadding + 120, {
             font: this.displayConfig.fontFamily,
-            size: 22,
-            color: hexToRgba(colors.white, 0.6),
+            size: this.FONT_SIZE.MINIMUM,
+            color: hexToRgba(colors.white, 0.7),
         });
-        // Amount on right
+        // Amount on right - larger
         const amountStr = `$${po.amount.toLocaleString()}`;
         drawText(ctx, amountStr, x + width - cardPadding, y + height / 2, {
             font: this.displayConfig.fontFamily,
-            size: 36,
+            size: 44,
             weight: 700,
             color: colors.primaryLight,
             align: 'right',
             baseline: 'middle',
         });
-        // Time ago
+        // Time ago - larger
         const timeAgo = formatDistanceToNow(new Date(po.created_at), { addSuffix: true });
-        drawText(ctx, timeAgo, x + width - cardPadding, y + cardPadding + 18, {
+        drawText(ctx, timeAgo, x + width - cardPadding, y + cardPadding + 25, {
             font: this.displayConfig.fontFamily,
-            size: 20,
-            color: hexToRgba(colors.white, 0.4),
+            size: this.FONT_SIZE.MINIMUM,
+            color: hexToRgba(colors.white, 0.5),
             align: 'right',
             baseline: 'middle',
         });

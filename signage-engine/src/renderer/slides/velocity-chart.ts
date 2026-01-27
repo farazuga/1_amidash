@@ -22,18 +22,19 @@ export class VelocityChartSlide extends BaseSlide {
     const { width, height } = this.displayConfig;
     const padding = this.SCREEN_MARGIN;
     const contentY = headerHeight + 80;
-    const contentHeight = height - contentY - padding - 100;
+    // Use SAFE_AREA.bottom to account for connection banner
+    const contentHeight = height - contentY - this.SAFE_AREA.bottom - 60;
 
     // Summary cards at top
     this.drawSummaryCards(ctx, velocity, padding, contentY, width - padding * 2);
 
-    // Main bar chart
-    const chartY = contentY + 180;
-    const chartHeight = contentHeight - 100;
+    // Main bar chart - leave room for legend above banner
+    const chartY = contentY + 160;
+    const chartHeight = contentHeight - 160;
     this.drawVelocityChart(ctx, velocity.monthly, padding, chartY, width - padding * 2, chartHeight);
 
-    // Legend at bottom
-    this.drawLegend(ctx, padding, chartY + chartHeight + 40, width - padding * 2);
+    // Legend above the banner zone
+    this.drawLegend(ctx, padding, height - this.SAFE_AREA.bottom - 30, width - padding * 2);
 
     // Draw connection status indicator if not connected
     this.drawConnectionStatus(ctx, data);
@@ -234,11 +235,12 @@ export class VelocityChartSlide extends BaseSlide {
       ctx.fillStyle = poGradient;
       ctx.fill();
 
-      // PO value on top of bar - larger for readability
+      // PO value on top of bar - ensure minimum spacing
       if (month.posReceived > 0) {
-        drawText(ctx, month.posReceived.toString(), poBarX + barWidth / 2, poBarY - 20, {
+        const poLabelY = Math.min(poBarY - 35, y - 10);
+        drawText(ctx, month.posReceived.toString(), poBarX + barWidth / 2, poLabelY, {
           font: this.displayConfig.fontFamily,
-          size: 40,
+          size: 36,
           weight: 700,
           color: '#3b82f6',
           align: 'center',
@@ -260,11 +262,12 @@ export class VelocityChartSlide extends BaseSlide {
       ctx.fillStyle = invGradient;
       ctx.fill();
 
-      // Invoice value on top of bar - larger for readability
+      // Invoice value on top of bar - ensure minimum spacing
       if (month.invoiced > 0) {
-        drawText(ctx, month.invoiced.toString(), invBarX + barWidth / 2, invBarY - 20, {
+        const invLabelY = Math.min(invBarY - 35, y - 10);
+        drawText(ctx, month.invoiced.toString(), invBarX + barWidth / 2, invLabelY, {
           font: this.displayConfig.fontFamily,
-          size: 40,
+          size: 36,
           weight: 700,
           color: colors.success,
           align: 'center',

@@ -10,8 +10,8 @@ const defaultSlides = [
     { type: 'team-schedule', enabled: true, duration: 15000, title: 'Schedule' },
 ];
 let currentConfig = {
-    ndi: { name: 'Amidash Signage', frameRate: 30 },
-    display: { width: 3840, height: 2160, backgroundColor: '#053B2C', accentColor: '#C2E0AD', fontFamily: 'Karla, Inter, Arial, sans-serif' },
+    ndi: { name: 'Amidash Signage', frameRate: 60 },
+    display: { width: 3840, height: 2160, backgroundColor: '#053B2C', accentColor: '#C2E0AD', fontFamily: 'Inter' },
     polling: { projects: 30000, revenue: 60000, schedule: 30000, purchaseOrders: 15000 },
     slides: defaultSlides,
     transitions: { type: 'fade', duration: 500 },

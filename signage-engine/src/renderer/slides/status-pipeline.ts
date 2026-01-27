@@ -53,19 +53,21 @@ export class StatusPipelineSlide extends BaseSlide {
 
   private drawSummary(ctx: SKRSContext2D, totalProjects: number, totalRevenue: number, x: number, y: number, width: number): void {
     const centerX = x + width / 2;
+    // Use proportional spacing to prevent overlap
+    const sectionOffset = Math.min(300, width * 0.2);
 
-    // Total projects - no shadow/glow
-    drawText(ctx, totalProjects.toString(), centerX - 250, y + 50, {
+    // Total projects - left section
+    drawText(ctx, totalProjects.toString(), centerX - sectionOffset, y + 50, {
       font: this.displayConfig.fontFamily,
-      size: 96,
+      size: 80,
       weight: 700,
       color: colors.primaryLight,
       align: 'center',
     });
 
-    drawText(ctx, 'Active Projects', centerX - 250, y + 110, {
+    drawText(ctx, 'Active Projects', centerX - sectionOffset, y + 105, {
       font: this.displayConfig.fontFamily,
-      size: 36,
+      size: this.FONT_SIZE.MINIMUM,
       color: hexToRgba(colors.white, 0.7),
       align: 'center',
     });
@@ -73,23 +75,23 @@ export class StatusPipelineSlide extends BaseSlide {
     // Divider
     ctx.beginPath();
     ctx.moveTo(centerX, y + 20);
-    ctx.lineTo(centerX, y + 120);
+    ctx.lineTo(centerX, y + 110);
     ctx.strokeStyle = hexToRgba(colors.white, 0.3);
     ctx.lineWidth = 3;
     ctx.stroke();
 
-    // Total revenue - no shadow/glow
-    drawText(ctx, `$${this.formatNumber(totalRevenue)}`, centerX + 250, y + 50, {
+    // Total revenue - right section
+    drawText(ctx, `$${this.formatNumber(totalRevenue)}`, centerX + sectionOffset, y + 50, {
       font: this.displayConfig.fontFamily,
-      size: 96,
+      size: 80,
       weight: 700,
       color: colors.success,
       align: 'center',
     });
 
-    drawText(ctx, 'Pipeline Value', centerX + 250, y + 110, {
+    drawText(ctx, 'Pipeline Value', centerX + sectionOffset, y + 105, {
       font: this.displayConfig.fontFamily,
-      size: 36,
+      size: this.FONT_SIZE.MINIMUM,
       color: hexToRgba(colors.white, 0.7),
       align: 'center',
     });

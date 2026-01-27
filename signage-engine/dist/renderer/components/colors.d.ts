@@ -12,6 +12,12 @@ export declare const colors: {
     warning: string;
     error: string;
     info: string;
+    chartPrimary: string;
+    chartSecondary: string;
+    chartTertiary: string;
+    chartQuaternary: string;
+    chartQuinary: string;
+    chartSenary: string;
     white: string;
     black: string;
     gray: {

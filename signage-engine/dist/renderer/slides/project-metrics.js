@@ -15,19 +15,22 @@ export class ProjectMetricsSlide extends BaseSlide {
             return;
         }
         const { width, height } = this.displayConfig;
-        const centerY = headerHeight + (height - headerHeight) / 2;
+        const padding = this.SCREEN_MARGIN;
+        const centerY = headerHeight + (height - headerHeight) / 2 - 80;
         // Main hero section - big centered number
-        this.drawHeroMetric(ctx, metrics.total, 'Active Projects', width / 2, centerY - 150);
-        // Bottom stats row - 4 KPI cards
-        const cardY = height - 320;
-        const cardWidth = (width - 200) / 4;
-        const cardGap = 40;
-        const startX = 100;
-        this.drawKPICard(ctx, getAnimatedNumber(this.animationState, 'completed', metrics.completedThisMonth, 1200), 'Completed This Month', `${metrics.completedThisWeek} this week`, startX, cardY, cardWidth - cardGap, colors.success);
-        this.drawKPICard(ctx, getAnimatedNumber(this.animationState, 'upcoming', metrics.upcomingDeadlines, 1400), 'Due This Week', 'upcoming deadlines', startX + cardWidth, cardY, cardWidth - cardGap, colors.warning);
-        this.drawKPICard(ctx, getAnimatedNumber(this.animationState, 'overdue', metrics.overdueCount, 1600), 'Overdue', 'past deadline', startX + cardWidth * 2, cardY, cardWidth - cardGap, metrics.overdueCount > 0 ? colors.error : colors.success);
+        this.drawHeroMetric(ctx, metrics.total, 'Active Projects', width / 2, centerY - 100);
+        // Bottom stats row - 4 KPI cards with better spacing
+        const cardHeight = 280;
+        const cardY = height - cardHeight - padding;
+        const cardGap = 50;
+        const availableWidth = width - padding * 2;
+        const cardWidth = (availableWidth - cardGap * 3) / 4;
+        const startX = padding;
+        this.drawKPICard(ctx, getAnimatedNumber(this.animationState, 'completed', metrics.completedThisMonth, 1200), 'Completed This Month', `${metrics.completedThisWeek} this week`, startX, cardY, cardWidth, colors.success);
+        this.drawKPICard(ctx, getAnimatedNumber(this.animationState, 'upcoming', metrics.upcomingDeadlines, 1400), 'Due This Week', 'upcoming deadlines', startX + cardWidth + cardGap, cardY, cardWidth, colors.warning);
+        this.drawKPICard(ctx, getAnimatedNumber(this.animationState, 'overdue', metrics.overdueCount, 1600), 'Overdue', 'past deadline', startX + (cardWidth + cardGap) * 2, cardY, cardWidth, metrics.overdueCount > 0 ? colors.error : colors.success);
         // Status breakdown mini-visualization
-        this.drawStatusMini(ctx, metrics.byStatus, startX + cardWidth * 3, cardY, cardWidth - cardGap);
+        this.drawStatusMini(ctx, metrics.byStatus, startX + (cardWidth + cardGap) * 3, cardY, cardWidth);
     }
     drawNoData(ctx, headerHeight) {
         drawText(ctx, 'Loading metrics...', this.displayConfig.width / 2, headerHeight + 300, {
@@ -57,7 +60,6 @@ export class ProjectMetricsSlide extends BaseSlide {
             weight: 600,
             color: colors.primaryLight,
             align: 'center',
-            letterSpacing: 8,
         });
         // Accent underline
         const underlineWidth = 300;
@@ -69,82 +71,80 @@ export class ProjectMetricsSlide extends BaseSlide {
         ctx.stroke();
     }
     drawKPICard(ctx, value, title, subtitle, x, y, width, accentColor) {
-        const height = 220;
-        const padding = 30;
+        const height = 280;
+        const padding = 40;
         // Card background with subtle border
         ctx.beginPath();
         ctx.roundRect(x, y, width, height, 16);
-        ctx.fillStyle = hexToRgba(colors.white, 0.05);
+        ctx.fillStyle = hexToRgba(colors.white, 0.08);
         ctx.fill();
-        // Accent top border
+        // Accent top border - thicker
         ctx.beginPath();
         ctx.moveTo(x + 16, y);
         ctx.lineTo(x + width - 16, y);
         ctx.strokeStyle = accentColor;
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 5;
         ctx.stroke();
-        // Large number
-        drawText(ctx, value.toString(), x + padding, y + 80, {
+        // Large number - bigger
+        drawText(ctx, value.toString(), x + padding, y + 100, {
             font: this.displayConfig.fontFamily,
-            size: 72,
+            size: 96,
             weight: 700,
             color: accentColor,
         });
-        // Title
-        drawText(ctx, title, x + padding, y + 140, {
+        // Title - larger
+        drawText(ctx, title, x + padding, y + 180, {
             font: this.displayConfig.fontFamily,
-            size: 24,
+            size: 36,
             weight: 600,
             color: colors.white,
         });
-        // Subtitle
-        drawText(ctx, subtitle, x + padding, y + 175, {
+        // Subtitle - larger
+        drawText(ctx, subtitle, x + padding, y + 230, {
             font: this.displayConfig.fontFamily,
-            size: 18,
-            color: hexToRgba(colors.white, 0.6),
+            size: this.FONT_SIZE.MINIMUM,
+            color: hexToRgba(colors.white, 0.7),
         });
     }
     drawStatusMini(ctx, byStatus, x, y, width) {
-        const height = 220;
-        const padding = 25;
+        const height = 280;
+        const padding = 40;
         // Card background
         ctx.beginPath();
         ctx.roundRect(x, y, width, height, 16);
-        ctx.fillStyle = hexToRgba(colors.white, 0.05);
+        ctx.fillStyle = hexToRgba(colors.white, 0.08);
         ctx.fill();
-        // Accent border
+        // Accent border - thicker
         ctx.beginPath();
         ctx.moveTo(x + 16, y);
         ctx.lineTo(x + width - 16, y);
         ctx.strokeStyle = colors.accent;
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 5;
         ctx.stroke();
-        // Title
-        drawText(ctx, 'By Status', x + padding, y + 35, {
+        // Title - larger
+        drawText(ctx, 'By Status', x + padding, y + 50, {
             font: this.displayConfig.fontFamily,
-            size: 20,
+            size: 36,
             weight: 600,
             color: colors.white,
         });
-        // Status bars
-        const barStartY = y + 55;
-        const barHeight = 24;
-        const barGap = 8;
+        // Status bars - larger
+        const barStartY = y + 80;
+        const barHeight = 36;
+        const barGap = 10;
         const maxCount = Math.max(...byStatus.map(s => s.count), 1);
         const barWidth = width - padding * 2;
-        byStatus.slice(0, 5).forEach((status, index) => {
+        byStatus.slice(0, 4).forEach((status, index) => {
             const itemY = barStartY + index * (barHeight + barGap);
-            const fillWidth = (status.count / maxCount) * barWidth;
-            // Animated progress bar
+            // Progress bar
             drawAnimatedProgressBar(ctx, x + padding, itemY, barWidth, barHeight, status.count / maxCount, this.animationState.pulsePhase, {
                 fillColor: status.status_color,
-                glowColor: status.status_color,
                 rounded: true,
             });
-            // Status name on the bar
-            drawText(ctx, `${status.status_name} (${status.count})`, x + padding + 10, itemY + barHeight / 2, {
+            // Status name on the bar - larger text
+            drawText(ctx, `${status.status_name} (${status.count})`, x + padding + 15, itemY + barHeight / 2, {
                 font: this.displayConfig.fontFamily,
-                size: 14,
+                size: 32,
                 weight: 600,
                 color: colors.white,
                 baseline: 'middle',

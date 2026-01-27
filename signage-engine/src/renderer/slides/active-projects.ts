@@ -39,6 +39,10 @@ export class ActiveProjectsSlide extends BaseSlide {
     } else if (projectCount === 2) {
       cols = 2;
       rows = 1;
+    } else if (projectCount === 3) {
+      // Special case: 3 projects in a single row
+      cols = 3;
+      rows = 1;
     } else if (projectCount <= 4) {
       cols = 2;
       rows = 2;

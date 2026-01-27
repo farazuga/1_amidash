@@ -3,11 +3,16 @@ import { drawBarChart, drawKPICard, drawProgressBar, colors } from '../component
 import { drawText } from '../components/text.js';
 export class RevenueDashboardSlide extends BaseSlide {
     render(ctx, data, _deltaTime) {
-        const headerHeight = this.drawHeader(ctx, this.config.title || 'Revenue Dashboard');
+        // Update animations and draw ambient effects
+        this.updateAnimationState(_deltaTime);
+        this.drawAmbientEffects(ctx);
+        const headerHeight = this.drawMinimalHeader(ctx, this.config.title || 'Revenue Dashboard');
         const revenue = data.revenue.data;
-        if (!revenue)
+        if (!revenue) {
+            this.drawConnectionStatus(ctx, data);
             return;
-        const padding = 60;
+        }
+        const padding = this.SCREEN_MARGIN;
         const cardGap = 40;
         const contentY = headerHeight + 60;
         // KPI Cards Row
@@ -31,40 +36,43 @@ export class RevenueDashboardSlide extends BaseSlide {
         drawKPICard(ctx, 'YTD Progress', `${ytdProgress}%`, revenue.yearToDateRevenue >= revenue.yearToDateGoal ? 'Ahead of Goal' : 'Behind Goal', padding + (cardWidth + cardGap) * 3, contentY, cardWidth, cardHeight, {
             valueColor: revenue.yearToDateRevenue >= revenue.yearToDateGoal ? colors.success : colors.warning,
         });
-        // Progress bars
+        // Progress bars - per DESIGN.md "40-60px minimum"
         const progressY = contentY + cardHeight + 60;
-        const progressHeight = 40;
+        const progressHeight = 50;
         drawText(ctx, 'Monthly Progress', padding, progressY, {
             font: this.displayConfig.fontFamily,
-            size: 32,
+            size: this.FONT_SIZE.LABEL,
             color: 'rgba(255, 255, 255, 0.7)',
         });
-        drawProgressBar(ctx, revenue.currentMonthRevenue, revenue.currentMonthGoal, padding, progressY + 45, (this.displayConfig.width - padding * 2) / 2 - 20, progressHeight, { fillColor: colors.info });
+        drawProgressBar(ctx, revenue.currentMonthRevenue, revenue.currentMonthGoal, padding, progressY + 45, (this.displayConfig.width - padding * 2) / 2 - 20, progressHeight, { fillColor: colors.chartPrimary });
         drawText(ctx, 'YTD Progress', this.displayConfig.width / 2 + 20, progressY, {
             font: this.displayConfig.fontFamily,
-            size: 32,
+            size: this.FONT_SIZE.LABEL,
             color: 'rgba(255, 255, 255, 0.7)',
         });
         drawProgressBar(ctx, revenue.yearToDateRevenue, revenue.yearToDateGoal, this.displayConfig.width / 2 + 20, progressY + 45, (this.displayConfig.width - padding * 2) / 2 - 20, progressHeight, { fillColor: colors.success });
-        // Monthly Bar Chart
+        // Monthly Bar Chart - respect safe area per DESIGN.md
         const chartY = progressY + progressHeight + 100;
-        const chartHeight = this.displayConfig.height - chartY - 80;
+        const chartHeight = this.displayConfig.height - chartY - this.SAFE_AREA.bottom;
         drawText(ctx, 'Monthly Revenue vs Goals', padding, chartY - 40, {
             font: this.displayConfig.fontFamily,
-            size: 36,
+            size: 48,
             color: colors.white,
         });
+        // Use chartPrimary (blue) per DESIGN.md "Chart Color Palette"
         const chartData = revenue.monthlyData.map((m) => ({
             label: m.month,
             value: m.revenue,
-            color: colors.info,
+            color: colors.chartPrimary,
             secondaryValue: m.goal,
             secondaryColor: 'rgba(255, 255, 255, 0.2)',
         }));
         drawBarChart(ctx, chartData, padding, chartY, this.displayConfig.width - padding * 2, chartHeight, {
             barGap: 20,
-            fontSize: 28,
+            fontSize: 36,
         });
+        // Draw connection status indicator if not connected
+        this.drawConnectionStatus(ctx, data);
     }
 }
 //# sourceMappingURL=revenue-dashboard.js.map

@@ -1,14 +1,14 @@
 export const defaultConfig = {
     ndi: {
         name: 'Amidash Signage',
-        frameRate: 30,
+        frameRate: 60,
     },
     display: {
         width: 3840,
         height: 2160,
         backgroundColor: '#1a1a2e',
         accentColor: '#023A2D',
-        fontFamily: 'Inter, Arial, sans-serif',
+        fontFamily: 'Inter',
         logoPath: undefined,
     },
     polling: {
@@ -50,8 +50,8 @@ export const defaultConfig = {
             enabled: true,
             duration: 15000,
             title: 'Team Schedule',
-            daysToShow: 14,
-            showWeekends: true,
+            daysToShow: 7,
+            showWeekends: false,
         },
     ],
     transitions: {

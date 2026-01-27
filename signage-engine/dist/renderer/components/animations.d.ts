@@ -27,8 +27,8 @@ export declare function updateAnimations(state: AnimationState, deltaTime: numbe
 export declare function drawParticles(ctx: SKRSContext2D, state: AnimationState): void;
 export declare function drawAmbientGradient(ctx: SKRSContext2D, width: number, height: number, phase: number): void;
 export declare function getAnimatedNumber(state: AnimationState, key: string, targetValue: number, duration?: number): number;
-export declare function drawPulsingGlow(ctx: SKRSContext2D, x: number, y: number, width: number, height: number, phase: number, color?: string): void;
-export declare function drawAnimatedProgressBar(ctx: SKRSContext2D, x: number, y: number, width: number, height: number, progress: number, phase: number, options?: {
+export declare function drawPulsingGlow(_ctx: SKRSContext2D, _x: number, _y: number, _width: number, _height: number, _phase: number, _color?: string): void;
+export declare function drawAnimatedProgressBar(ctx: SKRSContext2D, x: number, y: number, width: number, height: number, progress: number, _phase: number, options?: {
     backgroundColor?: string;
     fillColor?: string;
     glowColor?: string;

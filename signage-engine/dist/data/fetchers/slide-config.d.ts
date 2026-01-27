@@ -1,4 +1,4 @@
-export type SlideType = 'project-list' | 'project-metrics' | 'po-ticker' | 'revenue-dashboard' | 'team-schedule';
+export type SlideType = 'project-list' | 'project-metrics' | 'po-ticker' | 'revenue-dashboard' | 'team-schedule' | 'active-projects' | 'health-dashboard' | 'alerts-dashboard' | 'performance-metrics' | 'velocity-chart' | 'status-pipeline' | 'cycle-time';
 export interface SignageSlide {
     id: string;
     slide_type: SlideType;

@@ -93,22 +93,22 @@ export class HealthDashboardSlide extends BaseSlide {
       case 'healthy':
         badgeColor = colors.success;
         statusText = 'ALL SYSTEMS HEALTHY';
-        statusIcon = '✓';
+        statusIcon = 'healthy';
         break;
       case 'sales':
         badgeColor = colors.warning;
         statusText = 'SALES ATTENTION NEEDED';
-        statusIcon = '⚠';
+        statusIcon = 'warning';
         break;
       case 'operations':
         badgeColor = colors.warning;
         statusText = 'OPS ATTENTION NEEDED';
-        statusIcon = '⚠';
+        statusIcon = 'warning';
         break;
       case 'both':
         badgeColor = colors.error;
         statusText = 'ACTION REQUIRED';
-        statusIcon = '⚠';
+        statusIcon = 'warning';
         break;
     }
 
@@ -125,8 +125,43 @@ export class HealthDashboardSlide extends BaseSlide {
     ctx.lineWidth = 3;
     ctx.stroke();
 
-    // Status text with icon
-    drawText(ctx, `${statusIcon}  ${statusText}`, centerX, y + badgeHeight / 2, {
+    // Draw icon programmatically
+    const iconX = centerX - 220;
+    const iconY = y + badgeHeight / 2;
+    const iconSize = 24;
+
+    if (statusIcon === 'healthy') {
+      // Draw checkmark
+      ctx.beginPath();
+      ctx.moveTo(iconX - iconSize * 0.5, iconY);
+      ctx.lineTo(iconX - iconSize * 0.1, iconY + iconSize * 0.4);
+      ctx.lineTo(iconX + iconSize * 0.5, iconY - iconSize * 0.3);
+      ctx.strokeStyle = badgeColor;
+      ctx.lineWidth = 5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+    } else {
+      // Draw warning triangle
+      ctx.beginPath();
+      ctx.moveTo(iconX, iconY - iconSize * 0.5);
+      ctx.lineTo(iconX - iconSize * 0.45, iconY + iconSize * 0.35);
+      ctx.lineTo(iconX + iconSize * 0.45, iconY + iconSize * 0.35);
+      ctx.closePath();
+      ctx.fillStyle = badgeColor;
+      ctx.fill();
+      // Exclamation mark
+      ctx.fillStyle = colors.black;
+      ctx.beginPath();
+      ctx.roundRect(iconX - 3, iconY - iconSize * 0.2, 6, iconSize * 0.35, 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(iconX, iconY + iconSize * 0.2, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Status text (without icon character)
+    drawText(ctx, statusText, centerX + 20, y + badgeHeight / 2, {
       font: this.displayConfig.fontFamily,
       size: 42,
       weight: 700,
@@ -156,10 +191,10 @@ export class HealthDashboardSlide extends BaseSlide {
       return;
     }
 
-    // Container for bottleneck badges - larger for readability
-    const badgeWidth = 280;
-    const badgeHeight = 70;
-    const gap = 50;
+    // Container for bottleneck badges - increased for TV readability
+    const badgeWidth = 340;
+    const badgeHeight = 80;
+    const gap = 60;
     const totalWidth = badgeWidth * 2 + gap;
 
     const startX = centerX - totalWidth / 2;
@@ -177,7 +212,7 @@ export class HealthDashboardSlide extends BaseSlide {
 
       drawText(ctx, `Procurement: ${bottlenecks.procurement}`, procX + badgeWidth / 2, y + badgeHeight / 2, {
         font: this.displayConfig.fontFamily,
-        size: this.FONT_SIZE.MINIMUM,
+        size: this.FONT_SIZE.BODY,
         weight: 700,
         color: colors.warning,
         align: 'center',
@@ -185,7 +220,7 @@ export class HealthDashboardSlide extends BaseSlide {
       });
     }
 
-    // Engineering badge - larger text
+    // Engineering badge
     if (bottlenecks.engineering > 0) {
       const engX = startX + badgeWidth + gap;
       ctx.beginPath();
@@ -198,7 +233,7 @@ export class HealthDashboardSlide extends BaseSlide {
 
       drawText(ctx, `Engineering: ${bottlenecks.engineering}`, engX + badgeWidth / 2, y + badgeHeight / 2, {
         font: this.displayConfig.fontFamily,
-        size: this.FONT_SIZE.MINIMUM,
+        size: this.FONT_SIZE.BODY,
         weight: 700,
         color: colors.info,
         align: 'center',

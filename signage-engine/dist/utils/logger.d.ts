@@ -1,4 +1,4 @@
-export declare const logger: any;
+export declare const logger: import("pino").Logger<never>;
 interface LogEntry {
     level: string;
     time: number;

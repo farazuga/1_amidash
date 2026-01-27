@@ -249,34 +249,34 @@ export class PerformanceMetricsSlide extends BaseSlide {
         break;
     }
 
-    // Large percentage (no glow for readability) - moved left side
-    const leftSectionWidth = 200;
-    const leftCenterX = x + 40 + leftSectionWidth / 2;
+    // Large percentage - use proportional width to prevent overlap
+    const leftSectionWidth = width * 0.35; // 35% of card width
+    const leftCenterX = x + leftSectionWidth / 2;
 
-    drawText(ctx, `${Math.round(value)}%`, leftCenterX, y + 160, {
+    drawText(ctx, `${Math.round(value)}%`, leftCenterX, y + 150, {
       font: this.displayConfig.fontFamily,
-      size: 96,
+      size: 80,
       weight: 700,
       color: color,
       align: 'center',
     });
 
-    drawText(ctx, 'from top 3', leftCenterX, y + 220, {
+    drawText(ctx, 'from top 3', leftCenterX, y + 200, {
       font: this.displayConfig.fontFamily,
       size: this.FONT_SIZE.MINIMUM,
       color: hexToRgba(colors.white, 0.6),
       align: 'center',
     });
 
-    // Risk badge - larger
-    const badgeWidth = 180;
+    // Risk badge
+    const badgeWidth = 160;
     const badgeX = leftCenterX - badgeWidth / 2;
     ctx.beginPath();
-    ctx.roundRect(badgeX, y + 260, badgeWidth, 56, 10);
+    ctx.roundRect(badgeX, y + 240, badgeWidth, 50, 10);
     ctx.fillStyle = hexToRgba(color, 0.3);
     ctx.fill();
 
-    drawText(ctx, riskLabel, leftCenterX, y + 288, {
+    drawText(ctx, riskLabel, leftCenterX, y + 265, {
       font: this.displayConfig.fontFamily,
       size: this.FONT_SIZE.MINIMUM,
       weight: 700,
@@ -285,11 +285,11 @@ export class PerformanceMetricsSlide extends BaseSlide {
       baseline: 'middle',
     });
 
-    // Top clients list - right side with more space
-    const listX = x + leftSectionWidth + 80;
+    // Top clients list - right side with clear separation
+    const listX = x + leftSectionWidth + 20;
     const listY = y + 100;
-    const itemHeight = 85; // More vertical space between items
-    const availableListWidth = width - leftSectionWidth - 120;
+    const itemHeight = 80;
+    const availableListWidth = width - leftSectionWidth - 60;
 
     topClients.slice(0, 3).forEach((client, index) => {
       const itemY = listY + index * itemHeight;

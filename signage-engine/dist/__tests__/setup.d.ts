@@ -4,8 +4,8 @@ declare function createMockCanvasContext(): {
     lineWidth: number;
     globalAlpha: number;
     font: string;
-    textAlign: CanvasTextAlign;
-    textBaseline: CanvasTextBaseline;
+    textAlign: "left";
+    textBaseline: "alphabetic";
     shadowColor: string;
     shadowBlur: number;
     shadowOffsetX: number;

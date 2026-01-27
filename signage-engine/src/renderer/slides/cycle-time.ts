@@ -22,14 +22,15 @@ export class CycleTimeSlide extends BaseSlide {
     const { width, height } = this.displayConfig;
     const padding = this.SCREEN_MARGIN;
     const contentY = headerHeight + 40;
-    const contentHeight = height - contentY - padding;
+    // Use SAFE_AREA.bottom to account for connection banner
+    const contentHeight = height - contentY - this.SAFE_AREA.bottom - 40;
 
     // Total cycle time summary
     this.drawTotalCycleTime(ctx, cycleTime.totalAvgCycleTime, padding, contentY, width - padding * 2);
 
     // Horizontal bar chart of status cycle times
-    const chartY = contentY + 180;
-    const chartHeight = contentHeight - 200;
+    const chartY = contentY + 160;
+    const chartHeight = contentHeight - 160;
     this.drawCycleTimeChart(ctx, cycleTime.statuses, padding, chartY, width - padding * 2, chartHeight);
 
     // Draw connection status indicator if not connected
@@ -212,17 +213,17 @@ export class CycleTimeSlide extends BaseSlide {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Legend - larger for TV readability
-    const legendY = y + height - 20;
+    // Legend - positioned above the X-axis labels
+    const legendY = y + height - 100;
     const legendX = x + width / 2;
 
     // Bottleneck indicator - larger box and text
     ctx.beginPath();
-    ctx.roundRect(legendX - 220, legendY - 18, 32, 32, 6);
+    ctx.roundRect(legendX - 220, legendY - 16, 28, 28, 6);
     ctx.fillStyle = colors.warning;
     ctx.fill();
 
-    drawText(ctx, '= Potential bottleneck status', legendX - 175, legendY, {
+    drawText(ctx, '= Potential bottleneck status', legendX - 180, legendY, {
       font: this.displayConfig.fontFamily,
       size: this.FONT_SIZE.MINIMUM,
       color: hexToRgba(colors.white, 0.7),
