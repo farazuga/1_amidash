@@ -599,6 +599,7 @@ export async function archiveInvoicedProjects(): Promise<ArchiveInvoicedProjects
     }
 
     // Get invoiced projects with SharePoint connections that are not already archived
+    // Use !inner join to only get projects that have a SharePoint connection
     const { data: projectsToArchive } = await supabase
       .from('projects')
       .select(`
@@ -606,7 +607,7 @@ export async function archiveInvoicedProjects(): Promise<ArchiveInvoicedProjects
         sales_order_number,
         client_name,
         invoiced_date,
-        project_sharepoint_connections(id, drive_id, folder_id, folder_path, folder_url)
+        project_sharepoint_connections!inner(id, drive_id, folder_id, folder_path, folder_url)
       `)
       .eq('current_status_id', invoicedStatus.id)
       .not('project_sharepoint_connections.folder_path', 'like', '%/_archive/%');
@@ -615,11 +616,8 @@ export async function archiveInvoicedProjects(): Promise<ArchiveInvoicedProjects
       return { success: true, processed: 0, archived: 0, skipped: 0, errors: 0 };
     }
 
-    // Filter to only projects that have a SharePoint connection
-    const projectsWithFolders = projectsToArchive.filter(
-      (p: { project_sharepoint_connections: unknown[] | null }) =>
-        p.project_sharepoint_connections && p.project_sharepoint_connections.length > 0
-    );
+    // projectsToArchive already only contains projects with SharePoint connections due to !inner join
+    const projectsWithFolders = projectsToArchive;
 
     let archived = 0;
     let skipped = 0;
