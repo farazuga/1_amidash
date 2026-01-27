@@ -24,7 +24,8 @@ async function keepTokensAlive(): Promise<void> {
   try {
     const supabase = await createServiceClient();
 
-    const { data: connections, error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: connections, error } = await (supabase as any)
       .from('calendar_connections')
       .select('*');
 
