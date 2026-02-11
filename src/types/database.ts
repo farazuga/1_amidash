@@ -381,6 +381,7 @@ export type Database = {
       }
       statuses: {
         Row: {
+          color: string | null
           created_at: string | null
           display_order: number
           id: string
@@ -390,6 +391,7 @@ export type Database = {
           require_note: boolean | null
         }
         Insert: {
+          color?: string | null
           created_at?: string | null
           display_order: number
           id?: string
@@ -399,6 +401,7 @@ export type Database = {
           require_note?: boolean | null
         }
         Update: {
+          color?: string | null
           created_at?: string | null
           display_order?: number
           id?: string
