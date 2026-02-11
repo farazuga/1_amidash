@@ -10,6 +10,14 @@ import {
   drawParticles,
   drawAmbientGradient,
 } from '../components/animations.js';
+import {
+  formatCurrency as formatCurrencyFn,
+  formatNumber as formatNumberFn,
+  truncateText as truncateTextFn,
+  formatPercent as formatPercentFn,
+  formatDate as formatDateFn,
+  formatDaysRemaining as formatDaysRemainingFn,
+} from '../components/format.js';
 
 export abstract class BaseSlide {
   protected config: SlideConfig;
@@ -44,6 +52,31 @@ export abstract class BaseSlide {
     md: 60,   // Section separation
     lg: 80,   // Major section breaks
     xl: 120,  // Header/footer separation
+  } as const;
+
+  // Card and container styling constants
+  protected readonly CARD = {
+    borderRadius: 16,        // Standard card corner radius
+    borderRadiusSmall: 12,   // Smaller elements
+    borderRadiusBadge: 6,    // Badges and tags
+    padding: 24,             // Internal card padding
+    paddingLarge: 40,        // Large card padding
+    shadowBlur: 20,          // Standard shadow blur
+  } as const;
+
+  // Header and section constants
+  protected readonly HEADER = {
+    height: 180,             // Standard header height
+    logoHeight: 80,          // Logo size in header
+    titleSize: 96,           // Title font size
+    timestampSize: 64,       // Time display size
+  } as const;
+
+  // Animation and timing constants
+  protected readonly ANIMATION = {
+    transitionDuration: 500,  // Standard transition (ms)
+    fadeInDelay: 100,         // Stagger delay for items (ms)
+    scrollSpeed: 2,           // Default scroll pixels/frame
   } as const;
 
   constructor(config: SlideConfig, displayConfig: DisplayConfig) {
@@ -277,5 +310,155 @@ export abstract class BaseSlide {
       align: 'center',
       baseline: 'middle',
     });
+  }
+
+  /**
+   * Check if data is stale and draw an indicator if needed.
+   * Call this at the end of render() for slides that should show stale data warnings.
+   * @param lastUpdated The timestamp when data was last fetched
+   * @param thresholdMs How old data can be before it's considered stale (default 60s)
+   */
+  protected drawStaleDataWarning(
+    ctx: SKRSContext2D,
+    lastUpdated: Date | null,
+    thresholdMs: number = 60000
+  ): void {
+    if (!lastUpdated) return;
+
+    const ageMs = Date.now() - lastUpdated.getTime();
+    if (ageMs < thresholdMs) return;
+
+    // Data is stale, show indicator
+    const ageSeconds = Math.floor(ageMs / 1000);
+    const ageText = ageSeconds >= 60
+      ? `${Math.floor(ageSeconds / 60)}m ago`
+      : `${ageSeconds}s ago`;
+
+    const boxWidth = 280;
+    const boxHeight = 50;
+    const x = this.displayConfig.width - boxWidth - 20;
+    const y = 190; // Below header
+
+    // Warning background
+    ctx.beginPath();
+    ctx.roundRect(x, y, boxWidth, boxHeight, 8);
+    ctx.fillStyle = hexToRgba(colors.warning, 0.9);
+    ctx.fill();
+
+    // Warning text
+    drawText(ctx, `⚠ Data: ${ageText}`, x + boxWidth / 2, y + boxHeight / 2, {
+      font: this.displayConfig.fontFamily,
+      size: 28,
+      weight: 600,
+      color: colors.black,
+      align: 'center',
+      baseline: 'middle',
+    });
+  }
+
+  /**
+   * Draw debug overlay with development information.
+   * Shows safe area boundaries, data timestamps, and slide info.
+   * Only visible when debug mode is enabled in config.
+   */
+  protected drawDebugOverlay(
+    ctx: SKRSContext2D,
+    data: DataCache,
+    slideIndex: number,
+    slideCount: number,
+    fps: number = 0
+  ): void {
+    const padding = 20;
+    const lineHeight = 28;
+    const fontSize = 22;
+
+    // Debug panel background (bottom-left)
+    const panelWidth = 400;
+    const panelHeight = 200;
+    const panelX = padding;
+    const panelY = this.displayConfig.height - panelHeight - padding;
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+    ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
+
+    ctx.strokeStyle = 'rgba(255, 255, 0, 0.5)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
+
+    // Debug info text
+    let y = panelY + 30;
+    const textX = panelX + 15;
+
+    const debugLines = [
+      `🔧 DEBUG MODE`,
+      `Slide: ${slideIndex + 1} / ${slideCount}`,
+      `FPS: ${fps.toFixed(1)}`,
+      `Projects: ${data.projects.lastUpdated?.toLocaleTimeString() || 'N/A'}`,
+      `Revenue: ${data.revenue.lastUpdated?.toLocaleTimeString() || 'N/A'}`,
+      `Metrics: ${data.dashboardMetrics.lastUpdated?.toLocaleTimeString() || 'N/A'}`,
+    ];
+
+    debugLines.forEach((line) => {
+      drawText(ctx, line, textX, y, {
+        font: 'monospace',
+        size: fontSize,
+        color: '#00FF00',
+      });
+      y += lineHeight;
+    });
+
+    // Draw safe area boundary (dashed rectangle)
+    ctx.setLineDash([10, 10]);
+    ctx.strokeStyle = 'rgba(255, 0, 255, 0.5)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(
+      this.SAFE_AREA.left,
+      this.SAFE_AREA.top,
+      this.displayConfig.width - this.SAFE_AREA.left - this.SAFE_AREA.right,
+      this.displayConfig.height - this.SAFE_AREA.top - this.SAFE_AREA.bottom
+    );
+    ctx.setLineDash([]);
+
+    // Safe area labels
+    drawText(ctx, 'SAFE AREA', this.SAFE_AREA.left + 10, this.SAFE_AREA.top + 25, {
+      font: 'monospace',
+      size: 18,
+      color: 'rgba(255, 0, 255, 0.7)',
+    });
+  }
+
+  // =====================================================
+  // Shared Formatting Utilities
+  // Use these instead of defining local formatting methods
+  // =====================================================
+
+  /** Format number as currency with K/M suffix ($2K, $1.50M) */
+  protected formatCurrency(value: number, decimalsForMillions = 2): string {
+    return formatCurrencyFn(value, decimalsForMillions);
+  }
+
+  /** Format number with K/M suffix (2K, 1.5M) */
+  protected formatNumber(value: number, decimalsForMillions = 1): string {
+    return formatNumberFn(value, decimalsForMillions);
+  }
+
+  /** Truncate text with ellipsis if too long */
+  protected truncateText(text: string, maxLength: number): string {
+    return truncateTextFn(text, maxLength);
+  }
+
+  /** Format value as percentage */
+  protected formatPercent(value: number, decimals = 0): string {
+    return formatPercentFn(value, decimals);
+  }
+
+  /** Format date as short readable string (Jan 15, 2024) */
+  protected formatDate(date: Date | string): string {
+    return formatDateFn(date);
+  }
+
+  /** Format days remaining/overdue (5 days left, 3 days overdue) */
+  protected formatDaysRemaining(days: number): string {
+    return formatDaysRemainingFn(days);
   }
 }

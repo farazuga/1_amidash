@@ -53,24 +53,26 @@ export async function fetchActiveProjects() {
         if (error)
             throw error;
         return (data || []).map((p) => {
-            const statusName = p.statuses?.name || 'Unknown';
+            // Type coercion needed due to Supabase's dynamic return types
+            const project = p;
+            const statusName = project.statuses?.name || 'Unknown';
             return {
-                id: p.id,
-                name: p.client_name,
-                client_name: p.client_name,
+                id: project.id,
+                name: project.client_name,
+                client_name: project.client_name,
                 status: statusName,
                 status_color: getStatusColor(statusName),
-                project_type: p.project_types?.name || null,
-                salesperson: p.salesperson?.full_name || null,
-                start_date: p.created_date,
-                due_date: p.goal_completion_date,
-                total_value: p.sales_amount || 0,
+                project_type: project.project_types?.name || null,
+                salesperson: project.salesperson?.full_name || null,
+                start_date: project.created_date || null,
+                due_date: project.goal_completion_date || null,
+                total_value: project.sales_amount || 0,
             };
         });
     }
     catch (error) {
-        logger.error({ error }, 'Failed to fetch active projects');
-        return [];
+        logger.error({ error }, 'Failed to fetch active projects, returning mock data');
+        return getMockProjects();
     }
 }
 function getMockProjects() {

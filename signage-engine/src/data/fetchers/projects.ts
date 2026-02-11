@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from '../supabase-client.js';
 import { logger } from '../../utils/logger.js';
+import type { DbProject } from '../types/database.js';
 
 // Generate a color based on status name
 function getStatusColor(statusName: string): string {
@@ -66,24 +67,26 @@ export async function fetchActiveProjects(): Promise<ActiveProject[]> {
 
     if (error) throw error;
 
-    return (data || []).map((p: Record<string, unknown>) => {
-      const statusName = (p.statuses as { name: string } | null)?.name || 'Unknown';
+    return (data || []).map((p) => {
+      // Type coercion needed due to Supabase's dynamic return types
+      const project = p as unknown as DbProject;
+      const statusName = project.statuses?.name || 'Unknown';
       return {
-        id: p.id as string,
-        name: p.client_name as string,
-        client_name: p.client_name as string,
+        id: project.id,
+        name: project.client_name,
+        client_name: project.client_name,
         status: statusName,
         status_color: getStatusColor(statusName),
-        project_type: (p.project_types as { name: string } | null)?.name || null,
-        salesperson: (p.salesperson as { full_name: string } | null)?.full_name || null,
-        start_date: p.created_date as string | null,
-        due_date: p.goal_completion_date as string | null,
-        total_value: (p.sales_amount as number) || 0,
+        project_type: project.project_types?.name || null,
+        salesperson: project.salesperson?.full_name || null,
+        start_date: project.created_date || null,
+        due_date: project.goal_completion_date || null,
+        total_value: project.sales_amount || 0,
       };
     });
   } catch (error) {
-    logger.error({ error }, 'Failed to fetch active projects');
-    return [];
+    logger.error({ error }, 'Failed to fetch active projects, returning mock data');
+    return getMockProjects();
   }
 }
 

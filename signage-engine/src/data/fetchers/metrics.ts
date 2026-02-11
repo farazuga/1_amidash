@@ -146,7 +146,7 @@ export async function fetchProjectMetrics(): Promise<ProjectMetrics> {
       overdueCount,
     };
   } catch (error) {
-    logger.error({ error }, 'Failed to fetch project metrics');
+    logger.error({ error }, 'Failed to fetch project metrics, returning mock data');
     return getMockMetrics();
   }
 }

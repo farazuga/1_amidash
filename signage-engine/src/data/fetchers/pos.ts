@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from '../supabase-client.js';
 import { logger } from '../../utils/logger.js';
+import type { DbProject } from '../types/database.js';
 
 export interface RecentPO {
   id: string;
@@ -32,17 +33,21 @@ export async function fetchRecentPOs(): Promise<RecentPO[]> {
 
     if (error) throw error;
 
-    return (data || []).map((p: Record<string, unknown>) => ({
-      id: p.id as string,
-      po_number: p.po_number as string,
-      project_name: p.client_name as string,
-      client_name: p.client_name as string,
-      amount: (p.sales_amount as number) || 0,
-      created_at: p.created_at as string,
-    }));
+    return (data || []).map((p) => {
+      // Type coercion needed due to Supabase's dynamic return types
+      const project = p as unknown as DbProject;
+      return {
+        id: project.id || '',
+        po_number: project.po_number || '',
+        project_name: project.client_name || 'Unknown Project',
+        client_name: project.client_name || 'Unknown',
+        amount: Math.max(0, project.sales_amount || 0),
+        created_at: project.created_at || new Date().toISOString(),
+      };
+    });
   } catch (error) {
-    logger.error({ error }, 'Failed to fetch recent POs');
-    return [];
+    logger.error({ error }, 'Failed to fetch recent POs, returning mock data');
+    return getMockPOs();
   }
 }
 

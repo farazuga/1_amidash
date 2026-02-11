@@ -219,7 +219,7 @@ describe('fetchRevenueData', () => {
 
       expect(logger.error).toHaveBeenCalledWith(
         { error: expect.any(Object) },
-        'Failed to fetch revenue data'
+        'Failed to fetch revenue data, returning mock data'
       );
       // Should return mock data on error
       expect(revenue.monthlyData).toHaveLength(12);

@@ -28,7 +28,7 @@ describe('fetchActiveProjects', () => {
     it('should return mock projects when Supabase not configured', async () => {
       const projects = await fetchActiveProjects();
 
-      expect(projects).toHaveLength(3);
+      expect(projects).toHaveLength(6);
       expect(projects[0]).toHaveProperty('id');
       expect(projects[0]).toHaveProperty('name');
       expect(projects[0]).toHaveProperty('client_name');

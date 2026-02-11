@@ -7,5 +7,4 @@ export declare class MonthlyScorecardSlide extends BaseSlide {
     private drawRevenueSection;
     private drawProjectMetricsSection;
     private drawLargeMetricCard;
-    private formatValue;
 }

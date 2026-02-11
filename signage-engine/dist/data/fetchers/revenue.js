@@ -9,10 +9,10 @@ export async function fetchRevenueData() {
         const now = new Date();
         const currentYear = now.getFullYear();
         const currentMonth = now.getMonth() + 1;
-        // Fetch revenue goals
+        // Fetch revenue goals (only needed fields)
         const { data: goals } = await supabase
             .from('revenue_goals')
-            .select('*')
+            .select('month, amount')
             .eq('year', currentYear);
         // Fetch invoiced projects this year
         const { data: invoiced } = await supabase
@@ -55,7 +55,7 @@ export async function fetchRevenueData() {
         };
     }
     catch (error) {
-        logger.error({ error }, 'Failed to fetch revenue data');
+        logger.error({ error }, 'Failed to fetch revenue data, returning mock data');
         return getMockRevenue();
     }
 }

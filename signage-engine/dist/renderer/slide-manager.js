@@ -4,12 +4,16 @@ import { POTickerSlide } from './slides/po-ticker.js';
 import { RevenueDashboardSlide } from './slides/revenue-dashboard.js';
 import { TeamScheduleSlide } from './slides/team-schedule.js';
 // New dashboard slides
-import { HealthDashboardSlide } from './slides/health-dashboard.js';
 import { AlertsDashboardSlide } from './slides/alerts-dashboard.js';
 import { PerformanceMetricsSlide } from './slides/performance-metrics.js';
-import { VelocityChartSlide } from './slides/velocity-chart.js';
 import { StatusPipelineSlide } from './slides/status-pipeline.js';
 import { CycleTimeSlide } from './slides/cycle-time.js';
+// Additional slides
+import { UpcomingProjectsSlide } from './slides/upcoming-projects.js';
+import { InProgressSlide } from './slides/in-progress.js';
+import { MonthlyScorecardSlide } from './slides/monthly-scorecard.js';
+import { BottleneckAlertSlide } from './slides/bottleneck-alert.js';
+import { RecentWinsSlide } from './slides/recent-wins.js';
 import { logger } from '../utils/logger.js';
 export class SlideManager {
     slides = [];
@@ -48,18 +52,25 @@ export class SlideManager {
             case 'team-schedule':
                 return new TeamScheduleSlide(config, this.displayConfig);
             // New dashboard slides
-            case 'health-dashboard':
-                return new HealthDashboardSlide(config, this.displayConfig);
             case 'alerts-dashboard':
                 return new AlertsDashboardSlide(config, this.displayConfig);
             case 'performance-metrics':
                 return new PerformanceMetricsSlide(config, this.displayConfig);
-            case 'velocity-chart':
-                return new VelocityChartSlide(config, this.displayConfig);
             case 'status-pipeline':
                 return new StatusPipelineSlide(config, this.displayConfig);
             case 'cycle-time':
                 return new CycleTimeSlide(config, this.displayConfig);
+            // Additional slides
+            case 'upcoming-projects':
+                return new UpcomingProjectsSlide(config, this.displayConfig);
+            case 'in-progress':
+                return new InProgressSlide(config, this.displayConfig);
+            case 'monthly-scorecard':
+                return new MonthlyScorecardSlide(config, this.displayConfig);
+            case 'bottleneck-alert':
+                return new BottleneckAlertSlide(config, this.displayConfig);
+            case 'recent-wins':
+                return new RecentWinsSlide(config, this.displayConfig);
             default:
                 logger.warn({ type: config.type }, 'Unknown slide type');
                 return null;
@@ -104,12 +115,16 @@ export class SlideManager {
             'team-schedule': 'team-schedule',
             'active-projects': 'active-projects',
             // New dashboard slides
-            'health-dashboard': 'health-dashboard',
             'alerts-dashboard': 'alerts-dashboard',
             'performance-metrics': 'performance-metrics',
-            'velocity-chart': 'velocity-chart',
             'status-pipeline': 'status-pipeline',
             'cycle-time': 'cycle-time',
+            // Additional slides
+            'upcoming-projects': 'upcoming-projects',
+            'in-progress': 'in-progress',
+            'monthly-scorecard': 'monthly-scorecard',
+            'bottleneck-alert': 'bottleneck-alert',
+            'recent-wins': 'recent-wins',
         };
         return typeMap[dbType] || 'active-projects';
     }

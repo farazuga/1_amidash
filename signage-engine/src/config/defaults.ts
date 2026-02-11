@@ -68,4 +68,10 @@ export const defaultConfig: SignageConfig = {
     warningThresholdMs: 60000,
     indicatorPosition: 'bottom-right',
   },
+  debug: {
+    enabled: false,
+    showSafeArea: true,
+    showFrameRate: true,
+    showDataTimestamps: true,
+  },
 };

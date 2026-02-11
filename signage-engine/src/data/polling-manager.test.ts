@@ -37,6 +37,11 @@ vi.mock('./fetchers/slide-config', () => ({
   fetchSlideConfig: vi.fn(),
 }));
 
+vi.mock('./supabase-client', () => ({
+  supabase: null,
+  isSupabaseConfigured: vi.fn(() => false),
+}));
+
 // Import mocked modules
 import { fetchActiveProjects } from './fetchers/projects';
 import { fetchRecentPOs } from './fetchers/pos';

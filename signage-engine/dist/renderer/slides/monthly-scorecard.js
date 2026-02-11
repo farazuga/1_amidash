@@ -61,14 +61,14 @@ export class MonthlyScorecardSlide extends BaseSlide {
                 ? (revenue.currentMonthRevenue / revenue.currentMonthGoal * 100)
                 : 0;
             const posOnTrack = posProgress >= 80;
-            this.drawLargeMetricCard(ctx, 'POs RECEIVED', `$${this.formatValue(revenue.currentMonthRevenue)}`, `Goal: $${this.formatValue(revenue.currentMonthGoal)}`, posProgress, posOnTrack, x + innerPadding, innerY, width - innerPadding * 2, cardHeight);
+            this.drawLargeMetricCard(ctx, 'POs RECEIVED', `$${this.formatNumber(revenue.currentMonthRevenue)}`, `Goal: $${this.formatNumber(revenue.currentMonthGoal)}`, posProgress, posOnTrack, x + innerPadding, innerY, width - innerPadding * 2, cardHeight);
             // Invoiced - Second metric (bottom)
             // Note: Using a calculated value for now - would need invoiced data
             const invoicedY = innerY + cardHeight + 30;
             const ytdProgress = revenue.yearToDateGoal > 0
                 ? (revenue.yearToDateRevenue / revenue.yearToDateGoal * 100)
                 : 0;
-            this.drawLargeMetricCard(ctx, 'YEAR TO DATE', `$${this.formatValue(revenue.yearToDateRevenue)}`, `Goal: $${this.formatValue(revenue.yearToDateGoal)}`, ytdProgress, ytdProgress >= 80, x + innerPadding, invoicedY, width - innerPadding * 2, cardHeight);
+            this.drawLargeMetricCard(ctx, 'YEAR TO DATE', `$${this.formatNumber(revenue.yearToDateRevenue)}`, `Goal: $${this.formatNumber(revenue.yearToDateGoal)}`, ytdProgress, ytdProgress >= 80, x + innerPadding, invoicedY, width - innerPadding * 2, cardHeight);
         }
     }
     drawProjectMetricsSection(ctx, metrics, x, y, width) {
@@ -157,15 +157,6 @@ export class MonthlyScorecardSlide extends BaseSlide {
             size: 20,
             color: 'rgba(255, 255, 255, 0.5)',
         });
-    }
-    formatValue(value) {
-        if (value >= 1000000) {
-            return `${(value / 1000000).toFixed(2)}M`;
-        }
-        else if (value >= 1000) {
-            return `${(value / 1000).toFixed(0)}K`;
-        }
-        return value.toLocaleString();
     }
 }
 //# sourceMappingURL=monthly-scorecard.js.map
