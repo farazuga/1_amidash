@@ -569,14 +569,9 @@ export async function inlineEditProjectField(data: InlineEditData): Promise<Inli
 
     const { data: newStatus } = await supabase
       .from('statuses')
-      .select('name, require_note')
+      .select('name')
       .eq('id', data.value)
       .single();
-
-    // Block inline status change if a note is required — user must use the Change Status dialog
-    if (newStatus?.require_note) {
-      return { success: false, error: `A note is required for "${newStatus.name}" status. Use the Change Status button instead.` };
-    }
 
     const result = await updateProjectStatus({
       projectId: data.projectId,
