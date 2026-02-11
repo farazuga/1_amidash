@@ -34,6 +34,7 @@ export interface CreateProjectData {
   secondary_poc_email: string | null;
   scope_link: string | null;
   number_of_vidpods?: number | null;
+  vidpod_only?: boolean;
   project_type_id: string;
   tags: string[];
   email_notifications_enabled?: boolean;
@@ -120,6 +121,7 @@ export async function createProject(data: CreateProjectData): Promise<CreateProj
       secondary_poc_email: data.secondary_poc_email,
       scope_link: data.scope_link,
       number_of_vidpods: data.number_of_vidpods ?? null,
+      vidpod_only: data.vidpod_only ?? false,
       project_type_id: data.project_type_id,
       current_status_id: firstStatus.id,
       created_by: user.id,
@@ -569,9 +571,14 @@ export async function inlineEditProjectField(data: InlineEditData): Promise<Inli
 
     const { data: newStatus } = await supabase
       .from('statuses')
-      .select('name')
+      .select('name, require_note')
       .eq('id', data.value)
       .single();
+
+    // Block inline status change if a note is required — user must use the Change Status dialog
+    if (newStatus?.require_note) {
+      return { success: false, error: `"${newStatus.name}" requires a note. Please use the Change Status button instead.` };
+    }
 
     const result = await updateProjectStatus({
       projectId: data.projectId,
