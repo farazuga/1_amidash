@@ -4,6 +4,15 @@ import { DataCache } from '../../data/polling-manager.js';
 import { drawText } from '../components/text.js';
 import { colors, hexToRgba } from '../components/colors.js';
 
+/**
+ * Status Pipeline Slide
+ *
+ * Displays project workflow stages as a horizontal pipeline.
+ * Each stage shows the count and total revenue of projects in that status.
+ * Includes animated flow effect and bottleneck indicators.
+ *
+ * Data source: dashboardMetrics.pipeline
+ */
 export class StatusPipelineSlide extends BaseSlide {
   private flowOffset = 0;
 
@@ -277,12 +286,5 @@ export class StatusPipelineSlide extends BaseSlide {
     }
   }
 
-  private formatNumber(num: number): string {
-    if (num >= 1000000) {
-      return `${(num / 1000000).toFixed(1)}M`;
-    } else if (num >= 1000) {
-      return `${(num / 1000).toFixed(0)}K`;
-    }
-    return num.toLocaleString();
-  }
+  // formatNumber inherited from BaseSlide
 }

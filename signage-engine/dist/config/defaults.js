@@ -66,5 +66,11 @@ export const defaultConfig = {
         warningThresholdMs: 60000,
         indicatorPosition: 'bottom-right',
     },
+    debug: {
+        enabled: false,
+        showSafeArea: true,
+        showFrameRate: true,
+        showDataTimestamps: true,
+    },
 };
 //# sourceMappingURL=defaults.js.map

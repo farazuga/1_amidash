@@ -2,6 +2,15 @@ import { BaseSlide } from './base-slide.js';
 import { drawText, truncateText } from '../components/text.js';
 import { roundRect, colors, hexToRgba } from '../components/index.js';
 import { formatDistanceToNow, subDays, isAfter } from 'date-fns';
+/**
+ * PO Ticker Slide (Recent Purchase Orders)
+ *
+ * Displays recent purchase orders in two sections:
+ * - Top 3 largest POs from last 10 days (with gold/silver/bronze badges)
+ * - Recent POs list from last 7 days
+ *
+ * Data source: pos (from fetchRecentPOs)
+ */
 export class POTickerSlide extends BaseSlide {
     render(ctx, data, _deltaTime) {
         // Update animations
@@ -83,7 +92,7 @@ export class POTickerSlide extends BaseSlide {
         ctx.fillStyle = hexToRgba(colors.white, 0.1);
         ctx.fill();
         // Rank badge (gold, silver, bronze) - compact
-        const rankColors = [colors.amber, '#C0C0C0', '#CD7F32'];
+        const rankColors = [colors.gold, colors.silver, colors.bronze];
         const rankColor = rankColors[rank - 1] || colors.mauve;
         ctx.beginPath();
         ctx.arc(x + cardPadding + 28, y + cardPadding + 28, 30, 0, Math.PI * 2);

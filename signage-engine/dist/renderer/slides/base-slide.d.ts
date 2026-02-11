@@ -28,6 +28,25 @@ export declare abstract class BaseSlide {
         readonly lg: 80;
         readonly xl: 120;
     };
+    protected readonly CARD: {
+        readonly borderRadius: 16;
+        readonly borderRadiusSmall: 12;
+        readonly borderRadiusBadge: 6;
+        readonly padding: 24;
+        readonly paddingLarge: 40;
+        readonly shadowBlur: 20;
+    };
+    protected readonly HEADER: {
+        readonly height: 180;
+        readonly logoHeight: 80;
+        readonly titleSize: 96;
+        readonly timestampSize: 64;
+    };
+    protected readonly ANIMATION: {
+        readonly transitionDuration: 500;
+        readonly fadeInDelay: 100;
+        readonly scrollSpeed: 2;
+    };
     constructor(config: SlideConfig, displayConfig: DisplayConfig);
     loadLogo(): Promise<void>;
     abstract render(ctx: SKRSContext2D, data: DataCache, deltaTime: number): void;
@@ -55,4 +74,29 @@ export declare abstract class BaseSlide {
      */
     protected isWithinSafeArea(elementX: number, elementY: number, elementWidth: number, elementHeight: number): boolean;
     protected drawConnectionStatus(ctx: SKRSContext2D, data: DataCache): void;
+    /**
+     * Check if data is stale and draw an indicator if needed.
+     * Call this at the end of render() for slides that should show stale data warnings.
+     * @param lastUpdated The timestamp when data was last fetched
+     * @param thresholdMs How old data can be before it's considered stale (default 60s)
+     */
+    protected drawStaleDataWarning(ctx: SKRSContext2D, lastUpdated: Date | null, thresholdMs?: number): void;
+    /**
+     * Draw debug overlay with development information.
+     * Shows safe area boundaries, data timestamps, and slide info.
+     * Only visible when debug mode is enabled in config.
+     */
+    protected drawDebugOverlay(ctx: SKRSContext2D, data: DataCache, slideIndex: number, slideCount: number, fps?: number): void;
+    /** Format number as currency with K/M suffix ($2K, $1.50M) */
+    protected formatCurrency(value: number, decimalsForMillions?: number): string;
+    /** Format number with K/M suffix (2K, 1.5M) */
+    protected formatNumber(value: number, decimalsForMillions?: number): string;
+    /** Truncate text with ellipsis if too long */
+    protected truncateText(text: string, maxLength: number): string;
+    /** Format value as percentage */
+    protected formatPercent(value: number, decimals?: number): string;
+    /** Format date as short readable string (Jan 15, 2024) */
+    protected formatDate(date: Date | string): string;
+    /** Format days remaining/overdue (5 days left, 3 days overdue) */
+    protected formatDaysRemaining(days: number): string;
 }

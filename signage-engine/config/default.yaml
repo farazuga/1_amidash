@@ -19,11 +19,6 @@ polling:
   purchaseOrders: 15000
 
 slides:
-  - type: "health-dashboard"
-    enabled: true
-    duration: 12000
-    title: "Business Health"
-
   - type: "revenue-dashboard"
     enabled: true
     duration: 15000
@@ -50,11 +45,6 @@ slides:
     enabled: true
     duration: 12000
     title: "Alerts"
-
-  - type: "velocity-chart"
-    enabled: true
-    duration: 12000
-    title: "Velocity"
 
   - type: "status-pipeline"
     enabled: true

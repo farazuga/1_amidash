@@ -2,6 +2,15 @@ import { BaseSlide } from './base-slide.js';
 import { drawText, truncateText } from '../components/text.js';
 import { colors, hexToRgba } from '../components/colors.js';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
+/**
+ * Active Projects Slide
+ *
+ * Displays a grid of active (non-completed, non-invoiced) projects.
+ * Each project card shows client name, status, value, and due date.
+ * Excludes projects with 'complete', 'cancelled', or 'invoiced' status.
+ *
+ * Data source: projects (from fetchActiveProjects)
+ */
 export class ActiveProjectsSlide extends BaseSlide {
     render(ctx, data, deltaTime) {
         // Update animations

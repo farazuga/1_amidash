@@ -19,6 +19,7 @@ let currentConfig: SignageConfig = {
   transitions: { type: 'fade', duration: 500 },
   api: { port: 3001, host: '127.0.0.1' },
   staleData: { warningThresholdMs: 60000, indicatorPosition: 'bottom-right' },
+  debug: { enabled: false, showSafeArea: true, showFrameRate: true, showDataTimestamps: true },
 };
 
 export function loadConfigFromFile(filePath: string): SignageConfig {

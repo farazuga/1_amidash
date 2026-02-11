@@ -4,6 +4,15 @@ import { DataCache } from '../../data/polling-manager.js';
 import { drawText } from '../components/text.js';
 import { colors, hexToRgba } from '../components/colors.js';
 
+/**
+ * Cycle Time Analysis Slide
+ *
+ * Displays average time projects spend in each workflow stage.
+ * Shows horizontal bars for each status with average days.
+ * Helps identify slow stages in the project workflow.
+ *
+ * Data source: dashboardMetrics.cycleTime
+ */
 export class CycleTimeSlide extends BaseSlide {
   render(ctx: SKRSContext2D, data: DataCache, deltaTime: number): void {
     this.updateAnimationState(deltaTime);

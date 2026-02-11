@@ -18,6 +18,9 @@ export declare const colors: {
     chartQuaternary: string;
     chartQuinary: string;
     chartSenary: string;
+    gold: string;
+    silver: string;
+    bronze: string;
     white: string;
     black: string;
     gray: {

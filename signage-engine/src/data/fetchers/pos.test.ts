@@ -37,7 +37,7 @@ describe('fetchRecentPOs', () => {
     it('should return mock POs', async () => {
       const pos = await fetchRecentPOs();
 
-      expect(pos).toHaveLength(3);
+      expect(pos).toHaveLength(12);
       expect(pos[0]).toHaveProperty('id');
       expect(pos[0]).toHaveProperty('po_number');
       expect(pos[0]).toHaveProperty('project_name');
@@ -165,7 +165,7 @@ describe('fetchRecentPOs', () => {
       expect(pos[0].amount).toBe(0);
     });
 
-    it('should return empty array on database error', async () => {
+    it('should return mock data on database error', async () => {
       mockQuery.limit.mockResolvedValueOnce({
         data: null,
         error: { message: 'Database error', code: 'PGRST000' },
@@ -173,10 +173,11 @@ describe('fetchRecentPOs', () => {
 
       const pos = await fetchRecentPOs();
 
-      expect(pos).toEqual([]);
+      // Should return mock data instead of empty array
+      expect(pos.length).toBeGreaterThan(0);
       expect(logger.error).toHaveBeenCalledWith(
         { error: expect.any(Object) },
-        'Failed to fetch recent POs'
+        'Failed to fetch recent POs, returning mock data'
       );
     });
 

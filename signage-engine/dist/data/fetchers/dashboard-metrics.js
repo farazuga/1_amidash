@@ -48,7 +48,7 @@ export async function fetchDashboardMetrics() {
                 .order('changed_at', { ascending: false }),
             supabase
                 .from('revenue_goals')
-                .select('*')
+                .select('month, revenue_goal')
                 .eq('year', currentYear),
         ]);
         const projects = projectsResult.data || [];
@@ -77,7 +77,7 @@ export async function fetchDashboardMetrics() {
         };
     }
     catch (error) {
-        logger.error({ error }, 'Failed to fetch dashboard metrics');
+        logger.error({ error }, 'Failed to fetch dashboard metrics, returning mock data');
         return getMockDashboardMetrics();
     }
 }

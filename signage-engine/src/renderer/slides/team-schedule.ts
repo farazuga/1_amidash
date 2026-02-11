@@ -5,6 +5,15 @@ import { drawText, truncateText } from '../components/text.js';
 import { roundRect, colors } from '../components/index.js';
 import { format, addDays, startOfDay, differenceInDays } from 'date-fns';
 
+/**
+ * Team Schedule Slide
+ *
+ * Displays team member assignments in a calendar grid format.
+ * Shows upcoming days (configurable) with project assignments.
+ * Currently uses mock data (project_assignments table not implemented).
+ *
+ * Data source: schedule (from fetchScheduleData)
+ */
 export class TeamScheduleSlide extends BaseSlide {
   render(ctx: SKRSContext2D, data: DataCache, _deltaTime: number): void {
     const headerHeight = this.drawHeader(ctx, this.config.title || 'Team Schedule');

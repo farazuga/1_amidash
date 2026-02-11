@@ -1,6 +1,16 @@
 import { BaseSlide } from './base-slide.js';
 import { drawBarChart, drawKPICard, drawProgressBar, colors } from '../components/index.js';
 import { drawText } from '../components/text.js';
+/**
+ * Revenue Dashboard Slide
+ *
+ * Displays revenue metrics with:
+ * - 4 KPI cards: This Month, Month Progress, Year to Date, YTD Progress
+ * - Progress bars for monthly and YTD goals
+ * - Monthly bar chart comparing revenue vs goals
+ *
+ * Data source: revenue (from fetchRevenueData)
+ */
 export class RevenueDashboardSlide extends BaseSlide {
     render(ctx, data, _deltaTime) {
         // Update animations and draw ambient effects
@@ -71,6 +81,8 @@ export class RevenueDashboardSlide extends BaseSlide {
             barGap: 20,
             fontSize: 36,
         });
+        // Draw stale data warning if data is old
+        this.drawStaleDataWarning(ctx, data.revenue.lastUpdated);
         // Draw connection status indicator if not connected
         this.drawConnectionStatus(ctx, data);
     }

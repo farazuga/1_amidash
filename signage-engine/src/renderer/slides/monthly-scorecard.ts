@@ -89,8 +89,8 @@ export class MonthlyScorecardSlide extends BaseSlide {
       this.drawLargeMetricCard(
         ctx,
         'POs RECEIVED',
-        `$${this.formatValue(revenue.currentMonthRevenue)}`,
-        `Goal: $${this.formatValue(revenue.currentMonthGoal)}`,
+        `$${this.formatNumber(revenue.currentMonthRevenue)}`,
+        `Goal: $${this.formatNumber(revenue.currentMonthGoal)}`,
         posProgress,
         posOnTrack,
         x + innerPadding,
@@ -109,8 +109,8 @@ export class MonthlyScorecardSlide extends BaseSlide {
       this.drawLargeMetricCard(
         ctx,
         'YEAR TO DATE',
-        `$${this.formatValue(revenue.yearToDateRevenue)}`,
-        `Goal: $${this.formatValue(revenue.yearToDateGoal)}`,
+        `$${this.formatNumber(revenue.yearToDateRevenue)}`,
+        `Goal: $${this.formatNumber(revenue.yearToDateGoal)}`,
         ytdProgress,
         ytdProgress >= 80,
         x + innerPadding,
@@ -291,12 +291,5 @@ export class MonthlyScorecardSlide extends BaseSlide {
     });
   }
 
-  private formatValue(value: number): string {
-    if (value >= 1000000) {
-      return `${(value / 1000000).toFixed(2)}M`;
-    } else if (value >= 1000) {
-      return `${(value / 1000).toFixed(0)}K`;
-    }
-    return value.toLocaleString();
-  }
+  // formatNumber inherited from BaseSlide (use formatNumber instead of formatValue)
 }

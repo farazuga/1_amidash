@@ -8,12 +8,16 @@ export const SlideTypeSchema = z.enum([
   'revenue-dashboard',
   'team-schedule',
   // New dashboard slides
-  'health-dashboard',
   'alerts-dashboard',
   'performance-metrics',
-  'velocity-chart',
   'status-pipeline',
   'cycle-time',
+  // Additional slides
+  'upcoming-projects',
+  'in-progress',
+  'monthly-scorecard',
+  'bottleneck-alert',
+  'recent-wins',
 ]);
 export type SlideType = z.infer<typeof SlideTypeSchema>;
 
@@ -35,6 +39,8 @@ export const SlideConfigSchema = z.object({
   chartType: z.string().optional(),
   // Alerts slide specific
   priorityInsertion: z.boolean().optional(),
+  // Per-slide polling interval override (ms) - allows different refresh rates
+  pollingInterval: z.number().min(5000).optional(),
 });
 export type SlideConfig = z.infer<typeof SlideConfigSchema>;
 
@@ -78,6 +84,14 @@ export const StaleDataConfigSchema = z.object({
   warningThresholdMs: z.number().default(60000),
   indicatorPosition: z.enum(['top-left', 'top-right', 'bottom-left', 'bottom-right']).default('bottom-right'),
 });
+
+export const DebugConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  showSafeArea: z.boolean().default(true),
+  showFrameRate: z.boolean().default(true),
+  showDataTimestamps: z.boolean().default(true),
+});
+export type DebugConfig = z.infer<typeof DebugConfigSchema>;
 export type StaleDataConfig = z.infer<typeof StaleDataConfigSchema>;
 
 export const SignageConfigSchema = z.object({
@@ -88,6 +102,7 @@ export const SignageConfigSchema = z.object({
   transitions: TransitionConfigSchema.default({}),
   api: APIConfigSchema.default({}),
   staleData: StaleDataConfigSchema.default({}),
+  debug: DebugConfigSchema.default({}),
 });
 export type SignageConfig = z.infer<typeof SignageConfigSchema>;
 

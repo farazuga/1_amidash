@@ -1,8 +1,8 @@
 import { z } from 'zod';
-export declare const SlideTypeSchema: z.ZodEnum<["active-projects", "project-list", "project-metrics", "po-ticker", "revenue-dashboard", "team-schedule", "health-dashboard", "alerts-dashboard", "performance-metrics", "velocity-chart", "status-pipeline", "cycle-time"]>;
+export declare const SlideTypeSchema: z.ZodEnum<["active-projects", "project-list", "project-metrics", "po-ticker", "revenue-dashboard", "team-schedule", "alerts-dashboard", "performance-metrics", "status-pipeline", "cycle-time", "upcoming-projects", "in-progress", "monthly-scorecard", "bottleneck-alert", "recent-wins"]>;
 export type SlideType = z.infer<typeof SlideTypeSchema>;
 export declare const SlideConfigSchema: z.ZodObject<{
-    type: z.ZodEnum<["active-projects", "project-list", "project-metrics", "po-ticker", "revenue-dashboard", "team-schedule", "health-dashboard", "alerts-dashboard", "performance-metrics", "velocity-chart", "status-pipeline", "cycle-time"]>;
+    type: z.ZodEnum<["active-projects", "project-list", "project-metrics", "po-ticker", "revenue-dashboard", "team-schedule", "alerts-dashboard", "performance-metrics", "status-pipeline", "cycle-time", "upcoming-projects", "in-progress", "monthly-scorecard", "bottleneck-alert", "recent-wins"]>;
     enabled: z.ZodDefault<z.ZodBoolean>;
     duration: z.ZodDefault<z.ZodNumber>;
     title: z.ZodOptional<z.ZodString>;
@@ -17,8 +17,9 @@ export declare const SlideConfigSchema: z.ZodObject<{
     showWeekends: z.ZodOptional<z.ZodBoolean>;
     chartType: z.ZodOptional<z.ZodString>;
     priorityInsertion: z.ZodOptional<z.ZodBoolean>;
+    pollingInterval: z.ZodOptional<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
-    type: "active-projects" | "project-list" | "project-metrics" | "po-ticker" | "revenue-dashboard" | "team-schedule" | "health-dashboard" | "alerts-dashboard" | "performance-metrics" | "velocity-chart" | "status-pipeline" | "cycle-time";
+    type: "active-projects" | "project-list" | "project-metrics" | "po-ticker" | "revenue-dashboard" | "team-schedule" | "alerts-dashboard" | "performance-metrics" | "status-pipeline" | "cycle-time" | "upcoming-projects" | "in-progress" | "monthly-scorecard" | "bottleneck-alert" | "recent-wins";
     enabled: boolean;
     duration: number;
     title?: string | undefined;
@@ -33,8 +34,9 @@ export declare const SlideConfigSchema: z.ZodObject<{
     showWeekends?: boolean | undefined;
     chartType?: string | undefined;
     priorityInsertion?: boolean | undefined;
+    pollingInterval?: number | undefined;
 }, {
-    type: "active-projects" | "project-list" | "project-metrics" | "po-ticker" | "revenue-dashboard" | "team-schedule" | "health-dashboard" | "alerts-dashboard" | "performance-metrics" | "velocity-chart" | "status-pipeline" | "cycle-time";
+    type: "active-projects" | "project-list" | "project-metrics" | "po-ticker" | "revenue-dashboard" | "team-schedule" | "alerts-dashboard" | "performance-metrics" | "status-pipeline" | "cycle-time" | "upcoming-projects" | "in-progress" | "monthly-scorecard" | "bottleneck-alert" | "recent-wins";
     enabled?: boolean | undefined;
     duration?: number | undefined;
     title?: string | undefined;
@@ -49,6 +51,7 @@ export declare const SlideConfigSchema: z.ZodObject<{
     showWeekends?: boolean | undefined;
     chartType?: string | undefined;
     priorityInsertion?: boolean | undefined;
+    pollingInterval?: number | undefined;
 }>;
 export type SlideConfig = z.infer<typeof SlideConfigSchema>;
 export declare const NDIConfigSchema: z.ZodObject<{
@@ -134,6 +137,23 @@ export declare const StaleDataConfigSchema: z.ZodObject<{
     warningThresholdMs?: number | undefined;
     indicatorPosition?: "top-left" | "top-right" | "bottom-left" | "bottom-right" | undefined;
 }>;
+export declare const DebugConfigSchema: z.ZodObject<{
+    enabled: z.ZodDefault<z.ZodBoolean>;
+    showSafeArea: z.ZodDefault<z.ZodBoolean>;
+    showFrameRate: z.ZodDefault<z.ZodBoolean>;
+    showDataTimestamps: z.ZodDefault<z.ZodBoolean>;
+}, "strip", z.ZodTypeAny, {
+    enabled: boolean;
+    showSafeArea: boolean;
+    showFrameRate: boolean;
+    showDataTimestamps: boolean;
+}, {
+    enabled?: boolean | undefined;
+    showSafeArea?: boolean | undefined;
+    showFrameRate?: boolean | undefined;
+    showDataTimestamps?: boolean | undefined;
+}>;
+export type DebugConfig = z.infer<typeof DebugConfigSchema>;
 export type StaleDataConfig = z.infer<typeof StaleDataConfigSchema>;
 export declare const SignageConfigSchema: z.ZodObject<{
     ndi: z.ZodDefault<z.ZodObject<{
@@ -185,7 +205,7 @@ export declare const SignageConfigSchema: z.ZodObject<{
         purchaseOrders?: number | undefined;
     }>>;
     slides: z.ZodArray<z.ZodObject<{
-        type: z.ZodEnum<["active-projects", "project-list", "project-metrics", "po-ticker", "revenue-dashboard", "team-schedule", "health-dashboard", "alerts-dashboard", "performance-metrics", "velocity-chart", "status-pipeline", "cycle-time"]>;
+        type: z.ZodEnum<["active-projects", "project-list", "project-metrics", "po-ticker", "revenue-dashboard", "team-schedule", "alerts-dashboard", "performance-metrics", "status-pipeline", "cycle-time", "upcoming-projects", "in-progress", "monthly-scorecard", "bottleneck-alert", "recent-wins"]>;
         enabled: z.ZodDefault<z.ZodBoolean>;
         duration: z.ZodDefault<z.ZodNumber>;
         title: z.ZodOptional<z.ZodString>;
@@ -200,8 +220,9 @@ export declare const SignageConfigSchema: z.ZodObject<{
         showWeekends: z.ZodOptional<z.ZodBoolean>;
         chartType: z.ZodOptional<z.ZodString>;
         priorityInsertion: z.ZodOptional<z.ZodBoolean>;
+        pollingInterval: z.ZodOptional<z.ZodNumber>;
     }, "strip", z.ZodTypeAny, {
-        type: "active-projects" | "project-list" | "project-metrics" | "po-ticker" | "revenue-dashboard" | "team-schedule" | "health-dashboard" | "alerts-dashboard" | "performance-metrics" | "velocity-chart" | "status-pipeline" | "cycle-time";
+        type: "active-projects" | "project-list" | "project-metrics" | "po-ticker" | "revenue-dashboard" | "team-schedule" | "alerts-dashboard" | "performance-metrics" | "status-pipeline" | "cycle-time" | "upcoming-projects" | "in-progress" | "monthly-scorecard" | "bottleneck-alert" | "recent-wins";
         enabled: boolean;
         duration: number;
         title?: string | undefined;
@@ -216,8 +237,9 @@ export declare const SignageConfigSchema: z.ZodObject<{
         showWeekends?: boolean | undefined;
         chartType?: string | undefined;
         priorityInsertion?: boolean | undefined;
+        pollingInterval?: number | undefined;
     }, {
-        type: "active-projects" | "project-list" | "project-metrics" | "po-ticker" | "revenue-dashboard" | "team-schedule" | "health-dashboard" | "alerts-dashboard" | "performance-metrics" | "velocity-chart" | "status-pipeline" | "cycle-time";
+        type: "active-projects" | "project-list" | "project-metrics" | "po-ticker" | "revenue-dashboard" | "team-schedule" | "alerts-dashboard" | "performance-metrics" | "status-pipeline" | "cycle-time" | "upcoming-projects" | "in-progress" | "monthly-scorecard" | "bottleneck-alert" | "recent-wins";
         enabled?: boolean | undefined;
         duration?: number | undefined;
         title?: string | undefined;
@@ -232,6 +254,7 @@ export declare const SignageConfigSchema: z.ZodObject<{
         showWeekends?: boolean | undefined;
         chartType?: string | undefined;
         priorityInsertion?: boolean | undefined;
+        pollingInterval?: number | undefined;
     }>, "many">;
     transitions: z.ZodDefault<z.ZodObject<{
         type: z.ZodDefault<z.ZodEnum<["fade", "slide", "none"]>>;
@@ -263,6 +286,22 @@ export declare const SignageConfigSchema: z.ZodObject<{
         warningThresholdMs?: number | undefined;
         indicatorPosition?: "top-left" | "top-right" | "bottom-left" | "bottom-right" | undefined;
     }>>;
+    debug: z.ZodDefault<z.ZodObject<{
+        enabled: z.ZodDefault<z.ZodBoolean>;
+        showSafeArea: z.ZodDefault<z.ZodBoolean>;
+        showFrameRate: z.ZodDefault<z.ZodBoolean>;
+        showDataTimestamps: z.ZodDefault<z.ZodBoolean>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        showSafeArea: boolean;
+        showFrameRate: boolean;
+        showDataTimestamps: boolean;
+    }, {
+        enabled?: boolean | undefined;
+        showSafeArea?: boolean | undefined;
+        showFrameRate?: boolean | undefined;
+        showDataTimestamps?: boolean | undefined;
+    }>>;
 }, "strip", z.ZodTypeAny, {
     ndi: {
         name: string;
@@ -283,7 +322,7 @@ export declare const SignageConfigSchema: z.ZodObject<{
         purchaseOrders: number;
     };
     slides: {
-        type: "active-projects" | "project-list" | "project-metrics" | "po-ticker" | "revenue-dashboard" | "team-schedule" | "health-dashboard" | "alerts-dashboard" | "performance-metrics" | "velocity-chart" | "status-pipeline" | "cycle-time";
+        type: "active-projects" | "project-list" | "project-metrics" | "po-ticker" | "revenue-dashboard" | "team-schedule" | "alerts-dashboard" | "performance-metrics" | "status-pipeline" | "cycle-time" | "upcoming-projects" | "in-progress" | "monthly-scorecard" | "bottleneck-alert" | "recent-wins";
         enabled: boolean;
         duration: number;
         title?: string | undefined;
@@ -298,6 +337,7 @@ export declare const SignageConfigSchema: z.ZodObject<{
         showWeekends?: boolean | undefined;
         chartType?: string | undefined;
         priorityInsertion?: boolean | undefined;
+        pollingInterval?: number | undefined;
     }[];
     transitions: {
         type: "fade" | "slide" | "none";
@@ -311,9 +351,15 @@ export declare const SignageConfigSchema: z.ZodObject<{
         warningThresholdMs: number;
         indicatorPosition: "top-left" | "top-right" | "bottom-left" | "bottom-right";
     };
+    debug: {
+        enabled: boolean;
+        showSafeArea: boolean;
+        showFrameRate: boolean;
+        showDataTimestamps: boolean;
+    };
 }, {
     slides: {
-        type: "active-projects" | "project-list" | "project-metrics" | "po-ticker" | "revenue-dashboard" | "team-schedule" | "health-dashboard" | "alerts-dashboard" | "performance-metrics" | "velocity-chart" | "status-pipeline" | "cycle-time";
+        type: "active-projects" | "project-list" | "project-metrics" | "po-ticker" | "revenue-dashboard" | "team-schedule" | "alerts-dashboard" | "performance-metrics" | "status-pipeline" | "cycle-time" | "upcoming-projects" | "in-progress" | "monthly-scorecard" | "bottleneck-alert" | "recent-wins";
         enabled?: boolean | undefined;
         duration?: number | undefined;
         title?: string | undefined;
@@ -328,6 +374,7 @@ export declare const SignageConfigSchema: z.ZodObject<{
         showWeekends?: boolean | undefined;
         chartType?: string | undefined;
         priorityInsertion?: boolean | undefined;
+        pollingInterval?: number | undefined;
     }[];
     ndi?: {
         name?: string | undefined;
@@ -358,6 +405,12 @@ export declare const SignageConfigSchema: z.ZodObject<{
     staleData?: {
         warningThresholdMs?: number | undefined;
         indicatorPosition?: "top-left" | "top-right" | "bottom-left" | "bottom-right" | undefined;
+    } | undefined;
+    debug?: {
+        enabled?: boolean | undefined;
+        showSafeArea?: boolean | undefined;
+        showFrameRate?: boolean | undefined;
+        showDataTimestamps?: boolean | undefined;
     } | undefined;
 }>;
 export type SignageConfig = z.infer<typeof SignageConfigSchema>;

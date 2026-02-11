@@ -29,6 +29,11 @@ export const colors = {
   chartQuinary: '#EC4899',     // Pink
   chartSenary: '#06B6D4',      // Cyan
 
+  // Rank/medal colors for leaderboards
+  gold: '#F59F43',             // Gold (amber from brand)
+  silver: '#C0C0C0',           // Silver
+  bronze: '#CD7F32',           // Bronze
+
   // Neutral
   white: '#ffffff',
   black: '#000000',

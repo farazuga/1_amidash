@@ -2,6 +2,17 @@ import { BaseSlide } from './base-slide.js';
 import { drawText } from '../components/text.js';
 import { colors, hexToRgba } from '../components/colors.js';
 import { drawMiniGauge, getGaugeColor } from '../components/gauge.js';
+/**
+ * Performance Metrics Slide
+ *
+ * Displays 4 key performance indicators in a 2x2 grid:
+ * - On-Time Completion % (top-left)
+ * - DTI - Days to Invoice (top-right)
+ * - Sales Health gauge (bottom-left)
+ * - Ops Health gauge (bottom-right)
+ *
+ * Data source: dashboardMetrics.performance and dashboardMetrics.health
+ */
 export class PerformanceMetricsSlide extends BaseSlide {
     render(ctx, data, deltaTime) {
         this.updateAnimationState(deltaTime);
@@ -26,10 +37,13 @@ export class PerformanceMetricsSlide extends BaseSlide {
         this.drawOnTimeCard(ctx, performance.onTimePercent, padding, contentY, cardWidth, cardHeight);
         // Top-right: DTI
         this.drawDTICard(ctx, performance.dti, padding + cardWidth + cardGap, contentY, cardWidth, cardHeight);
-        // Bottom-left: Backlog Depth
-        this.drawBacklogCard(ctx, performance.backlogDepth, padding, contentY + cardHeight + cardGap, cardWidth, cardHeight);
-        // Bottom-right: Customer Concentration
-        this.drawConcentrationCard(ctx, performance.customerConcentration, performance.concentrationRisk, performance.topClients, padding + cardWidth + cardGap, contentY + cardHeight + cardGap, cardWidth, cardHeight);
+        // Bottom-left: Sales Health
+        const { health } = dashboardMetrics;
+        this.drawSalesHealthCard(ctx, health.salesHealth, padding, contentY + cardHeight + cardGap, cardWidth, cardHeight);
+        // Bottom-right: Ops Health
+        this.drawOpsHealthCard(ctx, health.opsHealth, padding + cardWidth + cardGap, contentY + cardHeight + cardGap, cardWidth, cardHeight);
+        // Draw stale data warning if data is old
+        this.drawStaleDataWarning(ctx, data.dashboardMetrics.lastUpdated);
         // Draw connection status indicator if not connected
         this.drawConnectionStatus(ctx, data);
     }
@@ -122,50 +136,24 @@ export class PerformanceMetricsSlide extends BaseSlide {
             align: 'center',
         });
     }
-    drawBacklogCard(ctx, value, x, y, width, height) {
+    drawSalesHealthCard(ctx, value, x, y, width, height) {
         this.drawCardBackground(ctx, x, y, width, height);
         // Title
-        drawText(ctx, 'BACKLOG DEPTH', x + 40, y + 50, {
+        drawText(ctx, 'SALES HEALTH', x + 40, y + 50, {
             font: this.displayConfig.fontFamily,
             size: 40,
             weight: 700,
             color: hexToRgba(colors.white, 0.7),
         });
-        const centerX = x + width / 2;
-        const centerY = y + height / 2 + 10;
-        // Determine status (2-6 months is healthy)
-        let color;
-        let status;
-        if (value < 2) {
-            color = colors.warning;
-            status = 'Low Backlog';
-        }
-        else if (value <= 6) {
-            color = colors.success;
-            status = 'Healthy Range';
-        }
-        else {
-            color = colors.warning;
-            status = 'High Backlog';
-        }
-        // Value (no glow for readability)
-        drawText(ctx, value.toFixed(1), centerX, centerY, {
-            font: this.displayConfig.fontFamily,
-            size: 160,
-            weight: 700,
-            color: color,
-            align: 'center',
-            baseline: 'middle',
-        });
-        // Unit
-        drawText(ctx, 'months of work', centerX, centerY + 80, {
-            font: this.displayConfig.fontFamily,
-            size: 36,
-            color: hexToRgba(colors.white, 0.5),
-            align: 'center',
-        });
-        // Status
-        drawText(ctx, status, centerX, y + height - 50, {
+        // Large gauge (same style as On-Time Completion)
+        const gaugeRadius = Math.min(width, height) * 0.25;
+        const gaugeX = x + width / 2;
+        const gaugeY = y + height / 2 + 30;
+        drawMiniGauge(ctx, value, gaugeX, gaugeY, gaugeRadius, 'POs vs Goal', { low: 60, medium: 80 });
+        // Threshold indicator
+        const color = getGaugeColor(value, { low: 60, medium: 80 });
+        const status = value >= 80 ? 'Healthy' : value >= 60 ? 'Needs Attention' : 'Critical';
+        drawText(ctx, status, gaugeX, y + height - 50, {
             font: this.displayConfig.fontFamily,
             size: this.FONT_SIZE.MINIMUM,
             weight: 600,
@@ -173,113 +161,29 @@ export class PerformanceMetricsSlide extends BaseSlide {
             align: 'center',
         });
     }
-    drawConcentrationCard(ctx, value, risk, topClients, x, y, width, height) {
+    drawOpsHealthCard(ctx, value, x, y, width, height) {
         this.drawCardBackground(ctx, x, y, width, height);
         // Title
-        drawText(ctx, 'CUSTOMER CONCENTRATION', x + 40, y + 50, {
+        drawText(ctx, 'OPS HEALTH', x + 40, y + 50, {
             font: this.displayConfig.fontFamily,
             size: 40,
             weight: 700,
             color: hexToRgba(colors.white, 0.7),
         });
-        // Risk indicator
-        let color;
-        let riskLabel;
-        switch (risk) {
-            case 'low':
-                color = colors.success;
-                riskLabel = 'Low Risk';
-                break;
-            case 'medium':
-                color = colors.warning;
-                riskLabel = 'Medium Risk';
-                break;
-            case 'high':
-                color = colors.error;
-                riskLabel = 'High Risk';
-                break;
-        }
-        // Large percentage - use proportional width to prevent overlap
-        const leftSectionWidth = width * 0.35; // 35% of card width
-        const leftCenterX = x + leftSectionWidth / 2;
-        drawText(ctx, `${Math.round(value)}%`, leftCenterX, y + 150, {
-            font: this.displayConfig.fontFamily,
-            size: 80,
-            weight: 700,
-            color: color,
-            align: 'center',
-        });
-        drawText(ctx, 'from top 3', leftCenterX, y + 200, {
+        // Large gauge (same style as On-Time Completion)
+        const gaugeRadius = Math.min(width, height) * 0.25;
+        const gaugeX = x + width / 2;
+        const gaugeY = y + height / 2 + 30;
+        drawMiniGauge(ctx, value, gaugeX, gaugeY, gaugeRadius, 'Invoiced vs POs', { low: 60, medium: 80 });
+        // Threshold indicator
+        const color = getGaugeColor(value, { low: 60, medium: 80 });
+        const status = value >= 80 ? 'Healthy' : value >= 60 ? 'Needs Attention' : 'Critical';
+        drawText(ctx, status, gaugeX, y + height - 50, {
             font: this.displayConfig.fontFamily,
             size: this.FONT_SIZE.MINIMUM,
-            color: hexToRgba(colors.white, 0.6),
-            align: 'center',
-        });
-        // Risk badge
-        const badgeWidth = 160;
-        const badgeX = leftCenterX - badgeWidth / 2;
-        ctx.beginPath();
-        ctx.roundRect(badgeX, y + 240, badgeWidth, 50, 10);
-        ctx.fillStyle = hexToRgba(color, 0.3);
-        ctx.fill();
-        drawText(ctx, riskLabel, leftCenterX, y + 265, {
-            font: this.displayConfig.fontFamily,
-            size: this.FONT_SIZE.MINIMUM,
-            weight: 700,
+            weight: 600,
             color: color,
             align: 'center',
-            baseline: 'middle',
-        });
-        // Top clients list - right side with clear separation
-        const listX = x + leftSectionWidth + 20;
-        const listY = y + 80;
-        const itemHeight = 90;
-        const availableListWidth = width - leftSectionWidth - 60;
-        topClients.slice(0, 3).forEach((client, index) => {
-            const itemY = listY + index * itemHeight;
-            // Rank badge - vertically centered in row
-            ctx.beginPath();
-            ctx.arc(listX + 24, itemY + 35, 26, 0, Math.PI * 2);
-            ctx.fillStyle = hexToRgba(colors.white, 0.15);
-            ctx.fill();
-            drawText(ctx, (index + 1).toString(), listX + 24, itemY + 35, {
-                font: this.displayConfig.fontFamily,
-                size: 28,
-                weight: 700,
-                color: colors.white,
-                align: 'center',
-                baseline: 'middle',
-            });
-            // Client name - clearly above the progress bar
-            const truncatedName = client.name.length > 15 ? client.name.substring(0, 12) + '...' : client.name;
-            const textStartX = listX + 65;
-            drawText(ctx, truncatedName, textStartX, itemY + 25, {
-                font: this.displayConfig.fontFamily,
-                size: 36,
-                weight: 600,
-                color: colors.white,
-            });
-            // Percentage - right aligned on same line as name
-            drawText(ctx, `${Math.round(client.percent)}%`, listX + availableListWidth - 20, itemY + 25, {
-                font: this.displayConfig.fontFamily,
-                size: 36,
-                weight: 700,
-                color: hexToRgba(colors.white, 0.8),
-                align: 'right',
-            });
-            // Progress bar - well below text with clear separation
-            const barWidth = availableListWidth - 75;
-            const barHeight = 18;
-            const barX = textStartX;
-            const barY = itemY + 58;
-            ctx.beginPath();
-            ctx.roundRect(barX, barY, barWidth, barHeight, 6);
-            ctx.fillStyle = hexToRgba(colors.white, 0.1);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.roundRect(barX, barY, (client.percent / 100) * barWidth, barHeight, 6);
-            ctx.fillStyle = index === 0 ? color : hexToRgba(color, 0.6);
-            ctx.fill();
         });
     }
     drawCardBackground(ctx, x, y, width, height) {

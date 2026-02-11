@@ -158,7 +158,7 @@ export async function fetchDashboardMetrics(): Promise<DashboardMetrics> {
         .order('changed_at', { ascending: false }),
       supabase
         .from('revenue_goals')
-        .select('*')
+        .select('month, revenue_goal')
         .eq('year', currentYear),
     ]);
 
@@ -216,7 +216,7 @@ export async function fetchDashboardMetrics(): Promise<DashboardMetrics> {
       pipeline,
     };
   } catch (error) {
-    logger.error({ error }, 'Failed to fetch dashboard metrics');
+    logger.error({ error }, 'Failed to fetch dashboard metrics, returning mock data');
     return getMockDashboardMetrics();
   }
 }
