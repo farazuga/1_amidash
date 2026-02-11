@@ -525,6 +525,7 @@ export interface InlineEditData {
   projectId: string;
   field: string;
   value: string | null;
+  note?: string;
 }
 
 export interface InlineEditResult {
@@ -571,18 +572,14 @@ export async function inlineEditProjectField(data: InlineEditData): Promise<Inli
 
     const { data: newStatus } = await supabase
       .from('statuses')
-      .select('name, require_note')
+      .select('name')
       .eq('id', data.value)
       .single();
-
-    // Block inline status change if a note is required — user must use the Change Status dialog
-    if (newStatus?.require_note) {
-      return { success: false, error: `"${newStatus.name}" requires a note. Please use the Change Status button instead.` };
-    }
 
     const result = await updateProjectStatus({
       projectId: data.projectId,
       newStatusId: data.value,
+      note: data.note,
       currentStatusName: (currentProject?.current_status as { name: string } | null)?.name,
       newStatusName: newStatus?.name,
     });

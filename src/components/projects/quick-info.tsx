@@ -1,9 +1,20 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, ExternalLink, Eye, FolderOpen, FileText } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Calendar, ExternalLink, Eye, FolderOpen, FileText, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { InlineEditField } from './inline-edit-field';
@@ -53,6 +64,7 @@ interface QuickInfoProps {
   statuses?: Array<{
     id: string;
     name: string;
+    require_note?: boolean | null;
   }>;
   projectTypeStatuses?: Array<{
     project_type_id: string;
@@ -84,6 +96,12 @@ export function QuickInfo({
   const hasProjectDates = Boolean(project.start_date && project.end_date);
   const isSingleDayProject = hasProjectDates && project.start_date === project.end_date;
 
+  // Note dialog state for require_note statuses
+  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const [statusNote, setStatusNote] = useState('');
+  const [isSavingStatus, setIsSavingStatus] = useState(false);
+
   // Filter statuses based on project type
   const availableStatuses = project.project_type_id
     ? statuses.filter(s =>
@@ -92,6 +110,54 @@ export function QuickInfo({
         )
       )
     : statuses;
+
+  const handleStatusSave = async (statusId: string, note?: string) => {
+    const result = await inlineEditProjectField({
+      projectId: project.id,
+      field: 'status_id',
+      value: statusId,
+      note: note || undefined,
+    });
+
+    if (!result.success) {
+      toast.error(result.error || 'Failed to update');
+      throw new Error(result.error);
+    }
+    toast.success('Updated successfully');
+    if (onStatusChange) {
+      onStatusChange(statusId);
+    }
+  };
+
+  const handleStatusSelect = async (statusId: string) => {
+    const selectedStatus = availableStatuses.find(s => s.id === statusId);
+    if (selectedStatus?.require_note) {
+      setPendingStatusId(statusId);
+      setStatusNote('');
+      setNoteDialogOpen(true);
+      // Don't save yet — wait for note dialog
+      throw new Error('__require_note__');
+    }
+    await handleStatusSave(statusId);
+  };
+
+  const handleNoteDialogSubmit = async () => {
+    if (!pendingStatusId || !statusNote.trim()) {
+      toast.error('A note is required for this status');
+      return;
+    }
+    setIsSavingStatus(true);
+    try {
+      await handleStatusSave(pendingStatusId, statusNote.trim());
+      setNoteDialogOpen(false);
+      setPendingStatusId(null);
+      setStatusNote('');
+    } catch {
+      // Error already shown via toast
+    } finally {
+      setIsSavingStatus(false);
+    }
+  };
 
   const handleFieldSave = async (field: string, value: string) => {
     const result = await inlineEditProjectField({
@@ -227,14 +293,9 @@ export function QuickInfo({
                 type="select"
                 options={availableStatuses.map(s => ({
                   value: s.id,
-                  label: s.name,
+                  label: s.name + (s.require_note ? ' *' : ''),
                 }))}
-                onSave={async (v) => {
-                  await handleFieldSave('status_id', v);
-                  if (onStatusChange) {
-                    onStatusChange(v);
-                  }
-                }}
+                onSave={handleStatusSelect}
               />
             ) : project.current_status ? (
               <StatusBadge status={project.current_status} />
@@ -544,6 +605,48 @@ export function QuickInfo({
           </div>
         </div>
       </CardContent>
+
+      {/* Note Dialog for require_note statuses */}
+      <Dialog open={noteDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          setNoteDialogOpen(false);
+          setPendingStatusId(null);
+          setStatusNote('');
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Note Required</DialogTitle>
+            <DialogDescription>
+              A note is required when changing to &quot;{availableStatuses.find(s => s.id === pendingStatusId)?.name}&quot; status.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="status-note">Note</Label>
+            <Textarea
+              id="status-note"
+              value={statusNote}
+              onChange={(e) => setStatusNote(e.target.value)}
+              placeholder="Enter a note for this status change..."
+              rows={3}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setNoteDialogOpen(false);
+              setPendingStatusId(null);
+              setStatusNote('');
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleNoteDialogSubmit} disabled={isSavingStatus || !statusNote.trim()}>
+              {isSavingStatus && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Update Status
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
