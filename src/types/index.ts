@@ -78,6 +78,7 @@ export interface Project {
   sales_order_url: string | null;
   po_number: string | null;
   sales_amount: number | null;
+  number_of_vidpods: number | null;
   contract_type: string | null;
   goal_completion_date: string | null;
   // Calendar scheduling fields

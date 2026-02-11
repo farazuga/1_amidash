@@ -196,6 +196,7 @@ export type Database = {
           poc_name: string | null
           poc_phone: string | null
           project_type_id: string | null
+          number_of_vidpods: number | null
           sales_amount: number | null
           sales_order_number: string | null
           sales_order_url: string | null
@@ -224,6 +225,7 @@ export type Database = {
           poc_name?: string | null
           poc_phone?: string | null
           project_type_id?: string | null
+          number_of_vidpods?: number | null
           sales_amount?: number | null
           sales_order_number?: string | null
           sales_order_url?: string | null
@@ -247,6 +249,7 @@ export type Database = {
           goal_completion_date?: string | null
           id?: string
           invoiced_date?: string | null
+          number_of_vidpods?: number | null
           po_number?: string | null
           poc_email?: string | null
           poc_name?: string | null

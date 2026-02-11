@@ -63,6 +63,7 @@ export function createProject(overrides: Partial<Project> = {}): Project {
     sales_order_url: 'https://example.com/so/001',
     po_number: 'PO-001',
     sales_amount: 10000,
+    number_of_vidpods: null,
     contract_type: 'None',
     goal_completion_date: '2024-06-01',
     current_status_id: 'status-1',
