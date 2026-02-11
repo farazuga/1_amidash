@@ -95,9 +95,6 @@ export function ProjectForm({
   const [numberOfVidpods, setNumberOfVidpods] = useState<string>(
     project?.number_of_vidpods?.toString() || ''
   );
-  const [vidpodOnly, setVidpodOnly] = useState<boolean>(
-    project?.vidpod_only ?? false
-  );
   const [createdDate, setCreatedDate] = useState<string>(
     formatDateForInput(project?.created_date) || new Date().toISOString().split('T')[0]
   );
@@ -243,7 +240,6 @@ export function ProjectForm({
       secondary_poc_email: secondaryPocEmail?.trim() || null,
       scope_link: formData.get('scope_link') as string || null,
       number_of_vidpods: numberOfVidpods ? parseInt(numberOfVidpods, 10) : null,
-      vidpod_only: vidpodOnly,
       email_notifications_enabled: emailNotificationsEnabled,
       activecampaign_account_id: selectedAccount?.id || null,
       activecampaign_contact_id: selectedPrimaryContact?.id || null,
@@ -361,7 +357,6 @@ export function ProjectForm({
           secondary_poc_email: data.secondary_poc_email,
           scope_link: data.scope_link,
           number_of_vidpods: data.number_of_vidpods,
-          vidpod_only: data.vidpod_only,
           project_type_id: selectedProjectType,
           tags: selectedTags,
           email_notifications_enabled: emailNotificationsEnabled,
@@ -556,16 +551,6 @@ export function ProjectForm({
             value={numberOfVidpods}
             onChange={(e) => setNumberOfVidpods(e.target.value)}
           />
-        </div>
-
-        {/* VidPOD Only */}
-        <div className="flex items-center space-x-2 self-end pb-2">
-          <Switch
-            id="vidpod_only"
-            checked={vidpodOnly}
-            onCheckedChange={setVidpodOnly}
-          />
-          <Label htmlFor="vidpod_only">VidPOD Only</Label>
         </div>
 
         {/* Sales Amount - hidden when editing (editable in Quick Info) */}

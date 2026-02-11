@@ -64,7 +64,6 @@ export function createProject(overrides: Partial<Project> = {}): Project {
     po_number: 'PO-001',
     sales_amount: 10000,
     number_of_vidpods: null,
-    vidpod_only: false,
     contract_type: 'None',
     goal_completion_date: '2024-06-01',
     current_status_id: 'status-1',
