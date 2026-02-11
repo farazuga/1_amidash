@@ -62,12 +62,14 @@ function SortableStatusRow({
   onToggleActive,
   onToggleRequireNote,
   onToggleException,
+  onToggleInternalOnly,
 }: {
   status: Status;
   onEdit: () => void;
   onToggleActive: () => void;
   onToggleRequireNote: () => void;
   onToggleException: () => void;
+  onToggleInternalOnly: () => void;
 }) {
   const {
     attributes,
@@ -111,6 +113,11 @@ function SortableStatusRow({
               Exception
             </Badge>
           )}
+          {status.is_internal_only && (
+            <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+              Internal Only
+            </Badge>
+          )}
         </div>
       </TableCell>
       <TableCell>
@@ -123,6 +130,12 @@ function SortableStatusRow({
         <Switch
           checked={status.is_exception ?? false}
           onCheckedChange={onToggleException}
+        />
+      </TableCell>
+      <TableCell>
+        <Switch
+          checked={status.is_internal_only ?? false}
+          onCheckedChange={onToggleInternalOnly}
         />
       </TableCell>
       <TableCell>
@@ -422,6 +435,21 @@ export default function StatusesAdminPage() {
     toast.success('Updated exception setting');
   };
 
+  const toggleInternalOnly = async (status: Status) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.from('statuses') as any)
+      .update({ is_internal_only: !status.is_internal_only })
+      .eq('id', status.id);
+
+    if (error) {
+      toast.error('Failed to update status');
+      return;
+    }
+
+    loadData();
+    toast.success('Updated internal only setting');
+  };
+
   // Project Type CRUD
   const handleSaveType = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -699,6 +727,7 @@ export default function StatusesAdminPage() {
                       <TableHead>Status Name</TableHead>
                       <TableHead>Require Note</TableHead>
                       <TableHead>Exception</TableHead>
+                      <TableHead>Internal Only</TableHead>
                       <TableHead>Active</TableHead>
                       <TableHead className="w-[100px]"></TableHead>
                     </TableRow>
@@ -719,6 +748,7 @@ export default function StatusesAdminPage() {
                           onToggleActive={() => toggleStatusActive(status)}
                           onToggleRequireNote={() => toggleRequireNote(status)}
                           onToggleException={() => toggleException(status)}
+                          onToggleInternalOnly={() => toggleInternalOnly(status)}
                         />
                       ))}
                     </SortableContext>

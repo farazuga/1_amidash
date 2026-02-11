@@ -33,6 +33,8 @@ export interface CreateProjectData {
   poc_phone: string | null;
   secondary_poc_email: string | null;
   scope_link: string | null;
+  number_of_vidpods?: number | null;
+  vidpod_only?: boolean;
   project_type_id: string;
   tags: string[];
   email_notifications_enabled?: boolean;
@@ -118,6 +120,8 @@ export async function createProject(data: CreateProjectData): Promise<CreateProj
       poc_phone: data.poc_phone,
       secondary_poc_email: data.secondary_poc_email,
       scope_link: data.scope_link,
+      number_of_vidpods: data.number_of_vidpods ?? null,
+      vidpod_only: data.vidpod_only ?? false,
       project_type_id: data.project_type_id,
       current_status_id: firstStatus.id,
       created_by: user.id,
@@ -521,6 +525,7 @@ export interface InlineEditData {
   projectId: string;
   field: string;
   value: string | null;
+  note?: string;
 }
 
 export interface InlineEditResult {
@@ -574,6 +579,7 @@ export async function inlineEditProjectField(data: InlineEditData): Promise<Inli
     const result = await updateProjectStatus({
       projectId: data.projectId,
       newStatusId: data.value,
+      note: data.note,
       currentStatusName: (currentProject?.current_status as { name: string } | null)?.name,
       newStatusName: newStatus?.name,
     });
