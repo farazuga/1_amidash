@@ -42,6 +42,7 @@ export interface Profile {
 export interface Status {
   id: string;
   name: string;
+  color: string | null;
   display_order: number;
   require_note: boolean | null;
   is_exception: boolean | null;

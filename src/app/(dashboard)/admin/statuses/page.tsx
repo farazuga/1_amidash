@@ -32,6 +32,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Plus, Pencil, Loader2, GripVertical, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Status, ProjectType } from '@/types';
+import { StatusBadge } from '@/components/projects/status-badge';
 import {
   DndContext,
   closestCenter,
@@ -60,14 +61,12 @@ function SortableStatusRow({
   status,
   onEdit,
   onToggleActive,
-  onToggleRequireNote,
   onToggleException,
   onToggleInternalOnly,
 }: {
   status: Status;
   onEdit: () => void;
   onToggleActive: () => void;
-  onToggleRequireNote: () => void;
   onToggleException: () => void;
   onToggleInternalOnly: () => void;
 }) {
@@ -102,7 +101,7 @@ function SortableStatusRow({
       </TableCell>
       <TableCell>
         <div className="flex items-center gap-2">
-          <span className="font-medium">{status.name}</span>
+          <StatusBadge status={status} size="sm" />
           {status.require_note && (
             <Badge variant="outline" className="text-xs">
               Note Required
@@ -119,12 +118,6 @@ function SortableStatusRow({
             </Badge>
           )}
         </div>
-      </TableCell>
-      <TableCell>
-        <Switch
-          checked={status.require_note ?? false}
-          onCheckedChange={onToggleRequireNote}
-        />
       </TableCell>
       <TableCell>
         <Switch
@@ -356,6 +349,7 @@ export default function StatusesAdminPage() {
 
     const data = {
       name: formData.get('name') as string,
+      color: formData.get('color') as string,
       require_note: formData.get('require_note') === 'on',
       is_active: true,
     };
@@ -403,21 +397,6 @@ export default function StatusesAdminPage() {
     }
 
     loadData();
-  };
-
-  const toggleRequireNote = async (status: Status) => {
-    const { error } = await supabase
-      .from('statuses')
-      .update({ require_note: !status.require_note })
-      .eq('id', status.id);
-
-    if (error) {
-      toast.error('Failed to update status');
-      return;
-    }
-
-    loadData();
-    toast.success('Updated require note setting');
   };
 
   const toggleException = async (status: Status) => {
@@ -690,6 +669,18 @@ export default function StatusesAdminPage() {
                           required
                         />
                       </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="color">Color</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id="color"
+                            name="color"
+                            type="color"
+                            defaultValue={editingStatus?.color || '#6b7280'}
+                            className="w-20 h-10 p-1"
+                          />
+                        </div>
+                      </div>
                       <div className="flex items-center gap-2">
                         <Switch
                           id="require_note"
@@ -725,7 +716,6 @@ export default function StatusesAdminPage() {
                     <TableRow>
                       <TableHead className="w-[50px]"></TableHead>
                       <TableHead>Status Name</TableHead>
-                      <TableHead>Require Note</TableHead>
                       <TableHead>Exception</TableHead>
                       <TableHead>Internal Only</TableHead>
                       <TableHead>Active</TableHead>
@@ -746,7 +736,6 @@ export default function StatusesAdminPage() {
                             setIsStatusDialogOpen(true);
                           }}
                           onToggleActive={() => toggleStatusActive(status)}
-                          onToggleRequireNote={() => toggleRequireNote(status)}
                           onToggleException={() => toggleException(status)}
                           onToggleInternalOnly={() => toggleInternalOnly(status)}
                         />
