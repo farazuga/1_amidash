@@ -10,3 +10,4 @@ export * from './in-progress.js';
 export * from './monthly-scorecard.js';
 export * from './bottleneck-alert.js';
 export * from './recent-wins.js';
+export * from './vidpod-sales.js';
