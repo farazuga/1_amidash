@@ -20,6 +20,7 @@ export function createStatus(overrides: Partial<Status> = {}): Status {
   return {
     id: 'status-1',
     name: 'PO Received',
+    color: '#3b82f6',
     display_order: 1,
     require_note: false,
     is_exception: false,
