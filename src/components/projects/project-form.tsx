@@ -92,6 +92,9 @@ export function ProjectForm({
   const [salesAmount, setSalesAmount] = useState<string>(
     project?.sales_amount?.toString() || ''
   );
+  const [numberOfVidpods, setNumberOfVidpods] = useState<string>(
+    project?.number_of_vidpods?.toString() || ''
+  );
   const [createdDate, setCreatedDate] = useState<string>(
     formatDateForInput(project?.created_date) || new Date().toISOString().split('T')[0]
   );
@@ -236,6 +239,7 @@ export function ProjectForm({
       poc_phone: formattedPhone || null,
       secondary_poc_email: secondaryPocEmail?.trim() || null,
       scope_link: formData.get('scope_link') as string || null,
+      number_of_vidpods: numberOfVidpods ? parseInt(numberOfVidpods, 10) : null,
       email_notifications_enabled: emailNotificationsEnabled,
       activecampaign_account_id: selectedAccount?.id || null,
       activecampaign_contact_id: selectedPrimaryContact?.id || null,
@@ -352,6 +356,7 @@ export function ProjectForm({
           poc_phone: data.poc_phone,
           secondary_poc_email: data.secondary_poc_email,
           scope_link: data.scope_link,
+          number_of_vidpods: data.number_of_vidpods,
           project_type_id: selectedProjectType,
           tags: selectedTags,
           email_notifications_enabled: emailNotificationsEnabled,
@@ -530,6 +535,21 @@ export function ProjectForm({
             id="po_number"
             name="po_number"
             defaultValue={project?.po_number || ''}
+          />
+        </div>
+
+        {/* Number of VidPODs */}
+        <div className="space-y-2">
+          <Label htmlFor="number_of_vidpods">Number of VidPODs</Label>
+          <Input
+            id="number_of_vidpods"
+            name="number_of_vidpods"
+            type="number"
+            min="0"
+            step="1"
+            placeholder="0"
+            value={numberOfVidpods}
+            onChange={(e) => setNumberOfVidpods(e.target.value)}
           />
         </div>
 

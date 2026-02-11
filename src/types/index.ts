@@ -45,6 +45,7 @@ export interface Status {
   display_order: number;
   require_note: boolean | null;
   is_exception: boolean | null;
+  is_internal_only: boolean | null;
   is_active: boolean | null;
   created_at: string | null;
 }
@@ -77,6 +78,7 @@ export interface Project {
   sales_order_url: string | null;
   po_number: string | null;
   sales_amount: number | null;
+  number_of_vidpods: number | null;
   contract_type: string | null;
   goal_completion_date: string | null;
   // Calendar scheduling fields

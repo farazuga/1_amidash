@@ -30,6 +30,7 @@ interface StatusItem {
   id: string;
   name: string;
   require_note?: boolean | null;
+  is_internal_only?: boolean | null;
 }
 
 interface StatusChangeButtonProps {
@@ -100,7 +101,8 @@ export function StatusChangeButton({
       }
 
       // Send email notification if POC has email (fire-and-forget with timeout)
-      if (pocEmail && newStatus) {
+      // Skip email for internal-only statuses - they should not be visible to clients
+      if (pocEmail && newStatus && !newStatus.is_internal_only) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 

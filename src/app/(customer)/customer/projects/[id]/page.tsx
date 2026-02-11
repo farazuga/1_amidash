@@ -97,12 +97,28 @@ export default async function CustomerProjectDetailPage({
         .map((pts: { status_id: string }) => pts.status_id)
     : [];
 
-  const filteredStatuses = (project.project_type_id && allowedStatusIds.length > 0
+  const filteredStatuses = ((project.project_type_id && allowedStatusIds.length > 0
     ? statuses.filter(s => allowedStatusIds.includes(s.id))
-    : statuses) as Status[];
+    : statuses) as Status[]).filter(s => !s.is_internal_only);
 
-  const currentStatus = project.current_status as Status | null;
+  const actualStatus = project.current_status as Status | null;
+
+  // If current status is internal-only, find the last client-visible status from history
+  const clientVisibleStatus: Status | null = actualStatus?.is_internal_only
+    ? (statusHistory.find(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (entry: any) => entry.status && !entry.status.is_internal_only
+      )?.status as Status | undefined) ?? null
+    : actualStatus;
+
+  const currentStatus = clientVisibleStatus;
   const isOnHold = currentStatus?.name === 'Hold';
+
+  // Filter status history to exclude internal-only entries
+  const clientVisibleHistory = statusHistory.filter(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (entry: any) => entry.status && !entry.status.is_internal_only
+  );
 
   return (
     <div className="space-y-4">
@@ -273,7 +289,7 @@ export default async function CustomerProjectDetailPage({
           </h2>
         </CardHeader>
         <CardContent className="pt-0 pb-4">
-          <StatusTimeline history={statusHistory} />
+          <StatusTimeline history={clientVisibleHistory} />
         </CardContent>
       </Card>
     </div>
