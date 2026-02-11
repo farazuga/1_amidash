@@ -92,6 +92,10 @@ export interface StatusPipelineData {
   totalRevenue: number;
 }
 
+export interface VidpodSalesData {
+  totalSold: number;
+}
+
 export interface DashboardMetrics {
   health: HealthMetrics;
   alerts: AlertsData;
@@ -99,6 +103,7 @@ export interface DashboardMetrics {
   velocity: VelocityData;
   cycleTime: CycleTimeData;
   pipeline: StatusPipelineData;
+  vidpodSales: VidpodSalesData;
 }
 
 // ==========================================
@@ -142,6 +147,7 @@ export async function fetchDashboardMetrics(): Promise<DashboardMetrics> {
           created_date,
           goal_completion_date,
           current_status_id,
+          number_of_vidpods,
           statuses:current_status_id(id, name, display_order)
         `),
       supabase.from('statuses').select('id, name, display_order'),
@@ -206,6 +212,7 @@ export async function fetchDashboardMetrics(): Promise<DashboardMetrics> {
       invoicedStatusId
     );
     const pipeline = calculateStatusPipeline(activeProjects, statuses);
+    const vidpodSales = calculateVidpodSales(projects);
 
     return {
       health,
@@ -214,6 +221,7 @@ export async function fetchDashboardMetrics(): Promise<DashboardMetrics> {
       velocity,
       cycleTime,
       pipeline,
+      vidpodSales,
     };
   } catch (error) {
     logger.error({ error }, 'Failed to fetch dashboard metrics, returning mock data');
@@ -720,6 +728,16 @@ function calculateStatusPipeline(
   };
 }
 
+function calculateVidpodSales(
+  projects: Record<string, unknown>[]
+): VidpodSalesData {
+  const totalSold = projects.reduce(
+    (sum, p) => sum + ((p.number_of_vidpods as number) || 0),
+    0
+  );
+  return { totalSold };
+}
+
 // ==========================================
 // MOCK DATA
 // ==========================================
@@ -918,6 +936,9 @@ function getMockDashboardMetrics(): DashboardMetrics {
       ],
       totalProjects: 20,
       totalRevenue: 678000,
+    },
+    vidpodSales: {
+      totalSold: 42,
     },
   };
 }

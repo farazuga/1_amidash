@@ -18,6 +18,7 @@ export const SlideTypeSchema = z.enum([
   'monthly-scorecard',
   'bottleneck-alert',
   'recent-wins',
+  'vidpod-sales',
 ]);
 export type SlideType = z.infer<typeof SlideTypeSchema>;
 

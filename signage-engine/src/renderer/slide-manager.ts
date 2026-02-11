@@ -20,6 +20,7 @@ import { InProgressSlide } from './slides/in-progress.js';
 import { MonthlyScorecardSlide } from './slides/monthly-scorecard.js';
 import { BottleneckAlertSlide } from './slides/bottleneck-alert.js';
 import { RecentWinsSlide } from './slides/recent-wins.js';
+import { VidpodSalesSlide } from './slides/vidpod-sales.js';
 import { logger } from '../utils/logger.js';
 
 export class SlideManager {
@@ -86,6 +87,8 @@ export class SlideManager {
         return new BottleneckAlertSlide(config, this.displayConfig);
       case 'recent-wins':
         return new RecentWinsSlide(config, this.displayConfig);
+      case 'vidpod-sales':
+        return new VidpodSalesSlide(config, this.displayConfig);
       default:
         logger.warn({ type: config.type }, 'Unknown slide type');
         return null;
@@ -145,6 +148,7 @@ export class SlideManager {
       'monthly-scorecard': 'monthly-scorecard',
       'bottleneck-alert': 'bottleneck-alert',
       'recent-wins': 'recent-wins',
+      'vidpod-sales': 'vidpod-sales',
     };
     return typeMap[dbType] || 'active-projects';
   }

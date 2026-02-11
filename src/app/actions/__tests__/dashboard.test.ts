@@ -25,19 +25,27 @@ describe('dashboard.ts - getDashboardData', () => {
       {
         id: 'proj-1',
         client_name: 'Client A',
+        sales_order_number: null,
         sales_amount: 50000,
         goal_completion_date: '2024-12-31',
         current_status_id: 'status-1',
         created_at: '2024-01-01T00:00:00Z',
+        created_date: '2024-01-01',
+        invoiced_date: null,
+        number_of_vidpods: null,
         current_status: { id: 'status-1', name: 'In Progress' },
       },
       {
         id: 'proj-2',
         client_name: 'Client B',
+        sales_order_number: null,
         sales_amount: 75000,
         goal_completion_date: '2024-11-30',
         current_status_id: 'status-2',
         created_at: '2024-02-01T00:00:00Z',
+        created_date: '2024-02-01',
+        invoiced_date: null,
+        number_of_vidpods: null,
         current_status: { id: 'status-2', name: 'Completed' },
       },
     ];
@@ -55,7 +63,7 @@ describe('dashboard.ts - getDashboardData', () => {
         status_id: 'status-1',
         changed_at: '2024-03-15T10:30:00Z',
         status: { name: 'In Progress' },
-        project: { id: 'proj-1', client_name: 'Client A', sales_amount: 50000 },
+        project: { id: 'proj-1', client_name: 'Client A', sales_order_number: null, sales_amount: 50000 },
       },
       {
         id: 'hist-2',
@@ -63,7 +71,7 @@ describe('dashboard.ts - getDashboardData', () => {
         status_id: 'status-2',
         changed_at: '2024-03-14T09:00:00Z',
         status: { name: 'Completed' },
-        project: { id: 'proj-2', client_name: 'Client B', sales_amount: 75000 },
+        project: { id: 'proj-2', client_name: 'Client B', sales_order_number: null, sales_amount: 75000 },
       },
     ];
 
@@ -549,10 +557,14 @@ describe('dashboard.ts - getDashboardData', () => {
       {
         id: 'proj-1',
         client_name: 'Client',
+        sales_order_number: null,
         sales_amount: 100,
         goal_completion_date: '2024-12-31',
         current_status_id: 'status-1',
         created_at: '2024-01-01T00:00:00Z',
+        created_date: '2024-01-01',
+        invoiced_date: null,
+        number_of_vidpods: null,
         current_status: { id: 'status-1', name: 'Active' },
       },
     ];
