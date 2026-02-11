@@ -42,6 +42,49 @@ async function getEmailPreference(userEmail: string) {
   return data?.notifications_enabled ?? true;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function resolveClientVisibleStatuses(projects: any[]) {
+  // Find projects where current status is internal-only
+  const internalProjects = projects.filter(
+    (p) => p.current_status?.is_internal_only
+  );
+
+  if (internalProjects.length === 0) return projects;
+
+  // For each internal-only project, fetch the latest non-internal status from history
+  const supabase = await createClient();
+  const resolved = await Promise.all(
+    internalProjects.map(async (project) => {
+      const { data: history } = await supabase
+        .from('status_history')
+        .select('*, status:statuses(*)')
+        .eq('project_id', project.id)
+        .order('changed_at', { ascending: false });
+
+      const lastVisible = (history || []).find(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (entry: any) => entry.status && !entry.status.is_internal_only
+      );
+
+      return {
+        projectId: project.id,
+        clientVisibleStatus: lastVisible?.status || null,
+      };
+    })
+  );
+
+  const resolvedMap = new Map(
+    resolved.map((r) => [r.projectId, r.clientVisibleStatus])
+  );
+
+  return projects.map((p) => {
+    if (p.current_status?.is_internal_only && resolvedMap.has(p.id)) {
+      return { ...p, current_status: resolvedMap.get(p.id) };
+    }
+    return p;
+  });
+}
+
 export default async function CustomerPortalPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -54,10 +97,13 @@ export default async function CustomerPortalPage() {
     );
   }
 
-  const [projects, emailEnabled] = await Promise.all([
+  const [rawProjects, emailEnabled] = await Promise.all([
     getCustomerProjects(user.email),
     getEmailPreference(user.email),
   ]);
+
+  // For projects whose current status is internal-only, resolve to last client-visible status
+  const projects = await resolveClientVisibleStatuses(rawProjects);
 
   return (
     <div className="space-y-6">

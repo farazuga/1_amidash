@@ -45,6 +45,7 @@ export interface Status {
   display_order: number;
   require_note: boolean | null;
   is_exception: boolean | null;
+  is_internal_only: boolean | null;
   is_active: boolean | null;
   created_at: string | null;
 }

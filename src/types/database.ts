@@ -382,6 +382,7 @@ export type Database = {
           display_order: number
           id: string
           is_active: boolean | null
+          is_internal_only: boolean | null
           name: string
           require_note: boolean | null
         }
@@ -390,6 +391,7 @@ export type Database = {
           display_order: number
           id?: string
           is_active?: boolean | null
+          is_internal_only?: boolean | null
           name: string
           require_note?: boolean | null
         }
@@ -398,6 +400,7 @@ export type Database = {
           display_order?: number
           id?: string
           is_active?: boolean | null
+          is_internal_only?: boolean | null
           name?: string
           require_note?: boolean | null
         }
