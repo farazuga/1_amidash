@@ -31,6 +31,7 @@ import {
   HelpCircle,
   CalendarX,
   Receipt,
+  Tv,
 } from 'lucide-react';
 import { LazyRevenueChart } from '@/components/dashboard/lazy-charts';
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from 'date-fns';
@@ -82,10 +83,10 @@ const METRIC_TOOLTIPS = {
     description: 'Average number of days from PO receipt to project invoicing across all completed projects.',
     why: 'Key efficiency metric. Lower DTI = faster cash conversion cycle. Industry avg: 30-60 days.',
   },
-  backlog: {
-    title: 'Backlog Depth',
-    description: 'Months of work in queue, calculated as: Pipeline Value ÷ Average Monthly Invoiced Revenue (6mo).',
-    why: 'Capacity planning metric. >6 months may indicate need for more resources; <2 months may signal sales issue.',
+  vidpodSales: {
+    title: 'VidPOD Sales',
+    description: 'Total number of VidPOD units sold across all projects.',
+    why: 'Tracks VidPOD product adoption and sales volume.',
   },
   onTime: {
     title: 'On-Time Completion %',
@@ -603,31 +604,10 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
     };
   }, [projects, statusHistory, invoicedStatus, thresholds.wipAgingDays]);
 
-  // 2. Backlog Depth - Months of work in queue
-  const backlogDepth = useMemo(() => {
-    // Calculate average monthly invoiced revenue (last 6 months)
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-
-    const invoicedLast6Months = statusHistory.filter(h => {
-      if (h.status?.name !== 'Invoiced') return false;
-      return new Date(h.changed_at) >= sixMonthsAgo;
-    });
-
-    const totalInvoicedRevenue = invoicedLast6Months.reduce(
-      (sum, h) => sum + (h.project?.sales_amount || 0), 0
-    );
-    const avgMonthlyInvoiced = totalInvoicedRevenue / 6;
-
-    // Backlog = pipeline revenue / avg monthly invoiced
-    const monthsOfWork = avgMonthlyInvoiced > 0 ? pipelineRevenue / avgMonthlyInvoiced : 0;
-
-    return {
-      monthsOfWork: Math.round(monthsOfWork * 10) / 10,
-      avgMonthlyInvoiced,
-      pipelineRevenue
-    };
-  }, [statusHistory, pipelineRevenue]);
+  // 2. Total VidPODs Sold
+  const totalVidpodsSold = useMemo(() => {
+    return projects.reduce((sum, p) => sum + (p.number_of_vidpods || 0), 0);
+  }, [projects]);
 
   // 3. On-Time Completion % - Projects invoiced by goal date
   const onTimeCompletion = useMemo(() => {
@@ -1243,13 +1223,13 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
               <p className="text-lg font-bold">{avgDaysToInvoice || '-'}d</p>
             </Card>
           </MetricTooltip>
-          <MetricTooltip metric="backlog">
+          <MetricTooltip metric="vidpodSales">
             <Card className="p-2">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] text-muted-foreground uppercase">Backlog</span>
-                <Layers className="h-3 w-3 text-muted-foreground" />
+                <span className="text-[10px] text-muted-foreground uppercase">VidPOD Sales</span>
+                <Tv className="h-3 w-3 text-muted-foreground" />
               </div>
-              <p className="text-lg font-bold">{backlogDepth.monthsOfWork}mo</p>
+              <p className="text-lg font-bold">{totalVidpodsSold}</p>
             </Card>
           </MetricTooltip>
           <MetricTooltip metric="onTime">

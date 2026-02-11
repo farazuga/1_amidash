@@ -14,6 +14,7 @@ export interface DashboardProject {
   created_at: string | null;
   created_date: string | null; // User-editable PO received date (use this for PO date calculations)
   invoiced_date: string | null;
+  number_of_vidpods: number | null;
   current_status: { id: string; name: string } | null;
 }
 
