@@ -37,6 +37,7 @@ interface QuickInfoProps {
     start_date: string | null;
     end_date: string | null;
     created_at: string | null;
+    created_date: string | null;
     invoiced_date: string | null;
     sales_amount: number | null;
     sales_order_number: string | null;
@@ -385,13 +386,13 @@ export function QuickInfo({
             <span className="text-sm text-muted-foreground">Created</span>
             {canEdit ? (
               <InlineDatePicker
-                value={project.created_at ? project.created_at.split('T')[0] : null}
-                onSave={(date) => handleDateSave('created_at', date)}
+                value={project.created_date ? project.created_date.split('T')[0] : null}
+                onSave={(date) => handleDateSave('created_date', date)}
                 label="Created Date"
               />
-            ) : project.created_at ? (
+            ) : project.created_date ? (
               <span className="font-medium text-sm">
-                {formatDateForDisplay(project.created_at)}
+                {formatDateForDisplay(project.created_date)}
               </span>
             ) : (
               <span className="text-sm text-muted-foreground italic">Not set</span>

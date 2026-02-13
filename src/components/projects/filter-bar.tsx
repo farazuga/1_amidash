@@ -243,7 +243,7 @@ export function FilterBar({ statuses, currentView }: FilterBarProps) {
               className="cursor-pointer hover:bg-muted gap-1"
               onClick={() => handleRemoveFilter('date_type')}
             >
-              {dateType === 'created' ? 'Created' : 'Goal'} Date
+              {dateType === 'created' ? 'Created' : dateType === 'invoiced' ? 'Invoiced' : 'Goal'} Date
               <X className="h-3 w-3" />
             </Badge>
           )}

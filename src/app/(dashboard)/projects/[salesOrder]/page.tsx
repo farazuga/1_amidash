@@ -60,6 +60,7 @@ export default async function ProjectDetailPage({
           project={{
             client_name: project.client_name,
             created_at: project.created_at,
+            created_date: project.created_date ?? null,
             created_by_profile: project.created_by_profile,
             salesperson: project.salesperson,
           }}
@@ -107,6 +108,7 @@ export default async function ProjectDetailPage({
               start_date: project.start_date,
               end_date: project.end_date,
               created_at: project.created_at,
+              created_date: project.created_date ?? null,
               invoiced_date: (project as { invoiced_date?: string | null }).invoiced_date ?? null,
               sales_amount: project.sales_amount,
               sales_order_number: project.sales_order_number,

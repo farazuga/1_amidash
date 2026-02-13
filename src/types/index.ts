@@ -19,7 +19,7 @@ export interface UserPreferences {
     salesperson_id?: string;
     project_type_id?: string;
     tags?: string[];
-    date_type?: 'created' | 'goal';
+    date_type?: 'created' | 'goal' | 'invoiced';
     date_presets?: string[];
     date_years?: string[];
     overdue?: boolean;

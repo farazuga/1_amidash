@@ -498,6 +498,8 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
     }
   };
 
+  const totalAmount = projects.reduce((sum, p) => sum + (p.sales_amount || 0), 0);
+
   if (projects.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12 px-4">
@@ -891,6 +893,16 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
             </TableBody>
           </Table>
         </div>
+      </div>
+
+      {/* Summary Footer */}
+      <div className="flex items-center justify-between rounded-lg border bg-muted/50 px-4 py-2 text-sm">
+        <span className="text-muted-foreground">
+          {projects.length} {projects.length === 1 ? 'project' : 'projects'}
+        </span>
+        <span className="font-medium">
+          Total: ${totalAmount.toLocaleString()}
+        </span>
       </div>
 
       {/* Delete Confirmation Dialog */}

@@ -864,15 +864,15 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
         if (p.current_status_id === invoicedStatus?.id) return false;
 
         // Check how long since creation
-        const createdAt = p.created_at ? new Date(p.created_at) : null;
-        if (!createdAt) return false;
+        const createdDate = p.created_date ? new Date(p.created_date + 'T00:00:00') : null;
+        if (!createdDate) return false;
 
-        const daysSinceCreation = Math.floor((today.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
+        const daysSinceCreation = Math.floor((today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
         return daysSinceCreation >= warningDays;
       })
       .map(p => {
-        const createdAt = p.created_at ? new Date(p.created_at) : today;
-        const daysWaiting = Math.floor((today.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
+        const createdDate = p.created_date ? new Date(p.created_date + 'T00:00:00') : today;
+        const daysWaiting = Math.floor((today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
         return {
           ...p,
           daysWaiting,

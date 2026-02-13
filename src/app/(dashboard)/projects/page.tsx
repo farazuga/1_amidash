@@ -14,7 +14,7 @@ interface SearchParams {
   sort_by?: string;
   sort_order?: string;
   view?: 'active' | 'archived' | 'all';
-  date_type?: 'created' | 'goal';
+  date_type?: 'created' | 'goal' | 'invoiced';
   date_presets?: string; // comma-separated presets (this_month, q1, etc.)
   date_years?: string; // comma-separated years (2025, 2026, etc.)
 }
@@ -149,7 +149,9 @@ async function getProjects(searchParams: SearchParams, invoicedStatusId: string 
 
   // Apply date range filter using presets and/or years
   if (searchParams.date_type && (searchParams.date_presets || searchParams.date_years)) {
-    const dateField = searchParams.date_type === 'created' ? 'created_date' : 'goal_completion_date';
+    const dateField = searchParams.date_type === 'created' ? 'created_date'
+      : searchParams.date_type === 'invoiced' ? 'invoiced_date'
+      : 'goal_completion_date';
     const presets = searchParams.date_presets?.split(',').filter(Boolean) || [];
     const years = searchParams.date_years?.split(',').filter(Boolean) || [];
 

@@ -11,6 +11,7 @@ interface ProjectHeaderProps {
   project: {
     client_name: string;
     created_at: string | null;
+    created_date: string | null;
     created_by_profile?: {
       full_name: string | null;
       email: string;
@@ -63,8 +64,8 @@ export function ProjectHeader({
           {/* Meta info */}
           <p className="text-xs sm:text-sm text-muted-foreground">
             Created{' '}
-            {project.created_at
-              ? format(new Date(project.created_at), 'MMM d, yyyy')
+            {project.created_date
+              ? format(new Date(project.created_date + 'T00:00:00'), 'MMM d, yyyy')
               : '-'}
             {project.created_by_profile &&
               ` by ${project.created_by_profile.full_name || project.created_by_profile.email}`}

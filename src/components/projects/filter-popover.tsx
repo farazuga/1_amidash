@@ -148,7 +148,7 @@ export function FilterPopover({ statuses }: FilterPopoverProps) {
           statuses: selectedStatuses,
           contract_type: contractType || undefined,
           overdue: overdue || undefined,
-          date_type: dateType as 'created' | 'goal' | undefined,
+          date_type: dateType as 'created' | 'goal' | 'invoiced' | undefined,
           date_presets: selectedDatePresets,
           date_years: selectedYears,
         },
@@ -278,6 +278,7 @@ export function FilterPopover({ statuses }: FilterPopoverProps) {
                 <SelectItem value="none">No filter</SelectItem>
                 <SelectItem value="created">Created Date</SelectItem>
                 <SelectItem value="goal">Goal Date</SelectItem>
+                <SelectItem value="invoiced">Invoiced Date</SelectItem>
               </SelectContent>
             </Select>
 
