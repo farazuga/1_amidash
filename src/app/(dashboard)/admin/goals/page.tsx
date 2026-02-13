@@ -362,8 +362,8 @@ export default function RevenueGoalsPage() {
                         <div className="text-xs font-medium text-muted-foreground mb-1">{q}</div>
                         <div className="space-y-0.5">
                           <div className="flex items-center justify-between text-xs">
-                            <span className="text-muted-foreground">PO Goal</span>
-                            <span className="font-semibold">${total.revenue.toLocaleString()}</span>
+                            <span className="text-muted-foreground">Inv Goal</span>
+                            <span className="font-semibold">${total.invoicedRevenue.toLocaleString()}</span>
                           </div>
                           <div className="flex items-center justify-between text-xs">
                             <span className="text-green-600">Actual</span>
