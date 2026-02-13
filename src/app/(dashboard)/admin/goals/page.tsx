@@ -304,8 +304,9 @@ export default function RevenueGoalsPage() {
           <TabsContent key={year} value={year} className="space-y-4 mt-4">
             {/* Yearly Summary - Compact */}
             <Card className="border-[#023A2D]/20">
-              <CardContent className="py-3">
-                <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
+              <CardContent className="py-3 space-y-2">
+                {/* Yearly KPIs */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                   <div className="p-2 bg-muted/50 rounded-lg">
                     <div className="flex items-center gap-1 text-xs text-muted-foreground mb-0.5">
                       <DollarSign className="h-3 w-3" />
@@ -351,6 +352,9 @@ export default function RevenueGoalsPage() {
                       ${(yearlyTotal.actualInvoiced + yearlyTotal.projected).toLocaleString()}
                     </div>
                   </div>
+                </div>
+                {/* Quarterly breakdown */}
+                <div className="grid grid-cols-4 gap-2">
                   {QUARTERS.map((q, i) => {
                     const total = getQuarterlyTotal(i + 1);
                     return (
