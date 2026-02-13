@@ -359,18 +359,24 @@ export default function RevenueGoalsPage() {
                     const total = getQuarterlyTotal(i + 1);
                     return (
                       <div key={q} className="p-2 bg-muted/30 rounded-lg">
-                        <div className="text-xs text-muted-foreground mb-0.5">{q}</div>
-                        <div className="text-sm font-semibold">
-                          ${total.revenue.toLocaleString()}
-                        </div>
-                        <div className="text-xs text-green-600">
-                          ${total.actualInvoiced.toLocaleString()}
-                        </div>
-                        <div className="text-xs text-blue-600">
-                          ${total.projected.toLocaleString()}
-                        </div>
-                        <div className="text-xs font-semibold">
-                          ${(total.actualInvoiced + total.projected).toLocaleString()}
+                        <div className="text-xs font-medium text-muted-foreground mb-1">{q}</div>
+                        <div className="space-y-0.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground">PO Goal</span>
+                            <span className="font-semibold">${total.revenue.toLocaleString()}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-green-600">Actual</span>
+                            <span className="font-semibold text-green-600">${total.actualInvoiced.toLocaleString()}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-blue-600">Projected</span>
+                            <span className="font-semibold text-blue-600">${total.projected.toLocaleString()}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs pt-0.5 border-t">
+                            <span className="text-muted-foreground">Total</span>
+                            <span className="font-bold">${(total.actualInvoiced + total.projected).toLocaleString()}</span>
+                          </div>
                         </div>
                       </div>
                     );
