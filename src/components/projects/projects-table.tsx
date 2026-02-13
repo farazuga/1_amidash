@@ -80,6 +80,7 @@ const COLUMNS: ColumnConfig[] = [
   { id: 'project_dates', label: 'Project Dates', defaultVisible: false, defaultWidth: 160, minWidth: 120, sortable: true, sortKey: 'start_date' },
   { id: 'amount', label: 'Amount', defaultVisible: true, defaultWidth: 100, minWidth: 80, sortable: true, sortKey: 'sales_amount' },
   { id: 'goal_date', label: 'Goal Date', defaultVisible: true, defaultWidth: 120, minWidth: 100, sortable: true, sortKey: 'goal_completion_date' },
+  { id: 'invoiced_date', label: 'Invoiced Date', defaultVisible: false, defaultWidth: 120, minWidth: 100, sortable: true, sortKey: 'invoiced_date' },
   { id: 'sales_order', label: 'Sales Order', defaultVisible: true, defaultWidth: 120, minWidth: 80, sortable: true, sortKey: 'sales_order_number' },
   { id: 'poc', label: 'POC', defaultVisible: true, defaultWidth: 150, minWidth: 100, sortable: false },
   { id: 'client_portal', label: '', defaultVisible: true, defaultWidth: 50, minWidth: 50, sortable: false },
@@ -146,6 +147,7 @@ interface ProjectWithTags {
   start_date?: string | null;
   end_date?: string | null;
   schedule_status?: string | null;
+  invoiced_date?: string | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   current_status?: any;
   tags?: { tag: { id: string; name: string; color: string | null } }[];
@@ -220,6 +222,16 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
       toast.error('Failed to save default view');
     }
   };
+
+  // Save project nav list to sessionStorage for prev/next navigation on detail page
+  useEffect(() => {
+    try {
+      const navList = projects.map(p => p.sales_order_number || p.id);
+      sessionStorage.setItem('projects-nav-list', JSON.stringify(navList));
+    } catch {
+      // sessionStorage not available
+    }
+  }, [projects]);
 
   const visibleColumns = COLUMNS.filter(col => preferences.visibility[col.id]);
 
@@ -444,6 +456,11 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
         ) : (
           '-'
         );
+
+      case 'invoiced_date':
+        return project.invoiced_date
+          ? format(new Date(project.invoiced_date), 'MMM d, yyyy')
+          : '-';
 
       case 'sales_order':
         return project.sales_order_url ? (

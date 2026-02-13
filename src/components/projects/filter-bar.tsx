@@ -13,14 +13,47 @@ interface FilterBarProps {
   currentView: 'active' | 'archived' | 'all';
 }
 
+const SESSION_VIEW_KEY = 'projects-last-view';
+
 export function FilterBar({ statuses, currentView }: FilterBarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const hasRestoredSession = useRef(false);
 
   const [search, setSearch] = useState(searchParams.get('search') || '');
+
+  // Restore last session view if user arrives with no query params
+  useEffect(() => {
+    if (hasRestoredSession.current) return;
+    hasRestoredSession.current = true;
+
+    // Only restore if there are zero search params (truly blank navigation)
+    if (searchParams.toString() === '') {
+      try {
+        const saved = sessionStorage.getItem(SESSION_VIEW_KEY);
+        if (saved) {
+          router.replace(`${pathname}?${saved}`);
+        }
+      } catch {
+        // sessionStorage not available
+      }
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Save current search params to sessionStorage whenever they change
+  useEffect(() => {
+    const qs = searchParams.toString();
+    if (qs) {
+      try {
+        sessionStorage.setItem(SESSION_VIEW_KEY, qs);
+      } catch {
+        // sessionStorage not available
+      }
+    }
+  }, [searchParams]);
 
   // Parse selected values from URL for display
   const selectedStatuses = searchParams.get('statuses')?.split(',').filter(Boolean) || [];

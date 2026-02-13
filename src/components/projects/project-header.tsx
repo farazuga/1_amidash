@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { format } from 'date-fns';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useState, useEffect } from 'react';
 
 interface ProjectHeaderProps {
   project: {
@@ -21,13 +22,34 @@ interface ProjectHeaderProps {
       email: string;
     } | null;
   };
+  salesOrder?: string;
   isOverdue?: boolean;
 }
 
 export function ProjectHeader({
   project,
+  salesOrder,
   isOverdue = false,
 }: ProjectHeaderProps) {
+  const [navList, setNavList] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    if (!salesOrder) return;
+    try {
+      const stored = sessionStorage.getItem('projects-nav-list');
+      if (stored) {
+        setNavList(JSON.parse(stored));
+      }
+    } catch {
+      // sessionStorage not available
+    }
+  }, [salesOrder]);
+
+  const currentIndex = navList && salesOrder ? navList.indexOf(salesOrder) : -1;
+  const hasPrev = currentIndex > 0;
+  const hasNext = navList !== null && currentIndex >= 0 && currentIndex < navList.length - 1;
+  const showNav = navList !== null && currentIndex >= 0;
+
   return (
     <div
       className={cn(
@@ -73,6 +95,45 @@ export function ProjectHeader({
               ` • Sales: ${project.salesperson.full_name || project.salesperson.email}`}
           </p>
         </div>
+
+        {/* Prev/Next Navigation */}
+        {showNav && (
+          <div className="flex items-center gap-1 shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              disabled={!hasPrev}
+              asChild={hasPrev}
+            >
+              {hasPrev ? (
+                <Link href={`/projects/${navList![currentIndex - 1]}`}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Link>
+              ) : (
+                <span><ChevronLeft className="h-4 w-4" /></span>
+              )}
+            </Button>
+            <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
+              {currentIndex + 1} of {navList!.length}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              disabled={!hasNext}
+              asChild={hasNext}
+            >
+              {hasNext ? (
+                <Link href={`/projects/${navList![currentIndex + 1]}`}>
+                  <ChevronRight className="h-4 w-4" />
+                </Link>
+              ) : (
+                <span><ChevronRight className="h-4 w-4" /></span>
+              )}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

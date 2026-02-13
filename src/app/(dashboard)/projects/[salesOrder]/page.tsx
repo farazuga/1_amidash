@@ -64,6 +64,7 @@ export default async function ProjectDetailPage({
             created_by_profile: project.created_by_profile,
             salesperson: project.salesperson,
           }}
+          salesOrder={salesOrder}
           isOverdue={!!isOverdue}
         />
 
