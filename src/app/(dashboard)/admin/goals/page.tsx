@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, DollarSign, Target, Save, Copy, Receipt, TrendingUp } from 'lucide-react';
+import { Loader2, DollarSign, Target, Save, Copy, Receipt, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import type { RevenueGoal } from '@/types';
 
@@ -41,6 +41,7 @@ export default function RevenueGoalsPage() {
   const [projectedRevenue, setProjectedRevenue] = useState<ProjectedRevenueData>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
+  const [showAllMonths, setShowAllMonths] = useState(false);
   const supabase = createClient();
 
   // Generate available years (current year - 1 to current year + 2)
@@ -84,56 +85,27 @@ export default function RevenueGoalsPage() {
   };
 
   const loadInvoicedRevenue = async () => {
-    // Get the "Invoiced" status ID
-    const { data: statusData } = await supabase
-      .from('statuses')
-      .select('id')
-      .eq('name', 'Invoiced')
-      .single();
-
-    if (!statusData) return;
-
-    const invoicedStatusId = statusData.id;
-
-    // Get all status history entries where status was changed to "Invoiced" in the selected year
+    // Get all projects with an invoiced_date in the selected year
     const startDate = `${selectedYear}-01-01`;
     const endDate = `${selectedYear}-12-31`;
 
-    const { data: historyData } = await supabase
-      .from('status_history')
-      .select(`
-        project_id,
-        changed_at,
-        projects!inner(sales_amount)
-      `)
-      .eq('status_id', invoicedStatusId)
-      .gte('changed_at', startDate)
-      .lte('changed_at', endDate);
+    const { data: projectsData } = await supabase
+      .from('projects')
+      .select('id, sales_amount, invoiced_date')
+      .not('invoiced_date', 'is', null)
+      .gte('invoiced_date', startDate)
+      .lte('invoiced_date', endDate);
 
-    // Group by month and calculate total revenue
+    // Group by month of invoiced_date and sum sales_amount
     const monthlyRevenue: InvoicedRevenueData = {};
 
-    if (historyData) {
-      // Track which projects we've already counted per month to avoid duplicates
-      const countedProjects: { [key: string]: Set<string> } = {};
-
-      for (const entry of historyData) {
-        if (!entry.changed_at || !entry.project_id) continue;
-        const date = new Date(entry.changed_at);
+    if (projectsData) {
+      for (const project of projectsData) {
+        if (!project.invoiced_date) continue;
+        const date = new Date(project.invoiced_date + 'T00:00:00');
         const month = date.getMonth() + 1;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const salesAmount = (entry.projects as any)?.sales_amount || 0;
-        const projectId = entry.project_id;
-
-        if (!countedProjects[month]) {
-          countedProjects[month] = new Set();
-        }
-
-        // Only count each project once per month (first time it was marked as invoiced)
-        if (!countedProjects[month].has(projectId)) {
-          countedProjects[month].add(projectId);
-          monthlyRevenue[month] = (monthlyRevenue[month] || 0) + salesAmount;
-        }
+        const salesAmount = project.sales_amount || 0;
+        monthlyRevenue[month] = (monthlyRevenue[month] || 0) + salesAmount;
       }
     }
 
@@ -141,15 +113,28 @@ export default function RevenueGoalsPage() {
   };
 
   const loadProjectedRevenue = async () => {
-    // Get all projects with goal_completion_date in the selected year
+    // Get the "Invoiced" status ID to exclude archived projects
+    const { data: statusData } = await supabase
+      .from('statuses')
+      .select('id')
+      .eq('name', 'Invoiced')
+      .single();
+
+    // Get only active projects (not invoiced) with goal_completion_date in the selected year
     const startDate = `${selectedYear}-01-01`;
     const endDate = `${selectedYear}-12-31`;
 
-    const { data: projectsData } = await supabase
+    let query = supabase
       .from('projects')
       .select('id, sales_amount, goal_completion_date')
       .gte('goal_completion_date', startDate)
       .lte('goal_completion_date', endDate);
+
+    if (statusData) {
+      query = query.neq('current_status_id', statusData.id);
+    }
+
+    const { data: projectsData } = await query;
 
     // Group by month and calculate total projected revenue
     const monthlyProjected: ProjectedRevenueData = {};
@@ -157,7 +142,7 @@ export default function RevenueGoalsPage() {
     if (projectsData) {
       for (const project of projectsData) {
         if (!project.goal_completion_date) continue;
-        const date = new Date(project.goal_completion_date);
+        const date = new Date(project.goal_completion_date + 'T00:00:00');
         const month = date.getMonth() + 1;
         const salesAmount = project.sales_amount || 0;
         monthlyProjected[month] = (monthlyProjected[month] || 0) + salesAmount;
@@ -324,7 +309,7 @@ export default function RevenueGoalsPage() {
                   <div className="p-2 bg-muted/50 rounded-lg">
                     <div className="flex items-center gap-1 text-xs text-muted-foreground mb-0.5">
                       <DollarSign className="h-3 w-3" />
-                      Revenue Goal
+                      PO Received Goal
                     </div>
                     <div className="text-lg font-bold text-[#023A2D]">
                       ${yearlyTotal.revenue.toLocaleString()}
@@ -351,10 +336,19 @@ export default function RevenueGoalsPage() {
                   <div className="p-2 bg-blue-50 rounded-lg border border-blue-200">
                     <div className="flex items-center gap-1 text-xs text-blue-600 mb-0.5">
                       <TrendingUp className="h-3 w-3" />
-                      Projected
+                      Projected (active)
                     </div>
                     <div className="text-lg font-bold text-blue-700">
                       ${yearlyTotal.projected.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="p-2 bg-muted/50 rounded-lg border">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground mb-0.5">
+                      <TrendingUp className="h-3 w-3" />
+                      Total Projected
+                    </div>
+                    <div className="text-lg font-bold">
+                      ${(yearlyTotal.actualInvoiced + yearlyTotal.projected).toLocaleString()}
                     </div>
                   </div>
                   {QUARTERS.map((q, i) => {
@@ -371,6 +365,9 @@ export default function RevenueGoalsPage() {
                         <div className="text-xs text-blue-600">
                           ${total.projected.toLocaleString()}
                         </div>
+                        <div className="text-xs font-semibold">
+                          ${(total.actualInvoiced + total.projected).toLocaleString()}
+                        </div>
                       </div>
                     );
                   })}
@@ -379,10 +376,21 @@ export default function RevenueGoalsPage() {
             </Card>
 
             {/* Monthly Goals Grid - Compact */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
-              {MONTHS.map((monthName, index) => {
+            {(() => {
+              const isCurrentYear = parseInt(year) === currentYear;
+              const currentMonth = new Date().getMonth() + 1; // 1-indexed
+              // Focus months: current month + next 2 (for current year), or first 3 (for other years)
+              const focusStart = isCurrentYear ? currentMonth : 1;
+              const focusIndices = [focusStart, focusStart + 1, focusStart + 2]
+                .filter(m => m >= 1 && m <= 12)
+                .map(m => m - 1); // convert to 0-indexed
+              const otherIndices = Array.from({ length: 12 }, (_, i) => i)
+                .filter(i => !focusIndices.includes(i));
+
+              const renderMonthCard = (index: number) => {
+                const monthName = MONTHS[index];
                 const month = index + 1;
-                const isCurrentMonth = parseInt(year) === currentYear && month === new Date().getMonth() + 1;
+                const isCurrentMonth = isCurrentYear && month === currentMonth;
                 const actualInvoicedForMonth = invoicedRevenue[month] || 0;
                 const projectedForMonth = projectedRevenue[month] || 0;
 
@@ -404,7 +412,7 @@ export default function RevenueGoalsPage() {
                     <CardContent className="space-y-2 px-3 pb-3">
                       <div className="space-y-1">
                         <Label htmlFor={`revenue-${month}`} className="text-xs">
-                          Revenue Goal
+                          PO Received Goal
                         </Label>
                         <Input
                           id={`revenue-${month}`}
@@ -419,7 +427,7 @@ export default function RevenueGoalsPage() {
                       </div>
                       <div className="space-y-1">
                         <Label htmlFor={`invoiced-${month}`} className="text-xs">
-                          Invoiced Revenue Goal
+                          Invoiced Goal
                         </Label>
                         <Input
                           id={`invoiced-${month}`}
@@ -454,17 +462,61 @@ export default function RevenueGoalsPage() {
                           )}
                         </div>
                         <div>
-                          <div className="text-[10px] text-muted-foreground">Projected (by goal date)</div>
+                          <div className="text-[10px] text-muted-foreground">Projected (active)</div>
                           <div className="text-sm font-semibold text-blue-600">
                             ${projectedForMonth.toLocaleString()}
+                          </div>
+                        </div>
+                        <div className="pt-1 border-t">
+                          <div className="text-[10px] text-muted-foreground">Total Projected</div>
+                          <div className="text-sm font-bold">
+                            ${(actualInvoicedForMonth + projectedForMonth).toLocaleString()}
                           </div>
                         </div>
                       </div>
                     </CardContent>
                   </Card>
                 );
-              })}
-            </div>
+              };
+
+              return (
+                <>
+                  {/* Focus months: current + next 2 */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {focusIndices.map(renderMonthCard)}
+                  </div>
+
+                  {/* Other months: collapsible */}
+                  {otherIndices.length > 0 && (
+                    <div className="space-y-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowAllMonths(!showAllMonths)}
+                        className="w-full text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        {showAllMonths ? (
+                          <>
+                            <ChevronUp className="h-3 w-3 mr-1" />
+                            Hide other months
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="h-3 w-3 mr-1" />
+                            Show all months ({otherIndices.length} more)
+                          </>
+                        )}
+                      </Button>
+                      {showAllMonths && (
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
+                          {otherIndices.map(renderMonthCard)}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </TabsContent>
         ))}
       </Tabs>
