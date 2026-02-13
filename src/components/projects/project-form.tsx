@@ -392,6 +392,7 @@ export function ProjectForm({
               projectType: selectedProjectTypeName,
               initialStatus: firstStatus?.name || 'Started',
               clientToken: result.clientToken,
+              projectId: result.projectId,
             }),
             signal: controller.signal,
           })

@@ -25,6 +25,7 @@ export const welcomeEmailSchema = z.object({
   projectType: z.string().optional(),
   initialStatus: z.string().optional(),
   clientToken: z.string().min(1, 'Client token required'),
+  projectId: z.string().optional(), // For checking project email settings
 });
 
 // ============================================

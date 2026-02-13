@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 
 /**
  * Check if emails are enabled globally and optionally for a specific project
@@ -12,7 +12,9 @@ export async function checkEmailEnabled(projectId?: string, recipientEmail?: str
   recipientEnabled: boolean;
   canSendEmail: boolean;
 }> {
-  const supabase = await createClient();
+  // Use service client to bypass RLS — app_settings is admin-only,
+  // but email checks run in the context of any authenticated user
+  const supabase = await createServiceClient();
 
   // Default to enabled if settings don't exist (graceful degradation)
   let globalEnabled = true;

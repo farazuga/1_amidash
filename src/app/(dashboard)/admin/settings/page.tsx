@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Loader2, Mail, AlertTriangle, Settings, FolderSync, ExternalLink, Unlink, BarChart3, HelpCircle, FolderPlus, CheckCircle2, KeyRound, Archive } from 'lucide-react';
+import { Loader2, Mail, MailX, AlertTriangle, Settings, FolderSync, ExternalLink, Unlink, BarChart3, HelpCircle, FolderPlus, CheckCircle2, KeyRound, Archive } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
@@ -157,6 +157,9 @@ export default function AdminSettingsPage() {
   // Archive invoiced projects state
   const [invoicedProjectsCount, setInvoicedProjectsCount] = useState<number>(0);
   const [isArchiving, setIsArchiving] = useState(false);
+
+  // Disable all project emails state
+  const [isDisablingEmails, setIsDisablingEmails] = useState(false);
 
   // Token status state
   const [tokenStatus, setTokenStatus] = useState<TokenStatusSummary | null>(null);
@@ -357,6 +360,57 @@ export default function AdminSettingsPage() {
     }
   };
 
+  const handleDisableAllProjectEmails = async () => {
+    if (!confirm('Are you sure you want to disable email notifications for all non-invoiced projects? Individual projects can be re-enabled from their project settings.')) {
+      return;
+    }
+
+    setIsDisablingEmails(true);
+    try {
+      // Look up the "Invoiced" status ID
+      const { data: invoicedStatus, error: statusError } = await supabase
+        .from('statuses')
+        .select('id')
+        .eq('name', 'Invoiced')
+        .single();
+
+      if (statusError) {
+        toast.error('Failed to find Invoiced status');
+        console.error('Error finding Invoiced status:', statusError);
+        return;
+      }
+
+      // Disable emails for all non-invoiced projects (with a status that isn't Invoiced)
+      const { count: count1, error: error1 } = await supabase
+        .from('projects')
+        .update({ email_notifications_enabled: false })
+        .neq('current_status_id', invoicedStatus.id)
+        .not('current_status_id', 'is', null)
+        .select('id', { count: 'exact', head: true });
+
+      // Also disable for projects with null current_status_id
+      const { count: count2, error: error2 } = await supabase
+        .from('projects')
+        .update({ email_notifications_enabled: false })
+        .is('current_status_id', null)
+        .select('id', { count: 'exact', head: true });
+
+      if (error1 || error2) {
+        toast.error('Failed to disable project emails');
+        console.error('Error disabling project emails:', error1 || error2);
+        return;
+      }
+
+      const totalCount = (count1 || 0) + (count2 || 0);
+      toast.success(`Disabled emails for ${totalCount} project${totalCount !== 1 ? 's' : ''}`);
+    } catch (error) {
+      console.error('Error disabling all project emails:', error);
+      toast.error('Failed to disable project emails');
+    } finally {
+      setIsDisablingEmails(false);
+    }
+  };
+
   const handleToggleEmails = async (enabled: boolean) => {
     startTransition(async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -542,6 +596,36 @@ WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND pr
               </AlertDescription>
             </Alert>
           )}
+
+          {/* Disable All Project Emails */}
+          <div className="rounded-lg border p-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <MailX className="h-4 w-4" />
+                  Disable All Project Emails
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Turns off email notifications for all non-invoiced projects. Individual projects can be re-enabled from their project settings.
+                </p>
+              </div>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDisableAllProjectEmails}
+                disabled={isDisablingEmails}
+              >
+                {isDisablingEmails ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Disabling...
+                  </>
+                ) : (
+                  'Disable All'
+                )}
+              </Button>
+            </div>
+          </div>
 
           {/* Info about per-project settings */}
           <div className="rounded-lg bg-muted p-4">

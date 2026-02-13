@@ -3,7 +3,7 @@ import { sendEmail, getPortalUrl } from '@/lib/email/send';
 import { welcomeEmail } from '@/lib/email/templates';
 import { createClient } from '@/lib/supabase/server';
 import { welcomeEmailSchema } from '@/lib/validation';
-import { getGlobalEmailEnabled } from '@/lib/email/settings';
+import { checkEmailEnabled } from '@/lib/email/settings';
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,15 +34,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { to, clientName, pocName, projectType, initialStatus, clientToken } = parseResult.data;
+    const { to, clientName, pocName, projectType, initialStatus, clientToken, projectId } = parseResult.data;
 
-    // Check if emails are enabled globally
-    const globalEnabled = await getGlobalEmailEnabled();
-    if (!globalEnabled) {
+    // Check if emails are enabled (global + per-project + recipient)
+    const { canSendEmail, globalEnabled, projectEnabled, recipientEnabled } = await checkEmailEnabled(projectId, to);
+    if (!canSendEmail) {
+      const reason = !globalEnabled
+        ? 'Client emails are disabled globally'
+        : !projectEnabled
+        ? 'Email notifications are disabled for this project'
+        : 'Recipient has opted out of email notifications';
       return NextResponse.json({
         success: true,
         skipped: true,
-        reason: 'Client emails are disabled globally',
+        reason,
       });
     }
 
