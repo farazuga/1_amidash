@@ -381,16 +381,16 @@ export default function AdminSettingsPage() {
       }
 
       // Disable emails for all non-invoiced projects (with a status that isn't Invoiced)
-      const { count: count1, error: error1 } = await supabase
-        .from('projects')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { count: count1, error: error1 } = await (supabase.from('projects') as any)
         .update({ email_notifications_enabled: false })
         .neq('current_status_id', invoicedStatus.id)
         .not('current_status_id', 'is', null)
         .select('id', { count: 'exact', head: true });
 
       // Also disable for projects with null current_status_id
-      const { count: count2, error: error2 } = await supabase
-        .from('projects')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { count: count2, error: error2 } = await (supabase.from('projects') as any)
         .update({ email_notifications_enabled: false })
         .is('current_status_id', null)
         .select('id', { count: 'exact', head: true });
