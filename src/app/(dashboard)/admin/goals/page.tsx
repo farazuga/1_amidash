@@ -720,6 +720,21 @@ export default function RevenueGoalsPage() {
                         const isExpanded = expandedQuarters.has(q);
                         const qt = getQuarterlyTotal(q);
                         const startMonth = (q - 1) * 3 + 1;
+                        // Quarter is fully future if its first month is after current month
+                        const isQuarterFullyFuture = isCurrentYear && startMonth > currentMonth;
+                        // For forecast health: use the nearest month in the quarter relative to now
+                        const qMonthsAhead = isCurrentYear
+                          ? Math.max(0, startMonth - currentMonth)
+                          : -1; // past year → use default colors
+                        const qForecastTextColor = qMonthsAhead >= 0
+                          ? getMonthForecastTextColor(qt.forecast, qt.invGoal, qMonthsAhead)
+                          : getForecastHealthTextColor(qt.forecast, qt.invGoal);
+                        const qForecastBarColor = qMonthsAhead >= 0
+                          ? getMonthForecastBarColor(qt.forecast, qt.invGoal, qMonthsAhead)
+                          : undefined;
+                        // PO/Inv variance: muted if quarter is fully in the future
+                        const qPoVarColor = isQuarterFullyFuture ? 'text-muted-foreground' : getVarianceColor(qt.actualPOs, qt.poGoal);
+                        const qInvVarColor = isQuarterFullyFuture ? 'text-muted-foreground' : getVarianceColor(qt.actualInv, qt.invGoal);
 
                         return (
                           <Fragment key={`q${q}`}>
@@ -741,7 +756,7 @@ export default function RevenueGoalsPage() {
                                   href={getProjectsLink('created', { quarter: q }, selectedYear)}
                                 />
                               </TableCell>
-                              <TableCell className={`text-right ${getVarianceColor(qt.actualPOs, qt.poGoal)}`}>
+                              <TableCell className={`text-right ${qPoVarColor}`}>
                                 {qt.poGoal > 0 ? formatVariance(qt.actualPOs, qt.poGoal) : '—'}
                               </TableCell>
                               <TableCell className="text-right border-l border-l-muted-foreground/20">{formatCurrency(qt.invGoal)}</TableCell>
@@ -751,7 +766,7 @@ export default function RevenueGoalsPage() {
                                   href={getProjectsLink('invoiced', { quarter: q }, selectedYear)}
                                 />
                               </TableCell>
-                              <TableCell className={`text-right ${getVarianceColor(qt.actualInv, qt.invGoal)}`}>
+                              <TableCell className={`text-right ${qInvVarColor}`}>
                                 {qt.invGoal > 0 ? formatVariance(qt.actualInv, qt.invGoal) : '—'}
                               </TableCell>
                               <TableCell className="text-right text-blue-600">
@@ -761,14 +776,14 @@ export default function RevenueGoalsPage() {
                                   className="text-blue-600"
                                 />
                               </TableCell>
-                              <TableCell className={`text-right font-bold ${getForecastHealthTextColor(qt.forecast, qt.invGoal)}`}>
+                              <TableCell className={`text-right font-bold ${qForecastTextColor}`}>
                                 {formatCurrency(qt.forecast)}
                               </TableCell>
                               <TableCell className="text-right">
                                 {qt.invGoal > 0 ? (
                                   <div className="flex items-center gap-2 justify-end">
-                                    <HealthBar value={qt.forecast} max={qt.invGoal} className="w-20" />
-                                    <span className={`text-xs ${getForecastHealthTextColor(qt.forecast, qt.invGoal)}`}>
+                                    <HealthBar value={qt.forecast} max={qt.invGoal} className="w-20" colorOverride={qForecastBarColor} />
+                                    <span className={`text-xs ${qForecastTextColor}`}>
                                       {getPercentage(qt.forecast, qt.invGoal)}%
                                     </span>
                                   </div>
