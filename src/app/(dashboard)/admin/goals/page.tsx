@@ -3,14 +3,16 @@
 export const dynamic = 'force-dynamic';
 
 import { useEffect, useState, useTransition, useRef } from 'react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { useUser } from '@/contexts/user-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFooter } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import type { RevenueGoal } from '@/types';
 
@@ -86,6 +88,31 @@ function getPercentage(actual: number, goal: number): number {
   return Math.round((actual / goal) * 100);
 }
 
+// --- Link helpers ---
+
+const MONTH_PRESET_MAP = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+
+function getProjectsLink(
+  dateType: 'created' | 'invoiced' | 'goal',
+  period: { month?: number; quarter?: number; year?: number },
+  year: string
+): string {
+  const view = dateType === 'goal' ? 'active' : 'all';
+  const params = new URLSearchParams();
+  params.set('view', view);
+  params.set('date_type', dateType);
+  params.set('date_years', year);
+
+  if (period.month) {
+    params.set('date_presets', MONTH_PRESET_MAP[period.month - 1]);
+  } else if (period.quarter) {
+    params.set('date_presets', `q${period.quarter}`);
+  }
+  // For yearly total, no date_presets — just the year filter
+
+  return `/projects?${params.toString()}`;
+}
+
 // --- Progress bar component ---
 function HealthBar({ value, max, className }: { value: number; max: number; className?: string }) {
   const pct = max === 0 ? 0 : Math.min((value / max) * 100, 100);
@@ -158,7 +185,31 @@ function EditableCell({
   );
 }
 
+// --- Clickable value cell ---
+function ClickableValue({
+  value,
+  href,
+  className,
+}: {
+  value: number;
+  href: string;
+  className?: string;
+}) {
+  if (value <= 0) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+  return (
+    <Link
+      href={href}
+      className={`underline decoration-dotted underline-offset-2 hover:decoration-solid ${className || ''}`}
+    >
+      {formatCurrency(value)}
+    </Link>
+  );
+}
+
 export default function RevenueGoalsPage() {
+  const { isAdmin, profile } = useUser();
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
   const [selectedYear, setSelectedYear] = useState<string>(String(currentYear));
@@ -429,6 +480,27 @@ export default function RevenueGoalsPage() {
     }
     return ytdActualInv + remainingProjected;
   };
+
+  if (!profile) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 space-y-4">
+        <ShieldAlert className="h-12 w-12 text-muted-foreground" />
+        <h2 className="text-xl font-semibold">Access Denied</h2>
+        <p className="text-muted-foreground text-center">You don&apos;t have permission to view this page.</p>
+        <Button asChild variant="outline">
+          <Link href="/projects">Go to Projects</Link>
+        </Button>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -714,7 +786,10 @@ export default function RevenueGoalsPage() {
                               />
                             </TableCell>
                             <TableCell className="text-right text-sm">
-                              {monthActualPOs > 0 ? formatCurrency(monthActualPOs) : <span className="text-muted-foreground">—</span>}
+                              <ClickableValue
+                                value={monthActualPOs}
+                                href={getProjectsLink('created', { month }, selectedYear)}
+                              />
                             </TableCell>
                             <TableCell className={`text-right text-sm ${getVarianceColor(monthActualPOs, poGoal)}`}>
                               {poGoal > 0 ? formatVariance(monthActualPOs, poGoal) : <span className="text-muted-foreground">—</span>}
@@ -730,13 +805,20 @@ export default function RevenueGoalsPage() {
                               />
                             </TableCell>
                             <TableCell className="text-right text-sm">
-                              {monthActualInv > 0 ? formatCurrency(monthActualInv) : <span className="text-muted-foreground">—</span>}
+                              <ClickableValue
+                                value={monthActualInv}
+                                href={getProjectsLink('invoiced', { month }, selectedYear)}
+                              />
                             </TableCell>
                             <TableCell className={`text-right text-sm ${getVarianceColor(monthActualInv, invGoal)}`}>
                               {invGoal > 0 ? formatVariance(monthActualInv, invGoal) : <span className="text-muted-foreground">—</span>}
                             </TableCell>
                             <TableCell className="text-right text-sm text-blue-600">
-                              {monthProjected > 0 ? formatCurrency(monthProjected) : <span className="text-muted-foreground">—</span>}
+                              <ClickableValue
+                                value={monthProjected}
+                                href={getProjectsLink('goal', { month }, selectedYear)}
+                                className="text-blue-600"
+                              />
                             </TableCell>
                             <TableCell className={`text-right text-sm font-medium ${getForecastHealthTextColor(forecast, invGoal)}`}>
                               {forecast > 0 ? formatCurrency(forecast) : <span className="text-muted-foreground">—</span>}
@@ -763,16 +845,32 @@ export default function RevenueGoalsPage() {
                               <TableRow key={`q${q}`} className="bg-muted/40 text-xs font-semibold">
                                 <TableCell>Q{q} Subtotal</TableCell>
                                 <TableCell className="text-right">{formatCurrency(qt.poGoal)}</TableCell>
-                                <TableCell className="text-right">{formatCurrency(qt.actualPOs)}</TableCell>
+                                <TableCell className="text-right">
+                                  <ClickableValue
+                                    value={qt.actualPOs}
+                                    href={getProjectsLink('created', { quarter: q }, selectedYear)}
+                                  />
+                                </TableCell>
                                 <TableCell className={`text-right ${getVarianceColor(qt.actualPOs, qt.poGoal)}`}>
                                   {qt.poGoal > 0 ? formatVariance(qt.actualPOs, qt.poGoal) : '—'}
                                 </TableCell>
                                 <TableCell className="text-right">{formatCurrency(qt.invGoal)}</TableCell>
-                                <TableCell className="text-right">{formatCurrency(qt.actualInv)}</TableCell>
+                                <TableCell className="text-right">
+                                  <ClickableValue
+                                    value={qt.actualInv}
+                                    href={getProjectsLink('invoiced', { quarter: q }, selectedYear)}
+                                  />
+                                </TableCell>
                                 <TableCell className={`text-right ${getVarianceColor(qt.actualInv, qt.invGoal)}`}>
                                   {qt.invGoal > 0 ? formatVariance(qt.actualInv, qt.invGoal) : '—'}
                                 </TableCell>
-                                <TableCell className="text-right text-blue-600">{formatCurrency(qt.projected)}</TableCell>
+                                <TableCell className="text-right text-blue-600">
+                                  <ClickableValue
+                                    value={qt.projected}
+                                    href={getProjectsLink('goal', { quarter: q }, selectedYear)}
+                                    className="text-blue-600"
+                                  />
+                                </TableCell>
                                 <TableCell className={`text-right font-bold ${getForecastHealthTextColor(qt.forecast, qt.invGoal)}`}>
                                   {formatCurrency(qt.forecast)}
                                 </TableCell>
@@ -797,16 +895,32 @@ export default function RevenueGoalsPage() {
                     <TableRow className="font-bold text-sm">
                       <TableCell>Year Total</TableCell>
                       <TableCell className="text-right">{formatCurrency(yearly.poGoal)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(yearly.actualPOs)}</TableCell>
+                      <TableCell className="text-right">
+                        <ClickableValue
+                          value={yearly.actualPOs}
+                          href={getProjectsLink('created', {}, selectedYear)}
+                        />
+                      </TableCell>
                       <TableCell className={`text-right ${getVarianceColor(yearly.actualPOs, yearly.poGoal)}`}>
                         {yearly.poGoal > 0 ? formatVariance(yearly.actualPOs, yearly.poGoal) : '—'}
                       </TableCell>
                       <TableCell className="text-right">{formatCurrency(yearly.invGoal)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(yearly.actualInv)}</TableCell>
+                      <TableCell className="text-right">
+                        <ClickableValue
+                          value={yearly.actualInv}
+                          href={getProjectsLink('invoiced', {}, selectedYear)}
+                        />
+                      </TableCell>
                       <TableCell className={`text-right ${getVarianceColor(yearly.actualInv, yearly.invGoal)}`}>
                         {yearly.invGoal > 0 ? formatVariance(yearly.actualInv, yearly.invGoal) : '—'}
                       </TableCell>
-                      <TableCell className="text-right text-blue-600">{formatCurrency(yearly.projected)}</TableCell>
+                      <TableCell className="text-right text-blue-600">
+                        <ClickableValue
+                          value={yearly.projected}
+                          href={getProjectsLink('goal', {}, selectedYear)}
+                          className="text-blue-600"
+                        />
+                      </TableCell>
                       <TableCell className={`text-right ${getForecastHealthTextColor(yearly.forecast, yearly.invGoal)}`}>
                         {formatCurrency(yearly.forecast)}
                       </TableCell>

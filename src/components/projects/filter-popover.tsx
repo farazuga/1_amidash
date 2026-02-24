@@ -34,6 +34,21 @@ const DATE_PRESETS = [
   { value: 'last_year', label: 'Last Year' },
 ];
 
+const MONTH_PRESETS = [
+  { value: 'jan', label: 'Jan' },
+  { value: 'feb', label: 'Feb' },
+  { value: 'mar', label: 'Mar' },
+  { value: 'apr', label: 'Apr' },
+  { value: 'may', label: 'May' },
+  { value: 'jun', label: 'Jun' },
+  { value: 'jul', label: 'Jul' },
+  { value: 'aug', label: 'Aug' },
+  { value: 'sep', label: 'Sep' },
+  { value: 'oct', label: 'Oct' },
+  { value: 'nov', label: 'Nov' },
+  { value: 'dec', label: 'Dec' },
+];
+
 const YEARS = ['2025', '2026', '2027'];
 
 interface FilterPopoverProps {
@@ -297,6 +312,24 @@ export function FilterPopover({ statuses }: FilterPopoverProps) {
                       {preset.label}
                     </Button>
                   ))}
+                </div>
+
+                {/* Month Presets */}
+                <div>
+                  <span className="text-xs text-muted-foreground">By Month:</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {MONTH_PRESETS.map((preset) => (
+                      <Button
+                        key={preset.value}
+                        variant={selectedDatePresets.includes(preset.value) ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => handleDatePresetToggle(preset.value)}
+                        className="h-6 text-xs px-2"
+                      >
+                        {preset.label}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Year Selection */}
