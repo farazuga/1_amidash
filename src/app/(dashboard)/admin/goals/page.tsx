@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useEffect, useState, useTransition, useRef } from 'react';
+import { useEffect, useState, useTransition, useRef, Fragment } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useUser } from '@/contexts/user-context';
@@ -12,7 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFooter } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Save, ShieldAlert } from 'lucide-react';
+import { Loader2, Save, ShieldAlert, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import type { RevenueGoal } from '@/types';
 
@@ -66,7 +66,6 @@ function getVarianceColor(actual: number, goal: number): string {
   return actual >= goal ? 'text-green-600' : 'text-red-600';
 }
 
-
 function getForecastHealthColor(forecast: number, goal: number): string {
   if (goal === 0) return 'bg-muted';
   const pct = (forecast / goal) * 100;
@@ -108,7 +107,6 @@ function getProjectsLink(
   } else if (period.quarter) {
     params.set('date_presets', `q${period.quarter}`);
   }
-  // For yearly total, no date_presets — just the year filter
 
   return `/projects?${params.toString()}`;
 }
@@ -177,7 +175,7 @@ function EditableCell({
       type="button"
       onClick={onStartEdit}
       className={`text-right text-sm cursor-pointer px-2 py-1 rounded hover:bg-muted/80 transition-colors w-full block ${
-        changed ? 'bg-amber-50 ring-1 ring-amber-300' : ''
+        changed ? 'bg-amber-50 ring-1 ring-amber-300' : 'bg-muted/20 border border-dashed border-muted-foreground/20'
       }`}
     >
       {numVal > 0 ? formatCurrency(numVal) : <span className="text-muted-foreground">$0</span>}
@@ -212,6 +210,7 @@ export default function RevenueGoalsPage() {
   const { isAdmin, profile } = useUser();
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
+  const currentQuarter = Math.ceil(currentMonth / 3);
   const [selectedYear, setSelectedYear] = useState<string>(String(currentYear));
   const [goals, setGoals] = useState<RevenueGoal[]>([]);
   const [formData, setFormData] = useState<GoalFormData>({});
@@ -222,6 +221,7 @@ export default function RevenueGoalsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
   const [editingCell, setEditingCell] = useState<{ month: number; field: 'revenue' | 'invoicedRevenue' } | null>(null);
+  const [expandedQuarters, setExpandedQuarters] = useState<Set<number>>(new Set([currentQuarter]));
   const supabase = createClient();
 
   const availableYears = Array.from({ length: 4 }, (_, i) => String(currentYear - 1 + i));
@@ -412,6 +412,10 @@ export default function RevenueGoalsPage() {
     return (formData[month]?.[field] || '') !== (savedData[month]?.[field] || '');
   };
 
+  const hasChanges = Array.from({ length: 12 }, (_, i) => i + 1).some(
+    month => isCellChanged(month, 'revenue') || isCellChanged(month, 'invoicedRevenue')
+  );
+
   // --- Aggregation helpers ---
 
   const getMonthGoal = (month: number, field: 'revenue' | 'invoicedRevenue'): number => {
@@ -481,6 +485,15 @@ export default function RevenueGoalsPage() {
     return ytdActualInv + remainingProjected;
   };
 
+  const toggleQuarter = (q: number) => {
+    setExpandedQuarters(prev => {
+      const next = new Set(prev);
+      if (next.has(q)) next.delete(q);
+      else next.add(q);
+      return next;
+    });
+  };
+
   if (!profile) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -522,11 +535,11 @@ export default function RevenueGoalsPage() {
   const completedMonths = isCurrentYear ? currentMonth : 12;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Revenue Goals</h1>
-        <Button onClick={handleSaveAll} disabled={isPending} size="sm">
+        <Button onClick={handleSaveAll} disabled={isPending || !hasChanges} size="sm">
           {isPending ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
@@ -546,27 +559,27 @@ export default function RevenueGoalsPage() {
         </TabsList>
 
         {availableYears.map(year => (
-          <TabsContent key={year} value={year} className="space-y-4 mt-4">
-            {/* Section A: Yearly Summary with YTD Context */}
+          <TabsContent key={year} value={year} className="space-y-6 mt-4">
+            {/* Yearly Summary */}
             <Card className="border-[#023A2D]/20">
-              <CardContent className="py-4 space-y-3">
-                {/* PO Performance Row */}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <CardContent className="py-5 space-y-4">
+                {/* PO Performance */}
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     PO Performance
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3 items-end">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-4 items-end">
                     <div>
                       <div className="text-xs text-muted-foreground">PO Goal (Full Year)</div>
-                      <div className="text-lg font-bold">{formatCurrency(yearly.poGoal)}</div>
+                      <div className="text-xl font-extrabold">{formatCurrency(yearly.poGoal)}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-muted-foreground">YTD Goal ({MONTHS_SHORT[0]}-{MONTHS_SHORT[completedMonths - 1]})</div>
-                      <div className="text-base font-semibold">{formatCurrency(ytdPOGoal)}</div>
+                      <div className="text-xs text-muted-foreground">YTD Goal ({MONTHS_SHORT[0]}–{MONTHS_SHORT[completedMonths - 1]})</div>
+                      <div className="text-base font-medium">{formatCurrency(ytdPOGoal)}</div>
                     </div>
                     <div>
                       <div className="text-xs text-muted-foreground">Actual POs</div>
-                      <div className="text-base font-semibold">{formatCurrency(ytdActualPOs)}</div>
+                      <div className="text-base font-medium">{formatCurrency(ytdActualPOs)}</div>
                     </div>
                     <div>
                       <div className="text-xs text-muted-foreground">Variance</div>
@@ -582,29 +595,29 @@ export default function RevenueGoalsPage() {
                     </div>
                   </div>
                   <div className={`text-xs ${poPace >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    Pace: {formatCompactCurrency(Math.abs(poPace))} {poPace >= 0 ? 'ahead' : 'behind'} where you should be
+                    {formatCompactCurrency(Math.abs(poPace))} {poPace >= 0 ? 'ahead of' : 'behind'} pace
                   </div>
                 </div>
 
                 <div className="border-t" />
 
-                {/* Invoice Performance Row */}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                {/* Invoice Performance */}
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Invoice Performance
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3 items-end">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-4 items-end">
                     <div>
-                      <div className="text-xs text-muted-foreground">Inv Goal (Full Year)</div>
-                      <div className="text-lg font-bold">{formatCurrency(yearly.invGoal)}</div>
+                      <div className="text-xs text-muted-foreground">Invoiced Goal (Full Year)</div>
+                      <div className="text-xl font-extrabold">{formatCurrency(yearly.invGoal)}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-muted-foreground">YTD Goal ({MONTHS_SHORT[0]}-{MONTHS_SHORT[completedMonths - 1]})</div>
-                      <div className="text-base font-semibold">{formatCurrency(ytdInvGoal)}</div>
+                      <div className="text-xs text-muted-foreground">YTD Goal ({MONTHS_SHORT[0]}–{MONTHS_SHORT[completedMonths - 1]})</div>
+                      <div className="text-base font-medium">{formatCurrency(ytdInvGoal)}</div>
                     </div>
                     <div>
                       <div className="text-xs text-muted-foreground">Actual Invoiced</div>
-                      <div className="text-base font-semibold">{formatCurrency(ytdActualInv)}</div>
+                      <div className="text-base font-medium">{formatCurrency(ytdActualInv)}</div>
                     </div>
                     <div>
                       <div className="text-xs text-muted-foreground">Variance</div>
@@ -621,7 +634,7 @@ export default function RevenueGoalsPage() {
                   </div>
                   <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
                     <span className={invPace >= 0 ? 'text-green-600' : 'text-red-600'}>
-                      Pace: {formatCompactCurrency(Math.abs(invPace))} {invPace >= 0 ? 'ahead' : 'behind'} where you should be
+                      {formatCompactCurrency(Math.abs(invPace))} {invPace >= 0 ? 'ahead of' : 'behind'} pace
                     </span>
                     {isCurrentYear && (
                       <>
@@ -641,7 +654,7 @@ export default function RevenueGoalsPage() {
                 {/* Year progress */}
                 <div className="text-xs text-muted-foreground">
                   {completedMonths} of 12 months complete ({Math.round((completedMonths / 12) * 100)}%)
-                  <div className="mt-1 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                  <div className="mt-1 h-2 w-full rounded-full bg-muted overflow-hidden">
                     <div
                       className="h-full rounded-full bg-[#023A2D] transition-all"
                       style={{ width: `${(completedMonths / 12) * 100}%` }}
@@ -651,292 +664,240 @@ export default function RevenueGoalsPage() {
               </CardContent>
             </Card>
 
-            {/* Section B: Quarterly Summary Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {[1, 2, 3, 4].map(q => {
-                const qt = getQuarterlyTotal(q);
-                return (
-                  <Card key={q} className="border">
-                    <CardContent className="py-3 px-3 space-y-2">
-                      <div className="text-sm font-semibold">Q{q}</div>
-
-                      {/* PO section */}
-                      <div className="space-y-0.5">
-                        <div className="flex justify-between text-xs">
-                          <span className="text-muted-foreground">PO Goal</span>
-                          <span className="font-medium">{formatCompactCurrency(qt.poGoal)}</span>
-                        </div>
-                        <div className="flex justify-between text-xs">
-                          <span className="text-muted-foreground">Actual POs</span>
-                          <span className="font-medium">{formatCompactCurrency(qt.actualPOs)}</span>
-                        </div>
-                        {qt.poGoal > 0 && (
-                          <div className="flex justify-between items-center text-xs">
-                            <HealthBar value={qt.actualPOs} max={qt.poGoal} className="flex-1 mr-2" />
-                            <span className={`font-medium ${getVarianceColor(qt.actualPOs, qt.poGoal)}`}>
-                              {formatVariance(qt.actualPOs, qt.poGoal)}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="border-t" />
-
-                      {/* Invoice section */}
-                      <div className="space-y-0.5">
-                        <div className="flex justify-between text-xs">
-                          <span className="text-muted-foreground">Inv Goal</span>
-                          <span className="font-medium">{formatCompactCurrency(qt.invGoal)}</span>
-                        </div>
-                        <div className="flex justify-between text-xs">
-                          <span className="text-muted-foreground">Actual Inv</span>
-                          <span className="font-medium">{formatCompactCurrency(qt.actualInv)}</span>
-                        </div>
-                        {qt.invGoal > 0 && (
-                          <div className="flex justify-between items-center text-xs">
-                            <HealthBar value={qt.actualInv} max={qt.invGoal} className="flex-1 mr-2" />
-                            <span className={`font-medium ${getVarianceColor(qt.actualInv, qt.invGoal)}`}>
-                              {formatVariance(qt.actualInv, qt.invGoal)}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="border-t" />
-
-                      {/* Forecast section */}
-                      <div className="space-y-0.5">
-                        <div className="flex justify-between text-xs">
-                          <span className="text-blue-600">Projected</span>
-                          <span className="font-medium text-blue-600">{formatCompactCurrency(qt.projected)}</span>
-                        </div>
-                        <div className="flex justify-between text-xs">
-                          <span className="text-muted-foreground">Forecast</span>
-                          <span className={`font-bold ${getForecastHealthTextColor(qt.forecast, qt.invGoal)}`}>
-                            {formatCompactCurrency(qt.forecast)}
-                          </span>
-                        </div>
-                        {qt.invGoal > 0 && (
-                          <HealthBar value={qt.forecast} max={qt.invGoal} />
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-
-            {/* Section C: Monthly Detail Table */}
+            {/* Monthly Detail Table */}
             <Card>
               <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-28">Month</TableHead>
-                      <TableHead className="text-right">PO Goal</TableHead>
-                      <TableHead className="text-right">Actual POs</TableHead>
-                      <TableHead className="text-right">PO Var</TableHead>
-                      <TableHead className="text-right">Inv Goal</TableHead>
-                      <TableHead className="text-right">Actual Inv</TableHead>
-                      <TableHead className="text-right">Inv Var</TableHead>
-                      <TableHead className="text-right">Projected</TableHead>
-                      <TableHead className="text-right">Forecast</TableHead>
-                      <TableHead className="w-24 text-right">Health</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {Array.from({ length: 12 }, (_, i) => i + 1).map(month => {
-                      const poGoal = getMonthGoal(month, 'revenue');
-                      const monthActualPOs = actualPOs[month] || 0;
-                      const invGoal = getMonthGoal(month, 'invoicedRevenue');
-                      const monthActualInv = invoicedRevenue[month] || 0;
-                      const monthProjected = projectedRevenue[month] || 0;
-                      const forecast = monthActualInv + monthProjected;
-                      const isNow = isCurrentYear && month === currentMonth;
-                      const isQuarterEnd = month % 3 === 0;
-                      const isQuarterStart = month > 1 && (month - 1) % 3 === 0;
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead rowSpan={2} className="w-32 align-bottom border-b-0">Month</TableHead>
+                        <TableHead colSpan={3} className="text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          PO Performance
+                        </TableHead>
+                        <TableHead colSpan={6} className="text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider border-l border-l-muted-foreground/20">
+                          Invoice Performance &amp; Forecast
+                        </TableHead>
+                      </TableRow>
+                      <TableRow>
+                        <TableHead className="text-right">Goal</TableHead>
+                        <TableHead className="text-right">Actual POs</TableHead>
+                        <TableHead className="text-right">vs Goal</TableHead>
+                        <TableHead className="text-right border-l border-l-muted-foreground/20">Goal</TableHead>
+                        <TableHead className="text-right">Invoiced</TableHead>
+                        <TableHead className="text-right">vs Goal</TableHead>
+                        <TableHead className="text-right" title="Active projects not yet invoiced">Projected</TableHead>
+                        <TableHead className="text-right" title="Actual Invoiced + Projected">Forecast</TableHead>
+                        <TableHead className="w-28 text-right">Health</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {[1, 2, 3, 4].map(q => {
+                        const isExpanded = expandedQuarters.has(q);
+                        const qt = getQuarterlyTotal(q);
+                        const startMonth = (q - 1) * 3 + 1;
 
-                      return (
-                        <>
-                          <TableRow
-                            key={month}
-                            className={`
-                              ${isNow ? 'bg-[#023A2D]/5 font-medium' : ''}
-                              ${isQuarterStart ? 'border-t-2 border-t-muted-foreground/20' : ''}
-                            `}
-                          >
-                            <TableCell className="font-medium">
-                              <div className="flex items-center gap-2">
-                                {MONTHS[month - 1]}
-                                {isNow && (
-                                  <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4 bg-[#023A2D]">
-                                    Now
-                                  </Badge>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-right p-1">
-                              <EditableCell
-                                value={formData[month]?.revenue || ''}
-                                onChange={(v) => handleInputChange(month, 'revenue', v)}
-                                isEditing={editingCell?.month === month && editingCell?.field === 'revenue'}
-                                onStartEdit={() => setEditingCell({ month, field: 'revenue' })}
-                                onStopEdit={() => setEditingCell(null)}
-                                changed={isCellChanged(month, 'revenue')}
-                              />
-                            </TableCell>
-                            <TableCell className="text-right text-sm">
-                              <ClickableValue
-                                value={monthActualPOs}
-                                href={getProjectsLink('created', { month }, selectedYear)}
-                              />
-                            </TableCell>
-                            <TableCell className={`text-right text-sm ${getVarianceColor(monthActualPOs, poGoal)}`}>
-                              {poGoal > 0 ? formatVariance(monthActualPOs, poGoal) : <span className="text-muted-foreground">—</span>}
-                            </TableCell>
-                            <TableCell className="text-right p-1">
-                              <EditableCell
-                                value={formData[month]?.invoicedRevenue || ''}
-                                onChange={(v) => handleInputChange(month, 'invoicedRevenue', v)}
-                                isEditing={editingCell?.month === month && editingCell?.field === 'invoicedRevenue'}
-                                onStartEdit={() => setEditingCell({ month, field: 'invoicedRevenue' })}
-                                onStopEdit={() => setEditingCell(null)}
-                                changed={isCellChanged(month, 'invoicedRevenue')}
-                              />
-                            </TableCell>
-                            <TableCell className="text-right text-sm">
-                              <ClickableValue
-                                value={monthActualInv}
-                                href={getProjectsLink('invoiced', { month }, selectedYear)}
-                              />
-                            </TableCell>
-                            <TableCell className={`text-right text-sm ${getVarianceColor(monthActualInv, invGoal)}`}>
-                              {invGoal > 0 ? formatVariance(monthActualInv, invGoal) : <span className="text-muted-foreground">—</span>}
-                            </TableCell>
-                            <TableCell className="text-right text-sm text-blue-600">
-                              <ClickableValue
-                                value={monthProjected}
-                                href={getProjectsLink('goal', { month }, selectedYear)}
-                                className="text-blue-600"
-                              />
-                            </TableCell>
-                            <TableCell className={`text-right text-sm font-medium ${getForecastHealthTextColor(forecast, invGoal)}`}>
-                              {forecast > 0 ? formatCurrency(forecast) : <span className="text-muted-foreground">—</span>}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {invGoal > 0 ? (
-                                <div className="flex items-center gap-2 justify-end">
-                                  <HealthBar value={forecast} max={invGoal} className="w-16" />
-                                  <span className={`text-xs ${getForecastHealthTextColor(forecast, invGoal)}`}>
-                                    {getPercentage(forecast, invGoal)}%
-                                  </span>
+                        return (
+                          <Fragment key={`q${q}`}>
+                            {/* Quarter subtotal row — always visible */}
+                            <TableRow
+                              className={`bg-muted/40 text-xs font-semibold cursor-pointer hover:bg-muted/60 border-l-2 border-l-muted-foreground/30 ${q > 1 ? 'border-t-2 border-t-muted-foreground/20' : ''}`}
+                              onClick={() => toggleQuarter(q)}
+                            >
+                              <TableCell>
+                                <div className="flex items-center gap-1.5">
+                                  <ChevronRight className={`h-3.5 w-3.5 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                                  Q{q}
                                 </div>
-                              ) : (
-                                <span className="text-muted-foreground text-sm">—</span>
-                              )}
-                            </TableCell>
-                          </TableRow>
+                              </TableCell>
+                              <TableCell className="text-right">{formatCurrency(qt.poGoal)}</TableCell>
+                              <TableCell className="text-right">
+                                <ClickableValue
+                                  value={qt.actualPOs}
+                                  href={getProjectsLink('created', { quarter: q }, selectedYear)}
+                                />
+                              </TableCell>
+                              <TableCell className={`text-right ${getVarianceColor(qt.actualPOs, qt.poGoal)}`}>
+                                {qt.poGoal > 0 ? formatVariance(qt.actualPOs, qt.poGoal) : '—'}
+                              </TableCell>
+                              <TableCell className="text-right border-l border-l-muted-foreground/20">{formatCurrency(qt.invGoal)}</TableCell>
+                              <TableCell className="text-right">
+                                <ClickableValue
+                                  value={qt.actualInv}
+                                  href={getProjectsLink('invoiced', { quarter: q }, selectedYear)}
+                                />
+                              </TableCell>
+                              <TableCell className={`text-right ${getVarianceColor(qt.actualInv, qt.invGoal)}`}>
+                                {qt.invGoal > 0 ? formatVariance(qt.actualInv, qt.invGoal) : '—'}
+                              </TableCell>
+                              <TableCell className="text-right text-blue-600">
+                                <ClickableValue
+                                  value={qt.projected}
+                                  href={getProjectsLink('goal', { quarter: q }, selectedYear)}
+                                  className="text-blue-600"
+                                />
+                              </TableCell>
+                              <TableCell className={`text-right font-bold ${getForecastHealthTextColor(qt.forecast, qt.invGoal)}`}>
+                                {formatCurrency(qt.forecast)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {qt.invGoal > 0 ? (
+                                  <div className="flex items-center gap-2 justify-end">
+                                    <HealthBar value={qt.forecast} max={qt.invGoal} className="w-20" />
+                                    <span className={`text-xs ${getForecastHealthTextColor(qt.forecast, qt.invGoal)}`}>
+                                      {getPercentage(qt.forecast, qt.invGoal)}%
+                                    </span>
+                                  </div>
+                                ) : '—'}
+                              </TableCell>
+                            </TableRow>
 
-                          {/* Quarterly subtotal row */}
-                          {isQuarterEnd && (() => {
-                            const q = month / 3;
-                            const qt = getQuarterlyTotal(q);
-                            return (
-                              <TableRow key={`q${q}`} className="bg-muted/40 text-xs font-semibold">
-                                <TableCell>Q{q} Subtotal</TableCell>
-                                <TableCell className="text-right">{formatCurrency(qt.poGoal)}</TableCell>
-                                <TableCell className="text-right">
-                                  <ClickableValue
-                                    value={qt.actualPOs}
-                                    href={getProjectsLink('created', { quarter: q }, selectedYear)}
-                                  />
-                                </TableCell>
-                                <TableCell className={`text-right ${getVarianceColor(qt.actualPOs, qt.poGoal)}`}>
-                                  {qt.poGoal > 0 ? formatVariance(qt.actualPOs, qt.poGoal) : '—'}
-                                </TableCell>
-                                <TableCell className="text-right">{formatCurrency(qt.invGoal)}</TableCell>
-                                <TableCell className="text-right">
-                                  <ClickableValue
-                                    value={qt.actualInv}
-                                    href={getProjectsLink('invoiced', { quarter: q }, selectedYear)}
-                                  />
-                                </TableCell>
-                                <TableCell className={`text-right ${getVarianceColor(qt.actualInv, qt.invGoal)}`}>
-                                  {qt.invGoal > 0 ? formatVariance(qt.actualInv, qt.invGoal) : '—'}
-                                </TableCell>
-                                <TableCell className="text-right text-blue-600">
-                                  <ClickableValue
-                                    value={qt.projected}
-                                    href={getProjectsLink('goal', { quarter: q }, selectedYear)}
-                                    className="text-blue-600"
-                                  />
-                                </TableCell>
-                                <TableCell className={`text-right font-bold ${getForecastHealthTextColor(qt.forecast, qt.invGoal)}`}>
-                                  {formatCurrency(qt.forecast)}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  {qt.invGoal > 0 ? (
-                                    <div className="flex items-center gap-2 justify-end">
-                                      <HealthBar value={qt.forecast} max={qt.invGoal} className="w-16" />
-                                      <span className={`text-xs ${getForecastHealthTextColor(qt.forecast, qt.invGoal)}`}>
-                                        {getPercentage(qt.forecast, qt.invGoal)}%
-                                      </span>
+                            {/* Month rows — only when quarter is expanded */}
+                            {isExpanded && Array.from({ length: 3 }, (_, i) => startMonth + i).map(month => {
+                              const poGoal = getMonthGoal(month, 'revenue');
+                              const monthActualPOs = actualPOs[month] || 0;
+                              const invGoal = getMonthGoal(month, 'invoicedRevenue');
+                              const monthActualInv = invoicedRevenue[month] || 0;
+                              const monthProjected = projectedRevenue[month] || 0;
+                              const forecast = monthActualInv + monthProjected;
+                              const isNow = isCurrentYear && month === currentMonth;
+
+                              return (
+                                <TableRow
+                                  key={month}
+                                  className={
+                                    isNow
+                                      ? 'bg-[#023A2D]/8 font-medium border-l-2 border-l-[#023A2D]'
+                                      : ''
+                                  }
+                                >
+                                  <TableCell className="font-medium pl-8">
+                                    <div className="flex items-center gap-2">
+                                      {MONTHS[month - 1]}
+                                      {isNow && (
+                                        <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4 bg-[#023A2D]">
+                                          Now
+                                        </Badge>
+                                      )}
                                     </div>
-                                  ) : '—'}
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })()}
-                        </>
-                      );
-                    })}
-                  </TableBody>
-                  <TableFooter>
-                    <TableRow className="font-bold text-sm">
-                      <TableCell>Year Total</TableCell>
-                      <TableCell className="text-right">{formatCurrency(yearly.poGoal)}</TableCell>
-                      <TableCell className="text-right">
-                        <ClickableValue
-                          value={yearly.actualPOs}
-                          href={getProjectsLink('created', {}, selectedYear)}
-                        />
-                      </TableCell>
-                      <TableCell className={`text-right ${getVarianceColor(yearly.actualPOs, yearly.poGoal)}`}>
-                        {yearly.poGoal > 0 ? formatVariance(yearly.actualPOs, yearly.poGoal) : '—'}
-                      </TableCell>
-                      <TableCell className="text-right">{formatCurrency(yearly.invGoal)}</TableCell>
-                      <TableCell className="text-right">
-                        <ClickableValue
-                          value={yearly.actualInv}
-                          href={getProjectsLink('invoiced', {}, selectedYear)}
-                        />
-                      </TableCell>
-                      <TableCell className={`text-right ${getVarianceColor(yearly.actualInv, yearly.invGoal)}`}>
-                        {yearly.invGoal > 0 ? formatVariance(yearly.actualInv, yearly.invGoal) : '—'}
-                      </TableCell>
-                      <TableCell className="text-right text-blue-600">
-                        <ClickableValue
-                          value={yearly.projected}
-                          href={getProjectsLink('goal', {}, selectedYear)}
-                          className="text-blue-600"
-                        />
-                      </TableCell>
-                      <TableCell className={`text-right ${getForecastHealthTextColor(yearly.forecast, yearly.invGoal)}`}>
-                        {formatCurrency(yearly.forecast)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {yearly.invGoal > 0 ? (
-                          <div className="flex items-center gap-2 justify-end">
-                            <HealthBar value={yearly.forecast} max={yearly.invGoal} className="w-16" />
-                            <span className={`text-xs ${getForecastHealthTextColor(yearly.forecast, yearly.invGoal)}`}>
-                              {getPercentage(yearly.forecast, yearly.invGoal)}%
-                            </span>
-                          </div>
-                        ) : '—'}
-                      </TableCell>
-                    </TableRow>
-                  </TableFooter>
-                </Table>
+                                  </TableCell>
+                                  <TableCell className="text-right p-1">
+                                    <EditableCell
+                                      value={formData[month]?.revenue || ''}
+                                      onChange={(v) => handleInputChange(month, 'revenue', v)}
+                                      isEditing={editingCell?.month === month && editingCell?.field === 'revenue'}
+                                      onStartEdit={() => setEditingCell({ month, field: 'revenue' })}
+                                      onStopEdit={() => setEditingCell(null)}
+                                      changed={isCellChanged(month, 'revenue')}
+                                    />
+                                  </TableCell>
+                                  <TableCell className="text-right text-sm">
+                                    <ClickableValue
+                                      value={monthActualPOs}
+                                      href={getProjectsLink('created', { month }, selectedYear)}
+                                    />
+                                  </TableCell>
+                                  <TableCell className={`text-right text-sm ${getVarianceColor(monthActualPOs, poGoal)}`}>
+                                    {poGoal > 0 ? formatVariance(monthActualPOs, poGoal) : <span className="text-muted-foreground">—</span>}
+                                  </TableCell>
+                                  <TableCell className="text-right p-1 border-l border-l-muted-foreground/20">
+                                    <EditableCell
+                                      value={formData[month]?.invoicedRevenue || ''}
+                                      onChange={(v) => handleInputChange(month, 'invoicedRevenue', v)}
+                                      isEditing={editingCell?.month === month && editingCell?.field === 'invoicedRevenue'}
+                                      onStartEdit={() => setEditingCell({ month, field: 'invoicedRevenue' })}
+                                      onStopEdit={() => setEditingCell(null)}
+                                      changed={isCellChanged(month, 'invoicedRevenue')}
+                                    />
+                                  </TableCell>
+                                  <TableCell className="text-right text-sm">
+                                    <ClickableValue
+                                      value={monthActualInv}
+                                      href={getProjectsLink('invoiced', { month }, selectedYear)}
+                                    />
+                                  </TableCell>
+                                  <TableCell className={`text-right text-sm ${getVarianceColor(monthActualInv, invGoal)}`}>
+                                    {invGoal > 0 ? formatVariance(monthActualInv, invGoal) : <span className="text-muted-foreground">—</span>}
+                                  </TableCell>
+                                  <TableCell className="text-right text-sm text-blue-600">
+                                    <ClickableValue
+                                      value={monthProjected}
+                                      href={getProjectsLink('goal', { month }, selectedYear)}
+                                      className="text-blue-600"
+                                    />
+                                  </TableCell>
+                                  <TableCell className={`text-right text-sm font-medium ${getForecastHealthTextColor(forecast, invGoal)}`}>
+                                    {forecast > 0 ? formatCurrency(forecast) : <span className="text-muted-foreground">—</span>}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {invGoal > 0 ? (
+                                      <div className="flex items-center gap-2 justify-end">
+                                        <HealthBar value={forecast} max={invGoal} className="w-20" />
+                                        <span className={`text-xs ${getForecastHealthTextColor(forecast, invGoal)}`}>
+                                          {getPercentage(forecast, invGoal)}%
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <span className="text-muted-foreground text-sm">—</span>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </Fragment>
+                        );
+                      })}
+                    </TableBody>
+                    <TableFooter>
+                      <TableRow className="font-bold text-sm border-t-2 border-t-foreground/20">
+                        <TableCell>Year Total</TableCell>
+                        <TableCell className="text-right">{formatCurrency(yearly.poGoal)}</TableCell>
+                        <TableCell className="text-right">
+                          <ClickableValue
+                            value={yearly.actualPOs}
+                            href={getProjectsLink('created', {}, selectedYear)}
+                          />
+                        </TableCell>
+                        <TableCell className={`text-right ${getVarianceColor(yearly.actualPOs, yearly.poGoal)}`}>
+                          {yearly.poGoal > 0 ? formatVariance(yearly.actualPOs, yearly.poGoal) : '—'}
+                        </TableCell>
+                        <TableCell className="text-right border-l border-l-muted-foreground/20">{formatCurrency(yearly.invGoal)}</TableCell>
+                        <TableCell className="text-right">
+                          <ClickableValue
+                            value={yearly.actualInv}
+                            href={getProjectsLink('invoiced', {}, selectedYear)}
+                          />
+                        </TableCell>
+                        <TableCell className={`text-right ${getVarianceColor(yearly.actualInv, yearly.invGoal)}`}>
+                          {yearly.invGoal > 0 ? formatVariance(yearly.actualInv, yearly.invGoal) : '—'}
+                        </TableCell>
+                        <TableCell className="text-right text-blue-600">
+                          <ClickableValue
+                            value={yearly.projected}
+                            href={getProjectsLink('goal', {}, selectedYear)}
+                            className="text-blue-600"
+                          />
+                        </TableCell>
+                        <TableCell className={`text-right ${getForecastHealthTextColor(yearly.forecast, yearly.invGoal)}`}>
+                          {formatCurrency(yearly.forecast)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {yearly.invGoal > 0 ? (
+                            <div className="flex items-center gap-2 justify-end">
+                              <HealthBar value={yearly.forecast} max={yearly.invGoal} className="w-20" />
+                              <span className={`text-xs ${getForecastHealthTextColor(yearly.forecast, yearly.invGoal)}`}>
+                                {getPercentage(yearly.forecast, yearly.invGoal)}%
+                              </span>
+                            </div>
+                          ) : '—'}
+                        </TableCell>
+                      </TableRow>
+                    </TableFooter>
+                  </Table>
+                </div>
+                <div className="px-4 py-2 text-xs text-muted-foreground border-t">
+                  Underlined values link to matching projects. <span className="text-blue-600">Blue</span> = projected from active projects. Forecast = Invoiced + Projected.
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
