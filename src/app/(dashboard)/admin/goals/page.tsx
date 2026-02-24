@@ -111,10 +111,34 @@ function getProjectsLink(
   return `/projects?${params.toString()}`;
 }
 
+// --- Time-aware forecast health (for monthly rows) ---
+// monthsAhead: 0 = current month, 1 = next, 2 = 3rd month, 3+ = far future
+// Current & next month: green ≥90%, orange 80–89%, red <80%
+// 3rd month: green ≥90%, orange <90%, no red
+// Beyond: no color coding
+function getMonthForecastBarColor(forecast: number, goal: number, monthsAhead: number): string {
+  if (goal === 0) return 'bg-muted';
+  if (monthsAhead >= 3) return 'bg-muted';
+  const pct = (forecast / goal) * 100;
+  if (pct >= 90) return 'bg-green-500';
+  if (monthsAhead <= 1) return pct >= 80 ? 'bg-amber-500' : 'bg-red-500';
+  // monthsAhead === 2: orange only
+  return 'bg-amber-500';
+}
+
+function getMonthForecastTextColor(forecast: number, goal: number, monthsAhead: number): string {
+  if (goal === 0) return 'text-muted-foreground';
+  if (monthsAhead >= 3) return 'text-muted-foreground';
+  const pct = (forecast / goal) * 100;
+  if (pct >= 90) return 'text-green-600';
+  if (monthsAhead <= 1) return pct >= 80 ? 'text-amber-600' : 'text-red-600';
+  return 'text-amber-600';
+}
+
 // --- Progress bar component ---
-function HealthBar({ value, max, className }: { value: number; max: number; className?: string }) {
+function HealthBar({ value, max, className, colorOverride }: { value: number; max: number; className?: string; colorOverride?: string }) {
   const pct = max === 0 ? 0 : Math.min((value / max) * 100, 100);
-  const barColor = getForecastHealthColor(value, max);
+  const barColor = colorOverride || getForecastHealthColor(value, max);
   return (
     <div className={`h-2 w-full rounded-full bg-muted overflow-hidden ${className || ''}`}>
       <div
@@ -761,6 +785,20 @@ export default function RevenueGoalsPage() {
                               const monthProjected = projectedRevenue[month] || 0;
                               const forecast = monthActualInv + monthProjected;
                               const isNow = isCurrentYear && month === currentMonth;
+                              const isFutureMonth = isCurrentYear && month > currentMonth;
+                              const monthsAhead = isCurrentYear ? month - currentMonth : -1; // -1 = past year, use default
+
+                              // PO variance: no red/green for future months
+                              const poVarColor = isFutureMonth ? 'text-muted-foreground' : getVarianceColor(monthActualPOs, poGoal);
+                              // Invoice variance: same treatment
+                              const invVarColor = isFutureMonth ? 'text-muted-foreground' : getVarianceColor(monthActualInv, invGoal);
+                              // Forecast/health: time-aware for current year, default for past years
+                              const forecastTextColor = monthsAhead >= 0
+                                ? getMonthForecastTextColor(forecast, invGoal, monthsAhead)
+                                : getForecastHealthTextColor(forecast, invGoal);
+                              const forecastBarColor = monthsAhead >= 0
+                                ? getMonthForecastBarColor(forecast, invGoal, monthsAhead)
+                                : undefined;
 
                               return (
                                 <TableRow
@@ -797,7 +835,7 @@ export default function RevenueGoalsPage() {
                                       href={getProjectsLink('created', { month }, selectedYear)}
                                     />
                                   </TableCell>
-                                  <TableCell className={`text-right text-sm ${getVarianceColor(monthActualPOs, poGoal)}`}>
+                                  <TableCell className={`text-right text-sm ${poVarColor}`}>
                                     {poGoal > 0 ? formatVariance(monthActualPOs, poGoal) : <span className="text-muted-foreground">—</span>}
                                   </TableCell>
                                   <TableCell className="text-right p-1 border-l border-l-muted-foreground/20">
@@ -816,7 +854,7 @@ export default function RevenueGoalsPage() {
                                       href={getProjectsLink('invoiced', { month }, selectedYear)}
                                     />
                                   </TableCell>
-                                  <TableCell className={`text-right text-sm ${getVarianceColor(monthActualInv, invGoal)}`}>
+                                  <TableCell className={`text-right text-sm ${invVarColor}`}>
                                     {invGoal > 0 ? formatVariance(monthActualInv, invGoal) : <span className="text-muted-foreground">—</span>}
                                   </TableCell>
                                   <TableCell className="text-right text-sm text-blue-600">
@@ -826,14 +864,14 @@ export default function RevenueGoalsPage() {
                                       className="text-blue-600"
                                     />
                                   </TableCell>
-                                  <TableCell className={`text-right text-sm font-medium ${getForecastHealthTextColor(forecast, invGoal)}`}>
+                                  <TableCell className={`text-right text-sm font-medium ${forecastTextColor}`}>
                                     {forecast > 0 ? formatCurrency(forecast) : <span className="text-muted-foreground">—</span>}
                                   </TableCell>
                                   <TableCell className="text-right">
                                     {invGoal > 0 ? (
                                       <div className="flex items-center gap-2 justify-end">
-                                        <HealthBar value={forecast} max={invGoal} className="w-20" />
-                                        <span className={`text-xs ${getForecastHealthTextColor(forecast, invGoal)}`}>
+                                        <HealthBar value={forecast} max={invGoal} className="w-20" colorOverride={forecastBarColor} />
+                                        <span className={`text-xs ${forecastTextColor}`}>
                                           {getPercentage(forecast, invGoal)}%
                                         </span>
                                       </div>
