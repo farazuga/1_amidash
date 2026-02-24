@@ -65,6 +65,17 @@ function getDateRangesFromPresets(presets: string[], years: string[]): { start: 
         case 'q4':
           ranges.push({ start: `${year}-10-01`, end: `${year}-12-31` });
           break;
+        case 'jan': case 'feb': case 'mar': case 'apr': case 'may': case 'jun':
+        case 'jul': case 'aug': case 'sep': case 'oct': case 'nov': case 'dec': {
+          const monthIndex = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(preset);
+          const monthNum = monthIndex + 1;
+          const lastDay = new Date(year, monthNum, 0).getDate();
+          ranges.push({
+            start: `${year}-${String(monthNum).padStart(2, '0')}-01`,
+            end: `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`,
+          });
+          break;
+        }
         case 'this_year':
           if (year === currentYear) {
             ranges.push({ start: `${year}-01-01`, end: `${year}-12-31` });
