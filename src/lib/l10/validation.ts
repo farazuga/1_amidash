@@ -126,7 +126,7 @@ export const createMeasurableSchema = z.object({
   unit: z.enum(['number', 'currency', 'percentage']).optional().default('number'),
   goalValue: z.number().optional(),
   goalDirection: z.enum(['above', 'below', 'exact']).optional().default('above'),
-  autoSource: z.enum(['po_revenue', 'invoiced_revenue']).nullable().optional(),
+  autoSource: z.enum(['po_revenue', 'invoiced_revenue', 'open_projects']).nullable().optional(),
 });
 
 export const updateMeasurableSchema = z.object({
@@ -136,7 +136,7 @@ export const updateMeasurableSchema = z.object({
   unit: z.enum(['number', 'currency', 'percentage']).optional(),
   goalValue: z.number().nullable().optional(),
   goalDirection: z.enum(['above', 'below', 'exact']).optional(),
-  autoSource: z.enum(['po_revenue', 'invoiced_revenue']).nullable().optional(),
+  autoSource: z.enum(['po_revenue', 'invoiced_revenue', 'open_projects']).nullable().optional(),
   isActive: z.boolean().optional(),
 });
 

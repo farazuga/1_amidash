@@ -108,7 +108,7 @@ export interface HeadlineWithCreator extends Headline {
 // Scorecard types
 export type MeasurableUnit = 'number' | 'currency' | 'percentage';
 export type GoalDirection = 'above' | 'below' | 'exact';
-export type AutoSource = 'po_revenue' | 'invoiced_revenue';
+export type AutoSource = 'po_revenue' | 'invoiced_revenue' | 'open_projects';
 
 export interface Scorecard {
   id: string;

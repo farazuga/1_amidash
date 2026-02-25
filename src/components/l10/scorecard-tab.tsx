@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Plus, RefreshCw } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Plus, RefreshCw, ArrowUp, ArrowDown, Equal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -22,34 +23,53 @@ import { Label } from '@/components/ui/label';
 import {
   useScorecard,
   useCreateMeasurable,
+  useUpdateMeasurable,
   useUpsertScorecardEntry,
   useAutoPopulateScorecardWeek,
 } from '@/hooks/queries/use-l10-scorecard';
 import { useTeam } from '@/hooks/queries/use-l10-teams';
 import { toast } from 'sonner';
-import type { ScorecardMeasurableWithOwner, ScorecardEntry, GoalDirection } from '@/types/l10';
+import type { ScorecardMeasurableWithOwner, ScorecardEntry, GoalDirection, AutoSource } from '@/types/l10';
 import { cn } from '@/lib/utils';
 
-// Generate array of last 13 Monday dates
+// Generate array of last 13 completed week Mondays (most recent first)
 function getLast13Weeks(): string[] {
   const weeks: string[] = [];
   const now = new Date();
   const day = now.getDay();
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
-  monday.setHours(0, 0, 0, 0);
+  // Get this Monday
+  const thisMonday = new Date(now);
+  thisMonday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+  thisMonday.setHours(0, 0, 0, 0);
+  // Start from LAST completed week (one week before this Monday)
+  const lastCompletedMonday = new Date(thisMonday);
+  lastCompletedMonday.setDate(thisMonday.getDate() - 7);
 
-  for (let i = 12; i >= 0; i--) {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() - i * 7);
+  for (let i = 0; i < 13; i++) {
+    const d = new Date(lastCompletedMonday);
+    d.setDate(lastCompletedMonday.getDate() - i * 7);
     weeks.push(d.toISOString().split('T')[0]);
   }
+  // Already in newest-first order
   return weeks;
 }
 
-function formatWeek(dateStr: string): string {
-  const d = new Date(dateStr + 'T00:00:00');
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+// Format week as "M/D - M/D" (Mon-Fri range)
+function formatWeekRange(mondayStr: string): string {
+  const mon = new Date(mondayStr + 'T00:00:00');
+  const fri = new Date(mon);
+  fri.setDate(mon.getDate() + 4);
+  const mStr = `${mon.getMonth() + 1}/${mon.getDate()}`;
+  const fStr = `${fri.getMonth() + 1}/${fri.getDate()}`;
+  return `${mStr} - ${fStr}`;
+}
+
+// Get Friday date string for a given Monday
+function getFriday(mondayStr: string): string {
+  const mon = new Date(mondayStr + 'T00:00:00');
+  const fri = new Date(mon);
+  fri.setDate(mon.getDate() + 4);
+  return fri.toISOString().split('T')[0];
 }
 
 function isOnTrack(value: number | null, goal: number | null, direction: GoalDirection): boolean | null {
@@ -66,6 +86,27 @@ function formatValue(value: number | null, unit: string): string {
   return value.toLocaleString();
 }
 
+// Build the projects page URL for clickable scorecard values
+function getProjectsUrl(autoSource: AutoSource, weekMonday: string): string {
+  const friday = getFriday(weekMonday);
+  if (autoSource === 'po_revenue') {
+    return `/projects?view=all&date_type=created&date_from=${weekMonday}&date_to=${friday}`;
+  }
+  if (autoSource === 'invoiced_revenue') {
+    return `/projects?view=all&date_type=invoiced&date_from=${weekMonday}&date_to=${friday}`;
+  }
+  if (autoSource === 'open_projects') {
+    return `/projects?view=active`;
+  }
+  return '';
+}
+
+const AUTO_SOURCE_LABELS: Record<string, string> = {
+  po_revenue: 'Last 7 Day Sales',
+  invoiced_revenue: 'Invoices Closed',
+  open_projects: 'Open Projects',
+};
+
 interface ScorecardTabProps {
   teamId: string;
 }
@@ -78,10 +119,11 @@ export function ScorecardTab({ teamId }: ScorecardTabProps) {
   const weeks = getLast13Weeks();
 
   const handleAutoPopulate = async () => {
-    const currentWeek = weeks[weeks.length - 1];
+    // Auto-populate the most recent completed week
+    const latestWeek = weeks[0];
     try {
-      await autoPopulate.mutateAsync({ teamId, weekOf: currentWeek });
-      toast.success('Auto-populated current week');
+      await autoPopulate.mutateAsync({ teamId, weekOf: latestWeek });
+      toast.success('Auto-populated latest week');
     } catch (error) {
       toast.error((error as Error).message);
     }
@@ -129,12 +171,12 @@ export function ScorecardTab({ teamId }: ScorecardTabProps) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="sticky left-0 bg-muted/50 px-3 py-2 text-left font-medium min-w-[180px]">Measurable</th>
+                <th className="sticky left-0 z-10 bg-muted/50 px-3 py-2 text-left font-medium min-w-[180px]">Measurable</th>
                 <th className="px-3 py-2 text-left font-medium w-20">Owner</th>
-                <th className="px-3 py-2 text-right font-medium w-16">Goal</th>
+                <th className="px-3 py-2 text-center font-medium w-24">Goal</th>
                 {weeks.map((week) => (
-                  <th key={week} className="px-2 py-2 text-center font-medium w-20 text-xs">
-                    {formatWeek(week)}
+                  <th key={week} className="px-1 py-2 text-center font-medium min-w-[80px] text-xs whitespace-nowrap">
+                    {formatWeekRange(week)}
                   </th>
                 ))}
               </tr>
@@ -174,7 +216,9 @@ function MeasurableRow({
   weeks: string[];
   entryMap: Map<string, ScorecardEntry>;
 }) {
+  const router = useRouter();
   const upsertEntry = useUpsertScorecardEntry();
+  const updateMeasurable = useUpdateMeasurable();
 
   const handleCellChange = useCallback(
     async (weekOf: string, value: string) => {
@@ -193,24 +237,43 @@ function MeasurableRow({
     [measurable.id, upsertEntry]
   );
 
+  const handleCellClick = useCallback(
+    (weekMonday: string) => {
+      if (measurable.auto_source) {
+        const url = getProjectsUrl(measurable.auto_source, weekMonday);
+        if (url) router.push(url);
+      }
+    },
+    [measurable.auto_source, router]
+  );
+
   return (
     <tr className="border-b hover:bg-muted/30">
-      <td className="sticky left-0 bg-background px-3 py-2 font-medium">
+      <td className="sticky left-0 z-10 bg-background px-3 py-2 font-medium">
         {measurable.title}
         {measurable.auto_source && (
-          <span className="ml-1 text-xs text-muted-foreground">(auto)</span>
+          <span className="ml-1 text-xs text-muted-foreground">
+            ({AUTO_SOURCE_LABELS[measurable.auto_source] || 'auto'})
+          </span>
         )}
       </td>
       <td className="px-3 py-2 text-muted-foreground text-xs">
         {measurable.profiles?.full_name?.split(' ')[0] || '—'}
       </td>
-      <td className="px-3 py-2 text-right text-xs">
-        {measurable.goal_value !== null ? formatValue(measurable.goal_value, measurable.unit) : '—'}
+      <td className="px-2 py-1">
+        <EditableGoalCell
+          measurableId={measurable.id}
+          goalValue={measurable.goal_value}
+          goalDirection={measurable.goal_direction}
+          unit={measurable.unit}
+          onUpdate={updateMeasurable.mutateAsync}
+        />
       </td>
       {weeks.map((week) => {
         const entry = entryMap.get(week);
         const val = entry?.value ?? null;
         const onTrack = isOnTrack(val, measurable.goal_value, measurable.goal_direction);
+        const isClickable = !!measurable.auto_source;
 
         return (
           <td key={week} className="px-1 py-1">
@@ -218,7 +281,9 @@ function MeasurableRow({
               value={val}
               unit={measurable.unit}
               onTrack={onTrack}
+              isClickable={isClickable}
               onSave={(v) => handleCellChange(week, v)}
+              onClick={() => handleCellClick(week)}
             />
           </td>
         );
@@ -227,16 +292,105 @@ function MeasurableRow({
   );
 }
 
+function EditableGoalCell({
+  measurableId,
+  goalValue,
+  goalDirection,
+  unit,
+  onUpdate,
+}: {
+  measurableId: string;
+  goalValue: number | null;
+  goalDirection: GoalDirection;
+  unit: string;
+  onUpdate: (data: { id: string; goalValue?: number | null; goalDirection?: string }) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState('');
+
+  const handleStartEdit = () => {
+    setEditValue(goalValue !== null ? String(goalValue) : '');
+    setEditing(true);
+  };
+
+  const handleSave = async () => {
+    setEditing(false);
+    const newVal = editValue.trim();
+    const numVal = newVal === '' ? null : parseFloat(newVal);
+    if (newVal !== '' && isNaN(numVal!)) return;
+    const currentVal = goalValue;
+    if (numVal !== currentVal) {
+      try {
+        await onUpdate({ id: measurableId, goalValue: numVal });
+      } catch (error) {
+        toast.error((error as Error).message);
+      }
+    }
+  };
+
+  const handleToggleDirection = async () => {
+    const nextDirection = goalDirection === 'above' ? 'below' : goalDirection === 'below' ? 'exact' : 'above';
+    try {
+      await onUpdate({ id: measurableId, goalDirection: nextDirection });
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+  };
+
+  const DirectionIcon = goalDirection === 'above' ? ArrowUp : goalDirection === 'below' ? ArrowDown : Equal;
+  const directionLabel = goalDirection === 'above' ? 'Above' : goalDirection === 'below' ? 'Below' : 'Exact';
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1">
+        <Input
+          className="h-7 w-16 text-center text-xs px-1"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleSave();
+            if (e.key === 'Escape') setEditing(false);
+          }}
+          autoFocus
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-center gap-1">
+      <button
+        onClick={handleToggleDirection}
+        className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+        title={`Goal: ${directionLabel} — click to change`}
+      >
+        <DirectionIcon className="h-3 w-3" />
+      </button>
+      <button
+        onClick={handleStartEdit}
+        className="text-xs hover:bg-muted rounded px-1 py-0.5 transition-colors"
+      >
+        {goalValue !== null ? formatValue(goalValue, unit) : '—'}
+      </button>
+    </div>
+  );
+}
+
 function ScorecardEntryCell({
   value,
   unit,
   onTrack,
+  isClickable,
   onSave,
+  onClick,
 }: {
   value: number | null;
   unit: string;
   onTrack: boolean | null;
+  isClickable: boolean;
   onSave: (value: string) => void;
+  onClick: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
@@ -252,6 +406,14 @@ function ScorecardEntryCell({
     const currentVal = value !== null ? String(value) : '';
     if (newVal !== currentVal) {
       onSave(newVal);
+    }
+  };
+
+  const handleClick = () => {
+    if (isClickable && value !== null) {
+      onClick();
+    } else {
+      handleEdit();
     }
   };
 
@@ -273,13 +435,16 @@ function ScorecardEntryCell({
 
   return (
     <button
-      onClick={handleEdit}
+      onClick={handleClick}
+      onDoubleClick={isClickable ? handleEdit : undefined}
       className={cn(
-        'w-full h-7 rounded text-xs text-center cursor-pointer transition-colors',
-        onTrack === true && 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-        onTrack === false && 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-        onTrack === null && 'hover:bg-muted'
+        'w-full h-7 rounded text-xs text-center transition-colors',
+        onTrack === true && 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 font-medium',
+        onTrack === false && 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 font-medium',
+        onTrack === null && 'hover:bg-muted',
+        isClickable && value !== null ? 'cursor-pointer underline decoration-dotted underline-offset-2' : 'cursor-pointer'
       )}
+      title={isClickable && value !== null ? 'Click to view projects, double-click to edit' : undefined}
     >
       {value !== null ? formatValue(value, unit) : '—'}
     </button>
@@ -304,6 +469,19 @@ function AddMeasurableDialog({
   const [goalDirection, setGoalDirection] = useState('above');
   const [autoSource, setAutoSource] = useState('none');
   const createMeasurable = useCreateMeasurable();
+
+  // Auto-fill title and unit when selecting an auto-source
+  const handleAutoSourceChange = (value: string) => {
+    setAutoSource(value);
+    if (value !== 'none' && !title.trim()) {
+      setTitle(AUTO_SOURCE_LABELS[value] || '');
+      if (value === 'po_revenue' || value === 'invoiced_revenue') {
+        setUnit('currency');
+      } else if (value === 'open_projects') {
+        setUnit('number');
+      }
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -340,6 +518,18 @@ function AddMeasurableDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Auto-populate Source (optional)</Label>
+              <Select value={autoSource} onValueChange={handleAutoSourceChange}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Manual entry</SelectItem>
+                  <SelectItem value="po_revenue">Last 7 Day Sales (by created date)</SelectItem>
+                  <SelectItem value="invoiced_revenue">Invoices Closed (by invoice date)</SelectItem>
+                  <SelectItem value="open_projects">Open Projects (active count)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2">
               <Label>Title</Label>
               <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Weekly Revenue" autoFocus />
@@ -386,17 +576,6 @@ function AddMeasurableDialog({
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Auto-populate Source (optional)</Label>
-              <Select value={autoSource} onValueChange={setAutoSource}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Manual entry</SelectItem>
-                  <SelectItem value="po_revenue">PO Revenue (created_date)</SelectItem>
-                  <SelectItem value="invoiced_revenue">Invoiced Revenue</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
           </div>
           <DialogFooter>

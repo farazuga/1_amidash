@@ -261,18 +261,30 @@ export async function autoPopulateScorecardWeek(
 
     if (!measurables || measurables.length === 0) return { success: true };
 
-    // Calculate week range (Monday to Sunday)
+    // Calculate week range (Monday to Friday)
     const weekStart = new Date(weekOf + 'T00:00:00');
     const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setDate(weekStart.getDate() + 4); // Friday
     const startStr = weekStart.toISOString().split('T')[0];
     const endStr = weekEnd.toISOString().split('T')[0];
+
+    // Get invoiced status ID for open_projects queries
+    let invoicedStatusId: string | null = null;
+    const hasOpenProjects = measurables.some((m) => m.auto_source === 'open_projects');
+    if (hasOpenProjects) {
+      const { data: statuses } = await supabase
+        .from('statuses')
+        .select('id')
+        .eq('name', 'Invoiced')
+        .maybeSingle();
+      invoicedStatusId = statuses?.id || null;
+    }
 
     for (const measurable of measurables) {
       let value: number | null = null;
 
       if (measurable.auto_source === 'po_revenue') {
-        // SUM sales_amount WHERE created_date in week range
+        // SUM sales_amount WHERE created_date in week range (Mon-Fri)
         const { data: projects } = await supabase
           .from('projects')
           .select('sales_amount')
@@ -281,7 +293,7 @@ export async function autoPopulateScorecardWeek(
 
         value = (projects || []).reduce((sum, p) => sum + (p.sales_amount || 0), 0);
       } else if (measurable.auto_source === 'invoiced_revenue') {
-        // SUM sales_amount WHERE invoiced_date in week range
+        // SUM sales_amount WHERE invoiced_date in week range (Mon-Fri)
         const { data: projects } = await supabase
           .from('projects')
           .select('sales_amount')
@@ -290,6 +302,16 @@ export async function autoPopulateScorecardWeek(
           .lte('invoiced_date', endStr);
 
         value = (projects || []).reduce((sum, p) => sum + (p.sales_amount || 0), 0);
+      } else if (measurable.auto_source === 'open_projects') {
+        // COUNT projects that are NOT invoiced (open/active)
+        let countQuery = supabase
+          .from('projects')
+          .select('id', { count: 'exact', head: true });
+        if (invoicedStatusId) {
+          countQuery = countQuery.neq('current_status_id', invoicedStatusId);
+        }
+        const { count } = await countQuery;
+        value = count ?? 0;
       }
 
       if (value !== null) {
