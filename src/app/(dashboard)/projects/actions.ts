@@ -105,14 +105,14 @@ export async function createProject(data: CreateProjectData): Promise<CreateProj
     .from('projects')
     .insert({
       client_name: data.client_name,
-      sales_order_number: data.sales_order_number,
+      sales_order_number: data.sales_order_number ?? undefined,
       sales_order_url: data.sales_order_url,
       po_number: data.po_number,
       sales_amount: data.sales_amount,
       contract_type: data.contract_type,
       goal_completion_date: data.goal_completion_date,
-      start_date: data.start_date || null,
-      end_date: data.end_date || null,
+      start_date: data.start_date || undefined,
+      end_date: data.end_date || undefined,
       salesperson_id: data.salesperson_id,
       poc_name: data.poc_name,
       poc_email: data.poc_email,

@@ -281,7 +281,7 @@ export function ProjectForm({
         // Update project
         const { error } = await supabase
           .from('projects')
-          .update(data)
+          .update({ ...data, sales_order_number: data.sales_order_number ?? undefined })
           .eq('id', project.id);
 
         if (error) {

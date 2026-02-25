@@ -1,0 +1,135 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { getL10Client } from '@/lib/l10/supabase-helpers';
+import type { TodoWithOwner } from '@/types/l10';
+import {
+  validateInput,
+  createTodoSchema,
+  updateTodoSchema,
+} from '@/lib/l10/validation';
+
+export interface ActionResult<T = void> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
+export async function getTodos(
+  teamId: string,
+  showDone = false
+): Promise<ActionResult<TodoWithOwner[]>> {
+  try {
+    const { supabase } = await getL10Client();
+    let query = supabase
+      .from('l10_todos')
+      .select('*, profiles ( id, full_name, email )')
+      .eq('team_id', teamId)
+      .order('created_at', { ascending: false });
+
+    if (!showDone) {
+      query = query.eq('is_done', false);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return { success: true, data: (data || []) as TodoWithOwner[] };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function createTodo(input: unknown): Promise<ActionResult> {
+  try {
+    const validation = validateInput(createTodoSchema, input);
+    if (!validation.success) return { success: false, error: validation.error };
+
+    const { supabase } = await getL10Client();
+    const { teamId, title, ownerId, dueDate, sourceMeetingId, sourceIssueId } = validation.data;
+
+    const { error } = await supabase
+      .from('l10_todos')
+      .insert({
+        team_id: teamId,
+        title,
+        owner_id: ownerId || null,
+        due_date: dueDate || null,
+        source_meeting_id: sourceMeetingId || null,
+        source_issue_id: sourceIssueId || null,
+      });
+
+    if (error) throw error;
+    revalidatePath('/l10');
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function updateTodo(input: unknown): Promise<ActionResult> {
+  try {
+    const validation = validateInput(updateTodoSchema, input);
+    if (!validation.success) return { success: false, error: validation.error };
+
+    const { supabase } = await getL10Client();
+    const { id, ...updates } = validation.data;
+
+    const dbUpdates: Record<string, unknown> = {};
+    if (updates.title !== undefined) dbUpdates.title = updates.title;
+    if (updates.ownerId !== undefined) dbUpdates.owner_id = updates.ownerId;
+    if (updates.dueDate !== undefined) dbUpdates.due_date = updates.dueDate;
+    if (updates.isDone !== undefined) dbUpdates.is_done = updates.isDone;
+
+    const { error } = await supabase
+      .from('l10_todos')
+      .update(dbUpdates)
+      .eq('id', id);
+
+    if (error) throw error;
+    revalidatePath('/l10');
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function toggleTodo(id: string): Promise<ActionResult> {
+  try {
+    const { supabase } = await getL10Client();
+
+    const { data: todo, error: fetchError } = await supabase
+      .from('l10_todos')
+      .select('is_done')
+      .eq('id', id)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    const { error } = await supabase
+      .from('l10_todos')
+      .update({ is_done: !todo.is_done })
+      .eq('id', id);
+
+    if (error) throw error;
+    revalidatePath('/l10');
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function deleteTodo(id: string): Promise<ActionResult> {
+  try {
+    const { supabase } = await getL10Client();
+    const { error } = await supabase
+      .from('l10_todos')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    revalidatePath('/l10');
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}

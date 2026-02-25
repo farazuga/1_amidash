@@ -22,6 +22,7 @@ import {
   ChevronRight,
   CalendarDays,
   CalendarRange,
+  Presentation,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -63,6 +64,14 @@ const mainNavItems = [
     title: 'Settings',
     href: '/settings',
     icon: Settings,
+  },
+];
+
+const l10NavItems = [
+  {
+    title: 'L10 Meetings',
+    href: '/l10',
+    icon: Presentation,
   },
 ];
 
@@ -224,6 +233,25 @@ function SidebarContent({
           {mainNavItems.map((item) => {
             const isActive = pathname === item.href ||
               (item.href !== '/' && pathname.startsWith(item.href));
+            return (
+              <NavItem
+                key={item.href}
+                item={item}
+                isActive={isActive}
+                collapsed={collapsed}
+                onNavigate={onNavigate}
+              />
+            );
+          })}
+
+          {!collapsed && (
+            <div className="mb-2 mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60">
+              L10
+            </div>
+          )}
+          {collapsed && <div className="mt-4 mb-2 border-t border-sidebar-border/50" />}
+          {l10NavItems.map((item) => {
+            const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
             return (
               <NavItem
                 key={item.href}
