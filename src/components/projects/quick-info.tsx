@@ -24,6 +24,7 @@ import { ScheduleStatusBadge } from './schedule-status-badge';
 import { StatusBadge } from './status-badge';
 import { CopyClientLink } from './copy-client-link';
 import { DeleteProjectButton } from './delete-project-button';
+import { MakeIssueButton } from './make-issue-dialog';
 import { ProjectScheduledHours } from './project-scheduled-hours';
 import { inlineEditProjectField, updateProjectDates, updateProjectScheduleStatus } from '@/app/(dashboard)/projects/actions';
 import { toast } from 'sonner';
@@ -270,6 +271,16 @@ export function QuickInfo({
               </a>
             </Button>
           )}
+
+          <MakeIssueButton
+            project={{
+              id: project.id,
+              client_name: project.client_name,
+              sales_order_number: project.sales_order_number,
+              sales_order_url: project.sales_order_url,
+              sales_amount: project.sales_amount,
+            }}
+          />
 
           {isAdmin && (
             <DeleteProjectButton

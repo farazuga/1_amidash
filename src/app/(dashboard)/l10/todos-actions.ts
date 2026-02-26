@@ -23,7 +23,7 @@ export async function getTodos(
     const { supabase } = await getL10Client();
     let query = supabase
       .from('l10_todos')
-      .select('*, profiles ( id, full_name, email )')
+      .select('*, profiles ( id, full_name, email ), source_issue:l10_issues ( id, title, status )')
       .eq('team_id', teamId)
       .order('created_at', { ascending: false });
 
@@ -129,6 +129,79 @@ export async function deleteTodo(id: string): Promise<ActionResult> {
     if (error) throw error;
     revalidatePath('/l10');
     return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export interface MyTodoWithTeam extends TodoWithOwner {
+  team_name?: string;
+}
+
+export async function getMyTodos(
+  userId: string,
+  teamId?: string
+): Promise<ActionResult<MyTodoWithTeam[]>> {
+  try {
+    const { supabase } = await getL10Client();
+
+    // Get teams this user is a member of
+    const { data: memberships, error: memberError } = await supabase
+      .from('team_members')
+      .select('team_id, teams ( name )')
+      .eq('user_id', userId);
+
+    if (memberError) throw memberError;
+    if (!memberships || memberships.length === 0) {
+      return { success: true, data: [] };
+    }
+
+    const teamIds = teamId
+      ? [teamId]
+      : memberships.map((m) => m.team_id);
+
+    const teamNameMap = new Map<string, string>();
+    for (const m of memberships) {
+      const team = m.teams as unknown as { name: string } | null;
+      teamNameMap.set(m.team_id, team?.name || 'Unknown');
+    }
+
+    const { data, error } = await supabase
+      .from('l10_todos')
+      .select('*, profiles ( id, full_name, email ), source_issue:l10_issues ( id, title, status )')
+      .in('team_id', teamIds)
+      .order('due_date', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const todos = (data || []).map((t) => ({
+      ...t,
+      team_name: teamNameMap.get(t.team_id) || 'Unknown',
+    })) as MyTodoWithTeam[];
+
+    return { success: true, data: todos };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function getOverdueTodoCount(
+  userId: string
+): Promise<ActionResult<number>> {
+  try {
+    const { supabase } = await getL10Client();
+    const today = new Date().toISOString().split('T')[0];
+
+    const { count, error } = await supabase
+      .from('l10_todos')
+      .select('*', { count: 'exact', head: true })
+      .eq('owner_id', userId)
+      .eq('is_done', false)
+      .lt('due_date', today);
+
+    if (error) throw error;
+    return { success: true, data: count || 0 };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }

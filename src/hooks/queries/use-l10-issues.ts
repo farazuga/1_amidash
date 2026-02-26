@@ -6,6 +6,7 @@ import {
   deleteIssue,
   reorderIssues,
   solveIssue,
+  getIssueTodos,
 } from '@/app/(dashboard)/l10/issues-actions';
 
 export const L10_ISSUES_KEY = ['l10', 'issues'];
@@ -36,6 +37,7 @@ export function useCreateIssue() {
       description?: string;
       sourceType?: string;
       sourceId?: string;
+      sourceMeta?: Record<string, string>;
     }) => {
       const result = await createIssue(data);
       if (!result.success) throw new Error(result.error);
@@ -105,5 +107,19 @@ export function useSolveIssue() {
       queryClient.invalidateQueries({ queryKey: L10_ISSUES_KEY });
       queryClient.invalidateQueries({ queryKey: L10_TODOS_KEY });
     },
+  });
+}
+
+export function useIssueTodos(issueId: string | null) {
+  return useQuery({
+    queryKey: [...L10_TODOS_KEY, 'issue', issueId],
+    queryFn: async () => {
+      if (!issueId) return [];
+      const result = await getIssueTodos(issueId);
+      if (!result.success) throw new Error(result.error);
+      return result.data || [];
+    },
+    staleTime: THIRTY_SECONDS,
+    enabled: !!issueId,
   });
 }

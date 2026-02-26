@@ -60,6 +60,7 @@ export const createIssueSchema = z.object({
   description: z.string().max(2000, 'Description too long').optional(),
   sourceType: z.string().max(50).optional(),
   sourceId: uuidSchema.optional(),
+  sourceMeta: z.record(z.string(), z.string()).optional(),
 });
 
 export const updateIssueSchema = z.object({
@@ -67,6 +68,7 @@ export const updateIssueSchema = z.object({
   title: z.string().min(1, 'Title is required').max(500, 'Title too long').optional(),
   description: z.string().max(2000, 'Description too long').nullable().optional(),
   status: z.enum(['open', 'solving', 'solved', 'combined']).optional(),
+  sourceMeta: z.record(z.string(), z.string()).optional(),
 });
 
 export const reorderIssuesSchema = z.array(z.object({

@@ -5,6 +5,8 @@ import {
   updateTodo,
   toggleTodo,
   deleteTodo,
+  getMyTodos,
+  getOverdueTodoCount,
 } from '@/app/(dashboard)/l10/todos-actions';
 
 export const L10_TODOS_KEY = ['l10', 'todos'];
@@ -45,6 +47,19 @@ export function useCreateTodo() {
   });
 }
 
+export function useToggleTodo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const result = await toggleTodo(id);
+      if (!result.success) throw new Error(result.error);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: L10_TODOS_KEY });
+    },
+  });
+}
+
 export function useUpdateTodo() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -64,19 +79,6 @@ export function useUpdateTodo() {
   });
 }
 
-export function useToggleTodo() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const result = await toggleTodo(id);
-      if (!result.success) throw new Error(result.error);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: L10_TODOS_KEY });
-    },
-  });
-}
-
 export function useDeleteTodo() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -87,5 +89,33 @@ export function useDeleteTodo() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: L10_TODOS_KEY });
     },
+  });
+}
+
+export function useMyTodos(userId: string | null, teamId?: string) {
+  return useQuery({
+    queryKey: [...L10_TODOS_KEY, 'my', userId, teamId],
+    queryFn: async () => {
+      if (!userId) return [];
+      const result = await getMyTodos(userId, teamId);
+      if (!result.success) throw new Error(result.error);
+      return result.data || [];
+    },
+    staleTime: THIRTY_SECONDS,
+    enabled: !!userId,
+  });
+}
+
+export function useOverdueTodoCount(userId: string | null) {
+  return useQuery({
+    queryKey: [...L10_TODOS_KEY, 'overdue-count', userId],
+    queryFn: async () => {
+      if (!userId) return 0;
+      const result = await getOverdueTodoCount(userId);
+      if (!result.success) throw new Error(result.error);
+      return result.data || 0;
+    },
+    staleTime: THIRTY_SECONDS,
+    enabled: !!userId,
   });
 }

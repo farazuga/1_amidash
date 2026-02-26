@@ -38,6 +38,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useSidebarStore } from '@/lib/stores/sidebar-store';
+import { useOverdueTodoCount } from '@/hooks/queries/use-l10-todos';
 
 const mainNavItems = [
   {
@@ -72,6 +73,11 @@ const l10NavItems = [
     title: 'L10 Meetings',
     href: '/l10',
     icon: Presentation,
+  },
+  {
+    title: 'My To-Dos',
+    href: '/l10/todos',
+    icon: ListChecks,
   },
 ];
 
@@ -118,18 +124,20 @@ function NavItem({
   isActive,
   collapsed,
   onNavigate,
+  badge,
 }: {
   item: { title: string; href: string; icon: React.ElementType };
   isActive: boolean;
   collapsed?: boolean;
   onNavigate?: () => void;
+  badge?: number;
 }) {
   const linkContent = (
     <Link
       href={item.href}
       onClick={onNavigate}
       className={cn(
-        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+        'relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
         collapsed && 'justify-center px-2',
         isActive
           ? 'bg-sidebar-accent text-sidebar-accent-foreground'
@@ -138,6 +146,16 @@ function NavItem({
     >
       <item.icon className="h-5 w-5 shrink-0" />
       {!collapsed && item.title}
+      {!collapsed && badge !== undefined && badge > 0 && (
+        <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-medium text-destructive-foreground">
+          {badge}
+        </span>
+      )}
+      {collapsed && badge !== undefined && badge > 0 && (
+        <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
+          {badge}
+        </span>
+      )}
     </Link>
   );
 
@@ -165,7 +183,8 @@ function SidebarContent({
   onToggleCollapse?: () => void;
 }) {
   const pathname = usePathname();
-  const { isAdmin } = useUser();
+  const { user, isAdmin } = useUser();
+  const { data: overdueCount } = useOverdueTodoCount(user?.id ?? null);
 
   return (
     <TooltipProvider>
@@ -259,6 +278,7 @@ function SidebarContent({
                 isActive={isActive}
                 collapsed={collapsed}
                 onNavigate={onNavigate}
+                badge={item.href === '/l10/todos' ? overdueCount : undefined}
               />
             );
           })}

@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, RefreshCw, ArrowUp, ArrowDown, Equal } from 'lucide-react';
+import { Plus, RefreshCw, ArrowUp, ArrowDown, Equal, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -11,6 +11,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Select,
   SelectContent,
@@ -24,6 +34,7 @@ import {
   useScorecard,
   useCreateMeasurable,
   useUpdateMeasurable,
+  useDeleteMeasurable,
   useUpsertScorecardEntry,
   useAutoPopulateScorecardWeek,
 } from '@/hooks/queries/use-l10-scorecard';
@@ -115,6 +126,7 @@ export function ScorecardTab({ teamId }: ScorecardTabProps) {
   const { data: scorecardData, isLoading } = useScorecard(teamId);
   const { data: team } = useTeam(teamId);
   const [addOpen, setAddOpen] = useState(false);
+  const [editingMeasurable, setEditingMeasurable] = useState<ScorecardMeasurableWithOwner | null>(null);
   const autoPopulate = useAutoPopulateScorecardWeek();
   const weeks = getLast13Weeks();
 
@@ -188,6 +200,7 @@ export function ScorecardTab({ teamId }: ScorecardTabProps) {
                   measurable={m}
                   weeks={weeks}
                   entryMap={entryMap.get(m.id) || new Map()}
+                  onEditClick={() => setEditingMeasurable(m)}
                 />
               ))}
             </tbody>
@@ -203,6 +216,15 @@ export function ScorecardTab({ teamId }: ScorecardTabProps) {
           members={team?.team_members || []}
         />
       )}
+
+      {editingMeasurable && (
+        <EditMeasurableDialog
+          open={!!editingMeasurable}
+          onOpenChange={(open) => { if (!open) setEditingMeasurable(null); }}
+          measurable={editingMeasurable}
+          members={team?.team_members || []}
+        />
+      )}
     </div>
   );
 }
@@ -211,10 +233,12 @@ function MeasurableRow({
   measurable,
   weeks,
   entryMap,
+  onEditClick,
 }: {
   measurable: ScorecardMeasurableWithOwner;
   weeks: string[];
   entryMap: Map<string, ScorecardEntry>;
+  onEditClick: () => void;
 }) {
   const router = useRouter();
   const upsertEntry = useUpsertScorecardEntry();
@@ -250,7 +274,12 @@ function MeasurableRow({
   return (
     <tr className="border-b hover:bg-muted/30">
       <td className="sticky left-0 z-10 bg-background px-3 py-2 font-medium">
-        {measurable.title}
+        <button
+          onClick={onEditClick}
+          className="text-left hover:text-primary hover:underline transition-colors"
+        >
+          {measurable.title}
+        </button>
         {measurable.auto_source && (
           <span className="ml-1 text-xs text-muted-foreground">
             ({AUTO_SOURCE_LABELS[measurable.auto_source] || 'auto'})
@@ -587,5 +616,172 @@ function AddMeasurableDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ============================================
+// Edit Measurable Dialog
+// ============================================
+
+function EditMeasurableDialog({
+  open,
+  onOpenChange,
+  measurable,
+  members,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  measurable: ScorecardMeasurableWithOwner;
+  members: { user_id: string; profiles: { id: string; full_name: string | null; email: string } }[];
+}) {
+  const [title, setTitle] = useState(measurable.title);
+  const [ownerId, setOwnerId] = useState(measurable.owner_id || '');
+  const [unit, setUnit] = useState<string>(measurable.unit);
+  const [goalValue, setGoalValue] = useState(measurable.goal_value !== null ? String(measurable.goal_value) : '');
+  const [goalDirection, setGoalDirection] = useState<string>(measurable.goal_direction);
+  const [autoSource, setAutoSource] = useState(measurable.auto_source || 'none');
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const updateMeasurable = useUpdateMeasurable();
+  const deleteMeasurable = useDeleteMeasurable();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) return;
+
+    try {
+      await updateMeasurable.mutateAsync({
+        id: measurable.id,
+        title: title.trim(),
+        ownerId: ownerId || null,
+        unit,
+        goalValue: goalValue ? parseFloat(goalValue) : null,
+        goalDirection,
+        autoSource: autoSource === 'none' ? null : autoSource,
+      });
+      toast.success('Measurable updated');
+      onOpenChange(false);
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      await deleteMeasurable.mutateAsync(measurable.id);
+      toast.success('Measurable deleted');
+      setDeleteConfirmOpen(false);
+      onOpenChange(false);
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+  };
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Measurable</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit}>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Auto-populate Source (optional)</Label>
+                <Select value={autoSource} onValueChange={setAutoSource}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Manual entry</SelectItem>
+                    <SelectItem value="po_revenue">Last 7 Day Sales (by created date)</SelectItem>
+                    <SelectItem value="invoiced_revenue">Invoices Closed (by invoice date)</SelectItem>
+                    <SelectItem value="open_projects">Open Projects (active count)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Title</Label>
+                <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Weekly Revenue" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Owner</Label>
+                  <Select value={ownerId} onValueChange={setOwnerId}>
+                    <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                    <SelectContent>
+                      {members.map((m) => (
+                        <SelectItem key={m.user_id} value={m.user_id}>
+                          {m.profiles.full_name || m.profiles.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Unit</Label>
+                  <Select value={unit} onValueChange={setUnit}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="number">Number</SelectItem>
+                      <SelectItem value="currency">Currency</SelectItem>
+                      <SelectItem value="percentage">Percentage</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Goal Value</Label>
+                  <Input type="number" value={goalValue} onChange={(e) => setGoalValue(e.target.value)} placeholder="e.g. 10000" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Direction</Label>
+                  <Select value={goalDirection} onValueChange={setGoalDirection}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="above">At or Above</SelectItem>
+                      <SelectItem value="below">At or Below</SelectItem>
+                      <SelectItem value="exact">Exact</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+            <DialogFooter className="flex justify-between">
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => setDeleteConfirmOpen(true)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </Button>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                <Button type="submit" disabled={!title.trim() || updateMeasurable.isPending}>
+                  {updateMeasurable.isPending ? 'Saving...' : 'Save'}
+                </Button>
+              </div>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Measurable</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete &quot;{measurable.title}&quot; and all its historical data. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

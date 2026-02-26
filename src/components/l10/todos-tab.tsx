@@ -145,6 +145,11 @@ function TodoItem({
         <p className={cn('text-sm', todo.is_done && 'line-through text-muted-foreground')}>
           {todo.title}
         </p>
+        {todo.source_issue && (
+          <p className="text-xs text-muted-foreground truncate">
+            ↳ {todo.source_issue.title}
+          </p>
+        )}
       </div>
       <span className="text-xs text-muted-foreground">
         {todo.profiles?.full_name?.split(' ')[0] || ''}

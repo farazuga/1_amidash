@@ -59,6 +59,7 @@ export interface Issue {
   status: IssueStatus;
   source_type: string | null;
   source_id: string | null;
+  source_meta: Record<string, string> | null;
   resolved_at: string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -84,6 +85,7 @@ export interface Todo {
 
 export interface TodoWithOwner extends Todo {
   profiles: { id: string; full_name: string | null; email: string } | null;
+  source_issue?: { id: string; title: string; status: string } | null;
 }
 
 // Headline types

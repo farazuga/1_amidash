@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { getL10Client } from '@/lib/l10/supabase-helpers';
-import type { IssueWithCreator } from '@/types/l10';
+import type { IssueWithCreator, TodoWithOwner } from '@/types/l10';
 import {
   validateInput,
   createIssueSchema,
@@ -30,9 +30,9 @@ export async function getIssues(
       .order('priority_rank', { ascending: true })
       .order('created_at', { ascending: false });
 
-    if (status) {
+    if (status && status !== 'all') {
       query = query.eq('status', status);
-    } else {
+    } else if (!status) {
       query = query.in('status', ['open', 'solving']);
     }
 
@@ -50,7 +50,7 @@ export async function createIssue(input: unknown): Promise<ActionResult> {
     if (!validation.success) return { success: false, error: validation.error };
 
     const { supabase, user } = await getL10Client();
-    const { teamId, title, description, sourceType, sourceId } = validation.data;
+    const { teamId, title, description, sourceType, sourceId, sourceMeta } = validation.data;
 
     const { error } = await supabase
       .from('l10_issues')
@@ -61,6 +61,7 @@ export async function createIssue(input: unknown): Promise<ActionResult> {
         created_by: user.id,
         source_type: sourceType || null,
         source_id: sourceId || null,
+        source_meta: sourceMeta || null,
       });
 
     if (error) throw error;
@@ -82,6 +83,7 @@ export async function updateIssue(input: unknown): Promise<ActionResult> {
     const dbUpdates: Record<string, unknown> = {};
     if (updates.title !== undefined) dbUpdates.title = updates.title;
     if (updates.description !== undefined) dbUpdates.description = updates.description;
+    if (updates.sourceMeta !== undefined) dbUpdates.source_meta = updates.sourceMeta;
     if (updates.status !== undefined) {
       dbUpdates.status = updates.status;
       if (updates.status === 'solved') {
@@ -180,6 +182,24 @@ export async function solveIssue(input: unknown): Promise<ActionResult> {
 
     revalidatePath('/l10');
     return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function getIssueTodos(
+  issueId: string
+): Promise<ActionResult<TodoWithOwner[]>> {
+  try {
+    const { supabase } = await getL10Client();
+    const { data, error } = await supabase
+      .from('l10_todos')
+      .select('*, profiles ( id, full_name, email )')
+      .eq('source_issue_id', issueId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return { success: true, data: (data || []) as TodoWithOwner[] };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }
