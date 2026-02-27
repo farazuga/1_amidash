@@ -256,6 +256,14 @@ export function ProjectForm({
         if (vidpodType) {
           setSelectedProjectType(vidpodType.id);
         }
+      } else {
+        // No install, no vidpod → select "box sale"
+        const boxSaleType = projectTypes.find(t =>
+          t.name.toLowerCase() === 'box sale' && t.is_active
+        );
+        if (boxSaleType) {
+          setSelectedProjectType(boxSaleType.id);
+        }
       }
 
       // Auto-fill vidpod count from ami_vidpod quantity

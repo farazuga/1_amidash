@@ -26,6 +26,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   ExternalLink,
@@ -148,6 +154,7 @@ interface ProjectWithTags {
   end_date?: string | null;
   schedule_status?: string | null;
   invoiced_date?: string | null;
+  project_description?: string | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   current_status?: any;
   tags?: { tag: { id: string; name: string; color: string | null } }[];
@@ -362,7 +369,7 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
   const renderCell = (project: ProjectWithTags, columnId: string) => {
     switch (columnId) {
       case 'client':
-        return (
+        const clientContent = (
           <div className="space-y-1">
             <p className="font-medium">{project.client_name}</p>
             {project.tags && project.tags.length > 0 && (
@@ -386,6 +393,23 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
             )}
           </div>
         );
+
+        if (project.project_description) {
+          return (
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  {clientContent}
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-xs whitespace-pre-wrap text-sm">
+                  {project.project_description}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
+        }
+
+        return clientContent;
 
       case 'created_date':
         return format(new Date(project.created_date), 'MMM d, yyyy');
