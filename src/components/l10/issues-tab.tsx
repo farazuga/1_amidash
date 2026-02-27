@@ -70,6 +70,7 @@ import {
 } from '@/hooks/queries/use-l10-issues';
 import { useCreateTodo, useToggleTodo } from '@/hooks/queries/use-l10-todos';
 import { useTeam } from '@/hooks/queries/use-l10-teams';
+import { useUser } from '@/contexts/user-context';
 import { toast } from 'sonner';
 import type { IssueWithCreator, TodoWithOwner } from '@/types/l10';
 import { cn } from '@/lib/utils';
@@ -547,8 +548,9 @@ function QuickAddTodoDialog({
   teamId: string;
   issueId: string;
 }) {
+  const { user } = useUser();
   const [title, setTitle] = useState('');
-  const [ownerId, setOwnerId] = useState('');
+  const [ownerId, setOwnerId] = useState(user?.id ?? '');
   const [dueDate, setDueDate] = useState('');
   const { data: team } = useTeam(teamId);
   const createTodo = useCreateTodo();
@@ -568,7 +570,7 @@ function QuickAddTodoDialog({
       toast.success('To-do created');
       onOpenChange(false);
       setTitle('');
-      setOwnerId('');
+      setOwnerId(user?.id ?? '');
       setDueDate('');
     } catch (error) {
       toast.error((error as Error).message);
@@ -772,8 +774,9 @@ function SolveIssueDialog({
   issue: IssueWithCreator;
   teamId: string;
 }) {
+  const { user } = useUser();
   const [todoTitle, setTodoTitle] = useState('');
-  const [todoOwnerId, setTodoOwnerId] = useState('');
+  const [todoOwnerId, setTodoOwnerId] = useState(user?.id ?? '');
   const { data: team } = useTeam(teamId);
   const solveIssue = useSolveIssue();
 
@@ -787,7 +790,7 @@ function SolveIssueDialog({
       toast.success('Issue solved');
       onOpenChange(false);
       setTodoTitle('');
-      setTodoOwnerId('');
+      setTodoOwnerId(user?.id ?? '');
     } catch (error) {
       toast.error((error as Error).message);
     }

@@ -28,9 +28,12 @@ import {
   useDeleteTodo,
 } from '@/hooks/queries/use-l10-todos';
 import { useTeam } from '@/hooks/queries/use-l10-teams';
+import { useUser } from '@/contexts/user-context';
 import { toast } from 'sonner';
 import type { TodoWithOwner } from '@/types/l10';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
+import { ExternalLink } from 'lucide-react';
 
 interface TodosTabProps {
   teamId: string;
@@ -134,6 +137,7 @@ function TodoItem({
   onDelete: (id: string) => void;
 }) {
   const isOverdue = todo.due_date && !todo.is_done && new Date(todo.due_date + 'T00:00:00') < new Date();
+  const sourceMeta = todo.source_issue?.source_meta as Record<string, string> | null;
 
   return (
     <div className="flex items-center gap-3 rounded-md border p-3 hover:bg-muted/30">
@@ -146,9 +150,31 @@ function TodoItem({
           {todo.title}
         </p>
         {todo.source_issue && (
-          <p className="text-xs text-muted-foreground truncate">
-            ↳ {todo.source_issue.title}
-          </p>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            {sourceMeta?.clientName && sourceMeta?.salesOrder ? (
+              <Link
+                href={`/projects/${sourceMeta.salesOrder}`}
+                className="text-xs text-primary hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {sourceMeta.clientName}
+              </Link>
+            ) : (
+              <span className="text-xs text-muted-foreground">↳ {todo.source_issue.title}</span>
+            )}
+            {sourceMeta?.salesOrderUrl && (
+              <a
+                href={sourceMeta.salesOrderUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-0.5 text-xs text-primary hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ExternalLink className="h-3 w-3" />
+                {sourceMeta.salesOrder || 'Odoo'}
+              </a>
+            )}
+          </div>
         )}
       </div>
       <span className="text-xs text-muted-foreground">
@@ -183,8 +209,9 @@ function AddTodoDialog({
   onOpenChange: (open: boolean) => void;
   teamId: string;
 }) {
+  const { user } = useUser();
   const [title, setTitle] = useState('');
-  const [ownerId, setOwnerId] = useState('');
+  const [ownerId, setOwnerId] = useState(user?.id ?? '');
   const [dueDate, setDueDate] = useState('');
   const { data: team } = useTeam(teamId);
   const createTodo = useCreateTodo();
@@ -203,7 +230,7 @@ function AddTodoDialog({
       toast.success('To-do added');
       onOpenChange(false);
       setTitle('');
-      setOwnerId('');
+      setOwnerId(user?.id ?? '');
       setDueDate('');
     } catch (error) {
       toast.error((error as Error).message);

@@ -23,7 +23,7 @@ export async function getTodos(
     const { supabase } = await getL10Client();
     let query = supabase
       .from('l10_todos')
-      .select('*, profiles ( id, full_name, email ), source_issue:l10_issues ( id, title, status )')
+      .select('*, profiles ( id, full_name, email ), source_issue:l10_issues ( id, title, status, source_type, source_meta )')
       .eq('team_id', teamId)
       .order('created_at', { ascending: false });
 
@@ -168,7 +168,7 @@ export async function getMyTodos(
 
     const { data, error } = await supabase
       .from('l10_todos')
-      .select('*, profiles ( id, full_name, email ), source_issue:l10_issues ( id, title, status )')
+      .select('*, profiles ( id, full_name, email ), source_issue:l10_issues ( id, title, status, source_type, source_meta )')
       .in('team_id', teamIds)
       .order('due_date', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false });

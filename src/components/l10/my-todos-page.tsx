@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -17,6 +17,7 @@ import { useMyTodos, useToggleTodo, useDeleteTodo } from '@/hooks/queries/use-l1
 import { useTeams } from '@/hooks/queries/use-l10-teams';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 import type { MyTodoWithTeam } from '@/app/(dashboard)/l10/todos-actions';
 
 export function MyTodosPage() {
@@ -137,7 +138,7 @@ export function MyTodosPage() {
           </div>
           <div className="space-y-1">
             {teamTodos.filter((t) => !t.is_done).map((todo) => (
-              <TodoRow key={todo.id} todo={todo} onToggle={handleToggle} onDelete={handleDelete} />
+              <TodoRow key={todo.id} todo={todo} onToggle={handleToggle} onDelete={handleDelete} emphasized />
             ))}
             {teamTodos.filter((t) => t.is_done).length > 0 && teamTodos.filter((t) => !t.is_done).length > 0 && (
               <div className="border-t my-2" />
@@ -156,15 +157,21 @@ function TodoRow({
   todo,
   onToggle,
   onDelete,
+  emphasized,
 }: {
   todo: MyTodoWithTeam;
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
+  emphasized?: boolean;
 }) {
   const isOverdue = todo.due_date && !todo.is_done && new Date(todo.due_date + 'T00:00:00') < new Date();
+  const sourceMeta = todo.source_issue?.source_meta as Record<string, string> | null;
 
   return (
-    <div className="flex items-center gap-3 rounded-md border p-3 hover:bg-muted/30">
+    <div className={cn(
+      'flex items-center gap-3 rounded-md border p-3 hover:bg-muted/30',
+      emphasized && 'border-l-4 border-l-primary bg-primary/5'
+    )}>
       <Checkbox
         checked={todo.is_done}
         onCheckedChange={() => onToggle(todo.id)}
@@ -173,12 +180,30 @@ function TodoRow({
         <p className={cn('text-sm', todo.is_done && 'line-through text-muted-foreground')}>
           {todo.title}
         </p>
-        <div className="flex items-center gap-2 mt-0.5">
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
           {todo.team_name && (
             <span className="text-xs text-muted-foreground">{todo.team_name}</span>
           )}
-          {todo.source_issue && (
+          {sourceMeta?.clientName && sourceMeta?.salesOrder ? (
+            <Link
+              href={`/projects/${sourceMeta.salesOrder}`}
+              className="text-xs text-primary hover:underline"
+            >
+              {sourceMeta.clientName}
+            </Link>
+          ) : todo.source_issue ? (
             <span className="text-xs text-muted-foreground">↳ {todo.source_issue.title}</span>
+          ) : null}
+          {sourceMeta?.salesOrderUrl && (
+            <a
+              href={sourceMeta.salesOrderUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-0.5 text-xs text-primary hover:underline"
+            >
+              <ExternalLink className="h-3 w-3" />
+              {sourceMeta.salesOrder || 'Odoo'}
+            </a>
           )}
         </div>
       </div>

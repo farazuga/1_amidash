@@ -85,7 +85,7 @@ export interface Todo {
 
 export interface TodoWithOwner extends Todo {
   profiles: { id: string; full_name: string | null; email: string } | null;
-  source_issue?: { id: string; title: string; status: string } | null;
+  source_issue?: { id: string; title: string; status: string; source_type?: string | null; source_meta?: Record<string, string> | null } | null;
 }
 
 // Headline types
