@@ -53,6 +53,7 @@ export function useUpdateMilestone() {
     mutationFn: async (data: {
       id: string;
       title?: string;
+      description?: string | null;
       dueDate?: string | null;
       ownerId?: string | null;
       isComplete?: boolean;

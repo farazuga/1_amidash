@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { getL10Client } from '@/lib/l10/supabase-helpers';
-import type { RockWithOwner } from '@/types/l10';
+import type { RockWithOwner, TodoWithOwner } from '@/types/l10';
 import {
   validateInput,
   createRockSchema,
@@ -229,6 +229,39 @@ export async function archiveRock(id: string): Promise<ActionResult> {
     if (error) throw error;
     revalidatePath('/l10');
     return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function getRockTodos(
+  rockId: string
+): Promise<ActionResult<TodoWithOwner[]>> {
+  try {
+    const { supabase } = await getL10Client();
+
+    // Get milestone IDs for this rock
+    const { data: milestones, error: mError } = await supabase
+      .from('l10_rock_milestones')
+      .select('id')
+      .eq('rock_id', rockId);
+
+    if (mError) throw mError;
+    if (!milestones || milestones.length === 0) {
+      return { success: true, data: [] };
+    }
+
+    const milestoneIds = milestones.map((m) => m.id);
+
+    // Get todos linked to these milestones
+    const { data, error } = await supabase
+      .from('l10_todos')
+      .select('*, profiles ( id, full_name, email ), source_issue:l10_issues ( id, title, status, source_type, source_meta ), source_milestone:l10_rock_milestones ( id, title, rock:l10_rocks ( id, title ) )')
+      .in('source_milestone_id', milestoneIds)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return { success: true, data: (data || []) as TodoWithOwner[] };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }

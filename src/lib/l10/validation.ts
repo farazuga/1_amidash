@@ -63,6 +63,7 @@ export const updateRockSchema = z.object({
 export const createMilestoneSchema = z.object({
   rockId: uuidSchema,
   title: z.string().min(1, 'Title is required').max(500, 'Title too long'),
+  description: z.string().max(2000, 'Description too long').optional(),
   dueDate: dateSchema.optional(),
   ownerId: uuidSchema.optional(),
 });
@@ -70,6 +71,7 @@ export const createMilestoneSchema = z.object({
 export const updateMilestoneSchema = z.object({
   id: uuidSchema,
   title: z.string().min(1, 'Title is required').max(500, 'Title too long').optional(),
+  description: z.string().max(2000, 'Description too long').nullable().optional(),
   dueDate: dateSchema.nullable().optional(),
   ownerId: uuidSchema.nullable().optional(),
   isComplete: z.boolean().optional(),
@@ -124,6 +126,7 @@ export const createTodoSchema = z.object({
 export const updateTodoSchema = z.object({
   id: uuidSchema,
   title: z.string().min(1, 'Title is required').max(500, 'Title too long').optional(),
+  description: z.string().max(2000, 'Description too long').nullable().optional(),
   ownerId: uuidSchema.nullable().optional(),
   dueDate: dateSchema.nullable().optional(),
   isDone: z.boolean().optional(),
@@ -199,6 +202,29 @@ export const submitRatingSchema = z.object({
   (data) => data.rating >= 8 || (data.explanation && data.explanation.trim().length > 0),
   { message: 'Explanation is required for ratings below 8', path: ['explanation'] }
 );
+
+// ============================================
+// Comment Schemas
+// ============================================
+
+export const createCommentSchema = z.object({
+  entityType: z.enum(['rock', 'todo', 'milestone', 'issue']),
+  entityId: uuidSchema,
+  content: z.string().min(1, 'Comment cannot be empty').max(2000, 'Comment too long'),
+});
+
+export const updateCommentSchema = z.object({
+  id: uuidSchema,
+  content: z.string().min(1, 'Comment cannot be empty').max(2000, 'Comment too long'),
+});
+
+// ============================================
+// Convert Todo to Issue Schema
+// ============================================
+
+export const convertTodoToIssueSchema = z.object({
+  todoId: uuidSchema,
+});
 
 // ============================================
 // Helper function to validate and parse

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Plus, GripVertical, Trash2, CheckCircle, ExternalLink, Clock } from 'lucide-react';
+import { Plus, GripVertical, Trash2, CheckCircle, ExternalLink, Clock, SquareArrowOutUpRight } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -75,6 +75,7 @@ import { toast } from 'sonner';
 import type { IssueWithCreator, TodoWithOwner } from '@/types/l10';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { L10Comments } from './l10-comments';
 
 interface IssuesTabProps {
   teamId: string;
@@ -486,6 +487,12 @@ function IssueDetailSheet({
                     Created by {issue.profiles.full_name || issue.profiles.email}
                   </p>
                 )}
+
+                {/* Comments */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">Comments</Label>
+                  <L10Comments entityType="issue" entityId={issue.id} />
+                </div>
               </div>
 
               <SheetFooter className="border-t gap-2">
@@ -683,6 +690,9 @@ function SortableIssueCard({
         {issue.status}
       </Badge>
       <div className="flex gap-1">
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClick} title="Open Details">
+          <SquareArrowOutUpRight className="h-3 w-3" />
+        </Button>
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onSolve} title="Solve">
           <CheckCircle className="h-3 w-3" />
         </Button>

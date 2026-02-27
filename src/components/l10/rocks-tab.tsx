@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Plus, ArrowRightLeft, Trash2, Archive, ChevronDown, ChevronRight, Pencil } from 'lucide-react';
+import { Plus, ArrowRightLeft, Trash2, Archive, ChevronDown, ChevronRight, Pencil, SquareArrowOutUpRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -38,6 +38,7 @@ import { toast } from 'sonner';
 import type { RockWithOwner, RockStatus, RockMilestone } from '@/types/l10';
 import { cn } from '@/lib/utils';
 import { RockMilestones } from './rock-milestones';
+import { RockDetailSheet } from './rock-detail-sheet';
 
 function getCurrentQuarter(): string {
   const now = new Date();
@@ -62,6 +63,7 @@ export function RocksTab({ teamId }: RocksTabProps) {
   const [showArchived, setShowArchived] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [editingRock, setEditingRock] = useState<RockWithOwner | null>(null);
+  const [selectedRock, setSelectedRock] = useState<RockWithOwner | null>(null);
   const [expandedRockId, setExpandedRockId] = useState<string | null>(null);
   const { data: rocks, isLoading } = useRocks(teamId, quarter, showArchived);
   const { data: team } = useTeam(teamId);
@@ -254,6 +256,15 @@ export function RocksTab({ teamId }: RocksTabProps) {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7"
+                            onClick={() => setSelectedRock(rock)}
+                            title="Open Details"
+                          >
+                            <SquareArrowOutUpRight className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
                             onClick={() => setEditingRock(rock)}
                             title="Edit Rock"
                           >
@@ -322,6 +333,12 @@ export function RocksTab({ teamId }: RocksTabProps) {
           members={team?.team_members || []}
         />
       )}
+
+      <RockDetailSheet
+        rock={selectedRock}
+        onClose={() => setSelectedRock(null)}
+        teamId={teamId}
+      />
     </div>
   );
 }

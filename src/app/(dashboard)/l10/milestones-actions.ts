@@ -51,11 +51,14 @@ export async function createMilestone(input: unknown): Promise<ActionResult> {
 
     const maxOrder = existing?.[0]?.display_order ?? -1;
 
+    const { description } = validation.data;
+
     const { error } = await supabase
       .from('l10_rock_milestones')
       .insert({
         rock_id: rockId,
         title,
+        description: description || null,
         due_date: dueDate || null,
         owner_id: ownerId || null,
         display_order: maxOrder + 1,
@@ -79,6 +82,7 @@ export async function updateMilestone(input: unknown): Promise<ActionResult> {
 
     const dbUpdates: Record<string, unknown> = {};
     if (updates.title !== undefined) dbUpdates.title = updates.title;
+    if (updates.description !== undefined) dbUpdates.description = updates.description;
     if (updates.dueDate !== undefined) dbUpdates.due_date = updates.dueDate;
     if (updates.ownerId !== undefined) dbUpdates.owner_id = updates.ownerId;
     if (updates.isComplete !== undefined) dbUpdates.is_complete = updates.isComplete;

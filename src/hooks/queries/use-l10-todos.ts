@@ -7,6 +7,7 @@ import {
   deleteTodo,
   getMyTodos,
   getOverdueTodoCount,
+  convertTodoToIssue,
 } from '@/app/(dashboard)/l10/todos-actions';
 
 export const L10_TODOS_KEY = ['l10', 'todos'];
@@ -66,6 +67,7 @@ export function useUpdateTodo() {
     mutationFn: async (data: {
       id: string;
       title?: string;
+      description?: string | null;
       ownerId?: string | null;
       dueDate?: string | null;
       isDone?: boolean;
@@ -117,5 +119,21 @@ export function useOverdueTodoCount(userId: string | null) {
     },
     staleTime: THIRTY_SECONDS,
     enabled: !!userId,
+  });
+}
+
+const L10_ISSUES_KEY = ['l10', 'issues'];
+
+export function useConvertTodoToIssue() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (todoId: string) => {
+      const result = await convertTodoToIssue({ todoId });
+      if (!result.success) throw new Error(result.error);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: L10_TODOS_KEY });
+      queryClient.invalidateQueries({ queryKey: L10_ISSUES_KEY });
+    },
   });
 }

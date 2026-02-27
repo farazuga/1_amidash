@@ -7,6 +7,7 @@ import {
   toggleRockStatus,
   dropRockToIssue,
   archiveRock,
+  getRockTodos,
 } from '@/app/(dashboard)/l10/rocks-actions';
 
 export const L10_ROCKS_KEY = ['l10', 'rocks'];
@@ -119,5 +120,21 @@ export function useArchiveRock() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: L10_ROCKS_KEY });
     },
+  });
+}
+
+const L10_TODOS_KEY = ['l10', 'todos'];
+
+export function useRockTodos(rockId: string | null) {
+  return useQuery({
+    queryKey: [...L10_TODOS_KEY, 'rock', rockId],
+    queryFn: async () => {
+      if (!rockId) return [];
+      const result = await getRockTodos(rockId);
+      if (!result.success) throw new Error(result.error);
+      return result.data || [];
+    },
+    staleTime: THIRTY_SECONDS,
+    enabled: !!rockId,
   });
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Trash2, ExternalLink, Mountain } from 'lucide-react';
+import { Trash2, ExternalLink, Mountain, SquareArrowOutUpRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -19,10 +19,12 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import type { MyTodoWithTeam } from '@/app/(dashboard)/l10/todos-actions';
+import { TodoDetailSheet } from './todo-detail-sheet';
 
 export function MyTodosPage() {
   const { user } = useUser();
   const [teamFilter, setTeamFilter] = useState<string>('all');
+  const [selectedTodo, setSelectedTodo] = useState<MyTodoWithTeam | null>(null);
   const { data: teams } = useTeams();
   const { data: allTodos, isLoading } = useMyTodos(
     user?.id ?? null,
@@ -112,13 +114,13 @@ export function MyTodosPage() {
         ) : (
           <div className="space-y-1">
             {myActive.map((todo) => (
-              <TodoRow key={todo.id} todo={todo} onToggle={handleToggle} onDelete={handleDelete} />
+              <TodoRow key={todo.id} todo={todo} onToggle={handleToggle} onDelete={handleDelete} onExpand={setSelectedTodo} />
             ))}
             {myDone.length > 0 && myActive.length > 0 && (
               <div className="border-t my-2" />
             )}
             {myDone.map((todo) => (
-              <TodoRow key={todo.id} todo={todo} onToggle={handleToggle} onDelete={handleDelete} />
+              <TodoRow key={todo.id} todo={todo} onToggle={handleToggle} onDelete={handleDelete} onExpand={setSelectedTodo} />
             ))}
           </div>
         )}
@@ -138,17 +140,23 @@ export function MyTodosPage() {
           </div>
           <div className="space-y-1">
             {teamTodos.filter((t) => !t.is_done).map((todo) => (
-              <TodoRow key={todo.id} todo={todo} onToggle={handleToggle} onDelete={handleDelete} emphasized />
+              <TodoRow key={todo.id} todo={todo} onToggle={handleToggle} onDelete={handleDelete} onExpand={setSelectedTodo} emphasized />
             ))}
             {teamTodos.filter((t) => t.is_done).length > 0 && teamTodos.filter((t) => !t.is_done).length > 0 && (
               <div className="border-t my-2" />
             )}
             {teamTodos.filter((t) => t.is_done).map((todo) => (
-              <TodoRow key={todo.id} todo={todo} onToggle={handleToggle} onDelete={handleDelete} />
+              <TodoRow key={todo.id} todo={todo} onToggle={handleToggle} onDelete={handleDelete} onExpand={setSelectedTodo} />
             ))}
           </div>
         </section>
       )}
+
+      <TodoDetailSheet
+        todo={selectedTodo}
+        onClose={() => setSelectedTodo(null)}
+        teamId={selectedTodo?.team_id || ''}
+      />
     </div>
   );
 }
@@ -157,11 +165,13 @@ function TodoRow({
   todo,
   onToggle,
   onDelete,
+  onExpand,
   emphasized,
 }: {
   todo: MyTodoWithTeam;
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
+  onExpand: (todo: MyTodoWithTeam) => void;
   emphasized?: boolean;
 }) {
   const isOverdue = todo.due_date && !todo.is_done && new Date(todo.due_date + 'T00:00:00') < new Date();
@@ -228,6 +238,15 @@ function TodoRow({
           {new Date(todo.due_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
         </span>
       )}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7"
+        onClick={() => onExpand(todo)}
+        title="Open Details"
+      >
+        <SquareArrowOutUpRight className="h-3 w-3" />
+      </Button>
       <Button
         variant="ghost"
         size="icon"

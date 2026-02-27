@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Trash2, Mountain } from 'lucide-react';
+import { Plus, Trash2, Mountain, SquareArrowOutUpRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -34,6 +34,7 @@ import type { TodoWithOwner } from '@/types/l10';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
+import { TodoDetailSheet } from './todo-detail-sheet';
 
 interface TodosTabProps {
   teamId: string;
@@ -42,6 +43,7 @@ interface TodosTabProps {
 export function TodosTab({ teamId }: TodosTabProps) {
   const [showDone, setShowDone] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [selectedTodo, setSelectedTodo] = useState<TodoWithOwner | null>(null);
   const { data: todos, isLoading } = useTodos(teamId, showDone);
   const toggleTodo = useToggleTodo();
   const deleteTodo = useDeleteTodo();
@@ -103,7 +105,7 @@ export function TodosTab({ teamId }: TodosTabProps) {
       ) : (
         <div className="space-y-1">
           {activeTodos.map((todo) => (
-            <TodoItem key={todo.id} todo={todo} onToggle={handleToggle} onDelete={handleDelete} />
+            <TodoItem key={todo.id} todo={todo} onToggle={handleToggle} onDelete={handleDelete} onExpand={setSelectedTodo} />
           ))}
           {showDone && doneTodos.length > 0 && (
             <>
@@ -111,7 +113,7 @@ export function TodosTab({ teamId }: TodosTabProps) {
                 <div className="border-t my-3" />
               )}
               {doneTodos.map((todo) => (
-                <TodoItem key={todo.id} todo={todo} onToggle={handleToggle} onDelete={handleDelete} />
+                <TodoItem key={todo.id} todo={todo} onToggle={handleToggle} onDelete={handleDelete} onExpand={setSelectedTodo} />
               ))}
             </>
           )}
@@ -123,6 +125,12 @@ export function TodosTab({ teamId }: TodosTabProps) {
         onOpenChange={setAddOpen}
         teamId={teamId}
       />
+
+      <TodoDetailSheet
+        todo={selectedTodo}
+        onClose={() => setSelectedTodo(null)}
+        teamId={teamId}
+      />
     </div>
   );
 }
@@ -131,10 +139,12 @@ function TodoItem({
   todo,
   onToggle,
   onDelete,
+  onExpand,
 }: {
   todo: TodoWithOwner;
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
+  onExpand: (todo: TodoWithOwner) => void;
 }) {
   const isOverdue = todo.due_date && !todo.is_done && new Date(todo.due_date + 'T00:00:00') < new Date();
   const sourceMeta = todo.source_issue?.source_meta as Record<string, string> | null;
@@ -200,6 +210,15 @@ function TodoItem({
           {new Date(todo.due_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
         </span>
       )}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7"
+        onClick={() => onExpand(todo)}
+        title="Open Details"
+      >
+        <SquareArrowOutUpRight className="h-3 w-3" />
+      </Button>
       <Button
         variant="ghost"
         size="icon"

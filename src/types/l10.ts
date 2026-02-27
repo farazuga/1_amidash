@@ -55,6 +55,7 @@ export interface RockMilestone {
   id: string;
   rock_id: string;
   title: string;
+  description: string | null;
   due_date: string | null;
   owner_id: string | null;
   is_complete: boolean;
@@ -95,6 +96,7 @@ export interface Todo {
   id: string;
   team_id: string;
   title: string;
+  description: string | null;
   owner_id: string | null;
   due_date: string | null;
   is_done: boolean;
@@ -218,6 +220,23 @@ export interface MeetingWithDetails extends Meeting {
   l10_meeting_attendees: MeetingAttendeeWithProfile[];
   l10_meeting_ratings: MeetingRating[];
   profiles: { id: string; full_name: string | null; email: string } | null; // facilitator
+}
+
+// Comment types
+export type CommentEntityType = 'rock' | 'todo' | 'milestone' | 'issue';
+
+export interface Comment {
+  id: string;
+  entity_type: CommentEntityType;
+  entity_id: string;
+  user_id: string;
+  content: string;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface CommentWithUser extends Comment {
+  profiles: { id: string; full_name: string | null; email: string };
 }
 
 // ============================================

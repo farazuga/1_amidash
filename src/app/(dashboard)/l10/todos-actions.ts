@@ -7,6 +7,7 @@ import {
   validateInput,
   createTodoSchema,
   updateTodoSchema,
+  convertTodoToIssueSchema,
 } from '@/lib/l10/validation';
 
 export interface ActionResult<T = void> {
@@ -77,6 +78,7 @@ export async function updateTodo(input: unknown): Promise<ActionResult> {
 
     const dbUpdates: Record<string, unknown> = {};
     if (updates.title !== undefined) dbUpdates.title = updates.title;
+    if (updates.description !== undefined) dbUpdates.description = updates.description;
     if (updates.ownerId !== undefined) dbUpdates.owner_id = updates.ownerId;
     if (updates.dueDate !== undefined) dbUpdates.due_date = updates.dueDate;
     if (updates.isDone !== undefined) dbUpdates.is_done = updates.isDone;
@@ -203,6 +205,50 @@ export async function getOverdueTodoCount(
 
     if (error) throw error;
     return { success: true, data: count || 0 };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function convertTodoToIssue(input: unknown): Promise<ActionResult> {
+  try {
+    const validation = validateInput(convertTodoToIssueSchema, input);
+    if (!validation.success) return { success: false, error: validation.error };
+
+    const { supabase, user } = await getL10Client();
+    const { todoId } = validation.data;
+
+    // Fetch the todo (description column not yet in generated types, cast via any)
+    const { data: todo, error: fetchError } = await supabase
+      .from('l10_todos')
+      .select('team_id, title')
+      .eq('id', todoId)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    // Also fetch description via untyped query since column is new
+    const { data: todoFull } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      .from('l10_todos')
+      .select('description')
+      .eq('id', todoId)
+      .single();
+
+    // Create issue from todo
+    const { error: insertError } = await supabase
+      .from('l10_issues')
+      .insert({
+        team_id: todo.team_id,
+        title: todo.title,
+        description: (todoFull?.description as string) || null,
+        created_by: user.id,
+        source_type: 'todo',
+        source_id: todoId,
+      });
+
+    if (insertError) throw insertError;
+    revalidatePath('/l10');
+    return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }
