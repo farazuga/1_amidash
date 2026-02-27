@@ -83,10 +83,13 @@ export function OdooPullButton({
           if (summarizeResponse.ok && summarizeData.summary) {
             onSummaryGenerated(summarizeData.summary);
             toast.success('Project description generated');
+          } else if (!summarizeResponse.ok) {
+            console.error('Summarize API error:', summarizeData.error);
+            toast.error(summarizeData.error || 'Failed to generate project description');
           }
         } catch (err) {
           console.error('Summary generation error:', err);
-          // Non-critical - don't show error toast
+          toast.error('Failed to generate project description. You can enter one manually.');
         } finally {
           setIsSummarizing(false);
         }

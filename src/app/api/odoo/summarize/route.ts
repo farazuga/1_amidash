@@ -46,6 +46,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check for API key
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return NextResponse.json(
+        { error: 'ANTHROPIC_API_KEY is not configured. Project description cannot be generated.' },
+        { status: 500 }
+      );
+    }
+
     // Format line items for the prompt
     const itemsText = lineItems
       .map(
