@@ -14,7 +14,7 @@ interface SummarizeRequest {
   clientName: string;
 }
 
-const SYSTEM_PROMPT = `You are a project management assistant for Amitrace, a broadcast and streaming studio integration company. Given sales order line items, generate a short bullet-point list of what's being delivered. Keep it casual and brief — this is internal only, not client-facing. Use plain language. No prices or dollar amounts. Each bullet should be a few words max. 3-6 bullets total.`;
+const SYSTEM_PROMPT = `You are a project management assistant for Amitrace, a broadcast and streaming studio integration company. Given sales order line items, generate exactly one bullet per line item. Keep it casual and brief — this is internal only. Use plain language, a few words per bullet. No prices or dollar amounts. Include product codes like [ami_VIDPOD] when present. Output a simple bulleted list with "• " prefix, nothing else.`;
 
 export async function POST(request: NextRequest) {
   try {

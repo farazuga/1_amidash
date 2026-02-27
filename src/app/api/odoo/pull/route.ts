@@ -4,6 +4,7 @@ import { getOdooClient, isOdooConfigured } from '@/lib/odoo';
 import {
   findSalesOrderByNumber,
   getSalesOrderLines,
+  getProductDetails,
   getPartnerDetails,
   getPartnerContacts,
   buildOdooUrl,
@@ -70,6 +71,26 @@ export async function POST(request: NextRequest) {
       getSalesOrderLines(client, order.order_line),
     ]);
 
+    // Filter out section headers and notes — only keep actual product lines
+    const productLines = lines.filter((line) => !line.display_type);
+
+    // Fetch product internal references (default_code) for all products
+    const productIds = productLines
+      .filter((line) => line.product_id)
+      .map((line) => (line.product_id as [number, string])[0]);
+
+    const products = productIds.length > 0
+      ? await getProductDetails(client, productIds)
+      : [];
+
+    // Build a lookup map: product ID → default_code (e.g. "ami_VIDPOD")
+    const productCodeMap = new Map<number, string>();
+    for (const product of products) {
+      if (product.default_code) {
+        productCodeMap.set(product.id, product.default_code as string);
+      }
+    }
+
     // Try to find a contact person under the partner (company)
     let pocName: string | null = null;
     let pocEmail: string | null = null;
@@ -128,14 +149,26 @@ export async function POST(request: NextRequest) {
         odooName: odooSalesperson || '',
         matchedProfileId,
       },
-      lineItems: lines.map((line) => ({
-        productName: line.product_id
+      lineItems: productLines.map((line) => {
+        const prodId = line.product_id ? (line.product_id as [number, string])[0] : null;
+        const prodDisplayName = line.product_id
           ? (line.product_id as [number, string])[1]
-          : 'Unknown Product',
-        quantity: line.product_uom_qty,
-        description: line.name,
-        subtotal: line.price_subtotal,
-      })),
+          : 'Unknown Product';
+        const internalRef = prodId ? productCodeMap.get(prodId) || null : null;
+
+        // Use internal reference as productName if available (e.g. "ami_VIDPOD"),
+        // otherwise fall back to the product display name
+        const productName = internalRef
+          ? `[${internalRef}] ${prodDisplayName}`
+          : prodDisplayName;
+
+        return {
+          productName,
+          quantity: line.product_uom_qty,
+          description: line.name,
+          subtotal: line.price_subtotal,
+        };
+      }),
     };
 
     return NextResponse.json(result);

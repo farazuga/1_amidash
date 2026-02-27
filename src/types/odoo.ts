@@ -55,6 +55,14 @@ export interface OdooOrderLine {
   name: string; // Description/line item text
   product_uom_qty: number;
   price_subtotal: number;
+  display_type: string | false; // 'line_section', 'line_note', or false (product line)
+}
+
+/** product.product model (for internal reference lookup) */
+export interface OdooProduct {
+  id: number;
+  default_code: string | false; // Internal reference e.g. "ami_VIDPOD"
+  name: string;
 }
 
 /** res.partner model */

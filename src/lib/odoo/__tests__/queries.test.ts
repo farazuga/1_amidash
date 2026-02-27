@@ -99,8 +99,8 @@ describe('Odoo Queries', () => {
     it('returns order lines for given IDs', async () => {
       const client = createMockClient();
       const mockLines: OdooOrderLine[] = [
-        { id: 1, product_id: [100, 'Widget A'], name: 'Widget A - Custom', product_uom_qty: 5, price_subtotal: 500 },
-        { id: 2, product_id: [101, 'Widget B'], name: 'Widget B - Standard', product_uom_qty: 2, price_subtotal: 200 },
+        { id: 1, product_id: [100, 'Widget A'], name: 'Widget A - Custom', product_uom_qty: 5, price_subtotal: 500, display_type: false },
+        { id: 2, product_id: [101, 'Widget B'], name: 'Widget B - Standard', product_uom_qty: 2, price_subtotal: 200, display_type: false },
       ];
       client.read.mockResolvedValue(mockLines);
 
@@ -110,7 +110,7 @@ describe('Odoo Queries', () => {
       expect(client.read).toHaveBeenCalledWith(
         'sale.order.line',
         [1, 2],
-        ['id', 'product_id', 'name', 'product_uom_qty', 'price_subtotal']
+        ['id', 'product_id', 'name', 'product_uom_qty', 'price_subtotal', 'display_type']
       );
     });
 

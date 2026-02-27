@@ -10,6 +10,7 @@ import type {
   OdooSalesOrder,
   OdooOrderLine,
   OdooPartner,
+  OdooProduct,
 } from '@/types/odoo';
 
 // ============================================================
@@ -75,7 +76,24 @@ export async function getSalesOrderLines(
   return client.read<OdooOrderLine>(
     'sale.order.line',
     lineIds,
-    ['id', 'product_id', 'name', 'product_uom_qty', 'price_subtotal']
+    ['id', 'product_id', 'name', 'product_uom_qty', 'price_subtotal', 'display_type']
+  );
+}
+
+/**
+ * Get product details (including internal reference/default_code) by IDs.
+ * Used to look up codes like "ami_VIDPOD".
+ */
+export async function getProductDetails(
+  client: OdooReadOnlyClient,
+  productIds: number[]
+): Promise<OdooProduct[]> {
+  if (productIds.length === 0) return [];
+
+  return client.read<OdooProduct>(
+    'product.product',
+    productIds,
+    ['id', 'default_code', 'name']
   );
 }
 
