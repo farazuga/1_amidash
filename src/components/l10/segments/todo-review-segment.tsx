@@ -1,6 +1,7 @@
 'use client';
 
 import { Checkbox } from '@/components/ui/checkbox';
+import { Mountain } from 'lucide-react';
 import { useTodos, useToggleTodo } from '@/hooks/queries/use-l10-todos';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -54,9 +55,19 @@ export function TodoReviewSegment({ teamId }: TodoReviewSegmentProps) {
           {allTodos.map((todo) => (
             <div key={todo.id} className="flex items-center gap-3 rounded-md border p-3">
               <Checkbox checked={todo.is_done} onCheckedChange={() => handleToggle(todo.id)} />
-              <p className={cn('flex-1 text-sm', todo.is_done && 'line-through text-muted-foreground')}>
-                {todo.title}
-              </p>
+              <div className="flex-1 min-w-0">
+                <p className={cn('text-sm', todo.is_done && 'line-through text-muted-foreground')}>
+                  {todo.title}
+                </p>
+                {todo.source_milestone && (
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <Mountain className="h-3 w-3 text-primary" />
+                    <span className="text-xs text-primary font-medium">
+                      {todo.source_milestone.rock?.title ? `↳ ${todo.source_milestone.rock.title}` : todo.source_milestone.title}
+                    </span>
+                  </div>
+                )}
+              </div>
               <span className="text-xs text-muted-foreground">
                 {todo.profiles?.full_name?.split(' ')[0] || ''}
               </span>

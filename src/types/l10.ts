@@ -35,14 +35,35 @@ export interface Rock {
   id: string;
   team_id: string;
   title: string;
+  description: string | null;
   owner_id: string | null;
   quarter: string; // e.g. '2026-Q1'
+  due_date: string | null;
   status: RockStatus;
+  is_archived: boolean;
   created_at: string | null;
   updated_at: string | null;
 }
 
 export interface RockWithOwner extends Rock {
+  profiles: { id: string; full_name: string | null; email: string } | null;
+  milestones?: RockMilestone[];
+}
+
+// Milestone types
+export interface RockMilestone {
+  id: string;
+  rock_id: string;
+  title: string;
+  due_date: string | null;
+  owner_id: string | null;
+  is_complete: boolean;
+  display_order: number;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface RockMilestoneWithOwner extends RockMilestone {
   profiles: { id: string; full_name: string | null; email: string } | null;
 }
 
@@ -79,6 +100,7 @@ export interface Todo {
   is_done: boolean;
   source_meeting_id: string | null;
   source_issue_id: string | null;
+  source_milestone_id: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -86,6 +108,7 @@ export interface Todo {
 export interface TodoWithOwner extends Todo {
   profiles: { id: string; full_name: string | null; email: string } | null;
   source_issue?: { id: string; title: string; status: string; source_type?: string | null; source_meta?: Record<string, string> | null } | null;
+  source_milestone?: { id: string; title: string; rock: { id: string; title: string } | null } | null;
 }
 
 // Headline types

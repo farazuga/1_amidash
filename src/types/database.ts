@@ -719,10 +719,64 @@ export type Database = {
           },
         ]
       }
+      l10_rock_milestones: {
+        Row: {
+          created_at: string | null
+          display_order: number
+          due_date: string | null
+          id: string
+          is_complete: boolean
+          owner_id: string | null
+          rock_id: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          display_order?: number
+          due_date?: string | null
+          id?: string
+          is_complete?: boolean
+          owner_id?: string | null
+          rock_id: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          display_order?: number
+          due_date?: string | null
+          id?: string
+          is_complete?: boolean
+          owner_id?: string | null
+          rock_id?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "l10_rock_milestones_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "l10_rock_milestones_rock_id_fkey"
+            columns: ["rock_id"]
+            isOneToOne: false
+            referencedRelation: "l10_rocks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       l10_rocks: {
         Row: {
           created_at: string | null
+          description: string | null
+          due_date: string | null
           id: string
+          is_archived: boolean
           owner_id: string | null
           quarter: string
           status: string
@@ -732,7 +786,10 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          description?: string | null
+          due_date?: string | null
           id?: string
+          is_archived?: boolean
           owner_id?: string | null
           quarter: string
           status?: string
@@ -742,7 +799,10 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          description?: string | null
+          due_date?: string | null
           id?: string
+          is_archived?: boolean
           owner_id?: string | null
           quarter?: string
           status?: string
@@ -916,6 +976,7 @@ export type Database = {
           owner_id: string | null
           source_issue_id: string | null
           source_meeting_id: string | null
+          source_milestone_id: string | null
           team_id: string
           title: string
           updated_at: string | null
@@ -928,6 +989,7 @@ export type Database = {
           owner_id?: string | null
           source_issue_id?: string | null
           source_meeting_id?: string | null
+          source_milestone_id?: string | null
           team_id: string
           title: string
           updated_at?: string | null
@@ -940,6 +1002,7 @@ export type Database = {
           owner_id?: string | null
           source_issue_id?: string | null
           source_meeting_id?: string | null
+          source_milestone_id?: string | null
           team_id?: string
           title?: string
           updated_at?: string | null
@@ -964,6 +1027,13 @@ export type Database = {
             columns: ["source_meeting_id"]
             isOneToOne: false
             referencedRelation: "l10_meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "l10_todos_source_milestone_id_fkey"
+            columns: ["source_milestone_id"]
+            isOneToOne: false
+            referencedRelation: "l10_rock_milestones"
             referencedColumns: ["id"]
           },
           {

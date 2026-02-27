@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 // Base schemas
 const uuidSchema = z.string().uuid('Invalid ID format');
+const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)');
 
 // ============================================
 // Team Schemas
@@ -39,15 +40,39 @@ const quarterSchema = z.string().regex(/^\d{4}-Q[1-4]$/, 'Invalid quarter format
 export const createRockSchema = z.object({
   teamId: uuidSchema,
   title: z.string().min(1, 'Title is required').max(500, 'Title too long'),
+  description: z.string().max(2000, 'Description too long').optional(),
   ownerId: uuidSchema.optional(),
   quarter: quarterSchema,
+  dueDate: dateSchema.optional(),
 });
 
 export const updateRockSchema = z.object({
   id: uuidSchema,
   title: z.string().min(1, 'Title is required').max(500, 'Title too long').optional(),
+  description: z.string().max(2000, 'Description too long').nullable().optional(),
   ownerId: uuidSchema.nullable().optional(),
   status: z.enum(['on_track', 'off_track', 'complete', 'dropped']).optional(),
+  dueDate: dateSchema.nullable().optional(),
+  isArchived: z.boolean().optional(),
+});
+
+// ============================================
+// Milestone Schemas
+// ============================================
+
+export const createMilestoneSchema = z.object({
+  rockId: uuidSchema,
+  title: z.string().min(1, 'Title is required').max(500, 'Title too long'),
+  dueDate: dateSchema.optional(),
+  ownerId: uuidSchema.optional(),
+});
+
+export const updateMilestoneSchema = z.object({
+  id: uuidSchema,
+  title: z.string().min(1, 'Title is required').max(500, 'Title too long').optional(),
+  dueDate: dateSchema.nullable().optional(),
+  ownerId: uuidSchema.nullable().optional(),
+  isComplete: z.boolean().optional(),
 });
 
 // ============================================
@@ -86,8 +111,6 @@ export const solveIssueSchema = z.object({
 // Todo Schemas
 // ============================================
 
-const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)');
-
 export const createTodoSchema = z.object({
   teamId: uuidSchema,
   title: z.string().min(1, 'Title is required').max(500, 'Title too long'),
@@ -95,6 +118,7 @@ export const createTodoSchema = z.object({
   dueDate: dateSchema.optional(),
   sourceMeetingId: uuidSchema.optional(),
   sourceIssueId: uuidSchema.optional(),
+  sourceMilestoneId: uuidSchema.optional(),
 });
 
 export const updateTodoSchema = z.object({

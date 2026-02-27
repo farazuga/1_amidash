@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Trash2, ExternalLink } from 'lucide-react';
+import { Trash2, ExternalLink, Mountain } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -204,6 +204,14 @@ function TodoRow({
               <ExternalLink className="h-3 w-3" />
               {sourceMeta.salesOrder || 'Odoo'}
             </a>
+          )}
+          {todo.source_milestone && (
+            <div className="flex items-center gap-1">
+              <Mountain className="h-3 w-3 text-primary" />
+              <span className="text-xs text-primary font-medium">
+                {todo.source_milestone.rock?.title ? `↳ ${todo.source_milestone.rock.title}` : todo.source_milestone.title}
+              </span>
+            </div>
           )}
         </div>
       </div>

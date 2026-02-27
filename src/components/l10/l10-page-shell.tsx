@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Settings2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -9,11 +9,25 @@ import { CreateTeamDialog } from './teams/create-team-dialog';
 import { TeamSettingsDialog } from './teams/team-settings-dialog';
 import { useTeams } from '@/hooks/queries/use-l10-teams';
 import { useL10TeamStore } from '@/lib/stores/l10-team-store';
+import { useConvertDueMilestones } from '@/hooks/queries/use-l10-milestones';
 import { MeetingTab } from './meeting-tab';
 import { ScorecardTab } from './scorecard-tab';
 import { RocksTab } from './rocks-tab';
 import { IssuesTab } from './issues-tab';
 import { TodosTab } from './todos-tab';
+
+function MilestoneAutoConverter({ teamId }: { teamId: string }) {
+  const convertMilestones = useConvertDueMilestones();
+  const hasRun = useRef(false);
+
+  useEffect(() => {
+    if (hasRun.current) return;
+    hasRun.current = true;
+    convertMilestones.mutate(teamId);
+  }, [teamId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return null;
+}
 
 export function L10PageShell() {
   const { data: teams, isLoading } = useTeams();
@@ -73,6 +87,9 @@ export function L10PageShell() {
           )}
         </div>
       </div>
+
+      {/* Auto-convert milestones to todos */}
+      {selectedTeamId && <MilestoneAutoConverter teamId={selectedTeamId} />}
 
       {/* Tabs */}
       {selectedTeamId && (

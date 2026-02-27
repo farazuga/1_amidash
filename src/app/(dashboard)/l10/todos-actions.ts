@@ -23,7 +23,7 @@ export async function getTodos(
     const { supabase } = await getL10Client();
     let query = supabase
       .from('l10_todos')
-      .select('*, profiles ( id, full_name, email ), source_issue:l10_issues ( id, title, status, source_type, source_meta )')
+      .select('*, profiles ( id, full_name, email ), source_issue:l10_issues ( id, title, status, source_type, source_meta ), source_milestone:l10_rock_milestones ( id, title, rock:l10_rocks ( id, title ) )')
       .eq('team_id', teamId)
       .order('created_at', { ascending: false });
 
@@ -45,7 +45,7 @@ export async function createTodo(input: unknown): Promise<ActionResult> {
     if (!validation.success) return { success: false, error: validation.error };
 
     const { supabase } = await getL10Client();
-    const { teamId, title, ownerId, dueDate, sourceMeetingId, sourceIssueId } = validation.data;
+    const { teamId, title, ownerId, dueDate, sourceMeetingId, sourceIssueId, sourceMilestoneId } = validation.data;
 
     const { error } = await supabase
       .from('l10_todos')
@@ -56,6 +56,7 @@ export async function createTodo(input: unknown): Promise<ActionResult> {
         due_date: dueDate || null,
         source_meeting_id: sourceMeetingId || null,
         source_issue_id: sourceIssueId || null,
+        source_milestone_id: sourceMilestoneId || null,
       });
 
     if (error) throw error;
@@ -168,7 +169,7 @@ export async function getMyTodos(
 
     const { data, error } = await supabase
       .from('l10_todos')
-      .select('*, profiles ( id, full_name, email ), source_issue:l10_issues ( id, title, status, source_type, source_meta )')
+      .select('*, profiles ( id, full_name, email ), source_issue:l10_issues ( id, title, status, source_type, source_meta ), source_milestone:l10_rock_milestones ( id, title, rock:l10_rocks ( id, title ) )')
       .in('team_id', teamIds)
       .order('due_date', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false });

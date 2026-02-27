@@ -1,123 +1,111 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  getRocks,
-  createRock,
-  updateRock,
-  deleteRock,
-  toggleRockStatus,
-  dropRockToIssue,
-  archiveRock,
-} from '@/app/(dashboard)/l10/rocks-actions';
+  getMilestones,
+  createMilestone,
+  updateMilestone,
+  deleteMilestone,
+  toggleMilestone,
+  convertDueMilestones,
+} from '@/app/(dashboard)/l10/milestones-actions';
+import { L10_ROCKS_KEY } from './use-l10-rocks';
+import { L10_TODOS_KEY } from './use-l10-todos';
 
-export const L10_ROCKS_KEY = ['l10', 'rocks'];
-const L10_ISSUES_KEY = ['l10', 'issues'];
+export const L10_MILESTONES_KEY = ['l10', 'milestones'];
 
 const THIRTY_SECONDS = 30 * 1000;
 
-export function useRocks(teamId: string | null, quarter?: string, showArchived = false) {
+export function useMilestones(rockId: string | null) {
   return useQuery({
-    queryKey: [...L10_ROCKS_KEY, teamId, quarter, showArchived],
+    queryKey: [...L10_MILESTONES_KEY, rockId],
     queryFn: async () => {
-      if (!teamId) return [];
-      const result = await getRocks(teamId, quarter, showArchived);
+      if (!rockId) return [];
+      const result = await getMilestones(rockId);
       if (!result.success) throw new Error(result.error);
       return result.data || [];
     },
     staleTime: THIRTY_SECONDS,
-    enabled: !!teamId,
+    enabled: !!rockId,
   });
 }
 
-export function useCreateRock() {
+export function useCreateMilestone() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: {
-      teamId: string;
+      rockId: string;
       title: string;
-      description?: string;
-      ownerId?: string;
-      quarter: string;
       dueDate?: string;
+      ownerId?: string;
     }) => {
-      const result = await createRock(data);
+      const result = await createMilestone(data);
       if (!result.success) throw new Error(result.error);
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: L10_MILESTONES_KEY });
       queryClient.invalidateQueries({ queryKey: L10_ROCKS_KEY });
     },
   });
 }
 
-export function useUpdateRock() {
+export function useUpdateMilestone() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: {
       id: string;
       title?: string;
-      description?: string | null;
-      ownerId?: string | null;
-      status?: string;
       dueDate?: string | null;
-      isArchived?: boolean;
+      ownerId?: string | null;
+      isComplete?: boolean;
     }) => {
-      const result = await updateRock(data);
+      const result = await updateMilestone(data);
       if (!result.success) throw new Error(result.error);
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: L10_MILESTONES_KEY });
       queryClient.invalidateQueries({ queryKey: L10_ROCKS_KEY });
     },
   });
 }
 
-export function useDeleteRock() {
+export function useDeleteMilestone() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const result = await deleteRock(id);
+      const result = await deleteMilestone(id);
       if (!result.success) throw new Error(result.error);
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: L10_MILESTONES_KEY });
       queryClient.invalidateQueries({ queryKey: L10_ROCKS_KEY });
     },
   });
 }
 
-export function useToggleRockStatus() {
+export function useToggleMilestone() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const result = await toggleRockStatus(id);
+      const result = await toggleMilestone(id);
       if (!result.success) throw new Error(result.error);
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: L10_MILESTONES_KEY });
       queryClient.invalidateQueries({ queryKey: L10_ROCKS_KEY });
     },
   });
 }
 
-export function useDropRockToIssue() {
+export function useConvertDueMilestones() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (rockId: string) => {
-      const result = await dropRockToIssue(rockId);
+    mutationFn: async (teamId: string) => {
+      const result = await convertDueMilestones(teamId);
       if (!result.success) throw new Error(result.error);
+      return result.data || 0;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: L10_ROCKS_KEY });
-      queryClient.invalidateQueries({ queryKey: L10_ISSUES_KEY });
-    },
-  });
-}
-
-export function useArchiveRock() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const result = await archiveRock(id);
-      if (!result.success) throw new Error(result.error);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: L10_ROCKS_KEY });
+      queryClient.invalidateQueries({ queryKey: L10_MILESTONES_KEY });
+      queryClient.invalidateQueries({ queryKey: L10_TODOS_KEY });
     },
   });
 }

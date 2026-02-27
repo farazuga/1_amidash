@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Mountain } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -174,6 +174,14 @@ function TodoItem({
                 {sourceMeta.salesOrder || 'Odoo'}
               </a>
             )}
+          </div>
+        )}
+        {todo.source_milestone && (
+          <div className="flex items-center gap-1 mt-0.5">
+            <Mountain className="h-3 w-3 text-primary" />
+            <span className="text-xs text-primary font-medium">
+              {todo.source_milestone.rock?.title ? `↳ ${todo.source_milestone.rock.title}` : todo.source_milestone.title}
+            </span>
           </div>
         )}
       </div>
