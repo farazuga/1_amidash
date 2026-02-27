@@ -230,6 +230,40 @@ export function ProjectForm({
     if (data.salesOrder?.invoiceStatus) {
       setOdooInvoiceStatus(data.salesOrder.invoiceStatus);
     }
+
+    // Auto-select project type based on line items
+    if (data.lineItems && data.lineItems.length > 0) {
+      const itemNames = data.lineItems.map(item => item.productName.toLowerCase());
+      const hasInstall = itemNames.some(name => name.includes('install'));
+      const vidpodItems = data.lineItems.filter(item =>
+        item.productName.toLowerCase().includes('ami_vidpod')
+      );
+      const hasVidpod = vidpodItems.length > 0;
+
+      if (hasInstall) {
+        // Install found → select "solution"
+        const solutionType = projectTypes.find(t =>
+          t.name.toLowerCase() === 'solution' && t.is_active
+        );
+        if (solutionType) {
+          setSelectedProjectType(solutionType.id);
+        }
+      } else if (hasVidpod) {
+        // VidPod but no install → select "vidpod"
+        const vidpodType = projectTypes.find(t =>
+          t.name.toLowerCase() === 'vidpod' && t.is_active
+        );
+        if (vidpodType) {
+          setSelectedProjectType(vidpodType.id);
+        }
+      }
+
+      // Auto-fill vidpod count from ami_vidpod quantity
+      if (hasVidpod) {
+        const totalVidpods = vidpodItems.reduce((sum, item) => sum + item.quantity, 0);
+        setNumberOfVidpods(totalVidpods.toString());
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {

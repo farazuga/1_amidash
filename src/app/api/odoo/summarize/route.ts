@@ -14,7 +14,7 @@ interface SummarizeRequest {
   clientName: string;
 }
 
-const SYSTEM_PROMPT = `You are a project management assistant for Amitrace, a broadcast and streaming studio integration company based in Suwanee, Georgia. Given sales order line items for a customer, generate a concise 2-3 sentence project summary describing what will be delivered. Focus on the key deliverables and overall scope of the project. Do not include prices or dollar amounts. Write in third person, present tense.`;
+const SYSTEM_PROMPT = `You are a project management assistant for Amitrace, a broadcast and streaming studio integration company. Given sales order line items, generate a short bullet-point list of what's being delivered. Keep it casual and brief — this is internal only, not client-facing. Use plain language. No prices or dollar amounts. Each bullet should be a few words max. 3-6 bullets total.`;
 
 export async function POST(request: NextRequest) {
   try {
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
       )
       .join('\n');
 
-    const userMessage = `Client: ${clientName}\n\nSales Order Line Items:\n${itemsText}\n\nGenerate a project summary:`;
+    const userMessage = `Client: ${clientName}\n\nLine Items:\n${itemsText}\n\nBullet-point summary of deliverables:`;
 
     // Call Claude API
     const anthropic = new Anthropic({
