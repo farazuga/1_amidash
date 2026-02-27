@@ -9,6 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import {
   useMilestones,
   useCreateMilestone,
+  useUpdateMilestone,
   useToggleMilestone,
   useDeleteMilestone,
 } from '@/hooks/queries/use-l10-milestones';
@@ -22,8 +23,12 @@ interface RockMilestonesProps {
 export function RockMilestones({ rockId }: RockMilestonesProps) {
   const { data: milestones, isLoading } = useMilestones(rockId);
   const toggleMilestone = useToggleMilestone();
+  const updateMilestone = useUpdateMilestone();
   const deleteMilestone = useDeleteMilestone();
   const [showAdd, setShowAdd] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDate, setEditDate] = useState('');
 
   const handleToggle = async (id: string) => {
     try {
@@ -37,6 +42,37 @@ export function RockMilestones({ rockId }: RockMilestonesProps) {
     try {
       await deleteMilestone.mutateAsync(id);
       toast.success('Milestone deleted');
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+  };
+
+  const startEditing = (milestone: { id: string; title: string; due_date: string | null }) => {
+    setEditingId(milestone.id);
+    setEditTitle(milestone.title);
+    setEditDate(milestone.due_date || '');
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditTitle('');
+    setEditDate('');
+  };
+
+  const saveTitle = async (id: string) => {
+    const trimmed = editTitle.trim();
+    if (!trimmed) { cancelEditing(); return; }
+    try {
+      await updateMilestone.mutateAsync({ id, title: trimmed });
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+    setEditingId(null);
+  };
+
+  const saveDate = async (id: string, newDate: string) => {
+    try {
+      await updateMilestone.mutateAsync({ id, dueDate: newDate || null });
     } catch (error) {
       toast.error((error as Error).message);
     }
@@ -66,33 +102,71 @@ export function RockMilestones({ rockId }: RockMilestonesProps) {
           {milestones.map((milestone) => {
             const isOverdue = milestone.due_date && !milestone.is_complete &&
               new Date(milestone.due_date + 'T00:00:00') < new Date();
+            const isEditing = editingId === milestone.id;
 
             return (
               <div
                 key={milestone.id}
-                className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-muted/30"
+                className="group flex items-center gap-2 rounded px-2 py-1.5 hover:bg-muted/30"
               >
                 <Checkbox
                   checked={milestone.is_complete}
                   onCheckedChange={() => handleToggle(milestone.id)}
                 />
-                <span className={cn(
-                  'flex-1 text-sm',
-                  milestone.is_complete && 'line-through text-muted-foreground'
-                )}>
-                  {milestone.title}
-                </span>
+                {isEditing ? (
+                  <Input
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    onBlur={() => saveTitle(milestone.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); saveTitle(milestone.id); }
+                      if (e.key === 'Escape') cancelEditing();
+                    }}
+                    className="h-7 text-sm flex-1"
+                    autoFocus
+                  />
+                ) : (
+                  <span
+                    className={cn(
+                      'flex-1 text-sm cursor-pointer rounded px-1 -mx-1 hover:bg-muted/50',
+                      milestone.is_complete && 'line-through text-muted-foreground'
+                    )}
+                    onClick={() => startEditing(milestone)}
+                  >
+                    {milestone.title}
+                  </span>
+                )}
                 {milestone.profiles?.full_name && (
                   <span className="text-xs text-muted-foreground">
                     {milestone.profiles.full_name.split(' ')[0]}
                   </span>
                 )}
-                {milestone.due_date && (
-                  <span className={cn(
-                    'text-xs',
-                    isOverdue ? 'text-destructive font-medium' : 'text-muted-foreground'
-                  )}>
+                {isEditing ? (
+                  <Input
+                    type="date"
+                    value={editDate}
+                    onChange={(e) => {
+                      setEditDate(e.target.value);
+                      saveDate(milestone.id, e.target.value);
+                    }}
+                    className="h-7 text-xs w-36"
+                  />
+                ) : milestone.due_date ? (
+                  <span
+                    className={cn(
+                      'text-xs cursor-pointer rounded px-1 hover:bg-muted/50',
+                      isOverdue ? 'text-destructive font-medium' : 'text-muted-foreground'
+                    )}
+                    onClick={() => startEditing(milestone)}
+                  >
                     {new Date(milestone.due_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </span>
+                ) : (
+                  <span
+                    className="text-xs text-muted-foreground/50 cursor-pointer rounded px-1 hover:bg-muted/50 hover:text-muted-foreground"
+                    onClick={() => startEditing(milestone)}
+                  >
+                    + date
                   </span>
                 )}
                 <Button

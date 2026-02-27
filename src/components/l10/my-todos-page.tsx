@@ -166,11 +166,13 @@ function TodoRow({
 }) {
   const isOverdue = todo.due_date && !todo.is_done && new Date(todo.due_date + 'T00:00:00') < new Date();
   const sourceMeta = todo.source_issue?.source_meta as Record<string, string> | null;
+  const isMilestoneTodo = !!todo.source_milestone;
 
   return (
     <div className={cn(
       'flex items-center gap-3 rounded-md border p-3 hover:bg-muted/30',
-      emphasized && 'border-l-4 border-l-primary bg-primary/5'
+      emphasized && 'border-l-4 border-l-primary bg-primary/5',
+      isMilestoneTodo && 'border-l-4 border-l-amber-500 bg-amber-50 dark:bg-amber-950/20'
     )}>
       <Checkbox
         checked={todo.is_done}
@@ -207,8 +209,8 @@ function TodoRow({
           )}
           {todo.source_milestone && (
             <div className="flex items-center gap-1">
-              <Mountain className="h-3 w-3 text-primary" />
-              <span className="text-xs text-primary font-medium">
+              <Mountain className="h-3.5 w-3.5 text-amber-600" />
+              <span className="text-xs text-amber-700 dark:text-amber-400 font-semibold">
                 {todo.source_milestone.rock?.title ? `↳ ${todo.source_milestone.rock.title}` : todo.source_milestone.title}
               </span>
             </div>

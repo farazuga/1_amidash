@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Plus, ArrowRightLeft, Trash2, Archive, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, ArrowRightLeft, Trash2, Archive, ChevronDown, ChevronRight, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -61,6 +61,7 @@ export function RocksTab({ teamId }: RocksTabProps) {
   const [quarter, setQuarter] = useState(getCurrentQuarter());
   const [showArchived, setShowArchived] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [editingRock, setEditingRock] = useState<RockWithOwner | null>(null);
   const [expandedRockId, setExpandedRockId] = useState<string | null>(null);
   const { data: rocks, isLoading } = useRocks(teamId, quarter, showArchived);
   const { data: team } = useTeam(teamId);
@@ -253,6 +254,15 @@ export function RocksTab({ teamId }: RocksTabProps) {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7"
+                            onClick={() => setEditingRock(rock)}
+                            title="Edit Rock"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
                             onClick={() => handleDropToIssue(rock)}
                             title="Drop to Issues"
                           >
@@ -303,6 +313,15 @@ export function RocksTab({ teamId }: RocksTabProps) {
         quarter={quarter}
         members={team?.team_members || []}
       />
+
+      {editingRock && (
+        <EditRockDialog
+          open={!!editingRock}
+          onOpenChange={(open) => { if (!open) setEditingRock(null); }}
+          rock={editingRock}
+          members={team?.team_members || []}
+        />
+      )}
     </div>
   );
 }
@@ -395,6 +414,108 @@ function AddRockDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button type="submit" disabled={!title.trim() || createRock.isPending}>
               {createRock.isPending ? 'Adding...' : 'Add Rock'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditRockDialog({
+  open,
+  onOpenChange,
+  rock,
+  members,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  rock: RockWithOwner;
+  members: { user_id: string; profiles: { id: string; full_name: string | null; email: string } }[];
+}) {
+  const [title, setTitle] = useState(rock.title);
+  const [description, setDescription] = useState(rock.description || '');
+  const [ownerId, setOwnerId] = useState(rock.owner_id || '');
+  const [dueDate, setDueDate] = useState(rock.due_date || '');
+  const [status, setStatus] = useState<RockStatus>(rock.status);
+  const updateRock = useUpdateRock();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) return;
+
+    try {
+      await updateRock.mutateAsync({
+        id: rock.id,
+        title: title.trim(),
+        description: description.trim() || null,
+        ownerId: ownerId || null,
+        dueDate: dueDate || null,
+        status,
+      });
+      toast.success('Rock updated');
+      onOpenChange(false);
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit Rock</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Title</Label>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
+            </div>
+            <div className="space-y-2">
+              <Label>Description <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Details about this rock..."
+                rows={3}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Owner</Label>
+                <Select value={ownerId} onValueChange={setOwnerId}>
+                  <SelectTrigger><SelectValue placeholder="Select owner..." /></SelectTrigger>
+                  <SelectContent>
+                    {members.map((m) => (
+                      <SelectItem key={m.user_id} value={m.user_id}>
+                        {m.profiles.full_name || m.profiles.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Due Date</Label>
+                <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={status} onValueChange={(v) => setStatus(v as RockStatus)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(STATUS_BADGES).map(([key, { label }]) => (
+                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="submit" disabled={!title.trim() || updateRock.isPending}>
+              {updateRock.isPending ? 'Saving...' : 'Save Changes'}
             </Button>
           </DialogFooter>
         </form>
