@@ -126,6 +126,11 @@ export default async function ProjectDetailPage({
               client_token: project.client_token,
               client_portal_views: (project as { client_portal_views?: number }).client_portal_views,
               project_type_id: project.project_type_id,
+              // Odoo integration
+              odoo_order_id: (project as { odoo_order_id?: number | null }).odoo_order_id ?? null,
+              odoo_invoice_status: (project as { odoo_invoice_status?: string | null }).odoo_invoice_status ?? null,
+              odoo_last_synced_at: (project as { odoo_last_synced_at?: string | null }).odoo_last_synced_at ?? null,
+              project_description: (project as { project_description?: string | null }).project_description ?? null,
             }}
             statuses={statuses}
             projectTypeStatuses={projectTypeStatuses}

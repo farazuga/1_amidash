@@ -107,6 +107,11 @@ export interface Project {
   created_at: string | null;
   updated_at: string | null;
   invoiced_date: string | null;
+  // Odoo integration
+  odoo_order_id: number | null;
+  odoo_invoice_status: string | null;
+  odoo_last_synced_at: string | null;
+  project_description: string | null;
   // Joined relations
   current_status?: Status | null;
   project_type?: ProjectType | null;

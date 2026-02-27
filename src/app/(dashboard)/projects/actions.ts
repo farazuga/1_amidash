@@ -40,6 +40,10 @@ export interface CreateProjectData {
   activecampaign_account_id?: string | null;
   activecampaign_contact_id?: string | null;
   secondary_activecampaign_contact_id?: string | null;
+  // Odoo integration
+  odoo_order_id?: number | null;
+  odoo_invoice_status?: string | null;
+  project_description?: string | null;
 }
 
 export interface CreateProjectResult {
@@ -127,6 +131,11 @@ export async function createProject(data: CreateProjectData): Promise<CreateProj
       activecampaign_account_id: data.activecampaign_account_id || null,
       activecampaign_contact_id: data.activecampaign_contact_id || null,
       secondary_activecampaign_contact_id: data.secondary_activecampaign_contact_id || null,
+      // Odoo integration
+      ...(data.odoo_order_id != null && { odoo_order_id: data.odoo_order_id }),
+      ...(data.odoo_invoice_status != null && { odoo_invoice_status: data.odoo_invoice_status }),
+      ...(data.project_description != null && { project_description: data.project_description }),
+      ...(data.odoo_order_id != null && { odoo_last_synced_at: new Date().toISOString() }),
     })
     .select()
     .single();
@@ -553,6 +562,10 @@ export async function inlineEditProjectField(data: InlineEditData): Promise<Inli
     created_at: 'created_at',
     created_date: 'created_date',
     invoiced_date: 'invoiced_date',
+    // Odoo integration
+    project_description: 'project_description',
+    odoo_invoice_status: 'odoo_invoice_status',
+    odoo_last_synced_at: 'odoo_last_synced_at',
   };
 
   const dbField = fieldMap[data.field];
@@ -589,7 +602,7 @@ export async function inlineEditProjectField(data: InlineEditData): Promise<Inli
   // Get current project for audit log and sales order
   const { data: project } = await supabase
     .from('projects')
-    .select('sales_order_number, goal_completion_date, sales_amount, salesperson_id, start_date, end_date, sales_order_url, created_at, created_date, invoiced_date')
+    .select('sales_order_number, goal_completion_date, sales_amount, salesperson_id, start_date, end_date, sales_order_url, created_at, created_date, invoiced_date, project_description, odoo_invoice_status, odoo_last_synced_at')
     .eq('id', data.projectId)
     .single();
 
@@ -768,6 +781,105 @@ export async function getProjectScheduledHours(projectId: string): Promise<Proje
       byEngineer,
     },
   };
+}
+
+// ============================================
+// Odoo Invoice Status Refresh
+// ============================================
+
+export interface RefreshInvoiceStatusResult {
+  success: boolean;
+  invoiceStatus?: string;
+  syncedAt?: string;
+  error?: string;
+}
+
+export async function refreshOdooInvoiceStatus(projectId: string): Promise<RefreshInvoiceStatusResult> {
+  const supabase = await createClient();
+
+  // Get current user
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    return { success: false, error: 'Authentication required' };
+  }
+
+  // Get project's Odoo order ID
+  const { data: project } = await supabase
+    .from('projects')
+    .select('odoo_order_id, odoo_invoice_status, sales_order_number')
+    .eq('id', projectId)
+    .single();
+
+  if (!project) {
+    return { success: false, error: 'Project not found' };
+  }
+
+  if (!project.odoo_order_id) {
+    return { success: false, error: 'No Odoo order linked to this project' };
+  }
+
+  // Use the Odoo client directly (server action has direct access)
+  const { isOdooConfigured, getOdooClient } = await import('@/lib/odoo');
+  const { getInvoiceStatus } = await import('@/lib/odoo/queries');
+
+  if (!isOdooConfigured()) {
+    return { success: false, error: 'Odoo is not configured' };
+  }
+
+  try {
+    const client = getOdooClient();
+    const invoiceStatus = await getInvoiceStatus(client, project.odoo_order_id);
+
+    if (!invoiceStatus) {
+      return { success: false, error: 'Order not found in Odoo' };
+    }
+
+    const syncedAt = new Date().toISOString();
+    const oldStatus = project.odoo_invoice_status;
+
+    // Update project with new invoice status
+    const { error: updateError } = await supabase
+      .from('projects')
+      .update({
+        odoo_invoice_status: invoiceStatus,
+        odoo_last_synced_at: syncedAt,
+      })
+      .eq('id', projectId);
+
+    if (updateError) {
+      return { success: false, error: 'Failed to update invoice status' };
+    }
+
+    // Audit log if status changed
+    if (oldStatus !== invoiceStatus) {
+      try {
+        await supabase.from('audit_logs').insert({
+          project_id: projectId,
+          user_id: user.id,
+          action: 'update',
+          field_name: 'odoo_invoice_status',
+          old_value: oldStatus || '',
+          new_value: invoiceStatus,
+        });
+      } catch (err) {
+        console.error('Audit log error:', err);
+      }
+    }
+
+    // Revalidate
+    if (project.sales_order_number) {
+      revalidatePath(`/projects/${project.sales_order_number}`);
+    }
+    revalidatePath('/projects');
+
+    return { success: true, invoiceStatus, syncedAt };
+  } catch (error) {
+    console.error('Odoo invoice status refresh error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to refresh invoice status',
+    };
+  }
 }
 
 export async function getProjectBasicInfo(salesOrder: string): Promise<{
