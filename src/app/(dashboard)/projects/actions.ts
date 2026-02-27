@@ -769,3 +769,25 @@ export async function getProjectScheduledHours(projectId: string): Promise<Proje
     },
   };
 }
+
+export async function getProjectBasicInfo(salesOrder: string): Promise<{
+  success: boolean;
+  data?: {
+    id: string;
+    client_name: string;
+    sales_order_number: string | null;
+    sales_order_url: string | null;
+    sales_amount: number | null;
+  };
+  error?: string;
+}> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('projects')
+    .select('id, client_name, sales_order_number, sales_order_url, sales_amount')
+    .eq('sales_order_number', salesOrder)
+    .single();
+
+  if (error) return { success: false, error: error.message };
+  return { success: true, data: data as { id: string; client_name: string; sales_order_number: string | null; sales_order_url: string | null; sales_amount: number | null } };
+}
