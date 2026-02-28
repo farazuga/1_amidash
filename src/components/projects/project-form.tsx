@@ -30,8 +30,10 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { Project, Tag, Profile, ProjectType } from '@/types';
 import type { ACAccount, ACContact } from '@/types/activecampaign';
+import type { OdooPullResult } from '@/types/odoo';
 import { createProject } from '@/app/(dashboard)/projects/actions';
 import { ClientNameAutocomplete } from './client-name-autocomplete';
+import { OdooPullButton } from './odoo-pull-button';
 import { ContactSelector } from './contact-selector';
 import { SecondaryContactSelector } from './secondary-contact-selector';
 import { useActiveCampaignContacts } from '@/hooks/use-activecampaign';
@@ -119,6 +121,11 @@ export function ProjectForm({
   const [pocName, setPocName] = useState<string>(project?.poc_name || '');
   const [pocEmail, setPocEmail] = useState<string>(project?.poc_email || '');
 
+  // Odoo integration state
+  const [odooOrderId, setOdooOrderId] = useState<number | null>(null);
+  const [odooInvoiceStatus, setOdooInvoiceStatus] = useState<string | null>(null);
+  const [projectDescription, setProjectDescription] = useState<string>(project?.project_description || '');
+
   // Get contacts for selected AC account
   const { contacts: acContacts, isLoading: acContactsLoading } = useActiveCampaignContacts(
     selectedAccount?.id || null
@@ -185,6 +192,86 @@ export function ProjectForm({
     setShowTypeChangeWarning(false);
     setNeedsStatusSelection(false);
     setSelectedNewStatus('');
+  };
+
+  // Handle Odoo pull success - populate form fields
+  const handleOdooPullSuccess = (data: OdooPullResult) => {
+    // Client info
+    if (data.client?.name) setClientName(data.client.name);
+    if (data.client?.pocName) setPocName(data.client.pocName);
+    if (data.client?.pocEmail) setPocEmail(data.client.pocEmail);
+    if (data.client?.pocPhone) {
+      setPocPhone(formatPhoneNumber(data.client.pocPhone));
+    }
+
+    // Sales order info
+    if (data.salesOrder?.salesAmount) {
+      setSalesAmount(data.salesOrder.salesAmount.toString());
+    }
+    if (data.salesOrder?.poNumber) {
+      // Set via DOM since po_number uses defaultValue
+      const poInput = document.getElementById('po_number') as HTMLInputElement;
+      if (poInput) poInput.value = data.salesOrder.poNumber;
+    }
+    if (data.salesOrder?.salesOrderUrl) {
+      const urlInput = document.getElementById('sales_order_url') as HTMLInputElement;
+      if (urlInput) urlInput.value = data.salesOrder.salesOrderUrl;
+    }
+
+    // Salesperson matching
+    if (data.salesperson?.matchedProfileId) {
+      setSelectedSalesperson(data.salesperson.matchedProfileId);
+    }
+
+    // Odoo-specific fields
+    if (data.salesOrder?.odooOrderId) {
+      setOdooOrderId(data.salesOrder.odooOrderId);
+    }
+    if (data.salesOrder?.invoiceStatus) {
+      setOdooInvoiceStatus(data.salesOrder.invoiceStatus);
+    }
+
+    // Auto-select project type based on line items
+    if (data.lineItems && data.lineItems.length > 0) {
+      const itemNames = data.lineItems.map(item => item.productName.toLowerCase());
+      const hasInstall = itemNames.some(name => name.includes('install'));
+      const vidpodItems = data.lineItems.filter(item =>
+        item.productName.toLowerCase().includes('ami_vidpod')
+      );
+      const hasVidpod = vidpodItems.length > 0;
+
+      if (hasInstall) {
+        // Install found → select "solution"
+        const solutionType = projectTypes.find(t =>
+          t.name.toLowerCase() === 'solution' && t.is_active
+        );
+        if (solutionType) {
+          setSelectedProjectType(solutionType.id);
+        }
+      } else if (hasVidpod) {
+        // VidPod but no install → select "vidpod"
+        const vidpodType = projectTypes.find(t =>
+          t.name.toLowerCase() === 'vidpod' && t.is_active
+        );
+        if (vidpodType) {
+          setSelectedProjectType(vidpodType.id);
+        }
+      } else {
+        // No install, no vidpod → select "box sale"
+        const boxSaleType = projectTypes.find(t =>
+          t.name.toLowerCase() === 'box sale' && t.is_active
+        );
+        if (boxSaleType) {
+          setSelectedProjectType(boxSaleType.id);
+        }
+      }
+
+      // Auto-fill vidpod count from ami_vidpod quantity
+      if (hasVidpod) {
+        const totalVidpods = vidpodItems.reduce((sum, item) => sum + item.quantity, 0);
+        setNumberOfVidpods(totalVidpods.toString());
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -365,6 +452,10 @@ export function ProjectForm({
           secondary_activecampaign_contact_id: data.secondary_activecampaign_contact_id,
           start_date: data.start_date,
           end_date: data.end_date,
+          // Odoo integration
+          odoo_order_id: odooOrderId,
+          odoo_invoice_status: odooInvoiceStatus,
+          project_description: projectDescription || null,
         });
 
         if (!result.success) {
@@ -588,18 +679,26 @@ export function ProjectForm({
         {!isEditing && (
           <div className="space-y-2">
             <Label htmlFor="sales_order_number">Sales Order # *</Label>
-            <Input
-              id="sales_order_number"
-              name="sales_order_number"
-              value={salesOrderNumber}
-              onChange={(e) => {
-                setSalesOrderNumber(e.target.value.toUpperCase());
-                setSalesOrderError(null);
-              }}
-              placeholder="S1XXXX"
-              maxLength={6}
-              className={salesOrderError ? 'border-destructive' : ''}
-            />
+            <div className="flex gap-2">
+              <Input
+                id="sales_order_number"
+                name="sales_order_number"
+                value={salesOrderNumber}
+                onChange={(e) => {
+                  setSalesOrderNumber(e.target.value.toUpperCase());
+                  setSalesOrderError(null);
+                }}
+                placeholder="S1XXXX"
+                maxLength={6}
+                className={salesOrderError ? 'border-destructive' : ''}
+              />
+              <OdooPullButton
+                salesOrderNumber={salesOrderNumber}
+                onPullSuccess={handleOdooPullSuccess}
+                onSummaryGenerated={setProjectDescription}
+                disabled={isPending}
+              />
+            </div>
             <p className="text-xs text-muted-foreground">
               Must start with &quot;S1&quot; and be exactly 6 characters (e.g., S12345)
             </p>
@@ -619,6 +718,25 @@ export function ProjectForm({
               type="url"
               placeholder="https://odoo.example.com/..."
             />
+          </div>
+        )}
+
+        {/* Project Description */}
+        {!isEditing && (
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="project_description">Project Description</Label>
+            <textarea
+              id="project_description"
+              name="project_description"
+              value={projectDescription}
+              onChange={(e) => setProjectDescription(e.target.value)}
+              placeholder="Auto-generated from Odoo line items, or enter manually..."
+              rows={3}
+              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            />
+            <p className="text-xs text-muted-foreground">
+              Brief summary of the project scope. Auto-fills when pulling from Odoo.
+            </p>
           </div>
         )}
 

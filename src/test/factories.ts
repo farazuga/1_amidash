@@ -89,6 +89,11 @@ export function createProject(overrides: Partial<Project> = {}): Project {
     start_date: null,
     end_date: null,
     schedule_status: null,
+    // Odoo integration
+    odoo_order_id: null,
+    odoo_invoice_status: null,
+    odoo_last_synced_at: null,
+    project_description: null,
     ...overrides,
   };
 }

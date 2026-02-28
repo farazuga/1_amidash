@@ -1560,10 +1560,14 @@ export type Database = {
           id: string
           invoiced_date: string | null
           number_of_vidpods: number | null
+          odoo_invoice_status: string | null
+          odoo_last_synced_at: string | null
+          odoo_order_id: number | null
           po_number: string | null
           poc_email: string | null
           poc_name: string | null
           poc_phone: string | null
+          project_description: string | null
           project_type_id: string | null
           sales_amount: number | null
           sales_order_number: string
@@ -1595,10 +1599,14 @@ export type Database = {
           id?: string
           invoiced_date?: string | null
           number_of_vidpods?: number | null
+          odoo_invoice_status?: string | null
+          odoo_last_synced_at?: string | null
+          odoo_order_id?: number | null
           po_number?: string | null
           poc_email?: string | null
           poc_name?: string | null
           poc_phone?: string | null
+          project_description?: string | null
           project_type_id?: string | null
           sales_amount?: number | null
           sales_order_number?: string
@@ -1630,10 +1638,14 @@ export type Database = {
           id?: string
           invoiced_date?: string | null
           number_of_vidpods?: number | null
+          odoo_invoice_status?: string | null
+          odoo_last_synced_at?: string | null
+          odoo_order_id?: number | null
           po_number?: string | null
           poc_email?: string | null
           poc_name?: string | null
           poc_phone?: string | null
+          project_description?: string | null
           project_type_id?: string | null
           sales_amount?: number | null
           sales_order_number?: string
