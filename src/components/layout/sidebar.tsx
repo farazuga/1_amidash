@@ -23,6 +23,7 @@ import {
   CalendarDays,
   CalendarRange,
   Presentation,
+  LayoutTemplate,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -91,6 +92,11 @@ const adminNavItems = [
     title: 'Statuses',
     href: '/admin/statuses',
     icon: ListChecks,
+  },
+  {
+    title: 'Portal Builder',
+    href: '/admin/portal-builder',
+    icon: LayoutTemplate,
   },
   {
     title: 'Revenue Goals',
