@@ -5,8 +5,9 @@ export const ODOO_ACTIVITIES_KEY = ['odoo', 'activities'];
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 
-interface OdooActivitiesResponse {
-  activities: OdooActivityResult[];
+export interface OdooActivitiesResponse {
+  myActivities: OdooActivityResult[];
+  assignedByMe: OdooActivityResult[];
   configured: boolean;
   error?: string;
 }

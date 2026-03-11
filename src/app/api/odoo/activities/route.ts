@@ -4,11 +4,29 @@ import { getOdooClient, isOdooConfigured } from '@/lib/odoo';
 import {
   findOdooUserByEmail,
   getUserActivities,
+  getActivitiesAssignedByUser,
   buildOdooRecordUrl,
   odooMany2oneName,
   odooFalseToNull,
 } from '@/lib/odoo/queries';
-import type { OdooActivityResult } from '@/types/odoo';
+import type { OdooActivity, OdooActivityResult } from '@/types/odoo';
+
+function transformActivity(activity: OdooActivity, odooBaseUrl: string): OdooActivityResult {
+  const summary = odooFalseToNull(activity.summary);
+  const resName = odooFalseToNull(activity.res_name);
+
+  return {
+    id: activity.id,
+    name: summary || resName || 'Untitled Activity',
+    type: odooMany2oneName(activity.activity_type_id) || 'Activity',
+    deadline: odooFalseToNull(activity.date_deadline),
+    assignedBy: odooMany2oneName(activity.create_uid),
+    assignedTo: odooMany2oneName(activity.user_id),
+    recordName: resName,
+    recordModel: activity.res_model,
+    odooUrl: buildOdooRecordUrl(odooBaseUrl, activity.res_model, activity.res_id),
+  };
+}
 
 export async function GET() {
   try {
@@ -24,12 +42,20 @@ export async function GET() {
 
     // Config check
     if (!isOdooConfigured()) {
-      return NextResponse.json({ activities: [], configured: false });
+      return NextResponse.json({
+        myActivities: [],
+        assignedByMe: [],
+        configured: false,
+      });
     }
 
     const userEmail = user.email;
     if (!userEmail) {
-      return NextResponse.json({ activities: [], configured: true });
+      return NextResponse.json({
+        myActivities: [],
+        assignedByMe: [],
+        configured: true,
+      });
     }
 
     const client = getOdooClient();
@@ -38,30 +64,23 @@ export async function GET() {
     // Find matching Odoo user by email
     const odooUser = await findOdooUserByEmail(client, userEmail);
     if (!odooUser) {
-      return NextResponse.json({ activities: [], configured: true });
+      return NextResponse.json({
+        myActivities: [],
+        assignedByMe: [],
+        configured: true,
+      });
     }
 
-    // Fetch open activities for this user
-    const activities = await getUserActivities(client, odooUser.id);
+    // Fetch both sets in parallel
+    const [myRaw, assignedRaw] = await Promise.all([
+      getUserActivities(client, odooUser.id),
+      getActivitiesAssignedByUser(client, odooUser.id),
+    ]);
 
-    // Transform to AmiDash format
-    const results: OdooActivityResult[] = activities.map((activity) => {
-      const summary = odooFalseToNull(activity.summary);
-      const resName = odooFalseToNull(activity.res_name);
+    const myActivities = myRaw.map((a) => transformActivity(a, odooBaseUrl));
+    const assignedByMe = assignedRaw.map((a) => transformActivity(a, odooBaseUrl));
 
-      return {
-        id: activity.id,
-        name: summary || resName || 'Untitled Activity',
-        type: odooMany2oneName(activity.activity_type_id) || 'Activity',
-        deadline: odooFalseToNull(activity.date_deadline),
-        assignedBy: odooMany2oneName(activity.create_uid),
-        recordName: resName,
-        recordModel: activity.res_model,
-        odooUrl: buildOdooRecordUrl(odooBaseUrl, activity.res_model, activity.res_id),
-      };
-    });
-
-    return NextResponse.json({ activities: results, configured: true });
+    return NextResponse.json({ myActivities, assignedByMe, configured: true });
   } catch (error) {
     console.error('Odoo activities error:', error);
     return NextResponse.json(

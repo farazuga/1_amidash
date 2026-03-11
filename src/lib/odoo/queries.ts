@@ -160,6 +160,19 @@ export async function findOdooUserByEmail(
   return results.length > 0 ? results[0] : null;
 }
 
+const ACTIVITY_FIELDS = [
+  'id',
+  'summary',
+  'note',
+  'date_deadline',
+  'activity_type_id',
+  'user_id',
+  'create_uid',
+  'res_model',
+  'res_id',
+  'res_name',
+] as const;
+
 /**
  * Get all open activities assigned to an Odoo user.
  * Activities that exist are open — completed ones are deleted in Odoo.
@@ -171,18 +184,26 @@ export async function getUserActivities(
   return client.searchRead<OdooActivity>(
     'mail.activity',
     [['user_id', '=', odooUserId]],
+    [...ACTIVITY_FIELDS],
+    { order: 'date_deadline asc' }
+  );
+}
+
+/**
+ * Get all open activities created by an Odoo user but assigned to others.
+ * These are tasks the user has delegated to other people.
+ */
+export async function getActivitiesAssignedByUser(
+  client: OdooReadOnlyClient,
+  odooUserId: number
+): Promise<OdooActivity[]> {
+  return client.searchRead<OdooActivity>(
+    'mail.activity',
     [
-      'id',
-      'summary',
-      'note',
-      'date_deadline',
-      'activity_type_id',
-      'user_id',
-      'create_uid',
-      'res_model',
-      'res_id',
-      'res_name',
+      ['create_uid', '=', odooUserId],
+      ['user_id', '!=', odooUserId],
     ],
+    [...ACTIVITY_FIELDS],
     { order: 'date_deadline asc' }
   );
 }

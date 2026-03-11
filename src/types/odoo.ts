@@ -103,6 +103,7 @@ export interface OdooActivityResult {
   type: string; // Activity type name (To Do, Email, Call, etc.)
   deadline: string | null; // ISO date string
   assignedBy: string | null; // Name of person who created the activity
+  assignedTo: string | null; // Name of person the activity is assigned to
   recordName: string | null; // Display name of the related record
   recordModel: string; // Odoo model name
   odooUrl: string; // Direct link to the record in Odoo
