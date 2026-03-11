@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import type { MyTodoWithTeam } from '@/app/(dashboard)/l10/todos-actions';
 import { TodoDetailSheet } from './todo-detail-sheet';
+import { OdooActivitiesSection } from './odoo-activities-section';
 
 export function MyTodosPage() {
   const { user } = useUser();
@@ -151,6 +152,9 @@ export function MyTodosPage() {
           </div>
         </section>
       )}
+
+      {/* Odoo Activities section */}
+      <OdooActivitiesSection userEmail={user?.email ?? null} />
 
       <TodoDetailSheet
         todo={selectedTodo}

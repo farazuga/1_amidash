@@ -75,6 +75,40 @@ export interface OdooPartner {
   child_ids: number[]; // Contact person IDs under a company
 }
 
+/** mail.activity model (chatter tasks/activities) */
+export interface OdooActivity {
+  id: number;
+  summary: string | false; // Activity name/title
+  note: string | false; // Detailed notes (HTML)
+  date_deadline: string | false; // YYYY-MM-DD
+  activity_type_id: [number, string] | false; // Many2one: [id, "To Do"] etc.
+  user_id: [number, string] | false; // Assigned to
+  create_uid: [number, string] | false; // Created/assigned by
+  res_model: string; // e.g. "sale.order", "res.partner"
+  res_id: number; // ID of the record this activity is on
+  res_name: string | false; // Display name of the related record
+}
+
+/** res.users model (for email matching) */
+export interface OdooUser {
+  id: number;
+  login: string; // Email address used for login
+  name: string;
+}
+
+/** Transformed activity for AmiDash display */
+export interface OdooActivityResult {
+  id: number;
+  name: string; // summary or res_name fallback
+  type: string; // Activity type name (To Do, Email, Call, etc.)
+  deadline: string | null; // ISO date string
+  assignedBy: string | null; // Name of person who created the activity
+  assignedTo: string | null; // Name of person the activity is assigned to
+  recordName: string | null; // Display name of the related record
+  recordModel: string; // Odoo model name
+  odooUrl: string; // Direct link to the record in Odoo
+}
+
 // ============================================================
 // Transformed Types for AmiDash Consumption
 // ============================================================
