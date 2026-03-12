@@ -51,11 +51,35 @@ export interface Status {
   created_at: string | null;
 }
 
+export type PortalBlockType = 'current_status' | 'poc_info' | 'status_history' | 'customer_schedule' | 'custom_html';
+
+export interface PortalBlockConfig {
+  content?: string;
+  title?: string;
+}
+
+export interface PortalBlock {
+  id: string;
+  type: PortalBlockType;
+  config?: PortalBlockConfig;
+}
+
+export interface PortalTemplate {
+  id: string;
+  name: string;
+  blocks: PortalBlock[];
+  background_image_url: string | null;
+  is_default: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
 export interface ProjectType {
   id: string;
   name: string;
   display_order: number;
   is_active: boolean | null;
+  portal_template_id?: string | null;
   created_at: string | null;
 }
 

@@ -10,7 +10,6 @@ import {
   LayoutDashboard,
   FolderKanban,
   Users,
-  Tags,
   ListChecks,
   FileText,
   Plus,
@@ -23,6 +22,7 @@ import {
   CalendarDays,
   CalendarRange,
   Presentation,
+  LayoutTemplate,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -93,14 +93,14 @@ const adminNavItems = [
     icon: ListChecks,
   },
   {
+    title: 'Portal Builder',
+    href: '/admin/portal-builder',
+    icon: LayoutTemplate,
+  },
+  {
     title: 'Revenue Goals',
     href: '/admin/goals',
     icon: Target,
-  },
-  {
-    title: 'Tags',
-    href: '/admin/tags',
-    icon: Tags,
   },
   {
     title: 'Users',
