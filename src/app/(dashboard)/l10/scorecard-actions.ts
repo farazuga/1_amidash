@@ -301,18 +301,6 @@ export async function autoPopulateScorecardWeek(
     const startStr = weekStart.toISOString().split('T')[0];
     const endStr = weekEnd.toISOString().split('T')[0];
 
-    // Get invoiced status ID for open_projects queries
-    let invoicedStatusId: string | null = null;
-    const hasOpenProjects = measurables.some((m) => m.auto_source === 'open_projects');
-    if (hasOpenProjects) {
-      const { data: statuses } = await supabase
-        .from('statuses')
-        .select('id')
-        .eq('name', 'Invoiced')
-        .maybeSingle();
-      invoicedStatusId = statuses?.id || null;
-    }
-
     for (const measurable of measurables) {
       let value: number | null = null;
 
@@ -337,14 +325,14 @@ export async function autoPopulateScorecardWeek(
 
           value = (projects || []).reduce((sum, p) => sum + (p.sales_amount || 0), 0);
         } else if (measurable.auto_source === 'open_projects') {
-          // COUNT projects that are NOT invoiced (open/active)
-          let countQuery = supabase
+          // COUNT projects open as of end of week (Friday):
+          // - created on or before Friday
+          // - NOT yet invoiced as of Friday (invoiced_date is null OR invoiced_date > Friday)
+          const { count } = await supabase
             .from('projects')
-            .select('id', { count: 'exact', head: true });
-          if (invoicedStatusId) {
-            countQuery = countQuery.neq('current_status_id', invoicedStatusId);
-          }
-          const { count } = await countQuery;
+            .select('id', { count: 'exact', head: true })
+            .lte('created_date', endStr)
+            .or(`invoiced_date.is.null,invoiced_date.gt.${endStr}`);
           value = count ?? 0;
         } else if (measurable.auto_source === 'odoo_account') {
           if (!measurable.odoo_account_code || !measurable.odoo_date_mode) {
