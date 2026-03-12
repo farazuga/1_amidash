@@ -89,12 +89,23 @@ export async function POST(request: NextRequest) {
     // 2. Validate token -> get project (service role since portal has no auth)
     const db = await getServiceDb();
 
-    const { data: project, error: projectError } = await db
+    let { data: project, error: projectError } = await db
       .from('projects')
       .select('id, client_name, sales_order_number')
       .eq('client_token', token)
       .eq('is_draft', false)
       .single();
+
+    // Fallback if is_draft column doesn't exist yet (migration 050 not applied)
+    if (projectError) {
+      const retry = await db
+        .from('projects')
+        .select('id, client_name, sales_order_number')
+        .eq('client_token', token)
+        .single();
+      project = retry.data;
+      projectError = retry.error;
+    }
 
     if (projectError || !project) {
       return NextResponse.json({ error: 'Invalid or expired portal link' }, { status: 404 });
