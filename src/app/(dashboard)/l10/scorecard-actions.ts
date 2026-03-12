@@ -276,12 +276,19 @@ export async function autoPopulateScorecardWeek(
 
     if (!scorecard) return { success: false, error: 'No scorecard found' };
 
+    // Cast needed: odoo_account_code/odoo_date_mode exist in DB but not in generated types yet
     const { data: measurables } = await supabase
-      .from('l10_scorecard_measurables')
+      .from('l10_scorecard_measurables' as 'l10_scorecard_measurables')
       .select('id, title, auto_source, odoo_account_code, odoo_date_mode')
       .eq('scorecard_id', scorecard.id)
       .eq('is_active', true)
-      .not('auto_source', 'is', null);
+      .not('auto_source', 'is', null) as { data: Array<{
+        id: string;
+        title: string;
+        auto_source: string;
+        odoo_account_code: string | null;
+        odoo_date_mode: string | null;
+      }> | null };
 
     if (!measurables || measurables.length === 0) {
       return { success: true, data: { ...result, skipped: ['No auto-source measurables configured'] } };
