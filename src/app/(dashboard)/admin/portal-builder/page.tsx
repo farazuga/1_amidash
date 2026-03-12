@@ -231,6 +231,7 @@ export default function PortalBuilderPage() {
 
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [editingBlocks, setEditingBlocks] = useState<PortalBlock[] | null>(null);
+  const [editingBgImage, setEditingBgImage] = useState<string>('');
   const [newTemplateName, setNewTemplateName] = useState('');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
@@ -253,13 +254,18 @@ export default function PortalBuilderPage() {
   function selectTemplate(template: PortalTemplate) {
     setSelectedTemplateId(template.id);
     setEditingBlocks([...template.blocks]);
+    setEditingBgImage(template.background_image_url || '');
   }
 
   // Save current block edits
   async function saveBlocks() {
     if (!selectedTemplateId || !editingBlocks) return;
     try {
-      await updateTemplate.mutateAsync({ id: selectedTemplateId, blocks: editingBlocks });
+      await updateTemplate.mutateAsync({
+        id: selectedTemplateId,
+        blocks: editingBlocks,
+        background_image_url: editingBgImage.trim() || null,
+      });
       setEditingBlocks(null);
       toast.success('Template saved');
     } catch {
@@ -271,6 +277,7 @@ export default function PortalBuilderPage() {
   function discardEdits() {
     if (selectedTemplate) {
       setEditingBlocks([...selectedTemplate.blocks]);
+      setEditingBgImage(selectedTemplate.background_image_url || '');
     }
   }
 
@@ -373,7 +380,8 @@ export default function PortalBuilderPage() {
   const hasUnsavedChanges =
     editingBlocks !== null &&
     selectedTemplate &&
-    JSON.stringify(editingBlocks) !== JSON.stringify(selectedTemplate.blocks);
+    (JSON.stringify(editingBlocks) !== JSON.stringify(selectedTemplate.blocks) ||
+     editingBgImage !== (selectedTemplate.background_image_url || ''));
 
   if (templatesLoading || typesLoading) {
     return (
@@ -573,6 +581,28 @@ export default function PortalBuilderPage() {
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
+                </div>
+
+                {/* Background Image URL */}
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Background Image URL</Label>
+                  <Input
+                    value={editingBgImage}
+                    onChange={(e) => setEditingBgImage(e.target.value)}
+                    placeholder="https://example.com/background.jpg"
+                    className="h-8 text-sm"
+                  />
+                  {editingBgImage && (
+                    <div className="mt-2 rounded border overflow-hidden h-24 bg-muted">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={editingBgImage}
+                        alt="Background preview"
+                        className="w-full h-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Block list with drag-and-drop */}

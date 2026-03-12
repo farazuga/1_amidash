@@ -10,7 +10,6 @@ import {
   LayoutDashboard,
   FolderKanban,
   Users,
-  Tags,
   ListChecks,
   FileText,
   Plus,
@@ -102,11 +101,6 @@ const adminNavItems = [
     title: 'Revenue Goals',
     href: '/admin/goals',
     icon: Target,
-  },
-  {
-    title: 'Tags',
-    href: '/admin/tags',
-    icon: Tags,
   },
   {
     title: 'Users',

@@ -63,6 +63,7 @@ export function useUpdatePortalTemplate() {
       id: string;
       name?: string;
       blocks?: PortalBlock[];
+      background_image_url?: string | null;
     }) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)

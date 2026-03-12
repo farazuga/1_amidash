@@ -68,6 +68,7 @@ export interface PortalTemplate {
   id: string;
   name: string;
   blocks: PortalBlock[];
+  background_image_url: string | null;
   is_default: boolean;
   created_at: string | null;
   updated_at: string | null;

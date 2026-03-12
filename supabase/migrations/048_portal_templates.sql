@@ -9,6 +9,7 @@ CREATE TABLE portal_templates (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL UNIQUE,
   blocks JSONB NOT NULL DEFAULT '[]'::jsonb,
+  background_image_url TEXT,
   is_default BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()

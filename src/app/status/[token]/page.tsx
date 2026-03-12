@@ -103,7 +103,12 @@ async function getProjectTypeStatuses() {
   return data || [];
 }
 
-async function getPortalTemplate(projectTypeId: string | null): Promise<PortalBlock[]> {
+interface PortalTemplateResult {
+  blocks: PortalBlock[];
+  backgroundImageUrl: string | null;
+}
+
+async function getPortalTemplate(projectTypeId: string | null): Promise<PortalTemplateResult> {
   const supabase = await createClient();
 
   const DEFAULT_BLOCKS: PortalBlock[] = [
@@ -126,12 +131,12 @@ async function getPortalTemplate(projectTypeId: string | null): Promise<PortalBl
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: template } = await (supabase as any)
         .from('portal_templates')
-        .select('blocks')
+        .select('blocks, background_image_url')
         .eq('id', projectType.portal_template_id)
         .single();
 
       if (template?.blocks && Array.isArray(template.blocks) && template.blocks.length > 0) {
-        return template.blocks as PortalBlock[];
+        return { blocks: template.blocks as PortalBlock[], backgroundImageUrl: template.background_image_url ?? null };
       }
     }
   }
@@ -140,15 +145,15 @@ async function getPortalTemplate(projectTypeId: string | null): Promise<PortalBl
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: defaultTemplate } = await (supabase as any)
     .from('portal_templates')
-    .select('blocks')
+    .select('blocks, background_image_url')
     .eq('is_default', true)
     .single();
 
   if (defaultTemplate?.blocks && Array.isArray(defaultTemplate.blocks) && defaultTemplate.blocks.length > 0) {
-    return defaultTemplate.blocks as PortalBlock[];
+    return { blocks: defaultTemplate.blocks as PortalBlock[], backgroundImageUrl: defaultTemplate.background_image_url ?? null };
   }
 
-  return DEFAULT_BLOCKS;
+  return { blocks: DEFAULT_BLOCKS, backgroundImageUrl: null };
 }
 
 export default async function ClientPortalPage({
@@ -182,12 +187,14 @@ export default async function ClientPortalPage({
     notFound();
   }
 
-  const [statuses, statusHistory, projectTypeStatuses, templateBlocks] = await Promise.all([
+  const [statuses, statusHistory, projectTypeStatuses, portalTemplate] = await Promise.all([
     getStatuses(),
     getStatusHistory(project.id),
     getProjectTypeStatuses(),
     getPortalTemplate(project.project_type_id),
   ]);
+
+  const { blocks: templateBlocks, backgroundImageUrl } = portalTemplate;
 
   // Increment view count (fire and forget - don't block render)
   incrementPortalViews(project.id);
@@ -223,7 +230,15 @@ export default async function ClientPortalPage({
   );
 
   return (
-    <div className="min-h-screen bg-[#f8faf9]">
+    <div
+      className="min-h-screen bg-[#f8faf9]"
+      style={backgroundImageUrl ? {
+        backgroundImage: `url(${backgroundImageUrl})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed',
+      } : undefined}
+    >
       {/* Header with Logo */}
       <header className="bg-[#023A2D] text-white py-2">
         <div className="container mx-auto px-4">
