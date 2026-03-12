@@ -268,8 +268,10 @@ export default function PortalBuilderPage() {
       });
       setEditingBlocks(null);
       toast.success('Template saved');
-    } catch {
-      toast.error('Failed to save template');
+    } catch (err) {
+      console.error('Save template error:', err);
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(`Failed to save template: ${message}`);
     }
   }
 
@@ -297,8 +299,10 @@ export default function PortalBuilderPage() {
       setNewTemplateName('');
       selectTemplate(created as PortalTemplate);
       toast.success('Template created');
-    } catch {
-      toast.error('Failed to create template');
+    } catch (err) {
+      console.error('Create template error:', err);
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(`Failed to create template: ${message}`);
     }
   }
 
@@ -316,8 +320,10 @@ export default function PortalBuilderPage() {
         setEditingBlocks(null);
       }
       toast.success('Template deleted');
-    } catch {
-      toast.error('Failed to delete template');
+    } catch (err) {
+      console.error('Delete template error:', err);
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(`Failed to delete template: ${message}`);
     }
   }
 
@@ -328,8 +334,10 @@ export default function PortalBuilderPage() {
       await updateTemplate.mutateAsync({ id: selectedTemplateId, name: renameName.trim() });
       setRenameDialogOpen(false);
       toast.success('Template renamed');
-    } catch {
-      toast.error('Failed to rename template');
+    } catch (err) {
+      console.error('Rename template error:', err);
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(`Failed to rename template: ${message}`);
     }
   }
 
@@ -372,8 +380,10 @@ export default function PortalBuilderPage() {
         templateId: templateId || null,
       });
       toast.success('Template assigned');
-    } catch {
-      toast.error('Failed to assign template');
+    } catch (err) {
+      console.error('Assign template error:', err);
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(`Failed to assign template: ${message}`);
     }
   }
 
