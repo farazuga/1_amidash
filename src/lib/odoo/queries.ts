@@ -11,8 +11,8 @@ import type {
   OdooOrderLine,
   OdooPartner,
   OdooProduct,
-  OdooAccount,
-  OdooMoveLine,
+  OdooActivity,
+  OdooUser,
 } from '@/types/odoo';
 
 // ============================================================
@@ -139,70 +139,73 @@ export async function getPartnerContacts(
 }
 
 // ============================================================
-// Accounting
+// Activities (Chatter Tasks)
 // ============================================================
 
 /**
- * Look up an accounting account by its code (e.g. "1200").
- * Returns the account if found, null otherwise.
+ * Find an Odoo user by their email (login field).
+ * Used to match AmiDash users to Odoo users.
  */
-export async function findAccountByCode(
+export async function findOdooUserByEmail(
   client: OdooReadOnlyClient,
-  accountCode: string
-): Promise<OdooAccount | null> {
-  const results = await client.searchRead<OdooAccount>(
-    'account.account',
-    [['code', '=', accountCode]],
-    ['id', 'code', 'name'],
+  email: string
+): Promise<OdooUser | null> {
+  const results = await client.searchRead<OdooUser>(
+    'res.users',
+    [['login', '=', email]],
+    ['id', 'login', 'name'],
     { limit: 1 }
   );
+
   return results.length > 0 ? results[0] : null;
 }
 
+const ACTIVITY_FIELDS = [
+  'id',
+  'summary',
+  'note',
+  'date_deadline',
+  'activity_type_id',
+  'user_id',
+  'create_uid',
+  'res_model',
+  'res_id',
+  'res_name',
+] as const;
+
 /**
- * Get the net movement (sum of balance) for journal entries on a specific
- * account within a date range (inclusive). Only includes posted entries.
- * Used for "date_range" mode in the scorecard.
+ * Get all open activities assigned to an Odoo user.
+ * Activities that exist are open — completed ones are deleted in Odoo.
  */
-export async function getAccountMovement(
+export async function getUserActivities(
   client: OdooReadOnlyClient,
-  accountCode: string,
-  dateFrom: string, // YYYY-MM-DD
-  dateTo: string // YYYY-MM-DD
-): Promise<number> {
-  const lines = await client.searchRead<OdooMoveLine>(
-    'account.move.line',
-    [
-      ['account_id.code', '=', accountCode],
-      ['date', '>=', dateFrom],
-      ['date', '<=', dateTo],
-      ['parent_state', '=', 'posted'],
-    ],
-    ['balance']
+  odooUserId: number
+): Promise<OdooActivity[]> {
+  return client.searchRead<OdooActivity>(
+    'mail.activity',
+    [['user_id', '=', odooUserId]],
+    [...ACTIVITY_FIELDS],
+    { order: 'date_deadline asc' }
   );
-  return lines.reduce((sum, line) => sum + (line.balance || 0), 0);
 }
 
 /**
- * Get the cumulative balance for an account as-of a specific date.
- * Sums all posted journal items on or before the given date.
- * Used for "last_day" mode in the scorecard.
+ * Get all open activities created by an Odoo user but assigned to others.
+ * These are tasks the user has delegated to other people.
  */
-export async function getAccountBalance(
+export async function getActivitiesAssignedByUser(
   client: OdooReadOnlyClient,
-  accountCode: string,
-  asOfDate: string // YYYY-MM-DD
-): Promise<number> {
-  const lines = await client.searchRead<OdooMoveLine>(
-    'account.move.line',
+  odooUserId: number
+): Promise<OdooActivity[]> {
+  return client.searchRead<OdooActivity>(
+    'mail.activity',
     [
-      ['account_id.code', '=', accountCode],
-      ['date', '<=', asOfDate],
-      ['parent_state', '=', 'posted'],
+      ['create_uid', '=', odooUserId],
+      ['user_id', '!=', odooUserId],
     ],
-    ['balance']
+    [...ACTIVITY_FIELDS],
+    { order: 'date_deadline asc' }
   );
-  return lines.reduce((sum, line) => sum + (line.balance || 0), 0);
 }
 
 // ============================================================
@@ -216,6 +219,19 @@ export async function getAccountBalance(
 export function buildOdooUrl(baseUrl: string, orderId: number): string {
   const cleanBase = baseUrl.replace(/\/+$/, '');
   return `${cleanBase}/odoo/sales/${orderId}`;
+}
+
+/**
+ * Build the Odoo web URL for any record.
+ * Generic format: {base_url}/web#id={recordId}&model={model}&view_type=form
+ */
+export function buildOdooRecordUrl(
+  baseUrl: string,
+  model: string,
+  recordId: number
+): string {
+  const cleanBase = baseUrl.replace(/\/+$/, '');
+  return `${cleanBase}/web#id=${recordId}&model=${model}&view_type=form`;
 }
 
 // ============================================================

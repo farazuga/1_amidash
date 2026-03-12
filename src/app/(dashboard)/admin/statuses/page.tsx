@@ -29,7 +29,18 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Plus, Pencil, Loader2, GripVertical, ChevronDown } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Plus, Pencil, Trash2, Loader2, GripVertical, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Status, ProjectType } from '@/types';
 import { StatusBadge } from '@/components/projects/status-badge';
@@ -63,12 +74,14 @@ function SortableStatusRow({
   onToggleActive,
   onToggleException,
   onToggleInternalOnly,
+  onDelete,
 }: {
   status: Status;
   onEdit: () => void;
   onToggleActive: () => void;
   onToggleException: () => void;
   onToggleInternalOnly: () => void;
+  onDelete: () => void;
 }) {
   const {
     attributes,
@@ -138,9 +151,34 @@ function SortableStatusRow({
         />
       </TableCell>
       <TableCell>
-        <Button variant="ghost" size="icon" onClick={onEdit}>
-          <Pencil className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" onClick={onEdit}>
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive">
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Deactivate &quot;{status.name}&quot;?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will hide the status from all dropdowns and project type assignments.
+                  Existing projects with this status will keep it, but it cannot be selected for new projects.
+                  You can reactivate it later using the Active toggle.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={onDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  Deactivate
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </TableCell>
     </TableRow>
   );
@@ -396,6 +434,21 @@ export default function StatusesAdminPage() {
       return;
     }
 
+    loadData();
+  };
+
+  const softDeleteStatus = async (status: Status) => {
+    const { error } = await supabase
+      .from('statuses')
+      .update({ is_active: false })
+      .eq('id', status.id);
+
+    if (error) {
+      toast.error('Failed to deactivate status');
+      return;
+    }
+
+    toast.success(`"${status.name}" deactivated`);
     loadData();
   };
 
@@ -738,6 +791,7 @@ export default function StatusesAdminPage() {
                           onToggleActive={() => toggleStatusActive(status)}
                           onToggleException={() => toggleException(status)}
                           onToggleInternalOnly={() => toggleInternalOnly(status)}
+                          onDelete={() => softDeleteStatus(status)}
                         />
                       ))}
                     </SortableContext>

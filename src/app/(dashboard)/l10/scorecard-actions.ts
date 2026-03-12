@@ -105,7 +105,7 @@ export async function createMeasurable(input: unknown): Promise<ActionResult> {
     if (!validation.success) return { success: false, error: validation.error };
 
     const { supabase } = await getL10Client();
-    const { scorecardId, title, ownerId, unit, goalValue, goalDirection, autoSource, odooAccountCode, odooAccountName, odooDateMode } = validation.data;
+    const { scorecardId, title, ownerId, unit, goalValue, goalDirection, autoSource } = validation.data;
 
     // Get next display order
     const { data: existing } = await supabase
@@ -127,9 +127,6 @@ export async function createMeasurable(input: unknown): Promise<ActionResult> {
         goal_value: goalValue ?? null,
         goal_direction: goalDirection,
         auto_source: autoSource ?? null,
-        odoo_account_code: odooAccountCode ?? null,
-        odoo_account_name: odooAccountName ?? null,
-        odoo_date_mode: odooDateMode ?? null,
         display_order: nextOrder,
       });
 
@@ -155,18 +152,7 @@ export async function updateMeasurable(input: unknown): Promise<ActionResult> {
     if (updates.unit !== undefined) dbUpdates.unit = updates.unit;
     if (updates.goalValue !== undefined) dbUpdates.goal_value = updates.goalValue;
     if (updates.goalDirection !== undefined) dbUpdates.goal_direction = updates.goalDirection;
-    if (updates.autoSource !== undefined) {
-      dbUpdates.auto_source = updates.autoSource;
-      // Clear Odoo fields when switching away from odoo_account
-      if (updates.autoSource !== 'odoo_account') {
-        dbUpdates.odoo_account_code = null;
-        dbUpdates.odoo_account_name = null;
-        dbUpdates.odoo_date_mode = null;
-      }
-    }
-    if (updates.odooAccountCode !== undefined) dbUpdates.odoo_account_code = updates.odooAccountCode;
-    if (updates.odooAccountName !== undefined) dbUpdates.odoo_account_name = updates.odooAccountName;
-    if (updates.odooDateMode !== undefined) dbUpdates.odoo_date_mode = updates.odooDateMode;
+    if (updates.autoSource !== undefined) dbUpdates.auto_source = updates.autoSource;
     if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
 
     const { error } = await supabase
@@ -268,7 +254,7 @@ export async function autoPopulateScorecardWeek(
 
     const { data: measurables } = await supabase
       .from('l10_scorecard_measurables')
-      .select('id, auto_source, odoo_account_code, odoo_date_mode')
+      .select('id, auto_source')
       .eq('scorecard_id', scorecard.id)
       .eq('is_active', true)
       .not('auto_source', 'is', null);
@@ -326,29 +312,6 @@ export async function autoPopulateScorecardWeek(
         }
         const { count } = await countQuery;
         value = count ?? 0;
-      } else if (measurable.auto_source === 'odoo_account') {
-        if (!measurable.odoo_account_code || !measurable.odoo_date_mode) {
-          continue; // skip misconfigured measurables
-        }
-
-        const { isOdooConfigured, getOdooClient } = await import('@/lib/odoo');
-        if (!isOdooConfigured()) {
-          continue;
-        }
-
-        const { getAccountMovement, getAccountBalance } = await import('@/lib/odoo/queries');
-        const odooClient = getOdooClient();
-
-        if (measurable.odoo_date_mode === 'date_range') {
-          // Net movement from Saturday through Friday
-          const saturday = new Date(weekStart);
-          saturday.setDate(weekStart.getDate() - 2);
-          const satStr = saturday.toISOString().split('T')[0];
-          value = await getAccountMovement(odooClient, measurable.odoo_account_code, satStr, endStr);
-        } else if (measurable.odoo_date_mode === 'last_day') {
-          // Cumulative balance as-of Friday
-          value = await getAccountBalance(odooClient, measurable.odoo_account_code, endStr);
-        }
       }
 
       if (value !== null) {

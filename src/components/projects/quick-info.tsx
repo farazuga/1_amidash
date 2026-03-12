@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Calendar, ExternalLink, Eye, FolderOpen, FileText, Loader2 } from 'lucide-react';
+import { Calendar, ExternalLink, Eye, FolderOpen, FileText, Loader2, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { InlineEditField } from './inline-edit-field';
@@ -24,8 +24,9 @@ import { ScheduleStatusBadge } from './schedule-status-badge';
 import { StatusBadge } from './status-badge';
 import { CopyClientLink } from './copy-client-link';
 import { DeleteProjectButton } from './delete-project-button';
+import { MakeIssueButton } from './make-issue-dialog';
 import { ProjectScheduledHours } from './project-scheduled-hours';
-import { inlineEditProjectField, updateProjectDates, updateProjectScheduleStatus } from '@/app/(dashboard)/projects/actions';
+import { inlineEditProjectField, updateProjectDates, updateProjectScheduleStatus, refreshOdooInvoiceStatus } from '@/app/(dashboard)/projects/actions';
 import { toast } from 'sonner';
 import type { BookingStatus } from '@/types/calendar';
 import { BOOKING_STATUS_CONFIG, BOOKING_STATUS_ORDER } from '@/lib/calendar/constants';
@@ -61,6 +62,11 @@ interface QuickInfoProps {
     client_token: string | null;
     client_portal_views?: number;
     project_type_id: string | null;
+    // Odoo integration
+    odoo_order_id?: number | null;
+    odoo_invoice_status?: string | null;
+    odoo_last_synced_at?: string | null;
+    project_description?: string | null;
   };
   statuses?: Array<{
     id: string;
@@ -102,6 +108,9 @@ export function QuickInfo({
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [statusNote, setStatusNote] = useState('');
   const [isSavingStatus, setIsSavingStatus] = useState(false);
+
+  // Odoo invoice refresh state
+  const [isRefreshingInvoice, setIsRefreshingInvoice] = useState(false);
 
   // Filter statuses based on project type
   const availableStatuses = project.project_type_id
@@ -221,6 +230,44 @@ export function QuickInfo({
     toast.success('Schedule status updated');
   };
 
+  const handleRefreshInvoiceStatus = async () => {
+    setIsRefreshingInvoice(true);
+    try {
+      const result = await refreshOdooInvoiceStatus(project.id);
+      if (result.success) {
+        toast.success(`Invoice status: ${result.invoiceStatus}`);
+      } else {
+        toast.error(result.error || 'Failed to refresh');
+      }
+    } catch {
+      toast.error('Failed to refresh invoice status');
+    } finally {
+      setIsRefreshingInvoice(false);
+    }
+  };
+
+  const getInvoiceStatusColor = (status: string | null | undefined) => {
+    switch (status) {
+      case 'invoiced': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
+      case 'to invoice': return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400';
+      default: return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400';
+    }
+  };
+
+  const formatRelativeTime = (dateStr: string | null | undefined) => {
+    if (!dateStr) return null;
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d ago`;
+  };
+
   const formatDateForDisplay = (date: string | null) => {
     if (!date) return null;
     return format(new Date(date), 'MMM d, yyyy');
@@ -270,6 +317,16 @@ export function QuickInfo({
               </a>
             </Button>
           )}
+
+          <MakeIssueButton
+            project={{
+              id: project.id,
+              client_name: project.client_name,
+              sales_order_number: project.sales_order_number,
+              sales_order_url: project.sales_order_url,
+              sales_amount: project.sales_amount,
+            }}
+          />
 
           {isAdmin && (
             <DeleteProjectButton
@@ -416,6 +473,54 @@ export function QuickInfo({
               <span className="text-sm text-muted-foreground italic">Not set</span>
             )}
           </div>
+
+          {/* Odoo Invoice Status */}
+          {project.odoo_order_id && (
+            <div className="flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors">
+              <span className="text-sm text-muted-foreground">Invoice Status</span>
+              <div className="flex items-center gap-2">
+                <span className={cn(
+                  'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
+                  getInvoiceStatusColor(project.odoo_invoice_status)
+                )}>
+                  {project.odoo_invoice_status || 'Unknown'}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={handleRefreshInvoiceStatus}
+                  disabled={isRefreshingInvoice}
+                  title={project.odoo_last_synced_at
+                    ? `Last synced: ${formatRelativeTime(project.odoo_last_synced_at)}`
+                    : 'Refresh from Odoo'
+                  }
+                >
+                  <RefreshCw className={cn('h-3 w-3', isRefreshingInvoice && 'animate-spin')} />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Project Description */}
+          {(project.project_description || canEdit) && (
+            <div className="px-3 py-2 hover:bg-muted/50 transition-colors">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm text-muted-foreground">Description</span>
+              </div>
+              {canEdit ? (
+                <InlineEditField
+                  value={project.project_description || ''}
+                  type="text"
+                  onSave={(v) => handleFieldSave('project_description', v)}
+                  placeholder="Add project description..."
+                  inputClassName="w-full"
+                />
+              ) : project.project_description ? (
+                <p className="text-sm leading-relaxed">{project.project_description}</p>
+              ) : null}
+            </div>
+          )}
 
           {/* Scheduled Hours */}
           <ProjectScheduledHours projectId={project.id} />

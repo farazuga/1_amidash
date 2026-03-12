@@ -155,19 +155,8 @@ export const createMeasurableSchema = z.object({
   unit: z.enum(['number', 'currency', 'percentage']).optional().default('number'),
   goalValue: z.number().optional(),
   goalDirection: z.enum(['above', 'below', 'exact']).optional().default('above'),
-  autoSource: z.enum(['po_revenue', 'invoiced_revenue', 'open_projects', 'odoo_account']).nullable().optional(),
-  odooAccountCode: z.string().max(20).optional(),
-  odooAccountName: z.string().max(200).optional(),
-  odooDateMode: z.enum(['date_range', 'last_day']).optional(),
-}).refine(
-  (data) => {
-    if (data.autoSource === 'odoo_account') {
-      return !!data.odooAccountCode && !!data.odooDateMode;
-    }
-    return true;
-  },
-  { message: 'Odoo Account source requires account code and date mode', path: ['odooAccountCode'] }
-);
+  autoSource: z.enum(['po_revenue', 'invoiced_revenue', 'open_projects']).nullable().optional(),
+});
 
 export const updateMeasurableSchema = z.object({
   id: uuidSchema,
@@ -176,10 +165,7 @@ export const updateMeasurableSchema = z.object({
   unit: z.enum(['number', 'currency', 'percentage']).optional(),
   goalValue: z.number().nullable().optional(),
   goalDirection: z.enum(['above', 'below', 'exact']).optional(),
-  autoSource: z.enum(['po_revenue', 'invoiced_revenue', 'open_projects', 'odoo_account']).nullable().optional(),
-  odooAccountCode: z.string().max(20).nullable().optional(),
-  odooAccountName: z.string().max(200).nullable().optional(),
-  odooDateMode: z.enum(['date_range', 'last_day']).nullable().optional(),
+  autoSource: z.enum(['po_revenue', 'invoiced_revenue', 'open_projects']).nullable().optional(),
   isActive: z.boolean().optional(),
 });
 

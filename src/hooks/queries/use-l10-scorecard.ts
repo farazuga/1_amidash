@@ -38,9 +38,6 @@ export function useCreateMeasurable() {
       goalValue?: number;
       goalDirection?: string;
       autoSource?: string | null;
-      odooAccountCode?: string;
-      odooAccountName?: string;
-      odooDateMode?: string;
     }) => {
       const result = await createMeasurable(data);
       if (!result.success) throw new Error(result.error);
@@ -62,9 +59,6 @@ export function useUpdateMeasurable() {
       goalValue?: number | null;
       goalDirection?: string;
       autoSource?: string | null;
-      odooAccountCode?: string | null;
-      odooAccountName?: string | null;
-      odooDateMode?: string | null;
       isActive?: boolean;
     }) => {
       const result = await updateMeasurable(data);

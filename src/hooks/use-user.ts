@@ -22,7 +22,7 @@ export function useUser() {
           .select('*')
           .eq('id', user.id)
           .single();
-        setProfile(profile);
+        setProfile(profile as Profile | null);
       }
 
       setIsLoading(false);
@@ -40,7 +40,7 @@ export function useUser() {
             .select('*')
             .eq('id', session.user.id)
             .single();
-          setProfile(profile);
+          setProfile(profile as Profile | null);
         } else {
           setProfile(null);
         }

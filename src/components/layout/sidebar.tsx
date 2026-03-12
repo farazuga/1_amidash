@@ -10,7 +10,6 @@ import {
   LayoutDashboard,
   FolderKanban,
   Users,
-  Tags,
   ListChecks,
   FileText,
   Plus,
@@ -22,6 +21,8 @@ import {
   ChevronRight,
   CalendarDays,
   CalendarRange,
+  Presentation,
+  LayoutTemplate,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -37,6 +38,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useSidebarStore } from '@/lib/stores/sidebar-store';
+import { useOverdueTodoCount } from '@/hooks/queries/use-l10-todos';
 
 const mainNavItems = [
   {
@@ -66,6 +68,19 @@ const mainNavItems = [
   },
 ];
 
+const l10NavItems = [
+  {
+    title: 'L10 Meetings',
+    href: '/l10',
+    icon: Presentation,
+  },
+  {
+    title: 'My To-Dos',
+    href: '/l10/todos',
+    icon: ListChecks,
+  },
+];
+
 const adminNavItems = [
   {
     title: 'Settings',
@@ -78,14 +93,14 @@ const adminNavItems = [
     icon: ListChecks,
   },
   {
+    title: 'Portal Builder',
+    href: '/admin/portal-builder',
+    icon: LayoutTemplate,
+  },
+  {
     title: 'Revenue Goals',
     href: '/admin/goals',
     icon: Target,
-  },
-  {
-    title: 'Tags',
-    href: '/admin/tags',
-    icon: Tags,
   },
   {
     title: 'Users',
@@ -109,18 +124,20 @@ function NavItem({
   isActive,
   collapsed,
   onNavigate,
+  badge,
 }: {
   item: { title: string; href: string; icon: React.ElementType };
   isActive: boolean;
   collapsed?: boolean;
   onNavigate?: () => void;
+  badge?: number;
 }) {
   const linkContent = (
     <Link
       href={item.href}
       onClick={onNavigate}
       className={cn(
-        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+        'relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
         collapsed && 'justify-center px-2',
         isActive
           ? 'bg-sidebar-accent text-sidebar-accent-foreground'
@@ -129,6 +146,16 @@ function NavItem({
     >
       <item.icon className="h-5 w-5 shrink-0" />
       {!collapsed && item.title}
+      {!collapsed && badge !== undefined && badge > 0 && (
+        <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-medium text-destructive-foreground">
+          {badge}
+        </span>
+      )}
+      {collapsed && badge !== undefined && badge > 0 && (
+        <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
+          {badge}
+        </span>
+      )}
     </Link>
   );
 
@@ -156,7 +183,8 @@ function SidebarContent({
   onToggleCollapse?: () => void;
 }) {
   const pathname = usePathname();
-  const { isAdmin } = useUser();
+  const { user, isAdmin } = useUser();
+  const { data: overdueCount } = useOverdueTodoCount(user?.id ?? null);
 
   return (
     <TooltipProvider>
@@ -231,6 +259,26 @@ function SidebarContent({
                 isActive={isActive}
                 collapsed={collapsed}
                 onNavigate={onNavigate}
+              />
+            );
+          })}
+
+          {!collapsed && (
+            <div className="mb-2 mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60">
+              L10
+            </div>
+          )}
+          {collapsed && <div className="mt-4 mb-2 border-t border-sidebar-border/50" />}
+          {l10NavItems.map((item) => {
+            const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+            return (
+              <NavItem
+                key={item.href}
+                item={item}
+                isActive={isActive}
+                collapsed={collapsed}
+                onNavigate={onNavigate}
+                badge={item.href === '/l10/todos' ? overdueCount : undefined}
               />
             );
           })}

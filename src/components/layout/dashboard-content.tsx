@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { useSidebarStore } from '@/lib/stores/sidebar-store';
 import { useAutoCollapseSidebar } from '@/hooks/use-auto-collapse-sidebar';
 import { Header } from './header';
+import { GlobalCreateFAB } from '@/components/global-create-fab';
 
 export function DashboardContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -40,6 +41,7 @@ export function DashboardContent({ children }: { children: React.ReactNode }) {
     >
       <Header />
       <main className="p-4 md:p-6">{children}</main>
+      <GlobalCreateFAB />
     </div>
   );
 }

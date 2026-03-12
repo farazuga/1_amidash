@@ -135,8 +135,7 @@ export interface HeadlineWithCreator extends Headline {
 // Scorecard types
 export type MeasurableUnit = 'number' | 'currency' | 'percentage';
 export type GoalDirection = 'above' | 'below' | 'exact';
-export type AutoSource = 'po_revenue' | 'invoiced_revenue' | 'open_projects' | 'odoo_account';
-export type OdooDateMode = 'date_range' | 'last_day';
+export type AutoSource = 'po_revenue' | 'invoiced_revenue' | 'open_projects';
 
 export interface Scorecard {
   id: string;
@@ -155,9 +154,6 @@ export interface ScorecardMeasurable {
   goal_value: number | null;
   goal_direction: GoalDirection;
   auto_source: AutoSource | null;
-  odoo_account_code: string | null;
-  odoo_account_name: string | null;
-  odoo_date_mode: OdooDateMode | null;
   display_order: number;
   is_active: boolean;
   created_at: string | null;

@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, ArrowUp, ArrowDown, Equal, Trash2, Loader2 } from 'lucide-react';
+import { Plus, RefreshCw, ArrowUp, ArrowDown, Equal, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -40,8 +40,7 @@ import {
 } from '@/hooks/queries/use-l10-scorecard';
 import { useTeam } from '@/hooks/queries/use-l10-teams';
 import { toast } from 'sonner';
-import type { ScorecardMeasurableWithOwner, ScorecardEntry, GoalDirection, AutoSource, OdooDateMode } from '@/types/l10';
-import { useOdooAccountLookup } from '@/hooks/use-odoo-account-lookup';
+import type { ScorecardMeasurableWithOwner, ScorecardEntry, GoalDirection, AutoSource } from '@/types/l10';
 import { cn } from '@/lib/utils';
 
 // Generate array of last 13 completed week Mondays (most recent first)
@@ -110,7 +109,6 @@ function getProjectsUrl(autoSource: AutoSource, weekMonday: string): string {
   if (autoSource === 'open_projects') {
     return `/projects?view=active`;
   }
-  // odoo_account and others have no project link
   return '';
 }
 
@@ -118,7 +116,6 @@ const AUTO_SOURCE_LABELS: Record<string, string> = {
   po_revenue: 'Last 7 Day Sales',
   invoiced_revenue: 'Invoices Closed',
   open_projects: 'Open Projects',
-  odoo_account: 'Odoo Account',
 };
 
 interface ScorecardTabProps {
@@ -131,18 +128,16 @@ export function ScorecardTab({ teamId }: ScorecardTabProps) {
   const [addOpen, setAddOpen] = useState(false);
   const [editingMeasurable, setEditingMeasurable] = useState<ScorecardMeasurableWithOwner | null>(null);
   const autoPopulate = useAutoPopulateScorecardWeek();
-  const [populatingWeek, setPopulatingWeek] = useState<string | null>(null);
   const weeks = getLast13Weeks();
 
-  const handleWeekClick = async (weekOf: string) => {
-    setPopulatingWeek(weekOf);
+  const handleAutoPopulate = async () => {
+    // Auto-populate the most recent completed week
+    const latestWeek = weeks[0];
     try {
-      await autoPopulate.mutateAsync({ teamId, weekOf });
-      toast.success(`Populated week of ${formatWeekRange(weekOf)}`);
+      await autoPopulate.mutateAsync({ teamId, weekOf: latestWeek });
+      toast.success('Auto-populated latest week');
     } catch (error) {
       toast.error((error as Error).message);
-    } finally {
-      setPopulatingWeek(null);
     }
   };
 
@@ -167,10 +162,16 @@ export function ScorecardTab({ teamId }: ScorecardTabProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Scorecard</h3>
-        <Button size="sm" onClick={() => setAddOpen(true)} disabled={!scorecardId}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Measurable
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleAutoPopulate} disabled={autoPopulate.isPending}>
+            <RefreshCw className={cn('mr-2 h-4 w-4', autoPopulate.isPending && 'animate-spin')} />
+            Auto-populate
+          </Button>
+          <Button size="sm" onClick={() => setAddOpen(true)} disabled={!scorecardId}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Measurable
+          </Button>
+        </div>
       </div>
 
       {measurables.length === 0 ? (
@@ -187,17 +188,7 @@ export function ScorecardTab({ teamId }: ScorecardTabProps) {
                 <th className="px-3 py-2 text-center font-medium w-24">Goal</th>
                 {weeks.map((week) => (
                   <th key={week} className="px-1 py-2 text-center font-medium min-w-[80px] text-xs whitespace-nowrap">
-                    <button
-                      onClick={() => handleWeekClick(week)}
-                      disabled={populatingWeek !== null}
-                      className="inline-flex items-center gap-1 rounded px-1 py-0.5 hover:bg-primary/10 hover:text-primary transition-colors disabled:opacity-50"
-                      title={`Click to populate week of ${formatWeekRange(week)}`}
-                    >
-                      {populatingWeek === week ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : null}
-                      {formatWeekRange(week)}
-                    </button>
+                    {formatWeekRange(week)}
                   </th>
                 ))}
               </tr>
@@ -291,9 +282,7 @@ function MeasurableRow({
         </button>
         {measurable.auto_source && (
           <span className="ml-1 text-xs text-muted-foreground">
-            ({measurable.auto_source === 'odoo_account' && measurable.odoo_account_name
-              ? measurable.odoo_account_name
-              : AUTO_SOURCE_LABELS[measurable.auto_source] || 'auto'})
+            ({AUTO_SOURCE_LABELS[measurable.auto_source] || 'auto'})
           </span>
         )}
       </td>
@@ -508,17 +497,12 @@ function AddMeasurableDialog({
   const [goalValue, setGoalValue] = useState('');
   const [goalDirection, setGoalDirection] = useState('above');
   const [autoSource, setAutoSource] = useState('none');
-  const [odooAccountCode, setOdooAccountCode] = useState('');
-  const [odooDateMode, setOdooDateMode] = useState<OdooDateMode>('date_range');
   const createMeasurable = useCreateMeasurable();
-  const { accountName: odooAccountName, isLoading: odooLookupLoading, error: odooLookupError } = useOdooAccountLookup(
-    autoSource === 'odoo_account' ? odooAccountCode : ''
-  );
 
   // Auto-fill title and unit when selecting an auto-source
   const handleAutoSourceChange = (value: string) => {
     setAutoSource(value);
-    if (value !== 'none' && value !== 'odoo_account' && !title.trim()) {
+    if (value !== 'none' && !title.trim()) {
       setTitle(AUTO_SOURCE_LABELS[value] || '');
       if (value === 'po_revenue' || value === 'invoiced_revenue') {
         setUnit('currency');
@@ -526,12 +510,7 @@ function AddMeasurableDialog({
         setUnit('number');
       }
     }
-    if (value === 'odoo_account') {
-      setUnit('currency');
-    }
   };
-
-  const isOdooReady = autoSource !== 'odoo_account' || (!!odooAccountName && !odooLookupLoading);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -546,11 +525,6 @@ function AddMeasurableDialog({
         goalValue: goalValue ? parseFloat(goalValue) : undefined,
         goalDirection,
         autoSource: autoSource === 'none' ? null : autoSource,
-        ...(autoSource === 'odoo_account' && {
-          odooAccountCode: odooAccountCode.trim(),
-          odooAccountName: odooAccountName || undefined,
-          odooDateMode: odooDateMode,
-        }),
       });
       toast.success('Measurable added');
       onOpenChange(false);
@@ -560,8 +534,6 @@ function AddMeasurableDialog({
       setGoalValue('');
       setGoalDirection('above');
       setAutoSource('none');
-      setOdooAccountCode('');
-      setOdooDateMode('date_range');
     } catch (error) {
       toast.error((error as Error).message);
     }
@@ -584,43 +556,9 @@ function AddMeasurableDialog({
                   <SelectItem value="po_revenue">Last 7 Day Sales (by created date)</SelectItem>
                   <SelectItem value="invoiced_revenue">Invoices Closed (by invoice date)</SelectItem>
                   <SelectItem value="open_projects">Open Projects (active count)</SelectItem>
-                  <SelectItem value="odoo_account">Odoo Account</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            {autoSource === 'odoo_account' && (
-              <>
-                <div className="space-y-2">
-                  <Label>Account Code</Label>
-                  <Input
-                    value={odooAccountCode}
-                    onChange={(e) => setOdooAccountCode(e.target.value)}
-                    placeholder="e.g. 1200"
-                  />
-                  {odooLookupLoading && (
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Loader2 className="h-3 w-3 animate-spin" /> Looking up account...
-                    </p>
-                  )}
-                  {odooAccountName && !odooLookupLoading && (
-                    <p className="text-xs text-green-600">Found: {odooAccountName}</p>
-                  )}
-                  {odooLookupError && !odooLookupLoading && (
-                    <p className="text-xs text-destructive">{odooLookupError}</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label>Date Mode</Label>
-                  <Select value={odooDateMode} onValueChange={(v) => setOdooDateMode(v as OdooDateMode)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="date_range">Net Movement (Sat - Fri)</SelectItem>
-                      <SelectItem value="last_day">Cumulative Balance (as of Fri)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
-            )}
             <div className="space-y-2">
               <Label>Title</Label>
               <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Weekly Revenue" autoFocus />
@@ -671,7 +609,7 @@ function AddMeasurableDialog({
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit" disabled={!title.trim() || !isOdooReady || createMeasurable.isPending}>
+            <Button type="submit" disabled={!title.trim() || createMeasurable.isPending}>
               {createMeasurable.isPending ? 'Adding...' : 'Add'}
             </Button>
           </DialogFooter>
@@ -702,16 +640,9 @@ function EditMeasurableDialog({
   const [goalValue, setGoalValue] = useState(measurable.goal_value !== null ? String(measurable.goal_value) : '');
   const [goalDirection, setGoalDirection] = useState<string>(measurable.goal_direction);
   const [autoSource, setAutoSource] = useState(measurable.auto_source || 'none');
-  const [odooAccountCode, setOdooAccountCode] = useState(measurable.odoo_account_code || '');
-  const [odooDateMode, setOdooDateMode] = useState<OdooDateMode>(measurable.odoo_date_mode || 'date_range');
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const updateMeasurable = useUpdateMeasurable();
   const deleteMeasurable = useDeleteMeasurable();
-  const { accountName: odooAccountName, isLoading: odooLookupLoading, error: odooLookupError } = useOdooAccountLookup(
-    autoSource === 'odoo_account' ? odooAccountCode : ''
-  );
-
-  const isOdooReady = autoSource !== 'odoo_account' || (!!odooAccountName && !odooLookupLoading);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -726,15 +657,6 @@ function EditMeasurableDialog({
         goalValue: goalValue ? parseFloat(goalValue) : null,
         goalDirection,
         autoSource: autoSource === 'none' ? null : autoSource,
-        ...(autoSource === 'odoo_account' ? {
-          odooAccountCode: odooAccountCode.trim(),
-          odooAccountName: odooAccountName || null,
-          odooDateMode: odooDateMode,
-        } : {
-          odooAccountCode: null,
-          odooAccountName: null,
-          odooDateMode: null,
-        }),
       });
       toast.success('Measurable updated');
       onOpenChange(false);
@@ -772,43 +694,9 @@ function EditMeasurableDialog({
                     <SelectItem value="po_revenue">Last 7 Day Sales (by created date)</SelectItem>
                     <SelectItem value="invoiced_revenue">Invoices Closed (by invoice date)</SelectItem>
                     <SelectItem value="open_projects">Open Projects (active count)</SelectItem>
-                    <SelectItem value="odoo_account">Odoo Account</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              {autoSource === 'odoo_account' && (
-                <>
-                  <div className="space-y-2">
-                    <Label>Account Code</Label>
-                    <Input
-                      value={odooAccountCode}
-                      onChange={(e) => setOdooAccountCode(e.target.value)}
-                      placeholder="e.g. 1200"
-                    />
-                    {odooLookupLoading && (
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Loader2 className="h-3 w-3 animate-spin" /> Looking up account...
-                      </p>
-                    )}
-                    {odooAccountName && !odooLookupLoading && (
-                      <p className="text-xs text-green-600">Found: {odooAccountName}</p>
-                    )}
-                    {odooLookupError && !odooLookupLoading && (
-                      <p className="text-xs text-destructive">{odooLookupError}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Date Mode</Label>
-                    <Select value={odooDateMode} onValueChange={(v) => setOdooDateMode(v as OdooDateMode)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="date_range">Net Movement (Sat - Fri)</SelectItem>
-                        <SelectItem value="last_day">Cumulative Balance (as of Fri)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
-              )}
               <div className="space-y-2">
                 <Label>Title</Label>
                 <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Weekly Revenue" />
@@ -869,7 +757,7 @@ function EditMeasurableDialog({
               </Button>
               <div className="flex gap-2">
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-                <Button type="submit" disabled={!title.trim() || !isOdooReady || updateMeasurable.isPending}>
+                <Button type="submit" disabled={!title.trim() || updateMeasurable.isPending}>
                   {updateMeasurable.isPending ? 'Saving...' : 'Save'}
                 </Button>
               </div>

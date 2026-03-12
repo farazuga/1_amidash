@@ -6,6 +6,7 @@ import { Sidebar } from '@/components/layout/sidebar';
 import { DashboardContent } from '@/components/layout/dashboard-content';
 import { Toaster } from '@/components/ui/sonner';
 import { UserProvider } from '@/contexts/user-context';
+import type { Profile } from '@/types';
 
 async function getUserData() {
   const supabase = await createClient();
@@ -22,7 +23,7 @@ async function getUserData() {
     .eq('id', user.id)
     .single();
 
-  return { user, profile };
+  return { user, profile: profile as Profile | null };
 }
 
 export default async function DashboardLayout({
