@@ -46,7 +46,7 @@ test.describe('Authentication', () => {
       await helpers.goto('/login');
 
       // Try to submit empty form
-      await helpers.clickButton(/sign in/i);
+      await helpers.clickButton('Sign In');
 
       // TODO: Add assertions for validation errors
       // Examples:
@@ -64,7 +64,7 @@ test.describe('Authentication', () => {
       await helpers.fillByLabel('Password', 'wrongpassword');
 
       // Submit form
-      await helpers.clickButton(/sign in/i);
+      await helpers.clickButton('Sign In');
 
       // TODO: Add assertion for error message
       // Example:
