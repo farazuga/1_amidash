@@ -44,14 +44,16 @@ describe('useUsers', () => {
       role: 'admin',
       is_salesperson: true,
       created_at: '2024-01-01T00:00:00Z',
+      updated_at: null,
     },
     {
       id: 'user-2',
       email: 'bob@example.com',
       full_name: 'Bob Smith',
-      role: 'member',
+      role: 'viewer',
       is_salesperson: false,
       created_at: '2024-01-02T00:00:00Z',
+      updated_at: null,
     },
     {
       id: 'user-3',
@@ -60,6 +62,7 @@ describe('useUsers', () => {
       role: 'viewer',
       is_salesperson: false,
       created_at: '2024-01-03T00:00:00Z',
+      updated_at: null,
     },
   ];
 
@@ -159,6 +162,7 @@ describe('useCurrentUser', () => {
     role: 'admin',
     is_salesperson: true,
     created_at: '2024-01-01T00:00:00Z',
+      updated_at: null,
   };
 
   beforeEach(() => {
@@ -255,6 +259,7 @@ describe('useUpdateUserRole', () => {
       role: 'admin',
       is_salesperson: false,
       created_at: '2024-01-01T00:00:00Z',
+      updated_at: null,
     };
 
     const mockFrom = vi.fn().mockReturnValue({
@@ -281,9 +286,10 @@ describe('useUpdateUserRole', () => {
       id: 'user-1',
       email: 'user@example.com',
       full_name: 'Test User',
-      role: 'member',
+      role: 'viewer',
       is_salesperson: false,
       created_at: '2024-01-01T00:00:00Z',
+      updated_at: null,
     };
 
     const mockFrom = vi.fn().mockReturnValue({
@@ -299,10 +305,10 @@ describe('useUpdateUserRole', () => {
       wrapper: createWrapper(),
     });
 
-    result.current.mutate({ id: 'user-1', role: 'member' });
+    result.current.mutate({ id: 'user-1', role: 'viewer' });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.role).toBe('member');
+    expect(result.current.data?.role).toBe('viewer');
   });
 
   it('handles update error', async () => {
@@ -335,6 +341,7 @@ describe('useUpdateUserRole', () => {
       role: 'admin',
       is_salesperson: false,
       created_at: '2024-01-01T00:00:00Z',
+      updated_at: null,
     };
 
     const mockFrom = vi.fn().mockReturnValue({
@@ -368,9 +375,10 @@ describe('useUpdateUserSalesperson', () => {
       id: 'user-1',
       email: 'user@example.com',
       full_name: 'Test User',
-      role: 'member',
+      role: 'viewer',
       is_salesperson: true,
       created_at: '2024-01-01T00:00:00Z',
+      updated_at: null,
     };
 
     const mockFrom = vi.fn().mockReturnValue({
@@ -397,9 +405,10 @@ describe('useUpdateUserSalesperson', () => {
       id: 'user-1',
       email: 'user@example.com',
       full_name: 'Test User',
-      role: 'member',
+      role: 'viewer',
       is_salesperson: false,
       created_at: '2024-01-01T00:00:00Z',
+      updated_at: null,
     };
 
     const mockFrom = vi.fn().mockReturnValue({
@@ -454,7 +463,7 @@ describe('useAddUser', () => {
     const newUserData = {
       email: 'new@example.com',
       full_name: 'New User',
-      role: 'member' as const,
+      role: 'viewer' as const,
     };
 
     const createdUser = {
@@ -462,6 +471,7 @@ describe('useAddUser', () => {
       ...newUserData,
       is_salesperson: false,
       created_at: '2024-01-10T00:00:00Z',
+      updated_at: null,
     };
 
     vi.mocked(global.fetch).mockResolvedValueOnce({
@@ -499,6 +509,7 @@ describe('useAddUser', () => {
       ...newUserData,
       is_salesperson: false,
       created_at: '2024-01-10T00:00:00Z',
+      updated_at: null,
     };
 
     vi.mocked(global.fetch).mockResolvedValueOnce({
@@ -521,7 +532,7 @@ describe('useAddUser', () => {
     const newUserData = {
       email: 'duplicate@example.com',
       full_name: 'Duplicate User',
-      role: 'member' as const,
+      role: 'viewer' as const,
     };
 
     vi.mocked(global.fetch).mockResolvedValueOnce({
@@ -545,7 +556,7 @@ describe('useAddUser', () => {
     const newUserData = {
       email: 'test@example.com',
       full_name: 'Test User',
-      role: 'member' as const,
+      role: 'viewer' as const,
     };
 
     vi.mocked(global.fetch).mockResolvedValueOnce({
@@ -569,7 +580,7 @@ describe('useAddUser', () => {
     const newUserData = {
       email: 'test@example.com',
       full_name: 'Test User',
-      role: 'member' as const,
+      role: 'viewer' as const,
     };
 
     vi.mocked(global.fetch).mockRejectedValueOnce(new Error('Network error'));

@@ -60,7 +60,7 @@ describe('POST /api/email/status-change', () => {
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
       },
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({
       to: 'test@example.com',
@@ -80,7 +80,7 @@ describe('POST /api/email/status-change', () => {
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-123' } } }),
       },
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({
       to: 'invalid-email',
@@ -101,7 +101,7 @@ describe('POST /api/email/status-change', () => {
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-123' } } }),
       },
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({
       to: 'test@example.com',
@@ -120,7 +120,7 @@ describe('POST /api/email/status-change', () => {
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-123' } } }),
       },
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     vi.mocked(sendEmail).mockResolvedValue({
       success: true,
@@ -154,7 +154,7 @@ describe('POST /api/email/status-change', () => {
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-123' } } }),
       },
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     vi.mocked(sendEmail).mockResolvedValue({
       success: false,
