@@ -208,6 +208,44 @@ export async function getAccountBalance(
 }
 
 // ============================================================
+// Quotes (Quotations)
+// ============================================================
+
+/**
+ * Get the total value of open (non-expired, non-confirmed) quotes as of a date.
+ * In Odoo, quotes are sale.order with state in ('draft', 'sent').
+ * "Not expired" means validity_date is false/null or >= asOfDate.
+ * Returns the sum of amount_total for matching quotes.
+ */
+export async function getOpenQuotesTotal(
+  client: OdooReadOnlyClient,
+  asOfDate: string // YYYY-MM-DD
+): Promise<number> {
+  // Quotes that existed by asOfDate: created on or before asOfDate
+  // Not yet confirmed (still draft/sent)
+  // Not expired as of asOfDate
+  // Odoo domain with '|' OR operator — cast needed since domain type is unknown[][]
+  const domain = [
+    ['state', 'in', ['draft', 'sent']],
+    ['create_date', '<=', `${asOfDate} 23:59:59`],
+    '|',
+    ['validity_date', '=', false],
+    ['validity_date', '>=', asOfDate],
+  ] as unknown as unknown[][];
+
+  const quotes = await client.searchRead<{
+    id: number;
+    amount_total: number;
+    validity_date: string | false;
+  }>(
+    'sale.order',
+    domain,
+    ['id', 'amount_total', 'validity_date']
+  );
+  return quotes.reduce((sum, q) => sum + (q.amount_total || 0), 0);
+}
+
+// ============================================================
 // Activities (Chatter Tasks)
 // ============================================================
 

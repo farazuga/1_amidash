@@ -119,6 +119,7 @@ const AUTO_SOURCE_LABELS: Record<string, string> = {
   invoiced_revenue: 'Invoices Closed',
   open_projects: 'Open Projects',
   odoo_account: 'Odoo Account',
+  odoo_quotes: 'Open Quotes',
 };
 
 interface ScorecardTabProps {
@@ -557,7 +558,7 @@ function AddMeasurableDialog({
     setAutoSource(value);
     if (value !== 'none' && value !== 'odoo_account' && !title.trim()) {
       setTitle(AUTO_SOURCE_LABELS[value] || '');
-      if (value === 'po_revenue' || value === 'invoiced_revenue') {
+      if (value === 'po_revenue' || value === 'invoiced_revenue' || value === 'odoo_quotes') {
         setUnit('currency');
       } else if (value === 'open_projects') {
         setUnit('number');
@@ -621,6 +622,7 @@ function AddMeasurableDialog({
                   <SelectItem value="po_revenue">Last 7 Day Sales (by created date)</SelectItem>
                   <SelectItem value="invoiced_revenue">Invoices Closed (by invoice date)</SelectItem>
                   <SelectItem value="open_projects">Open Projects (active count)</SelectItem>
+                  <SelectItem value="odoo_quotes">Open Quotes (Odoo)</SelectItem>
                   <SelectItem value="odoo_account">Odoo Account</SelectItem>
                 </SelectContent>
               </Select>
@@ -809,7 +811,8 @@ function EditMeasurableDialog({
                     <SelectItem value="po_revenue">Last 7 Day Sales (by created date)</SelectItem>
                     <SelectItem value="invoiced_revenue">Invoices Closed (by invoice date)</SelectItem>
                     <SelectItem value="open_projects">Open Projects (active count)</SelectItem>
-                    <SelectItem value="odoo_account">Odoo Account</SelectItem>
+                    <SelectItem value="odoo_quotes">Open Quotes (Odoo)</SelectItem>
+                  <SelectItem value="odoo_account">Odoo Account</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

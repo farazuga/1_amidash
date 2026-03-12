@@ -334,6 +334,16 @@ export async function autoPopulateScorecardWeek(
             .lte('created_date', endStr)
             .or(`invoiced_date.is.null,invoiced_date.gt.${endStr}`);
           value = count ?? 0;
+        } else if (measurable.auto_source === 'odoo_quotes') {
+          // Total value of open quotes (draft/sent, not expired) as of Friday
+          const { isOdooConfigured, getOdooClient } = await import('@/lib/odoo');
+          if (!isOdooConfigured()) {
+            result.skipped.push(`${measurable.title}: Odoo not configured`);
+            continue;
+          }
+          const { getOpenQuotesTotal } = await import('@/lib/odoo/queries');
+          const odooClient = getOdooClient();
+          value = await getOpenQuotesTotal(odooClient, endStr);
         } else if (measurable.auto_source === 'odoo_account') {
           if (!measurable.odoo_account_code || !measurable.odoo_date_mode) {
             result.skipped.push(`${measurable.title}: missing Odoo account code or date mode`);
