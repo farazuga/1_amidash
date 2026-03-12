@@ -1,5 +1,7 @@
 // Email template utilities for Amitrace Dashboard
 
+import type { EmailStyleOverrides } from '@/types';
+
 /**
  * Escapes HTML special characters to prevent XSS/injection in email templates.
  * All user-controlled input should be passed through this function.
@@ -26,9 +28,16 @@ const LOGO_URL = 'https://dash.amitrace.com/new_logo.png';
 
 interface BaseTemplateOptions {
   previewText?: string;
+  style?: EmailStyleOverrides;
 }
 
 function baseTemplate(content: string, options: BaseTemplateOptions = {}): string {
+  const primaryColor = options.style?.primaryColor || BRAND_COLORS.primary;
+  const logoUrl = options.style?.logoUrl || LOGO_URL;
+  const footerHtml = options.style?.footerText
+    ? `<p style="margin: 0 0 10px 0; color: ${BRAND_COLORS.muted}; font-size: 12px;">${escapeHtml(options.style.footerText)}</p>`
+    : '';
+
   return `
     <!DOCTYPE html>
     <html>
@@ -46,14 +55,14 @@ function baseTemplate(content: string, options: BaseTemplateOptions = {}): strin
         ${options.previewText ? `<div style="display: none; max-height: 0; overflow: hidden;">${options.previewText}</div>` : ''}
         <div style="max-width: 600px; margin: 0 auto; padding: 20px 10px;">
           <!-- Header -->
-          <div style="background-color: ${BRAND_COLORS.primary}; padding: 25px 20px; text-align: center; border-radius: 8px 8px 0 0;">
+          <div style="background-color: ${primaryColor}; padding: 25px 20px; text-align: center; border-radius: 8px 8px 0 0;">
             <!--[if mso]>
             <table role="presentation" width="100%"><tr><td style="text-align: center; padding: 10px;">
               <span style="font-size: 24px; font-weight: bold; color: white;">Amitrace</span>
             </td></tr></table>
             <![endif]-->
             <!--[if !mso]><!-->
-            <img src="${LOGO_URL}" alt="Amitrace" style="height: 40px; max-width: 200px;">
+            <img src="${logoUrl}" alt="Amitrace" style="height: 40px; max-width: 200px;">
             <!--<![endif]-->
           </div>
 
@@ -65,10 +74,11 @@ function baseTemplate(content: string, options: BaseTemplateOptions = {}): strin
           <!-- Footer -->
           <div style="text-align: center; padding: 20px 10px; color: ${BRAND_COLORS.muted}; font-size: 12px;">
             <p style="margin: 0 0 15px 0;">
-              <a href="https://www.amitrace.com" style="color: ${BRAND_COLORS.primary}; text-decoration: none; margin: 0 8px;">Website</a>
+              <a href="https://www.amitrace.com" style="color: ${primaryColor}; text-decoration: none; margin: 0 8px;">Website</a>
               &bull;
-              <a href="https://www.linkedin.com/company/amitrace" style="color: ${BRAND_COLORS.primary}; text-decoration: none; margin: 0 8px;">LinkedIn</a>
+              <a href="https://www.linkedin.com/company/amitrace" style="color: ${primaryColor}; text-decoration: none; margin: 0 8px;">LinkedIn</a>
             </p>
+            ${footerHtml}
             <p style="margin: 0;">&copy; ${new Date().getFullYear()} Amitrace. All rights reserved.</p>
           </div>
         </div>
@@ -77,20 +87,23 @@ function baseTemplate(content: string, options: BaseTemplateOptions = {}): strin
   `;
 }
 
-function button(text: string, url: string): string {
+function button(text: string, url: string, style?: EmailStyleOverrides): string {
+  const bgColor = style?.buttonColor || BRAND_COLORS.primary;
+  const textColor = style?.buttonTextColor || '#ffffff';
   return `
     <div style="text-align: center; margin: 30px 0;">
-      <a href="${escapeHtml(url)}" style="display: inline-block; background-color: ${BRAND_COLORS.primary}; color: white; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-weight: 600;">
+      <a href="${escapeHtml(url)}" style="display: inline-block; background-color: ${bgColor}; color: ${textColor}; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-weight: 600;">
         ${escapeHtml(text)}
       </a>
     </div>
   `;
 }
 
-function statusBadge(status: string): string {
+function statusBadge(status: string, style?: EmailStyleOverrides): string {
+  const bgColor = style?.buttonColor || BRAND_COLORS.primary;
   return `
     <div style="text-align: center; margin: 30px 0;">
-      <span style="display: inline-block; background-color: ${BRAND_COLORS.primary}; color: white; padding: 12px 24px; border-radius: 50px; font-size: 18px; font-weight: 600;">
+      <span style="display: inline-block; background-color: ${bgColor}; color: white; padding: 12px 24px; border-radius: 50px; font-size: 18px; font-weight: 600;">
         ${escapeHtml(status)}
       </span>
     </div>
@@ -107,19 +120,22 @@ interface StatusChangeEmailOptions {
   previousStatus?: string;
   portalUrl: string;
   note?: string;
+  styleOverrides?: EmailStyleOverrides;
 }
 
 export function statusChangeEmail(options: StatusChangeEmailOptions): string {
-  const { clientName, newStatus, previousStatus, portalUrl, note } = options;
+  const { clientName, newStatus, previousStatus, portalUrl, note, styleOverrides } = options;
+  const style = styleOverrides;
 
   // Escape all user-controlled inputs
   const safeClientName = escapeHtml(clientName);
   const safeNewStatus = escapeHtml(newStatus);
   const safePreviousStatus = previousStatus ? escapeHtml(previousStatus) : undefined;
   const safeNote = note ? escapeHtml(note) : undefined;
+  const primaryColor = style?.primaryColor || BRAND_COLORS.primary;
 
   const content = `
-    <h1 style="color: ${BRAND_COLORS.primary}; font-size: 24px; margin: 0 0 10px 0;">
+    <h1 style="color: ${primaryColor}; font-size: 24px; margin: 0 0 10px 0;">
       Project Status Update
     </h1>
 
@@ -133,25 +149,26 @@ export function statusChangeEmail(options: StatusChangeEmailOptions): string {
       </p>
     ` : ''}
 
-    ${statusBadge(safeNewStatus)}
+    ${statusBadge(safeNewStatus, style)}
 
     ${safeNote ? `
-      <div style="background-color: #f5f5f5; border-left: 4px solid ${BRAND_COLORS.primary}; padding: 15px; margin: 20px 0; border-radius: 0 4px 4px 0;">
+      <div style="background-color: #f5f5f5; border-left: 4px solid ${primaryColor}; padding: 15px; margin: 20px 0; border-radius: 0 4px 4px 0;">
         <p style="color: ${BRAND_COLORS.text}; font-size: 14px; margin: 0; font-style: italic;">
           "${safeNote}"
         </p>
       </div>
     ` : ''}
 
-    ${button('View Project Status', portalUrl)}
+    ${button('View Project Status', portalUrl, style)}
 
     <p style="color: ${BRAND_COLORS.muted}; font-size: 14px; text-align: center; margin: 30px 0 0 0;">
-      Questions? Please email your project manager <a href="mailto:jason@amitrace.com" style="color: ${BRAND_COLORS.primary};">jason@amitrace.com</a>
+      Questions? Please email your project manager <a href="mailto:jason@amitrace.com" style="color: ${primaryColor};">jason@amitrace.com</a>
     </p>
   `;
 
   return baseTemplate(content, {
     previewText: `${safeClientName} status updated to ${safeNewStatus}`,
+    style,
   });
 }
 
@@ -161,6 +178,7 @@ interface WelcomeEmailOptions {
   projectType: string;
   initialStatus: string;
   portalUrl: string;
+  styleOverrides?: EmailStyleOverrides;
 }
 
 // ============================================
@@ -331,16 +349,18 @@ export function assignmentReminderEmail(options: AssignmentReminderEmailOptions)
 }
 
 export function welcomeEmail(options: WelcomeEmailOptions): string {
-  const { clientName, pocName, projectType, initialStatus, portalUrl } = options;
+  const { clientName, pocName, projectType, initialStatus, portalUrl, styleOverrides } = options;
+  const style = styleOverrides;
 
   // Escape all user-controlled inputs
   const safeClientName = escapeHtml(clientName);
   const safePocName = escapeHtml(pocName);
   const safeProjectType = escapeHtml(projectType);
   const safeInitialStatus = escapeHtml(initialStatus);
+  const primaryColor = style?.primaryColor || BRAND_COLORS.primary;
 
   const content = `
-    <h1 style="color: ${BRAND_COLORS.primary}; font-size: 24px; margin: 0 0 10px 0;">
+    <h1 style="color: ${primaryColor}; font-size: 24px; margin: 0 0 10px 0;">
       Welcome to Amitrace!
     </h1>
 
@@ -369,16 +389,17 @@ export function welcomeEmail(options: WelcomeEmailOptions): string {
       You can track the progress of your project at any time using the link below. Bookmark it for easy access!
     </p>
 
-    ${button('View Project Portal', portalUrl)}
+    ${button('View Project Portal', portalUrl, style)}
 
     <p style="color: ${BRAND_COLORS.muted}; font-size: 14px; text-align: center; margin: 30px 0 0 0;">
       You'll receive email updates whenever your project status changes.<br>
-      Questions? Please email your project manager <a href="mailto:jason@amitrace.com" style="color: ${BRAND_COLORS.primary};">jason@amitrace.com</a>
+      Questions? Please email your project manager <a href="mailto:jason@amitrace.com" style="color: ${primaryColor};">jason@amitrace.com</a>
     </p>
   `;
 
   return baseTemplate(content, {
     previewText: `Your project ${safeClientName} is now being tracked`,
+    style,
   });
 }
 
@@ -399,13 +420,16 @@ interface ConfirmationEmailOptions {
   }>;
   confirmUrl: string;
   expiresAt: string;
+  styleOverrides?: EmailStyleOverrides;
 }
 
 export function confirmationEmailTemplate(options: ConfirmationEmailOptions): string {
-  const { customerName, projectName, assignments, confirmUrl, expiresAt } = options;
+  const { customerName, projectName, assignments, confirmUrl, expiresAt, styleOverrides } = options;
+  const style = styleOverrides;
 
   const safeCustomerName = escapeHtml(customerName);
   const safeProjectName = escapeHtml(projectName);
+  const primaryColor = style?.primaryColor || BRAND_COLORS.primary;
 
   // Format expiration date
   const expiresDate = new Date(expiresAt);
@@ -447,7 +471,7 @@ export function confirmationEmailTemplate(options: ConfirmationEmailOptions): st
   }).join('');
 
   const content = `
-    <h1 style="color: ${BRAND_COLORS.primary}; font-size: 24px; margin: 0 0 20px 0;">
+    <h1 style="color: ${primaryColor}; font-size: 24px; margin: 0 0 20px 0;">
       Please Confirm Your Project Dates
     </h1>
 
@@ -462,7 +486,7 @@ export function confirmationEmailTemplate(options: ConfirmationEmailOptions): st
 
     <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px; background: #f9fafb; border-radius: 8px; overflow: hidden;">
       <thead>
-        <tr style="background: ${BRAND_COLORS.primary}; color: white;">
+        <tr style="background: ${primaryColor}; color: white;">
           <th style="padding: 12px; text-align: left; font-weight: 600;">Date</th>
           <th style="padding: 12px; text-align: left; font-weight: 600;">Time</th>
           <th style="padding: 12px; text-align: left; font-weight: 600;">Engineer</th>
@@ -474,7 +498,7 @@ export function confirmationEmailTemplate(options: ConfirmationEmailOptions): st
     </table>
 
     <div style="text-align: center; margin: 30px 0;">
-      <a href="${escapeHtml(confirmUrl)}" style="display: inline-block; background-color: ${BRAND_COLORS.primary}; color: white; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
+      <a href="${escapeHtml(confirmUrl)}" style="display: inline-block; background-color: ${style?.buttonColor || primaryColor}; color: ${style?.buttonTextColor || 'white'}; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
         Review &amp; Confirm Dates
       </a>
     </div>
@@ -484,12 +508,13 @@ export function confirmationEmailTemplate(options: ConfirmationEmailOptions): st
     </p>
 
     <p style="color: ${BRAND_COLORS.muted}; font-size: 14px; text-align: center; margin: 15px 0 0 0;">
-      Questions? Please contact us at <a href="mailto:support@amitrace.com" style="color: ${BRAND_COLORS.primary};">support@amitrace.com</a>
+      Questions? Please contact us at <a href="mailto:support@amitrace.com" style="color: ${primaryColor};">support@amitrace.com</a>
     </p>
   `;
 
   return baseTemplate(content, {
     previewText: `Please confirm your project dates for ${safeProjectName}`,
+    style,
   });
 }
 
@@ -499,15 +524,18 @@ interface PMConfirmationResponseEmailOptions {
   customerName: string;
   action: 'confirm' | 'decline';
   declineReason?: string;
+  styleOverrides?: EmailStyleOverrides;
 }
 
 export function pmConfirmationResponseEmailTemplate(options: PMConfirmationResponseEmailOptions): string {
-  const { pmName, projectName, customerName, action, declineReason } = options;
+  const { pmName, projectName, customerName, action, declineReason, styleOverrides } = options;
+  const style = styleOverrides;
 
   const safePmName = escapeHtml(pmName);
   const safeProjectName = escapeHtml(projectName);
   const safeCustomerName = escapeHtml(customerName);
   const safeDeclineReason = declineReason ? escapeHtml(declineReason) : undefined;
+  const primaryColor = style?.primaryColor || BRAND_COLORS.primary;
 
   const isConfirmed = action === 'confirm';
   const statusColor = isConfirmed ? '#10B981' : '#EF4444';
@@ -515,7 +543,7 @@ export function pmConfirmationResponseEmailTemplate(options: PMConfirmationRespo
   const statusEmoji = isConfirmed ? '✓' : '✗';
 
   const content = `
-    <h1 style="color: ${BRAND_COLORS.primary}; font-size: 24px; margin: 0 0 20px 0;">
+    <h1 style="color: ${primaryColor}; font-size: 24px; margin: 0 0 20px 0;">
       Customer ${statusText} Project Dates
     </h1>
 
@@ -555,10 +583,143 @@ export function pmConfirmationResponseEmailTemplate(options: PMConfirmationRespo
       </p>
     `}
 
-    ${button('View Calendar', `${process.env.NEXT_PUBLIC_APP_URL}/calendar`)}
+    ${button('View Calendar', `${process.env.NEXT_PUBLIC_APP_URL}/calendar`, style)}
   `;
 
   return baseTemplate(content, {
     previewText: `${safeCustomerName} ${statusText.toLowerCase()} dates for ${safeProjectName}`,
+    style,
+  });
+}
+
+// ============================================
+// File Upload Notification Email Templates
+// ============================================
+
+interface FileUploadNotificationOptions {
+  projectName: string;
+  fileName: string;
+  uploaderInfo: string;
+  approvalDashboardUrl: string;
+  styleOverrides?: EmailStyleOverrides;
+}
+
+export function fileUploadNotificationEmail(options: FileUploadNotificationOptions): string {
+  const { projectName, fileName, uploaderInfo, approvalDashboardUrl, styleOverrides } = options;
+  const safeProjectName = escapeHtml(projectName);
+  const safeFileName = escapeHtml(fileName);
+  const safeUploaderInfo = escapeHtml(uploaderInfo);
+  const primaryColor = styleOverrides?.primaryColor || BRAND_COLORS.primary;
+
+  const content = `
+    <h1 style="color: ${primaryColor}; font-size: 24px; margin: 0 0 10px 0;">
+      New File Upload for Review
+    </h1>
+    <p style="color: ${BRAND_COLORS.text}; font-size: 16px; line-height: 1.5; margin: 0 0 20px 0;">
+      A new file has been uploaded for project <strong>${safeProjectName}</strong>.
+    </p>
+    <div style="background-color: #f8faf9; border-radius: 8px; padding: 20px; margin: 25px 0;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td style="color: ${BRAND_COLORS.muted}; font-size: 14px; padding: 8px 0;">File:</td>
+          <td style="color: ${BRAND_COLORS.text}; font-size: 14px; padding: 8px 0; text-align: right; font-weight: 600;">${safeFileName}</td>
+        </tr>
+        <tr>
+          <td style="color: ${BRAND_COLORS.muted}; font-size: 14px; padding: 8px 0;">Uploaded by:</td>
+          <td style="color: ${BRAND_COLORS.text}; font-size: 14px; padding: 8px 0; text-align: right; font-weight: 600;">${safeUploaderInfo}</td>
+        </tr>
+      </table>
+    </div>
+    ${button('Review Upload', approvalDashboardUrl, styleOverrides)}
+    <p style="color: ${BRAND_COLORS.muted}; font-size: 14px; text-align: center; margin: 30px 0 0 0;">
+      Please review and approve or reject this upload.
+    </p>
+  `;
+
+  return baseTemplate(content, {
+    previewText: `New file upload: ${safeFileName} for ${safeProjectName}`,
+    style: styleOverrides,
+  });
+}
+
+interface FileApprovedEmailOptions {
+  clientName: string;
+  fileName: string;
+  portalUrl: string;
+  styleOverrides?: EmailStyleOverrides;
+}
+
+export function fileApprovedEmail(options: FileApprovedEmailOptions): string {
+  const { clientName, fileName, portalUrl, styleOverrides } = options;
+  const safeClientName = escapeHtml(clientName);
+  const safeFileName = escapeHtml(fileName);
+  const primaryColor = styleOverrides?.primaryColor || BRAND_COLORS.primary;
+
+  const content = `
+    <h1 style="color: ${primaryColor}; font-size: 24px; margin: 0 0 10px 0;">
+      File Approved
+    </h1>
+    <p style="color: ${BRAND_COLORS.text}; font-size: 16px; line-height: 1.5; margin: 0 0 20px 0;">
+      Hi ${safeClientName},
+    </p>
+    <p style="color: ${BRAND_COLORS.text}; font-size: 16px; line-height: 1.5; margin: 0 0 20px 0;">
+      Your uploaded file <strong>${safeFileName}</strong> has been reviewed and approved.
+    </p>
+    ${button('View Project Portal', portalUrl, styleOverrides)}
+    <p style="color: ${BRAND_COLORS.muted}; font-size: 14px; text-align: center; margin: 30px 0 0 0;">
+      Questions? Please email your project manager <a href="mailto:jason@amitrace.com" style="color: ${primaryColor};">jason@amitrace.com</a>
+    </p>
+  `;
+
+  return baseTemplate(content, {
+    previewText: `Your file ${safeFileName} has been approved`,
+    style: styleOverrides,
+  });
+}
+
+interface FileRejectedEmailOptions {
+  clientName: string;
+  fileName: string;
+  rejectionNote?: string;
+  portalUrl: string;
+  styleOverrides?: EmailStyleOverrides;
+}
+
+export function fileRejectedEmail(options: FileRejectedEmailOptions): string {
+  const { clientName, fileName, rejectionNote, portalUrl, styleOverrides } = options;
+  const safeClientName = escapeHtml(clientName);
+  const safeFileName = escapeHtml(fileName);
+  const safeRejectionNote = rejectionNote ? escapeHtml(rejectionNote) : undefined;
+  const primaryColor = styleOverrides?.primaryColor || BRAND_COLORS.primary;
+
+  const content = `
+    <h1 style="color: ${primaryColor}; font-size: 24px; margin: 0 0 10px 0;">
+      File Requires Changes
+    </h1>
+    <p style="color: ${BRAND_COLORS.text}; font-size: 16px; line-height: 1.5; margin: 0 0 20px 0;">
+      Hi ${safeClientName},
+    </p>
+    <p style="color: ${BRAND_COLORS.text}; font-size: 16px; line-height: 1.5; margin: 0 0 20px 0;">
+      Your uploaded file <strong>${safeFileName}</strong> has been reviewed and requires changes.
+    </p>
+    ${safeRejectionNote ? `
+      <div style="background-color: #FEF2F2; border-left: 4px solid #EF4444; padding: 15px; margin: 20px 0; border-radius: 0 4px 4px 0;">
+        <p style="color: ${BRAND_COLORS.text}; font-size: 14px; margin: 0 0 5px 0; font-weight: 600;">
+          Feedback:
+        </p>
+        <p style="color: ${BRAND_COLORS.text}; font-size: 14px; margin: 0; font-style: italic;">
+          "${safeRejectionNote}"
+        </p>
+      </div>
+    ` : ''}
+    ${button('View Project Portal', portalUrl, styleOverrides)}
+    <p style="color: ${BRAND_COLORS.muted}; font-size: 14px; text-align: center; margin: 30px 0 0 0;">
+      Please upload a revised file. Questions? Email your project manager <a href="mailto:jason@amitrace.com" style="color: ${primaryColor};">jason@amitrace.com</a>
+    </p>
+  `;
+
+  return baseTemplate(content, {
+    previewText: `Your file ${safeFileName} requires changes`,
+    style: styleOverrides,
   });
 }

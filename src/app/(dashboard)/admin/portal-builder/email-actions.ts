@@ -86,8 +86,7 @@ export async function sendTestEmail(portalTemplateId: string): Promise<{ success
     .eq('portal_template_id', portalTemplateId)
     .maybeSingle();
 
-  // TODO: Pass styleOverrides to statusChangeEmail once it supports the param (Task 8)
-  const _overrides: EmailStyleOverrides | undefined = emailTemplate ? {
+  const styleOverrides: EmailStyleOverrides | undefined = emailTemplate ? {
     primaryColor: emailTemplate.primary_color,
     logoUrl: emailTemplate.logo_url,
     footerText: emailTemplate.footer_text,
@@ -101,6 +100,7 @@ export async function sendTestEmail(portalTemplateId: string): Promise<{ success
     newStatus: 'Production',
     previousStatus: 'Engineering',
     portalUrl: 'https://dash.amitrace.com/status/sample-token',
+    styleOverrides,
   });
 
   const result = await sendEmail({
