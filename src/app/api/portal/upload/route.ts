@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
             }
 
             // Upload file to SharePoint
-            const blob = new Blob([cleanBuffer], { type: typeCheck.mimeType! });
+            const blob = new Blob([new Uint8Array(cleanBuffer)], { type: typeCheck.mimeType! });
             const uploadResult = await sharepoint.uploadFile(
               msConnection,
               targetDriveId,

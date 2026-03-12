@@ -115,11 +115,11 @@ export function DeliveryAddressConfirmationBlock({
         project_id: '',
         confirmed_by_email: email.trim().toLowerCase(),
         address_snapshot: {
-          street: project.delivery_street,
-          city: project.delivery_city,
-          state: project.delivery_state,
-          zip: project.delivery_zip,
-          country: project.delivery_country,
+          street: project.delivery_street || '',
+          city: project.delivery_city || '',
+          state: project.delivery_state || '',
+          zip: project.delivery_zip || '',
+          country: project.delivery_country || '',
         },
         confirmed_at: new Date().toISOString(),
       });

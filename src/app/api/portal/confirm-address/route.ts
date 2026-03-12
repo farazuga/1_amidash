@@ -11,7 +11,8 @@ export async function POST(request: NextRequest) {
   const supabase = await createServiceClient();
 
   // 1. Validate token -> get project
-  const { data: project } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: project } = await (supabase as any)
     .from('projects')
     .select('id, poc_email, delivery_street, delivery_city, delivery_state, delivery_zip, delivery_country')
     .eq('client_token', token)

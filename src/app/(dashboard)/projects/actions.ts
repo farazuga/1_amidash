@@ -350,7 +350,8 @@ export async function publishDraft(projectId: string, data: CreateProjectData): 
   }
 
   // Verify project exists and is a draft
-  const { data: project } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: project } = await (supabase as any)
     .from('projects')
     .select('id, is_draft, client_name')
     .eq('id', projectId)

@@ -286,7 +286,7 @@ export default async function ClientPortalPage({
             key={block.id}
             block={block}
             data={{
-              project,
+              project: project as any,
               currentStatus,
               filteredStatuses,
               isOnHold,
