@@ -7,6 +7,7 @@ import {
   reorderMeasurables,
   upsertScorecardEntry,
   autoPopulateScorecardWeek,
+  type PopulateResult,
 } from '@/app/(dashboard)/l10/scorecard-actions';
 
 export const L10_SCORECARD_KEY = ['l10', 'scorecard'];
@@ -122,9 +123,10 @@ export function useUpsertScorecardEntry() {
 export function useAutoPopulateScorecardWeek() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ teamId, weekOf }: { teamId: string; weekOf: string }) => {
+    mutationFn: async ({ teamId, weekOf }: { teamId: string; weekOf: string }): Promise<PopulateResult> => {
       const result = await autoPopulateScorecardWeek(teamId, weekOf);
       if (!result.success) throw new Error(result.error);
+      return result.data!;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: L10_SCORECARD_KEY });

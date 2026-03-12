@@ -791,7 +791,7 @@ export async function checkConflicts(data: {
     p_user_id: data.userId,
     p_start_date: data.startDate,
     p_end_date: data.endDate,
-    p_exclude_assignment_id: data.excludeAssignmentId || null,
+    p_exclude_assignment_id: data.excludeAssignmentId ?? undefined,
   });
 
   if (error) {
@@ -943,7 +943,7 @@ export async function getCalendarData(params: {
   const { data, error } = await supabase.rpc('get_calendar_assignments', {
     p_start_date: params.startDate,
     p_end_date: params.endDate,
-    p_project_id: params.projectId || null,
+    p_project_id: params.projectId ?? undefined,
   });
 
   if (error) {

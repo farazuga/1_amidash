@@ -13,6 +13,8 @@ import type {
   OdooProduct,
   OdooAccount,
   OdooMoveLine,
+  OdooActivity,
+  OdooUser,
 } from '@/types/odoo';
 
 // ============================================================
@@ -206,6 +208,76 @@ export async function getAccountBalance(
 }
 
 // ============================================================
+// Activities (Chatter Tasks)
+// ============================================================
+
+/**
+ * Find an Odoo user by their email (login field).
+ * Used to match AmiDash users to Odoo users.
+ */
+export async function findOdooUserByEmail(
+  client: OdooReadOnlyClient,
+  email: string
+): Promise<OdooUser | null> {
+  const results = await client.searchRead<OdooUser>(
+    'res.users',
+    [['login', '=', email]],
+    ['id', 'login', 'name'],
+    { limit: 1 }
+  );
+
+  return results.length > 0 ? results[0] : null;
+}
+
+const ACTIVITY_FIELDS = [
+  'id',
+  'summary',
+  'note',
+  'date_deadline',
+  'activity_type_id',
+  'user_id',
+  'create_uid',
+  'res_model',
+  'res_id',
+  'res_name',
+] as const;
+
+/**
+ * Get all open activities assigned to an Odoo user.
+ * Activities that exist are open — completed ones are deleted in Odoo.
+ */
+export async function getUserActivities(
+  client: OdooReadOnlyClient,
+  odooUserId: number
+): Promise<OdooActivity[]> {
+  return client.searchRead<OdooActivity>(
+    'mail.activity',
+    [['user_id', '=', odooUserId]],
+    [...ACTIVITY_FIELDS],
+    { order: 'date_deadline asc' }
+  );
+}
+
+/**
+ * Get all open activities created by an Odoo user but assigned to others.
+ * These are tasks the user has delegated to other people.
+ */
+export async function getActivitiesAssignedByUser(
+  client: OdooReadOnlyClient,
+  odooUserId: number
+): Promise<OdooActivity[]> {
+  return client.searchRead<OdooActivity>(
+    'mail.activity',
+    [
+      ['create_uid', '=', odooUserId],
+      ['user_id', '!=', odooUserId],
+    ],
+    [...ACTIVITY_FIELDS],
+    { order: 'date_deadline asc' }
+  );
+}
+
+// ============================================================
 // URL Construction
 // ============================================================
 
@@ -216,6 +288,19 @@ export async function getAccountBalance(
 export function buildOdooUrl(baseUrl: string, orderId: number): string {
   const cleanBase = baseUrl.replace(/\/+$/, '');
   return `${cleanBase}/odoo/sales/${orderId}`;
+}
+
+/**
+ * Build the Odoo web URL for any record.
+ * Generic format: {base_url}/web#id={recordId}&model={model}&view_type=form
+ */
+export function buildOdooRecordUrl(
+  baseUrl: string,
+  model: string,
+  recordId: number
+): string {
+  const cleanBase = baseUrl.replace(/\/+$/, '');
+  return `${cleanBase}/web#id=${recordId}&model=${model}&view_type=form`;
 }
 
 // ============================================================

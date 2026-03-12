@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, ArrowUp, ArrowDown, Equal, Trash2, Loader2 } from 'lucide-react';
+import { Plus, RefreshCw, ArrowUp, ArrowDown, Equal, Trash2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -137,12 +137,43 @@ export function ScorecardTab({ teamId }: ScorecardTabProps) {
   const handleWeekClick = async (weekOf: string) => {
     setPopulatingWeek(weekOf);
     try {
-      await autoPopulate.mutateAsync({ teamId, weekOf });
-      toast.success(`Populated week of ${formatWeekRange(weekOf)}`);
+      const result = await autoPopulate.mutateAsync({ teamId, weekOf });
+      if (result.populated > 0) {
+        toast.success(`Populated ${result.populated} measurable${result.populated > 1 ? 's' : ''} for ${formatWeekRange(weekOf)}`);
+      } else {
+        toast.info(`No data to populate for ${formatWeekRange(weekOf)}`);
+      }
+      if (result.skipped.length > 0) {
+        toast.warning(`Skipped: ${result.skipped.join(', ')}`);
+      }
+      if (result.errors.length > 0) {
+        toast.error(`Errors: ${result.errors.join(', ')}`);
+      }
     } catch (error) {
       toast.error((error as Error).message);
     } finally {
       setPopulatingWeek(null);
+    }
+  };
+
+  const handleAutoPopulate = async () => {
+    // Auto-populate the most recent completed week
+    const latestWeek = weeks[0];
+    try {
+      const result = await autoPopulate.mutateAsync({ teamId, weekOf: latestWeek });
+      if (result.populated > 0) {
+        toast.success(`Populated ${result.populated} measurable${result.populated > 1 ? 's' : ''}`);
+      } else {
+        toast.info('No data to populate for latest week');
+      }
+      if (result.skipped.length > 0) {
+        toast.warning(`Skipped: ${result.skipped.join(', ')}`);
+      }
+      if (result.errors.length > 0) {
+        toast.error(`Errors: ${result.errors.join(', ')}`);
+      }
+    } catch (error) {
+      toast.error((error as Error).message);
     }
   };
 
@@ -167,10 +198,16 @@ export function ScorecardTab({ teamId }: ScorecardTabProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Scorecard</h3>
-        <Button size="sm" onClick={() => setAddOpen(true)} disabled={!scorecardId}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Measurable
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleAutoPopulate} disabled={autoPopulate.isPending}>
+            <RefreshCw className={cn('mr-2 h-4 w-4', autoPopulate.isPending && 'animate-spin')} />
+            Auto-populate
+          </Button>
+          <Button size="sm" onClick={() => setAddOpen(true)} disabled={!scorecardId}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Measurable
+          </Button>
+        </div>
       </div>
 
       {measurables.length === 0 ? (
@@ -486,7 +523,7 @@ function ScorecardEntryCell({
       )}
       title={isClickable && value !== null ? 'Click to view projects, double-click to edit' : undefined}
     >
-      {value !== null ? formatValue(value, unit) : '—'}
+      {value !== null ? formatValue(value, unit) : <span className="text-muted-foreground/50">—</span>}
     </button>
   );
 }

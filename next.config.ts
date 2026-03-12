@@ -58,8 +58,8 @@ const securityHeaders = [
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       // Styles: self + inline (required for Tailwind CSS)
       "style-src 'self' 'unsafe-inline'",
-      // Images: self + data URIs + allowed domains (including SharePoint thumbnails)
-      "img-src 'self' data: blob: https://www.amitrace.com https://*.supabase.co https://*.sharepoint.com https://*.svc.ms",
+      // Images: self + data URIs + any URL (portal builder allows admin-configured background images)
+      "img-src 'self' data: blob: https: http:",
       // Media: blob URLs for video/audio preview from camera capture
       "media-src 'self' blob:",
       // Fonts: self + data URIs

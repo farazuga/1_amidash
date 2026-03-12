@@ -12,9 +12,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFooter } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Save, ShieldAlert, ChevronRight } from 'lucide-react';
+import { Loader2, Save, ShieldAlert, ChevronRight, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import type { RevenueGoal } from '@/types';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend, ReferenceLine } from 'recharts';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -953,9 +954,106 @@ export default function RevenueGoalsPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Invoice Goal Date by Month Chart */}
+            <Card>
+              <CardContent className="pt-5 px-4 pb-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  <h3 className="text-sm font-semibold">Invoice Revenue by Month</h3>
+                </div>
+                <GoalChart
+                  invoicedRevenue={invoicedRevenue}
+                  projectedRevenue={projectedRevenue}
+                  getMonthGoal={getMonthGoal}
+                  currentMonth={isCurrentYear ? currentMonth : 13}
+                />
+              </CardContent>
+            </Card>
           </TabsContent>
         ))}
       </Tabs>
     </div>
+  );
+}
+
+// ============================================
+// Revenue Goal Chart
+// ============================================
+
+function GoalChart({
+  invoicedRevenue,
+  projectedRevenue,
+  getMonthGoal,
+  currentMonth,
+}: {
+  invoicedRevenue: MonthlyData;
+  projectedRevenue: MonthlyData;
+  getMonthGoal: (month: number, field: 'revenue' | 'invoicedRevenue') => number;
+  currentMonth: number;
+}) {
+  const data = MONTHS_SHORT.map((label, i) => {
+    const month = i + 1;
+    const goal = getMonthGoal(month, 'invoicedRevenue');
+    const invoiced = invoicedRevenue[month] || 0;
+    const projected = projectedRevenue[month] || 0;
+    return {
+      month: label,
+      goal,
+      invoiced,
+      projected,
+      forecast: invoiced + projected,
+      isCurrent: month === currentMonth,
+    };
+  });
+
+  const hasData = data.some(d => d.goal > 0 || d.invoiced > 0 || d.projected > 0);
+
+  if (!hasData) {
+    return (
+      <div className="flex h-[280px] items-center justify-center text-muted-foreground text-sm">
+        No revenue data for this year
+      </div>
+    );
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={280}>
+      <BarChart data={data} barGap={0} barCategoryGap="20%">
+        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+        <XAxis
+          dataKey="month"
+          tick={{ fill: 'currentColor', fontSize: 12 }}
+          tickLine={false}
+        />
+        <YAxis
+          tick={{ fill: 'currentColor', fontSize: 11 }}
+          tickLine={false}
+          tickFormatter={(value) => value >= 1000000 ? `$${(value / 1000000).toFixed(1)}M` : value >= 1000 ? `$${(value / 1000).toFixed(0)}K` : `$${value}`}
+          width={60}
+        />
+        <RechartsTooltip
+          formatter={(value: number, name: string) => [
+            `$${value.toLocaleString()}`,
+            name === 'invoiced' ? 'Invoiced' : name === 'projected' ? 'Projected' : name === 'goal' ? 'Goal' : name
+          ]}
+          contentStyle={{
+            backgroundColor: 'hsl(var(--background))',
+            border: '1px solid hsl(var(--border))',
+            borderRadius: '6px',
+            fontSize: '12px',
+          }}
+        />
+        <Legend
+          iconType="circle"
+          iconSize={8}
+          wrapperStyle={{ fontSize: '12px' }}
+          formatter={(value: string) => value === 'invoiced' ? 'Invoiced' : value === 'projected' ? 'Projected' : value === 'goal' ? 'Goal' : value}
+        />
+        <Bar dataKey="invoiced" fill="#10b981" stackId="revenue" radius={[0, 0, 0, 0]} />
+        <Bar dataKey="projected" fill="#3b82f6" stackId="revenue" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="goal" fill="#e5e7eb" radius={[4, 4, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
   );
 }

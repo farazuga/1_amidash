@@ -17,6 +17,8 @@ interface SearchParams {
   date_type?: 'created' | 'goal' | 'invoiced';
   date_presets?: string; // comma-separated presets (this_month, q1, etc.)
   date_years?: string; // comma-separated years (2025, 2026, etc.)
+  date_from?: string; // YYYY-MM-DD direct date range start
+  date_to?: string; // YYYY-MM-DD direct date range end
 }
 
 // Helper to calculate date ranges from presets
@@ -177,6 +179,19 @@ async function getProjects(searchParams: SearchParams, invoicedStatusId: string 
       const maxDate = allEnds[0];
 
       query = query.gte(dateField, minDate).lte(dateField, maxDate);
+    }
+  }
+
+  // Apply direct date range filter (date_from / date_to)
+  if (searchParams.date_type && (searchParams.date_from || searchParams.date_to)) {
+    const dateField = searchParams.date_type === 'created' ? 'created_date'
+      : searchParams.date_type === 'invoiced' ? 'invoiced_date'
+      : 'goal_completion_date';
+    if (searchParams.date_from) {
+      query = query.gte(dateField, searchParams.date_from);
+    }
+    if (searchParams.date_to) {
+      query = query.lte(dateField, searchParams.date_to);
     }
   }
 

@@ -1,5 +1,6 @@
 import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
+import type { Profile } from '@/types';
 
 /**
  * Request-scoped cached query for statuses
@@ -60,7 +61,7 @@ export const getCachedSalespeople = cache(async () => {
     .select('*')
     .eq('is_salesperson', true)
     .order('full_name');
-  return data || [];
+  return (data || []) as Profile[];
 });
 
 /**
