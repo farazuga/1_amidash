@@ -75,6 +75,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '@/lib/utils';
+import { EmailBrandingSection } from '@/components/admin/email-branding-section';
 
 // Block type metadata
 const BLOCK_TYPE_CONFIG: Record<
@@ -683,6 +684,11 @@ export default function PortalBuilderPage() {
           </Card>
         </Collapsible>
       )}
+
+      {/* ============================================ */}
+      {/* SECTION 2b: Email Branding */}
+      {/* ============================================ */}
+      {selectedTemplate && <EmailBrandingSection portalTemplateId={selectedTemplate.id} />}
 
       {/* ============================================ */}
       {/* SECTION 3: Template Assignment */}
