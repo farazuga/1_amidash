@@ -1,12 +1,14 @@
-import type { PortalBlock, Status } from '@/types';
+import type { PortalBlock, PortalFileUpload, Status } from '@/types';
 import { CurrentStatusBlock } from './current-status-block';
 import { PocInfoBlock } from './poc-info-block';
 import { StatusHistoryBlock } from './status-history-block';
 import { CustomerScheduleBlock } from './customer-schedule-block';
 import { CustomHtmlBlock } from './custom-html-block';
+import { FileUploadBlock } from './file-upload-block';
 
 export interface PortalProjectData {
   project: {
+    id: string;
     client_name: string;
     sales_order_number: string | null;
     poc_name: string | null;
@@ -20,6 +22,8 @@ export interface PortalProjectData {
   isOnHold: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   clientVisibleHistory: any[];
+  projectToken: string;
+  fileUploads: PortalFileUpload[];
 }
 
 interface BlockRendererProps {
@@ -49,6 +53,16 @@ export function BlockRenderer({ block, data }: BlockRendererProps) {
         <CustomHtmlBlock
           content={block.config?.content}
           title={block.config?.title}
+        />
+      );
+    case 'file_upload':
+      return (
+        <FileUploadBlock
+          files={block.config?.files || []}
+          projectToken={data.projectToken}
+          projectId={data.project.id}
+          blockId={block.id}
+          existingUploads={data.fileUploads.filter((u) => u.block_id === block.id)}
         />
       );
     default:
