@@ -11,6 +11,7 @@ interface SearchParams {
   statuses?: string; // comma-separated status IDs
   contract_type?: string;
   overdue?: string;
+  show_drafts?: string;
   sort_by?: string;
   sort_order?: string;
   view?: 'active' | 'archived' | 'all';
@@ -117,6 +118,11 @@ async function getProjects(searchParams: SearchParams, invoicedStatusId: string 
         user:profiles!project_assignments_user_id_fkey(id, full_name)
       )
     `);
+
+  // Hide drafts by default unless show_drafts filter is on
+  if (searchParams.show_drafts !== 'true') {
+    query = query.eq('is_draft', false);
+  }
 
   // Apply active/archived/all filter (default to active)
   const view = searchParams.view || 'active';

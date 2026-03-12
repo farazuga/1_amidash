@@ -155,6 +155,7 @@ interface ProjectWithTags {
   schedule_status?: string | null;
   invoiced_date?: string | null;
   project_description?: string | null;
+  is_draft?: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   current_status?: any;
   tags?: { tag: { id: string; name: string; color: string | null } }[];
@@ -371,7 +372,14 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
       case 'client':
         const clientContent = (
           <div className="space-y-1">
-            <p className="font-medium">{project.client_name}</p>
+            <p className="font-medium">
+              {project.client_name}
+              {project.is_draft && (
+                <span className="ml-2 rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">
+                  Draft
+                </span>
+              )}
+            </p>
             {project.tags && project.tags.length > 0 && (
               <div className="flex gap-1">
                 {project.tags.slice(0, 2).map(({ tag }) => (
@@ -564,13 +572,23 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
         {projects.map((project) => (
           <div
             key={project.id}
-            className="rounded-lg border bg-card p-4 space-y-3 cursor-pointer hover:bg-muted/50 transition-colors"
+            className={cn(
+              "rounded-lg border bg-card p-4 space-y-3 cursor-pointer hover:bg-muted/50 transition-colors",
+              project.is_draft && "opacity-50"
+            )}
             onClick={() => router.push(`/projects/${project.sales_order_number || project.id}`)}
           >
             {/* Header with Client and Actions */}
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-base truncate">{project.client_name}</h3>
+                <h3 className="font-semibold text-base truncate">
+                  {project.client_name}
+                  {project.is_draft && (
+                    <span className="ml-2 rounded-full bg-gray-200 px-2 py-0.5 text-xs font-normal text-gray-600">
+                      Draft
+                    </span>
+                  )}
+                </h3>
                 {project.tags && project.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2">
                     {project.tags.slice(0, 3).map(({ tag }) => (
@@ -856,7 +874,10 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
               {projects.map((project) => (
                 <TableRow
                   key={project.id}
-                  className="cursor-pointer hover:bg-muted/50"
+                  className={cn(
+                    "cursor-pointer hover:bg-muted/50",
+                    project.is_draft && "opacity-50"
+                  )}
                   onClick={() => router.push(`/projects/${project.sales_order_number || project.id}`)}
                 >
                   {visibleColumns.map((column) => (
