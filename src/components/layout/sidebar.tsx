@@ -23,6 +23,7 @@ import {
   CalendarRange,
   Presentation,
   LayoutTemplate,
+  CheckSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -39,6 +40,7 @@ import {
 } from '@/components/ui/tooltip';
 import { useSidebarStore } from '@/lib/stores/sidebar-store';
 import { useOverdueTodoCount } from '@/hooks/queries/use-l10-todos';
+import { usePendingApprovalCount } from '@/hooks/queries/use-approval-tasks';
 
 const mainNavItems = [
   {
@@ -82,6 +84,11 @@ const l10NavItems = [
 ];
 
 const adminNavItems = [
+  {
+    title: 'Approvals',
+    href: '/approvals',
+    icon: CheckSquare,
+  },
   {
     title: 'Settings',
     href: '/admin/settings',
@@ -185,6 +192,7 @@ function SidebarContent({
   const pathname = usePathname();
   const { user, isAdmin } = useUser();
   const { data: overdueCount } = useOverdueTodoCount(user?.id ?? null);
+  const { data: pendingApprovalCount } = usePendingApprovalCount();
 
   return (
     <TooltipProvider>
@@ -292,7 +300,7 @@ function SidebarContent({
               )}
               {collapsed && <div className="mt-4 mb-2 border-t border-sidebar-border/50" />}
               {adminNavItems.map((item) => {
-                const isActive = pathname === item.href;
+                const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                 return (
                   <NavItem
                     key={item.href}
@@ -300,6 +308,7 @@ function SidebarContent({
                     isActive={isActive}
                     collapsed={collapsed}
                     onNavigate={onNavigate}
+                    badge={item.href === '/approvals' ? pendingApprovalCount : undefined}
                   />
                 );
               })}
