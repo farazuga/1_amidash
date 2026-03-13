@@ -254,6 +254,38 @@ export default async function ClientPortalPage({
     (entry: any) => entry.status && !entry.status.is_internal_only
   );
 
+  // Partition blocks into left column, right column, and bottom (full-width)
+  const LEFT_TYPES = new Set(['current_status', 'poc_info']);
+  const BOTTOM_TYPES = new Set(['status_history']);
+
+  const leftBlocks = templateBlocks.filter((b) => LEFT_TYPES.has(b.type));
+  const rightBlocks = templateBlocks.filter(
+    (b) => !LEFT_TYPES.has(b.type) && !BOTTOM_TYPES.has(b.type)
+  );
+  const bottomBlocks = templateBlocks.filter((b) => BOTTOM_TYPES.has(b.type));
+
+  // Ensure left always has current_status and poc_info even if missing from template
+  if (!leftBlocks.some((b) => b.type === 'current_status')) {
+    leftBlocks.unshift({ id: 'blk_status_fallback', type: 'current_status' });
+  }
+  if (!leftBlocks.some((b) => b.type === 'poc_info')) {
+    leftBlocks.push({ id: 'blk_poc_fallback', type: 'poc_info' });
+  }
+  if (!bottomBlocks.some((b) => b.type === 'status_history')) {
+    bottomBlocks.push({ id: 'blk_history_fallback', type: 'status_history' });
+  }
+
+  const portalData = {
+    project: project as any,
+    currentStatus,
+    filteredStatuses,
+    isOnHold,
+    clientVisibleHistory,
+    projectToken: token,
+    fileUploads,
+    addressConfirmation,
+  };
+
   return (
     <div
       className="min-h-screen bg-[#f8faf9]"
@@ -280,22 +312,29 @@ export default async function ClientPortalPage({
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6 max-w-3xl">
-        {templateBlocks.map((block) => (
-          <BlockRenderer
-            key={block.id}
-            block={block}
-            data={{
-              project: project as any,
-              currentStatus,
-              filteredStatuses,
-              isOnHold,
-              clientVisibleHistory,
-              projectToken: token,
-              fileUploads,
-              addressConfirmation,
-            }}
-          />
+      <main className="container mx-auto px-4 py-6 max-w-5xl">
+        {/* Two-column layout */}
+        <div className="md:grid md:grid-cols-2 md:gap-6 items-start">
+          {/* Left column: status + contact */}
+          <div className="space-y-4">
+            {leftBlocks.map((block) => (
+              <BlockRenderer key={block.id} block={block} data={portalData} />
+            ))}
+          </div>
+
+          {/* Right column: builder blocks */}
+          {rightBlocks.length > 0 && (
+            <div className="space-y-4">
+              {rightBlocks.map((block) => (
+                <BlockRenderer key={block.id} block={block} data={portalData} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Bottom: status history full-width */}
+        {bottomBlocks.map((block) => (
+          <BlockRenderer key={block.id} block={block} data={portalData} />
         ))}
 
         {/* Footer */}
