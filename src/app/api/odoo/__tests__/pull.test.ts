@@ -15,6 +15,7 @@ vi.mock('@/lib/odoo', () => ({
 vi.mock('@/lib/odoo/queries', () => ({
   findSalesOrderByNumber: vi.fn(),
   getSalesOrderLines: vi.fn(),
+  getProductDetails: vi.fn(),
   getPartnerDetails: vi.fn(),
   getPartnerContacts: vi.fn(),
   buildOdooUrl: vi.fn(),
@@ -28,6 +29,7 @@ import { isOdooConfigured } from '@/lib/odoo';
 import {
   findSalesOrderByNumber,
   getSalesOrderLines,
+  getProductDetails,
   getPartnerDetails,
   getPartnerContacts,
   buildOdooUrl,
@@ -37,6 +39,7 @@ const mockCreateClient = createClient as ReturnType<typeof vi.fn>;
 const mockIsOdooConfigured = isOdooConfigured as ReturnType<typeof vi.fn>;
 const mockFindSalesOrderByNumber = findSalesOrderByNumber as ReturnType<typeof vi.fn>;
 const mockGetSalesOrderLines = getSalesOrderLines as ReturnType<typeof vi.fn>;
+const mockGetProductDetails = getProductDetails as ReturnType<typeof vi.fn>;
 const mockGetPartnerDetails = getPartnerDetails as ReturnType<typeof vi.fn>;
 const mockGetPartnerContacts = getPartnerContacts as ReturnType<typeof vi.fn>;
 const mockBuildOdooUrl = buildOdooUrl as ReturnType<typeof vi.fn>;
@@ -171,6 +174,11 @@ describe('POST /api/odoo/pull', () => {
     mockGetSalesOrderLines.mockResolvedValue([
       { id: 1, product_id: [100, 'Widget A'], name: 'Widget A - Custom', product_uom_qty: 5, price_subtotal: 500 },
       { id: 2, product_id: [101, 'Widget B'], name: 'Widget B', product_uom_qty: 2, price_subtotal: 200 },
+    ]);
+
+    mockGetProductDetails.mockResolvedValue([
+      { id: 100, default_code: 'WIDGET_A' },
+      { id: 101, default_code: false },
     ]);
 
     mockBuildOdooUrl.mockReturnValue('https://test.odoo.com/odoo/sales/42');

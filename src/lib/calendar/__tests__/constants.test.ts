@@ -110,12 +110,12 @@ describe('Calendar Constants', () => {
   });
 
   describe('DEFAULT_WORKING_HOURS', () => {
-    it('has start time of 07:00', () => {
-      expect(DEFAULT_WORKING_HOURS.start).toBe('07:00');
+    it('has start time of 08:30', () => {
+      expect(DEFAULT_WORKING_HOURS.start).toBe('08:30');
     });
 
-    it('has end time of 16:00', () => {
-      expect(DEFAULT_WORKING_HOURS.end).toBe('16:00');
+    it('has end time of 16:30', () => {
+      expect(DEFAULT_WORKING_HOURS.end).toBe('16:30');
     });
   });
 

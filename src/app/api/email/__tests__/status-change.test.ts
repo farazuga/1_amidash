@@ -18,6 +18,16 @@ vi.mock('@/lib/email/templates', () => ({
   statusChangeEmail: vi.fn(() => '<html>Email content</html>'),
 }));
 
+// Mock email settings
+vi.mock('@/lib/email/settings', () => ({
+  checkEmailEnabled: vi.fn().mockResolvedValue({
+    canSendEmail: true,
+    globalEnabled: true,
+    projectEnabled: true,
+    recipientEnabled: true,
+  }),
+}));
+
 import { createClient } from '@/lib/supabase/server';
 import { sendEmail } from '@/lib/email/send';
 

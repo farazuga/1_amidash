@@ -254,6 +254,19 @@ describe('Calendar Actions', () => {
     });
 
     it('successfully cascades status to assignments', async () => {
+      const selectMock = vi.fn().mockReturnValue({
+        in: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({
+            data: [
+              { id: 'a1', user_id: 'u1', notes: '', project_id: 'project-1', project: null },
+              { id: 'a2', user_id: 'u2', notes: '', project_id: 'project-1', project: null },
+              { id: 'a3', user_id: 'u3', notes: '', project_id: 'project-1', project: null },
+            ],
+            error: null,
+          }),
+        }),
+      });
+
       const updateMock = vi.fn().mockReturnValue({
         in: vi.fn().mockReturnValue({
           eq: vi.fn().mockResolvedValue({
@@ -275,6 +288,7 @@ describe('Calendar Actions', () => {
         from: vi.fn().mockImplementation((table: string) => {
           if (table === 'project_assignments') {
             return {
+              select: selectMock,
               update: updateMock,
             };
           }
@@ -311,6 +325,17 @@ describe('Calendar Actions', () => {
         from: vi.fn().mockImplementation((table: string) => {
           if (table === 'project_assignments') {
             return {
+              select: vi.fn().mockReturnValue({
+                in: vi.fn().mockReturnValue({
+                  eq: vi.fn().mockResolvedValue({
+                    data: [
+                      { id: 'a1', user_id: 'u1', notes: '', project_id: 'project-1', project: null },
+                      { id: 'a2', user_id: 'u2', notes: '', project_id: 'project-1', project: null },
+                    ],
+                    error: null,
+                  }),
+                }),
+              }),
               update: vi.fn().mockReturnValue({
                 in: vi.fn().mockReturnValue({
                   eq: vi.fn().mockResolvedValue({
