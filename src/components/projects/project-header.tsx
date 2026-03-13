@@ -1,12 +1,14 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useState, useEffect } from 'react';
+import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 
 interface ProjectHeaderProps {
   project: {
@@ -31,7 +33,25 @@ export function ProjectHeader({
   salesOrder,
   isOverdue = false,
 }: ProjectHeaderProps) {
+  const router = useRouter();
   const [navList, setNavList] = useState<string[] | null>(null);
+
+  // E to focus first form field (edit), Backspace to go back to projects list
+  useKeyboardShortcuts([
+    {
+      keys: 'e',
+      handler: () => {
+        const firstInput = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+          'form input:not([type="hidden"]), form textarea, form select'
+        );
+        if (firstInput) {
+          firstInput.focus();
+          firstInput.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }
+      },
+    },
+    { keys: 'backspace', handler: () => router.push('/projects') },
+  ]);
 
   useEffect(() => {
     if (!salesOrder) return;

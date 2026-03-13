@@ -18,6 +18,16 @@ interface ShortcutItem {
 
 const shortcuts: ShortcutItem[] = [
   {
+    keys: ['←', '→'],
+    action: 'Navigate months',
+    description: 'Use arrow keys to go to previous/next month',
+  },
+  {
+    keys: ['T'],
+    action: 'Go to today',
+    description: 'Jump back to the current month',
+  },
+  {
     keys: ['⌘', 'Drag'],
     action: 'Copy day',
     description: 'Hold Cmd while dragging to copy an assignment day',

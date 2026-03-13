@@ -64,6 +64,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
+import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import type { BookingStatus } from '@/types/calendar';
 
 // Column configuration
@@ -177,6 +178,47 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
   const [projectToDelete, setProjectToDelete] = useState<ProjectWithTags | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
+
+  // J/K keyboard navigation state
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Reset selection when projects change
+  useEffect(() => {
+    setSelectedIndex(-1);
+  }, [projects]);
+
+  // Scroll selected row into view
+  useEffect(() => {
+    if (selectedIndex >= 0) {
+      const row = document.querySelector(`[data-project-index="${selectedIndex}"]`);
+      row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [selectedIndex]);
+
+  // J/K navigation, Enter to open, / to focus search
+  useKeyboardShortcuts([
+    { keys: 'j', handler: () => setSelectedIndex((prev) => Math.min(prev + 1, projects.length - 1)) },
+    { keys: 'k', handler: () => setSelectedIndex((prev) => Math.max(prev - 1, 0)) },
+    {
+      keys: 'enter',
+      handler: () => {
+        if (selectedIndex >= 0 && selectedIndex < projects.length) {
+          const p = projects[selectedIndex];
+          router.push(`/projects/${p.sales_order_number || p.id}`);
+        }
+      },
+    },
+    {
+      keys: '/',
+      handler: () => {
+        // Focus the search input in the filter bar
+        const input = document.querySelector<HTMLInputElement>('input[placeholder*="Search"]') ||
+          document.querySelector<HTMLInputElement>('input[type="search"]');
+        input?.focus();
+      },
+    },
+  ]);
 
   // Column preferences state (local working copy)
   const [preferences, setPreferences] = useState<ColumnPreferences>(getDefaultPreferences);
@@ -569,12 +611,14 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
     <>
       {/* Mobile Card View */}
       <div className="md:hidden space-y-4">
-        {projects.map((project) => (
+        {projects.map((project, index) => (
           <div
             key={project.id}
+            data-project-index={index}
             className={cn(
               "rounded-lg border bg-card p-4 space-y-3 cursor-pointer hover:bg-muted/50 transition-colors",
-              project.is_draft && "opacity-50"
+              project.is_draft && "opacity-50",
+              selectedIndex === index && "ring-2 ring-primary"
             )}
             onClick={() => router.push(`/projects/${project.sales_order_number || project.id}`)}
           >
@@ -871,12 +915,14 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {projects.map((project) => (
+              {projects.map((project, index) => (
                 <TableRow
                   key={project.id}
+                  data-project-index={index}
                   className={cn(
                     "cursor-pointer hover:bg-muted/50",
-                    project.is_draft && "opacity-50"
+                    project.is_draft && "opacity-50",
+                    selectedIndex === index && "ring-2 ring-primary"
                   )}
                   onClick={() => router.push(`/projects/${project.sales_order_number || project.id}`)}
                 >
