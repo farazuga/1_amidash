@@ -314,7 +314,7 @@ export default async function ClientPortalPage({
 
       <main className="container mx-auto px-4 py-6 max-w-5xl">
         {/* Two-column layout */}
-        <div className="md:grid md:grid-cols-2 md:gap-6">
+        <div className="md:grid md:grid-cols-2 md:gap-6 items-start">
           {/* Left column: status + contact */}
           <div>
             {leftBlocks.map((block) => (

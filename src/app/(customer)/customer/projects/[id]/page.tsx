@@ -131,7 +131,7 @@ export default async function CustomerProjectDetailPage({
       </Link>
 
       {/* Two-column layout */}
-      <div className="md:grid md:grid-cols-2 md:gap-6 space-y-4 md:space-y-0">
+      <div className="md:grid md:grid-cols-2 md:gap-6 items-start space-y-4 md:space-y-0">
         {/* Left column: Status + Contact */}
         <div className="space-y-4">
           {/* Main Status Card */}
