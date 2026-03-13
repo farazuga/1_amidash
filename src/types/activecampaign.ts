@@ -48,3 +48,52 @@ export function toContactDisplay(contact: ACContact): ACContactDisplay {
     fullName: `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || contact.email,
   };
 }
+
+// Deal types
+export interface ACDeal {
+  id: string;
+  title: string;
+  value: string;
+  currency: string;
+  contact: string;
+  account: string;
+  stage: string;
+  group: string;
+  owner: string;
+  status: string;
+  cdate: string;
+  mdate: string;
+  nextdate?: string;
+}
+
+export interface ACDealStage {
+  id: string;
+  title: string;
+  group: string;
+  order: string;
+}
+
+export interface ACPipeline {
+  id: string;
+  title: string;
+}
+
+export interface ACDealsResponse {
+  deals: ACDeal[];
+  meta?: {
+    total: string;
+  };
+}
+
+export interface ACDealStagesResponse {
+  dealStages: ACDealStage[];
+}
+
+export interface ACPipelinesResponse {
+  dealGroups: ACPipeline[];
+}
+
+export interface ACDealDisplay extends ACDeal {
+  contactName: string;
+  accountName: string;
+}
