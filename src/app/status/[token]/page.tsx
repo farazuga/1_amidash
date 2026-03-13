@@ -27,8 +27,8 @@ function cleanupRateLimitMap() {
 }
 
 function checkRateLimit(ip: string): boolean {
-  // Periodic cleanup (run every ~100 requests to avoid memory leak)
-  if (rateLimitMap.size > 1000) {
+  // Periodic cleanup - run more frequently to prevent memory growth
+  if (rateLimitMap.size > 100) {
     cleanupRateLimitMap();
   }
 
@@ -76,7 +76,7 @@ async function getStatuses() {
   const supabase = await createClient();
   const { data } = await supabase
     .from('statuses')
-    .select('*')
+    .select('id, name, color, display_order, is_active, is_internal_only, is_exception, require_note')
     .eq('is_active', true)
     .order('display_order');
   return data || [];
@@ -86,10 +86,7 @@ async function getStatusHistory(projectId: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from('status_history')
-    .select(`
-      *,
-      status:statuses(*)
-    `)
+    .select('id, project_id, changed_at, status:statuses(id, name, color, is_internal_only)')
     .eq('project_id', projectId)
     .order('changed_at', { ascending: false });
   return data || [];
@@ -99,7 +96,7 @@ async function getProjectTypeStatuses() {
   const supabase = await createClient();
   const { data } = await supabase
     .from('project_type_statuses')
-    .select('*');
+    .select('project_type_id, status_id');
   return data || [];
 }
 
@@ -109,7 +106,7 @@ async function getFileUploads(projectId: string): Promise<PortalFileUpload[]> {
   const supabase = (await createClient()) as any;
   const { data } = await supabase
     .from('portal_file_uploads')
-    .select('*')
+    .select('id, project_id, slot_index, file_name, file_path, file_size, content_type, uploaded_at, storage_path')
     .eq('project_id', projectId)
     .order('slot_index', { ascending: true });
   return (data || []) as PortalFileUpload[];
@@ -120,7 +117,7 @@ async function getAddressConfirmation(projectId: string): Promise<DeliveryAddres
   const supabase = (await createClient()) as any;
   const { data } = await supabase
     .from('delivery_address_confirmations')
-    .select('*')
+    .select('id, project_id, address_line1, address_line2, city, state, zip_code, country, confirmed_at, confirmed_by_name, confirmed_by_email')
     .eq('project_id', projectId)
     .maybeSingle();
   return data as DeliveryAddressConfirmation | null;

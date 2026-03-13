@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
+import { STALE_TIMES } from '@/lib/query-config';
 import type { Profile } from '@/types';
 
 export type AuditActionFilter = 'all' | 'create' | 'update' | 'delete';
@@ -17,8 +18,6 @@ export interface AuditLogWithRelations {
   project: { client_name: string } | null;
 }
 
-const ONE_MINUTE = 60 * 1000;
-
 export function useAuditLogs(filter: AuditActionFilter = 'all') {
   const supabase = createClient();
 
@@ -29,7 +28,7 @@ export function useAuditLogs(filter: AuditActionFilter = 'all') {
         .from('audit_logs')
         .select(`
           *,
-          user:profiles(*),
+          user:profiles(id, email, full_name),
           project:projects(client_name)
         `)
         .order('created_at', { ascending: false })
@@ -43,6 +42,6 @@ export function useAuditLogs(filter: AuditActionFilter = 'all') {
       if (error) throw error;
       return (data || []) as AuditLogWithRelations[];
     },
-    staleTime: ONE_MINUTE, // Audit logs can be slightly stale
+    staleTime: STALE_TIMES.STANDARD, // Audit logs can be slightly stale
   });
 }

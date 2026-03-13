@@ -32,7 +32,7 @@ async function getStatuses() {
   const supabase = await createClient();
   const { data } = await supabase
     .from('statuses')
-    .select('*')
+    .select('id, name, color, display_order, is_active, is_internal_only')
     .eq('is_active', true)
     .order('display_order');
   return data || [];
@@ -42,10 +42,7 @@ async function getStatusHistory(projectId: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from('status_history')
-    .select(`
-      *,
-      status:statuses(*)
-    `)
+    .select('id, project_id, changed_at, status:statuses(id, name, color, is_internal_only)')
     .eq('project_id', projectId)
     .order('changed_at', { ascending: false });
   return data || [];
@@ -55,7 +52,7 @@ async function getProjectTypeStatuses() {
   const supabase = await createClient();
   const { data } = await supabase
     .from('project_type_statuses')
-    .select('*');
+    .select('project_type_id, status_id');
   return data || [];
 }
 

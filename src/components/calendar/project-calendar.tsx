@@ -38,7 +38,7 @@ import { SendConfirmationDialog } from './send-confirmation-dialog';
 import { ConflictsPanel } from './conflicts-panel';
 import { KeyboardShortcutsHelp } from './keyboard-shortcuts-help';
 import { useUndo } from '@/hooks/use-undo';
-import { useUndoStore } from '@/stores/undo-store';
+import { useUndoActions } from '@/stores/undo-store';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import {
@@ -146,7 +146,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   const removeAssignmentDays = useRemoveAssignmentDays();
 
   // Undo functionality
-  const { pushAction } = useUndoStore();
+  const { pushAction } = useUndoActions();
   useUndo(); // This registers the keyboard shortcut listener
 
   // Convert assignments to calendar events with scheduled days

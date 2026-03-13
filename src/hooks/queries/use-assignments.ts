@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
+import { STALE_TIMES } from '@/lib/query-config';
 import type {
   ProjectAssignment,
   BookingStatus,
@@ -60,8 +61,7 @@ export const TEAM_AVAILABILITY_KEY = ['team-availability'];
 export const USER_AVAILABILITY_KEY = ['user-availability'];
 export const CONFIRMATION_REQUESTS_KEY = ['confirmation-requests'];
 
-const ONE_MINUTE = 60 * 1000;
-const THIRTY_SECONDS = 30 * 1000;
+
 
 // ============================================
 // Query hooks
@@ -76,7 +76,7 @@ export function useProjectAssignments(projectId: string) {
       if (!result.success) throw new Error(result.error);
       return result.data || [];
     },
-    staleTime: THIRTY_SECONDS,
+    staleTime: STALE_TIMES.REALTIME,
     enabled: !!projectId,
   });
 }
@@ -92,7 +92,7 @@ export function useUserAssignments(userId: string) {
         .select(`
           *,
           project:projects(id, client_name, start_date, end_date),
-          excluded_dates:assignment_excluded_dates(*)
+          excluded_dates:assignment_excluded_dates(id, assignment_id, excluded_date, reason)
         `)
         .eq('user_id', userId)
         .order('created_at', { ascending: true });
@@ -100,7 +100,7 @@ export function useUserAssignments(userId: string) {
       if (error) throw error;
       return data as unknown as ProjectAssignment[];
     },
-    staleTime: THIRTY_SECONDS,
+    staleTime: STALE_TIMES.REALTIME,
     enabled: !!userId,
   });
 }
@@ -146,7 +146,7 @@ export function useCalendarData(
       if (!result.success) throw new Error(result.error);
       return result.data || { data: [], total: 0, hasMore: false, scheduledDaysMap: {}, scheduledDaysWithIds: {} };
     },
-    staleTime: THIRTY_SECONDS,
+    staleTime: STALE_TIMES.REALTIME,
     enabled: !!startStr && !!endStr,
   });
 }
@@ -171,7 +171,7 @@ export function useUserSchedule(userId: string, startDate: Date, endDate: Date) 
       if (error) throw error;
       return data as UserScheduleResult[];
     },
-    staleTime: THIRTY_SECONDS,
+    staleTime: STALE_TIMES.REALTIME,
     enabled: !!userId,
   });
 }
@@ -184,7 +184,7 @@ export function useAdminUsers() {
       if (!result.success) throw new Error(result.error);
       return result.data || [];
     },
-    staleTime: ONE_MINUTE,
+    staleTime: STALE_TIMES.STANDARD,
   });
 }
 
@@ -200,7 +200,7 @@ export function useAssignment(assignmentId: string) {
           *,
           project:projects(id, client_name, start_date, end_date),
           user:profiles!user_id(id, email, full_name),
-          excluded_dates:assignment_excluded_dates(*)
+          excluded_dates:assignment_excluded_dates(id, assignment_id, excluded_date, reason)
         `)
         .eq('id', assignmentId)
         .single();
@@ -208,7 +208,7 @@ export function useAssignment(assignmentId: string) {
       if (error) throw error;
       return data as unknown as ProjectAssignment;
     },
-    staleTime: THIRTY_SECONDS,
+    staleTime: STALE_TIMES.REALTIME,
     enabled: !!assignmentId,
   });
 }
@@ -410,7 +410,7 @@ export function useAssignableUsers() {
       if (!result.success) throw new Error(result.error);
       return result.data || [];
     },
-    staleTime: ONE_MINUTE,
+    staleTime: STALE_TIMES.STANDARD,
   });
 }
 
@@ -425,7 +425,7 @@ export function useAssignmentDays(assignmentId: string) {
       if (!result.success) throw new Error(result.error);
       return result.data || [];
     },
-    staleTime: THIRTY_SECONDS,
+    staleTime: STALE_TIMES.REALTIME,
     enabled: !!assignmentId,
   });
 }
@@ -441,7 +441,7 @@ export function useProjectGanttData(projectId: string) {
       if (!result.success) throw new Error(result.error);
       return result.data || [];
     },
-    staleTime: THIRTY_SECONDS,
+    staleTime: STALE_TIMES.REALTIME,
     enabled: !!projectId,
   });
 }
@@ -471,7 +471,7 @@ export function useGanttDataForRange(
       if (!result.success) throw new Error(result.error);
       return result.data || [];
     },
-    staleTime: THIRTY_SECONDS,
+    staleTime: STALE_TIMES.REALTIME,
   });
 }
 
@@ -632,7 +632,7 @@ export function useUnresolvedConflicts(userId?: string) {
       if (!result.success) throw new Error(result.error);
       return result.data || [];
     },
-    staleTime: THIRTY_SECONDS,
+    staleTime: STALE_TIMES.REALTIME,
   });
 }
 
@@ -662,7 +662,7 @@ export function useTeamAvailability(
       if (!result.success) throw new Error(result.error);
       return result.data || [];
     },
-    staleTime: THIRTY_SECONDS,
+    staleTime: STALE_TIMES.REALTIME,
   });
 }
 
@@ -688,7 +688,7 @@ export function useUserAvailabilityRange(
       if (!result.success) throw new Error(result.error);
       return result.data || [];
     },
-    staleTime: THIRTY_SECONDS,
+    staleTime: STALE_TIMES.REALTIME,
     enabled: !!userId,
   });
 }
@@ -737,7 +737,7 @@ export function usePendingConfirmations() {
       if (!result.success) throw new Error(result.error);
       return result.data || [];
     },
-    staleTime: THIRTY_SECONDS,
+    staleTime: STALE_TIMES.REALTIME,
   });
 }
 

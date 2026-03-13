@@ -276,9 +276,9 @@ export default function StatusesAdminPage() {
 
     const fetchData = async () => {
       const [statusesRes, typesRes, mapRes] = await Promise.all([
-        supabase.from('statuses').select('*').order('display_order'),
-        supabase.from('project_types').select('*').order('display_order'),
-        supabase.from('project_type_statuses').select('*'),
+        supabase.from('statuses').select('id, name, color, display_order, is_active, is_internal_only, is_exception, require_note').order('display_order'),
+        supabase.from('project_types').select('id, name, display_order, is_active').order('display_order'),
+        supabase.from('project_type_statuses').select('project_type_id, status_id'),
       ]);
 
       if (cancelled) return;

@@ -264,7 +264,7 @@ export default function RevenueGoalsPage() {
     setIsLoading(true);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase.from as any)('revenue_goals')
-      .select('*')
+      .select('id, year, month, revenue_goal, projects_goal, invoiced_revenue_goal, created_at, updated_at')
       .eq('year', parseInt(selectedYear))
       .order('month');
 

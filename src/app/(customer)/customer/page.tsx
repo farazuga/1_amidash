@@ -19,8 +19,8 @@ async function getCustomerProjects(userEmail: string) {
       poc_name,
       poc_email,
       client_token,
-      current_status:statuses(*),
-      project_type:project_types(*)
+      current_status:statuses(id, name, color, display_order, is_internal_only),
+      project_type:project_types(id, name)
     `)
     .ilike('poc_email', userEmail)
     .order('created_date', { ascending: false });
@@ -44,38 +44,29 @@ async function getEmailPreference(userEmail: string) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function resolveClientVisibleStatuses(projects: any[]) {
-  // Find projects where current status is internal-only
   const internalProjects = projects.filter(
     (p) => p.current_status?.is_internal_only
   );
 
   if (internalProjects.length === 0) return projects;
 
-  // For each internal-only project, fetch the latest non-internal status from history
   const supabase = await createClient();
-  const resolved = await Promise.all(
-    internalProjects.map(async (project) => {
-      const { data: history } = await supabase
-        .from('status_history')
-        .select('*, status:statuses(*)')
-        .eq('project_id', project.id)
-        .order('changed_at', { ascending: false });
+  const projectIds = internalProjects.map((p) => p.id);
 
-      const lastVisible = (history || []).find(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (entry: any) => entry.status && !entry.status.is_internal_only
-      );
+  // Batch query instead of N+1 sequential queries
+  const { data: allHistory } = await supabase
+    .from('status_history')
+    .select('id, project_id, changed_at, status:statuses(id, name, color, is_internal_only)')
+    .in('project_id', projectIds)
+    .order('changed_at', { ascending: false });
 
-      return {
-        projectId: project.id,
-        clientVisibleStatus: lastVisible?.status || null,
-      };
-    })
-  );
-
-  const resolvedMap = new Map(
-    resolved.map((r) => [r.projectId, r.clientVisibleStatus])
-  );
+  // Group history by project_id and find first non-internal status for each
+  const resolvedMap = new Map<string, any>();
+  for (const entry of (allHistory || [])) {
+    if (entry.project_id && !resolvedMap.has(entry.project_id) && entry.status && !(entry.status as any).is_internal_only) {
+      resolvedMap.set(entry.project_id, entry.status);
+    }
+  }
 
   return projects.map((p) => {
     if (p.current_status?.is_internal_only && resolvedMap.has(p.id)) {

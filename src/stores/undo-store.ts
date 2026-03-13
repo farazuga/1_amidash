@@ -185,3 +185,17 @@ export const useUndoStore = create<UndoStore>((set, get) => ({
     return get().undoStack.length > 0;
   },
 }));
+
+/**
+ * Selector hooks for granular subscriptions.
+ * Use these instead of `useUndoStore()` to avoid unnecessary re-renders.
+ */
+export const useCanUndo = () => useUndoStore((s) => s.undoStack.length > 0);
+export const useIsUndoing = () => useUndoStore((s) => s.isUndoing);
+export const useUndoActions = () =>
+  useUndoStore((s) => ({
+    pushAction: s.pushAction,
+    popAction: s.popAction,
+    clearStack: s.clearStack,
+    setIsUndoing: s.setIsUndoing,
+  }));

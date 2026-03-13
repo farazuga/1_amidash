@@ -39,7 +39,6 @@ import {
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -518,7 +517,7 @@ export function ProjectCalendarView() {
   }
 
   return (
-    <TooltipProvider>
+    <>
     <div className="space-y-4">
       {/* Navigation */}
       <div className="flex items-center justify-between print:justify-center">
@@ -1024,6 +1023,6 @@ export function ProjectCalendarView() {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-    </TooltipProvider>
+    </>
   );
 }

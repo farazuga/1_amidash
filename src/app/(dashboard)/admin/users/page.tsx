@@ -90,7 +90,7 @@ export default function UsersAdminPage() {
 
     const fetchData = async () => {
       const [usersRes, userRes] = await Promise.all([
-        supabase.from('profiles').select('*').order('created_at', { ascending: false }),
+        supabase.from('profiles').select('id, email, full_name, role, is_salesperson, is_assignable, created_at').order('created_at', { ascending: false }),
         supabase.auth.getUser(),
       ]);
 
@@ -109,7 +109,7 @@ export default function UsersAdminPage() {
   const loadUsers = async () => {
     const { data } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, email, full_name, role, is_salesperson, is_assignable, created_at')
       .order('created_at', { ascending: false });
     setUsers((data || []) as Profile[]);
   };
