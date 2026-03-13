@@ -24,7 +24,7 @@ describe('StatusBadge', () => {
   });
 
   it('applies correct color class for PO Received', () => {
-    const status = createStatus({ name: 'PO Received' });
+    const status = createStatus({ name: 'PO Received', color: null });
     render(<StatusBadge status={status} />);
 
     const badge = screen.getByText('PO Received');
@@ -32,7 +32,7 @@ describe('StatusBadge', () => {
   });
 
   it('applies correct color class for Engineering Review', () => {
-    const status = createStatus({ name: 'Engineering Review' });
+    const status = createStatus({ name: 'Engineering Review', color: null });
     render(<StatusBadge status={status} />);
 
     const badge = screen.getByText('Engineering Review');
@@ -40,7 +40,7 @@ describe('StatusBadge', () => {
   });
 
   it('applies correct color class for In Procurement', () => {
-    const status = createStatus({ name: 'In Procurement' });
+    const status = createStatus({ name: 'In Procurement', color: null });
     render(<StatusBadge status={status} />);
 
     const badge = screen.getByText('In Procurement');
@@ -48,7 +48,7 @@ describe('StatusBadge', () => {
   });
 
   it('applies correct color class for Pending Scheduling', () => {
-    const status = createStatus({ name: 'Pending Scheduling' });
+    const status = createStatus({ name: 'Pending Scheduling', color: null });
     render(<StatusBadge status={status} />);
 
     const badge = screen.getByText('Pending Scheduling');
@@ -56,7 +56,7 @@ describe('StatusBadge', () => {
   });
 
   it('applies correct color class for Scheduled', () => {
-    const status = createStatus({ name: 'Scheduled' });
+    const status = createStatus({ name: 'Scheduled', color: null });
     render(<StatusBadge status={status} />);
 
     const badge = screen.getByText('Scheduled');
@@ -64,7 +64,7 @@ describe('StatusBadge', () => {
   });
 
   it('applies correct color class for IP', () => {
-    const status = createStatus({ name: 'IP' });
+    const status = createStatus({ name: 'IP', color: null });
     render(<StatusBadge status={status} />);
 
     const badge = screen.getByText('IP');
@@ -72,7 +72,7 @@ describe('StatusBadge', () => {
   });
 
   it('applies correct color class for Hold', () => {
-    const status = createStatus({ name: 'Hold' });
+    const status = createStatus({ name: 'Hold', color: null });
     render(<StatusBadge status={status} />);
 
     const badge = screen.getByText('Hold');
@@ -80,7 +80,7 @@ describe('StatusBadge', () => {
   });
 
   it('applies correct color class for Invoiced', () => {
-    const status = createStatus({ name: 'Invoiced' });
+    const status = createStatus({ name: 'Invoiced', color: null });
     render(<StatusBadge status={status} />);
 
     const badge = screen.getByText('Invoiced');
@@ -88,7 +88,7 @@ describe('StatusBadge', () => {
   });
 
   it('applies default gray color for unknown status', () => {
-    const status = createStatus({ name: 'Unknown Status' });
+    const status = createStatus({ name: 'Unknown Status', color: null });
     render(<StatusBadge status={status} />);
 
     const badge = screen.getByText('Unknown Status');

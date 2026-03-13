@@ -17,6 +17,7 @@ vi.mock('@/lib/odoo/queries', () => ({
   getSalesOrderLines: vi.fn(),
   getPartnerDetails: vi.fn(),
   getPartnerContacts: vi.fn(),
+  getProductDetails: vi.fn(),
   buildOdooUrl: vi.fn(),
   odooFalseToNull: vi.fn((v: unknown) => (v === false ? null : v)),
   odooMany2oneName: vi.fn((v: unknown) => (v === false ? null : (v as [number, string])[1])),
@@ -30,6 +31,7 @@ import {
   getSalesOrderLines,
   getPartnerDetails,
   getPartnerContacts,
+  getProductDetails,
   buildOdooUrl,
 } from '@/lib/odoo/queries';
 
@@ -39,6 +41,7 @@ const mockFindSalesOrderByNumber = findSalesOrderByNumber as ReturnType<typeof v
 const mockGetSalesOrderLines = getSalesOrderLines as ReturnType<typeof vi.fn>;
 const mockGetPartnerDetails = getPartnerDetails as ReturnType<typeof vi.fn>;
 const mockGetPartnerContacts = getPartnerContacts as ReturnType<typeof vi.fn>;
+const mockGetProductDetails = getProductDetails as ReturnType<typeof vi.fn>;
 const mockBuildOdooUrl = buildOdooUrl as ReturnType<typeof vi.fn>;
 
 function makeRequest(body: Record<string, unknown>) {
@@ -173,6 +176,7 @@ describe('POST /api/odoo/pull', () => {
       { id: 2, product_id: [101, 'Widget B'], name: 'Widget B', product_uom_qty: 2, price_subtotal: 200 },
     ]);
 
+    mockGetProductDetails.mockResolvedValue([]);
     mockBuildOdooUrl.mockReturnValue('https://test.odoo.com/odoo/sales/42');
 
     const response = await POST(makeRequest({ salesOrderNumber: 'S12345' }));

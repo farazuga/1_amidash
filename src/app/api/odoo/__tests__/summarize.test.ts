@@ -60,6 +60,7 @@ describe('POST /api/odoo/summarize', () => {
   beforeEach(() => {
     mockMessagesCreate.mockClear();
     (createClient as ReturnType<typeof vi.fn>).mockReset();
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
   });
 
   it('returns 401 when user is not authenticated', async () => {
