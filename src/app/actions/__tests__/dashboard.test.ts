@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getDashboardData } from '../dashboard';
+import { DEFAULT_THRESHOLDS } from '@/lib/dashboard-thresholds';
 import type {
   DashboardProject,
   DashboardStatus,
@@ -83,12 +84,10 @@ describe('dashboard.ts - getDashboardData', () => {
     const mockSupabase = {
       from: vi.fn().mockImplementation((table: string) => {
         if (table === 'projects') {
-          return {
-            select: vi.fn().mockResolvedValue({
-              data: mockProjects,
-              error: null,
-            }),
-          };
+          const result = { data: mockProjects, error: null };
+          const selectReturn = Promise.resolve(result) as any;
+          selectReturn.eq = vi.fn().mockResolvedValue(result);
+          return { select: vi.fn().mockReturnValue(selectReturn) };
         }
         if (table === 'statuses') {
           return {
@@ -118,7 +117,9 @@ describe('dashboard.ts - getDashboardData', () => {
             }),
           };
         }
-        return { select: vi.fn() };
+        // Fallback for app_settings and other tables
+        const chainable = { data: null, error: null, like: vi.fn().mockResolvedValue({ data: null, error: null }), eq: vi.fn().mockResolvedValue({ data: null, error: null }) };
+        return { select: vi.fn().mockReturnValue(chainable) };
       }),
     };
 
@@ -135,6 +136,7 @@ describe('dashboard.ts - getDashboardData', () => {
       statuses: mockStatuses,
       statusHistory: mockHistory,
       goals: mockGoals,
+      thresholds: DEFAULT_THRESHOLDS,
     });
 
     expect(mockSupabase.from).toHaveBeenCalledWith('projects');
@@ -147,12 +149,10 @@ describe('dashboard.ts - getDashboardData', () => {
     const mockSupabase = {
       from: vi.fn().mockImplementation((table: string) => {
         if (table === 'projects') {
-          return {
-            select: vi.fn().mockResolvedValue({
-              data: [],
-              error: null,
-            }),
-          };
+          const result = { data: [], error: null };
+          const selectReturn = Promise.resolve(result) as any;
+          selectReturn.eq = vi.fn().mockResolvedValue(result);
+          return { select: vi.fn().mockReturnValue(selectReturn) };
         }
         if (table === 'statuses') {
           return {
@@ -182,7 +182,8 @@ describe('dashboard.ts - getDashboardData', () => {
             }),
           };
         }
-        return { select: vi.fn() };
+        const chainable = { data: null, error: null, like: vi.fn().mockResolvedValue({ data: null, error: null }), eq: vi.fn().mockResolvedValue({ data: null, error: null }) };
+        return { select: vi.fn().mockReturnValue(chainable) };
       }),
     };
 
@@ -199,6 +200,7 @@ describe('dashboard.ts - getDashboardData', () => {
       statuses: [],
       statusHistory: [],
       goals: [],
+      thresholds: DEFAULT_THRESHOLDS,
     });
   });
 
@@ -207,12 +209,10 @@ describe('dashboard.ts - getDashboardData', () => {
     const mockSupabase = {
       from: vi.fn().mockImplementation((table: string) => {
         if (table === 'projects') {
-          return {
-            select: vi.fn().mockResolvedValue({
-              data: null,
-              error: null,
-            }),
-          };
+          const result = { data: null, error: null };
+          const selectReturn = Promise.resolve(result) as any;
+          selectReturn.eq = vi.fn().mockResolvedValue(result);
+          return { select: vi.fn().mockReturnValue(selectReturn) };
         }
         if (table === 'statuses') {
           return {
@@ -242,7 +242,8 @@ describe('dashboard.ts - getDashboardData', () => {
             }),
           };
         }
-        return { select: vi.fn() };
+        const chainable = { data: null, error: null, like: vi.fn().mockResolvedValue({ data: null, error: null }), eq: vi.fn().mockResolvedValue({ data: null, error: null }) };
+        return { select: vi.fn().mockReturnValue(chainable) };
       }),
     };
 
@@ -259,6 +260,7 @@ describe('dashboard.ts - getDashboardData', () => {
       statuses: [],
       statusHistory: [],
       goals: [],
+      thresholds: DEFAULT_THRESHOLDS,
     });
   });
 
@@ -272,9 +274,11 @@ describe('dashboard.ts - getDashboardData', () => {
       from: vi.fn().mockImplementation((table: string) => {
         if (table === 'projects') {
           return {
-            select: vi.fn().mockResolvedValue({
-              data: null,
-              error: { message: 'Projects fetch failed' },
+            select: vi.fn().mockImplementation(() => {
+              const result = { data: null, error: { message: 'Projects fetch failed' } };
+              const selectReturn = Promise.resolve(result) as any;
+              selectReturn.eq = vi.fn().mockResolvedValue(result);
+              return selectReturn;
             }),
           };
         }
@@ -306,7 +310,8 @@ describe('dashboard.ts - getDashboardData', () => {
             }),
           };
         }
-        return { select: vi.fn() };
+        const chainable = { data: null, error: null, like: vi.fn().mockResolvedValue({ data: null, error: null }), eq: vi.fn().mockResolvedValue({ data: null, error: null }) };
+        return { select: vi.fn().mockReturnValue(chainable) };
       }),
     };
 
@@ -326,7 +331,7 @@ describe('dashboard.ts - getDashboardData', () => {
 
   it('should fetch projects with status relations', async () => {
     // Arrange
-    const mockSelect = vi.fn().mockResolvedValue({
+    const projectsResult = {
       data: [
         {
           id: 'proj-1',
@@ -335,7 +340,11 @@ describe('dashboard.ts - getDashboardData', () => {
         },
       ],
       error: null,
-    });
+    };
+    const mockEq = vi.fn().mockResolvedValue(projectsResult);
+    const mockSelectReturn = Promise.resolve(projectsResult) as any;
+    mockSelectReturn.eq = mockEq;
+    const mockSelect = vi.fn().mockReturnValue(mockSelectReturn);
 
     const mockSupabase = {
       from: vi.fn().mockImplementation((table: string) => {
@@ -359,7 +368,8 @@ describe('dashboard.ts - getDashboardData', () => {
         if (table === 'revenue_goals') {
           return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
         }
-        return { select: vi.fn() };
+        const chainable = { data: null, error: null, like: vi.fn().mockResolvedValue({ data: null, error: null }), eq: vi.fn().mockResolvedValue({ data: null, error: null }) };
+        return { select: vi.fn().mockReturnValue(chainable) };
       }),
     };
 
@@ -389,9 +399,10 @@ describe('dashboard.ts - getDashboardData', () => {
     const mockSupabase = {
       from: vi.fn().mockImplementation((table: string) => {
         if (table === 'projects') {
-          return {
-            select: vi.fn().mockResolvedValue({ data: [], error: null }),
-          };
+          const result = { data: [], error: null };
+          const selectReturn = Promise.resolve(result) as any;
+          selectReturn.eq = vi.fn().mockResolvedValue(result);
+          return { select: vi.fn().mockReturnValue(selectReturn) };
         }
         if (table === 'statuses') {
           return { select: mockSelect };
@@ -406,7 +417,8 @@ describe('dashboard.ts - getDashboardData', () => {
         if (table === 'revenue_goals') {
           return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
         }
-        return { select: vi.fn() };
+        const chainable = { data: null, error: null, like: vi.fn().mockResolvedValue({ data: null, error: null }), eq: vi.fn().mockResolvedValue({ data: null, error: null }) };
+        return { select: vi.fn().mockReturnValue(chainable) };
       }),
     };
 
@@ -437,9 +449,10 @@ describe('dashboard.ts - getDashboardData', () => {
     const mockSupabase = {
       from: vi.fn().mockImplementation((table: string) => {
         if (table === 'projects') {
-          return {
-            select: vi.fn().mockResolvedValue({ data: [], error: null }),
-          };
+          const result = { data: [], error: null };
+          const selectReturn = Promise.resolve(result) as any;
+          selectReturn.eq = vi.fn().mockResolvedValue(result);
+          return { select: vi.fn().mockReturnValue(selectReturn) };
         }
         if (table === 'statuses') {
           return {
@@ -454,7 +467,8 @@ describe('dashboard.ts - getDashboardData', () => {
         if (table === 'revenue_goals') {
           return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
         }
-        return { select: vi.fn() };
+        const chainable = { data: null, error: null, like: vi.fn().mockResolvedValue({ data: null, error: null }), eq: vi.fn().mockResolvedValue({ data: null, error: null }) };
+        return { select: vi.fn().mockReturnValue(chainable) };
       }),
     };
 
@@ -467,7 +481,7 @@ describe('dashboard.ts - getDashboardData', () => {
 
     // Assert
     expect(mockSelect).toHaveBeenCalledWith(
-      '*, status:statuses(*), project:projects(id, client_name, sales_amount)'
+      '*, status:statuses(*), project:projects(id, client_name, sales_order_number, sales_amount)'
     );
     expect(mockOrder).toHaveBeenCalledWith('changed_at', { ascending: false });
   });
@@ -490,11 +504,16 @@ describe('dashboard.ts - getDashboardData', () => {
       from: vi.fn().mockImplementation((table: string) => {
         if (table === 'projects') {
           return {
-            select: vi.fn().mockImplementation(async () => {
-              executionOrder.push('projects-start');
-              await new Promise(resolve => setTimeout(resolve, 10));
-              executionOrder.push('projects-end');
-              return { data: [], error: null };
+            select: vi.fn().mockImplementation(() => {
+              const eqResult = (async () => {
+                executionOrder.push('projects-start');
+                await new Promise(resolve => setTimeout(resolve, 10));
+                executionOrder.push('projects-end');
+                return { data: [], error: null };
+              })();
+              const selectReturn = Promise.resolve({ data: [], error: null }) as any;
+              selectReturn.eq = vi.fn().mockReturnValue(eqResult);
+              return selectReturn;
             }),
           };
         }
@@ -532,7 +551,8 @@ describe('dashboard.ts - getDashboardData', () => {
             }),
           };
         }
-        return { select: vi.fn() };
+        const chainable = { data: null, error: null, like: vi.fn().mockResolvedValue({ data: null, error: null }), eq: vi.fn().mockResolvedValue({ data: null, error: null }) };
+        return { select: vi.fn().mockReturnValue(chainable) };
       }),
     };
 
@@ -572,13 +592,15 @@ describe('dashboard.ts - getDashboardData', () => {
     const mockSupabase = {
       from: vi.fn().mockImplementation((table: string) => {
         if (table === 'projects') {
-          return {
-            select: vi.fn().mockResolvedValue({ data: mockProjects, error: null }),
-          };
+          const result = { data: mockProjects, error: null };
+          const selectReturn = Promise.resolve(result) as any;
+          selectReturn.eq = vi.fn().mockResolvedValue(result);
+          return { select: vi.fn().mockReturnValue(selectReturn) };
         }
         return {
           select: vi.fn().mockReturnValue({
             order: vi.fn().mockResolvedValue({ data: [], error: null }),
+            like: vi.fn().mockResolvedValue({ data: null, error: null }),
           }),
         };
       }),

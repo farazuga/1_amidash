@@ -178,6 +178,12 @@ export function validateProjectForm(params: {
   endDate: string;
   salesAmount: string;
   secondaryPocEmail: string;
+  deliveryAddress?: {
+    street: string;
+    city: string;
+    state: string;
+    zip: string;
+  } | null;
 }): ValidationResult {
   const {
     selectedSalesperson,
@@ -263,5 +269,25 @@ export function validateProjectForm(params: {
     return { valid: false, error: 'Please enter a valid secondary email address' };
   }
 
+  // Validate delivery address for non-draft projects
+  if (params.deliveryAddress !== undefined) {
+    const addr = params.deliveryAddress;
+    if (!addr || !addr.street?.trim() || !addr.city?.trim() || !addr.state?.trim() || !addr.zip?.trim()) {
+      return { valid: false, error: 'Delivery address (street, city, state, ZIP) is required' };
+    }
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validate draft project form - only client_name is required
+ */
+export function validateDraftProjectForm(params: {
+  clientName: string;
+}): ValidationResult {
+  if (!params.clientName?.trim()) {
+    return { valid: false, error: 'Client name is required' };
+  }
   return { valid: true };
 }

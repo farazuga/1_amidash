@@ -812,7 +812,7 @@ function EditMeasurableDialog({
                     <SelectItem value="invoiced_revenue">Invoices Closed (by invoice date)</SelectItem>
                     <SelectItem value="open_projects">Open Projects (active count)</SelectItem>
                     <SelectItem value="odoo_quotes">Open Quotes (Odoo)</SelectItem>
-                  <SelectItem value="odoo_account">Odoo Account</SelectItem>
+                    <SelectItem value="odoo_account">Odoo Account</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

@@ -69,6 +69,7 @@ export function FilterPopover({ statuses }: FilterPopoverProps) {
   const selectedStatuses = searchParams.get('statuses')?.split(',').filter(Boolean) || [];
   const contractType = searchParams.get('contract_type') || '';
   const overdue = searchParams.get('overdue') === 'true';
+  const showDrafts = searchParams.get('show_drafts') === 'true';
   const dateType = searchParams.get('date_type') || '';
   const selectedDatePresets = searchParams.get('date_presets')?.split(',').filter(Boolean) || [];
   const selectedYears = searchParams.get('date_years')?.split(',').filter(Boolean) || [];
@@ -81,6 +82,7 @@ export function FilterPopover({ statuses }: FilterPopoverProps) {
       const hasFilters = searchParams.has('statuses') ||
         searchParams.has('contract_type') ||
         searchParams.has('overdue') ||
+        searchParams.has('show_drafts') ||
         searchParams.has('date_type');
 
       if (!hasFilters) {
@@ -150,6 +152,7 @@ export function FilterPopover({ statuses }: FilterPopoverProps) {
       statuses: null,
       contract_type: null,
       overdue: null,
+      show_drafts: null,
       date_type: null,
       date_presets: null,
       date_years: null,
@@ -179,6 +182,7 @@ export function FilterPopover({ statuses }: FilterPopoverProps) {
     selectedStatuses.length > 0,
     !!contractType,
     overdue,
+    showDrafts,
     !!dateType,
   ].filter(Boolean).length;
 
@@ -270,6 +274,20 @@ export function FilterPopover({ statuses }: FilterPopoverProps) {
             <label htmlFor="filter-overdue" className="text-sm cursor-pointer flex items-center gap-1">
               <AlertTriangle className="h-3 w-3 text-destructive" />
               Overdue only
+            </label>
+          </div>
+
+          {/* Show Drafts Toggle */}
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="filter-show-drafts"
+              checked={showDrafts}
+              onCheckedChange={(checked) =>
+                handleFilterChange({ show_drafts: checked ? 'true' : null })
+              }
+            />
+            <label htmlFor="filter-show-drafts" className="text-sm cursor-pointer">
+              Show Drafts
             </label>
           </div>
 

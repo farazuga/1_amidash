@@ -94,6 +94,13 @@ export function createProject(overrides: Partial<Project> = {}): Project {
     odoo_invoice_status: null,
     odoo_last_synced_at: null,
     project_description: null,
+    // Portal customization
+    is_draft: false,
+    delivery_street: null,
+    delivery_city: null,
+    delivery_state: null,
+    delivery_zip: null,
+    delivery_country: null,
     ...overrides,
   };
 }

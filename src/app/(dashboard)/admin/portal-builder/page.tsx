@@ -46,6 +46,8 @@ import {
   Calendar,
   Activity,
   ChevronRight,
+  Upload,
+  MapPin,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { PortalBlock, PortalBlockType, PortalTemplate, ProjectType } from '@/types';
@@ -75,6 +77,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '@/lib/utils';
+import { EmailBrandingSection } from '@/components/admin/email-branding-section';
 
 // Block type metadata
 const BLOCK_TYPE_CONFIG: Record<
@@ -105,6 +108,16 @@ const BLOCK_TYPE_CONFIG: Record<
     label: 'Custom HTML',
     icon: Code,
     description: 'Custom HTML content block',
+  },
+  file_upload: {
+    label: 'File Upload',
+    icon: Upload,
+    description: 'Request files from customer',
+  },
+  delivery_address_confirmation: {
+    label: 'Address Confirmation',
+    icon: MapPin,
+    description: 'Customer confirms delivery address',
   },
 };
 
@@ -165,7 +178,7 @@ function SortableBlockRow({
         </div>
 
         <div className="flex items-center gap-1 flex-shrink-0">
-          {block.type === 'custom_html' && (
+          {(block.type === 'custom_html' || block.type === 'file_upload') && (
             <Button
               variant="ghost"
               size="sm"
@@ -211,6 +224,82 @@ function SortableBlockRow({
               rows={5}
               className="text-sm font-mono"
             />
+          </div>
+        </div>
+      )}
+
+      {/* Expandable config for file_upload blocks */}
+      {block.type === 'file_upload' && expanded && (
+        <div className="px-3 pb-3 pt-1 border-t space-y-3">
+          {/* File 1 */}
+          <div className="space-y-2">
+            <span className="text-xs font-medium text-muted-foreground">File 1</span>
+            <div>
+              <Label className="text-xs">Label (required)</Label>
+              <Input
+                value={block.config?.files?.[0]?.label || ''}
+                onChange={(e) => {
+                  const files = [...(block.config?.files || [])];
+                  files[0] = { ...files[0], label: e.target.value, description: files[0]?.description || '' };
+                  onUpdateConfig({ ...block.config, files: files.filter((f) => f.label) });
+                }}
+                placeholder="e.g., Signed contract"
+                className="h-8 text-sm"
+              />
+            </div>
+            {block.config?.files?.[0]?.label && (
+              <div>
+                <Label className="text-xs">Description</Label>
+                <Textarea
+                  value={block.config?.files?.[0]?.description || ''}
+                  onChange={(e) => {
+                    const files = [...(block.config?.files || [])];
+                    files[0] = { ...files[0], description: e.target.value };
+                    onUpdateConfig({ ...block.config, files });
+                  }}
+                  placeholder="Instructions for the customer..."
+                  rows={2}
+                  className="text-sm"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* File 2 */}
+          <div className="space-y-2">
+            <span className="text-xs font-medium text-muted-foreground">File 2 (optional)</span>
+            <div>
+              <Label className="text-xs">Label</Label>
+              <Input
+                value={block.config?.files?.[1]?.label || ''}
+                onChange={(e) => {
+                  const files = [...(block.config?.files || [])];
+                  if (!files[0]) files[0] = { label: '', description: '' };
+                  files[1] = { ...files[1], label: e.target.value, description: files[1]?.description || '' };
+                  // Keep file 2 only if it has a label
+                  const cleaned = files.filter((f) => f.label);
+                  onUpdateConfig({ ...block.config, files: cleaned.length > 0 ? cleaned : undefined });
+                }}
+                placeholder="e.g., Site photos"
+                className="h-8 text-sm"
+              />
+            </div>
+            {block.config?.files?.[1]?.label && (
+              <div>
+                <Label className="text-xs">Description</Label>
+                <Textarea
+                  value={block.config?.files?.[1]?.description || ''}
+                  onChange={(e) => {
+                    const files = [...(block.config?.files || [])];
+                    files[1] = { ...files[1], description: e.target.value };
+                    onUpdateConfig({ ...block.config, files });
+                  }}
+                  placeholder="Instructions for the customer..."
+                  rows={2}
+                  className="text-sm"
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -683,6 +772,11 @@ export default function PortalBuilderPage() {
           </Card>
         </Collapsible>
       )}
+
+      {/* ============================================ */}
+      {/* SECTION 2b: Email Branding */}
+      {/* ============================================ */}
+      {selectedTemplate && <EmailBrandingSection portalTemplateId={selectedTemplate.id} />}
 
       {/* ============================================ */}
       {/* SECTION 3: Template Assignment */}

@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent } from '@/components/ui/card';
 import { LOGO_URL, APP_NAME } from '@/lib/constants';
 import { BlockRenderer } from '@/components/portal/blocks/block-renderer';
-import type { Status, PortalBlock } from '@/types';
+import type { DeliveryAddressConfirmation, Status, PortalBlock, PortalFileUpload } from '@/types';
 
 // ============================================
 // Rate Limiting (simple in-memory implementation)
@@ -103,6 +103,29 @@ async function getProjectTypeStatuses() {
   return data || [];
 }
 
+async function getFileUploads(projectId: string): Promise<PortalFileUpload[]> {
+  // Using `as any` since portal_file_uploads table types not yet regenerated
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = (await createClient()) as any;
+  const { data } = await supabase
+    .from('portal_file_uploads')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('slot_index', { ascending: true });
+  return (data || []) as PortalFileUpload[];
+}
+
+async function getAddressConfirmation(projectId: string): Promise<DeliveryAddressConfirmation | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = (await createClient()) as any;
+  const { data } = await supabase
+    .from('delivery_address_confirmations')
+    .select('*')
+    .eq('project_id', projectId)
+    .maybeSingle();
+  return data as DeliveryAddressConfirmation | null;
+}
+
 interface PortalTemplateResult {
   blocks: PortalBlock[];
   backgroundImageUrl: string | null;
@@ -187,11 +210,13 @@ export default async function ClientPortalPage({
     notFound();
   }
 
-  const [statuses, statusHistory, projectTypeStatuses, portalTemplate] = await Promise.all([
+  const [statuses, statusHistory, projectTypeStatuses, portalTemplate, fileUploads, addressConfirmation] = await Promise.all([
     getStatuses(),
     getStatusHistory(project.id),
     getProjectTypeStatuses(),
     getPortalTemplate(project.project_type_id),
+    getFileUploads(project.id),
+    getAddressConfirmation(project.id),
   ]);
 
   const { blocks: templateBlocks, backgroundImageUrl } = portalTemplate;
@@ -261,11 +286,14 @@ export default async function ClientPortalPage({
             key={block.id}
             block={block}
             data={{
-              project,
+              project: project as any,
               currentStatus,
               filteredStatuses,
               isOnHold,
               clientVisibleHistory,
+              projectToken: token,
+              fileUploads,
+              addressConfirmation,
             }}
           />
         ))}

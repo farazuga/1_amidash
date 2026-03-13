@@ -63,7 +63,7 @@ export async function getScorecard(teamId: string): Promise<ActionResult<Scoreca
     if (measError) throw measError;
 
     // Get last 13 weeks of entries
-    const measurableIds = (measurables || []).map((m) => m.id);
+    const measurableIds = (measurables || []).map((m: { id: string }) => m.id);
     let entries: ScorecardEntry[] = [];
 
     if (measurableIds.length > 0) {

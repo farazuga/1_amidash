@@ -221,10 +221,6 @@ export async function getOpenQuotesTotal(
   client: OdooReadOnlyClient,
   asOfDate: string // YYYY-MM-DD
 ): Promise<number> {
-  // Quotes that existed by asOfDate: created on or before asOfDate
-  // Not yet confirmed (still draft/sent)
-  // Not expired as of asOfDate
-  // Odoo domain with '|' OR operator — cast needed since domain type is unknown[][]
   const domain = [
     ['state', 'in', ['draft', 'sent']],
     ['create_date', '<=', `${asOfDate} 23:59:59`],
