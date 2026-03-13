@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getActiveCampaignClient, isActiveCampaignConfigured } from '@/lib/activecampaign';
 import type { ACDealDisplay } from '@/types/activecampaign';
 
-const PIPELINE_NAME = 'Solution';
+const PIPELINE_NAME = 'Solutions';
 const STAGE_NAME = 'Verbal Commit';
 
 export async function GET() {
