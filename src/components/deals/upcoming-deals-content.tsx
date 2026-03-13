@@ -1,43 +1,30 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { DollarSign, CalendarIcon, X, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { format, parseISO } from 'date-fns';
 import type { ACDealDisplay } from '@/types/activecampaign';
-
-function formatDealValue(cents: string): string {
-  const dollars = parseInt(cents, 10) / 100;
-  if (dollars >= 1000000) return `$${(dollars / 1000000).toFixed(1)}M`;
-  if (dollars >= 1000) return `$${(dollars / 1000).toFixed(0)}K`;
-  return `$${dollars.toLocaleString()}`;
-}
-
-type SortKey = 'title' | 'value' | 'accountName' | 'contactName' | 'forecastCloseDate';
-type SortDir = 'asc' | 'desc';
-
-function getSortValue(deal: ACDealDisplay, key: SortKey): string | number {
-  if (key === 'value') return parseInt(deal.value, 10);
-  if (key === 'forecastCloseDate') return deal.forecastCloseDate || '';
-  return (deal[key] || '').toLowerCase();
-}
+import { createClient } from '@/lib/supabase/client';
+import { MonthHeroCard } from './month-hero-card';
+import { PipelineOutlook } from './pipeline-outlook';
+import type { MonthSummary } from './pipeline-outlook';
+import { DealMonthSection } from './deal-month-section';
 
 export function UpcomingDealsContent() {
   const [deals, setDeals] = useState<ACDealDisplay[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
-  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  const [sortKey, setSortKey] = useState<SortKey>('forecastCloseDate');
-  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [goals, setGoals] = useState<Map<string, number>>(new Map());
+  const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
+  const [allExpanded, setAllExpanded] = useState(false);
 
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const currentMonth = format(new Date(), 'yyyy-MM');
+
+  // Fetch deals and revenue goals in parallel on mount
   useEffect(() => {
     async function fetchDeals() {
       try {
-        setLoading(true);
         const res = await fetch('/api/activecampaign/deals');
         const data = await res.json();
         if (data.error && !data.deals?.length) {
@@ -46,142 +33,167 @@ export function UpcomingDealsContent() {
         setDeals(data.deals || []);
       } catch {
         setError('Failed to load deals');
-      } finally {
-        setLoading(false);
       }
     }
-    fetchDeals();
+
+    async function fetchGoals() {
+      try {
+        const supabase = createClient();
+        const { data, error: goalsError } = await (supabase.from as any)('revenue_goals')
+          .select('year, month, revenue_goal');
+        if (goalsError) {
+          console.error('Failed to fetch revenue goals:', goalsError);
+          return;
+        }
+        const goalsMap = new Map<string, number>();
+        for (const row of data || []) {
+          const key = `${row.year}-${String(row.month).padStart(2, '0')}`;
+          goalsMap.set(key, Number(row.revenue_goal));
+        }
+        setGoals(goalsMap);
+      } catch (err) {
+        console.error('Failed to fetch revenue goals:', err);
+      }
+    }
+
+    Promise.all([fetchDeals(), fetchGoals()]).finally(() => setLoading(false));
   }, []);
 
-  const handleSort = useCallback((key: SortKey) => {
-    setSortKey((prev) => {
-      if (prev === key) {
-        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-        return key;
-      }
-      setSortDir('asc');
-      return key;
-    });
-  }, []);
+  // Initialize expandedMonths with current month once deals load
+  useEffect(() => {
+    if (deals.length > 0 && expandedMonths.size === 0 && !allExpanded) {
+      setExpandedMonths(new Set([currentMonth]));
+    }
+  }, [deals, currentMonth, expandedMonths.size, allExpanded]);
 
-  const filteredAndSortedDeals = useMemo(() => {
-    const filtered = deals.filter((deal) => {
-      if (!deal.forecastCloseDate) return true; // show deals without forecast date
-      const dealDate = parseISO(deal.forecastCloseDate);
-      if (startDate && dealDate < startDate) return false;
-      if (endDate) {
-        const endOfDay = new Date(endDate);
-        endOfDay.setHours(23, 59, 59, 999);
-        if (dealDate > endOfDay) return false;
-      }
-      return true;
-    });
+  // Group deals by month
+  const { monthGroups, sortedMonthKeys, unscheduledDeals } = useMemo(() => {
+    const groups = new Map<string, ACDealDisplay[]>();
+    const unscheduled: ACDealDisplay[] = [];
 
-    return filtered.sort((a, b) => {
-      const aVal = getSortValue(a, sortKey);
-      const bVal = getSortValue(b, sortKey);
-      const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
-  }, [deals, startDate, endDate, sortKey, sortDir]);
-
-  const totalValue = useMemo(() => {
-    return filteredAndSortedDeals.reduce((sum, deal) => sum + parseInt(deal.value, 10) / 100, 0);
-  }, [filteredAndSortedDeals]);
-
-  const summaryRows = useMemo(() => {
-    const monthBuckets = new Map<string, { count: number; value: number }>();
-    let unscheduledCount = 0;
-    let unscheduledValue = 0;
-
-    for (const deal of filteredAndSortedDeals) {
-      const dollars = parseInt(deal.value, 10) / 100;
+    for (const deal of deals) {
       if (!deal.forecastCloseDate) {
-        unscheduledCount++;
-        unscheduledValue += dollars;
+        unscheduled.push(deal);
         continue;
       }
-      const key = deal.forecastCloseDate.slice(0, 7); // YYYY-MM
-      const bucket = monthBuckets.get(key) || { count: 0, value: 0 };
-      bucket.count++;
-      bucket.value += dollars;
-      monthBuckets.set(key, bucket);
+      const key = deal.forecastCloseDate.slice(0, 7);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(deal);
     }
 
-    // Sort months chronologically
-    const sortedMonths = Array.from(monthBuckets.entries()).sort(([a], [b]) => a.localeCompare(b));
+    const sorted = Array.from(groups.keys()).sort();
 
-    // Group into quarters
-    const quarterMap = new Map<string, { months: Array<{ key: string; label: string; count: number; value: number }>; count: number; value: number }>();
+    return { monthGroups: groups, sortedMonthKeys: sorted, unscheduledDeals: unscheduled };
+  }, [deals]);
 
-    for (const [key, bucket] of sortedMonths) {
+  // Compute value for a group of deals (in dollars)
+  const groupValue = useCallback((groupDeals: ACDealDisplay[]) => {
+    return groupDeals.reduce((sum, d) => sum + parseInt(d.value, 10) / 100, 0);
+  }, []);
+
+  // Hero card data for current month
+  const heroData = useMemo(() => {
+    const currentDeals = monthGroups.get(currentMonth) || [];
+    if (currentDeals.length === 0) return null;
+
+    const confirmed = currentDeals.filter((d) => d.hasConfirmedPO);
+    const verbal = currentDeals.filter((d) => !d.hasConfirmedPO);
+
+    return {
+      confirmedPOValue: groupValue(confirmed),
+      confirmedPOCount: confirmed.length,
+      verbalCommitValue: groupValue(verbal),
+      verbalCommitCount: verbal.length,
+    };
+  }, [monthGroups, currentMonth, groupValue]);
+
+  // Pipeline outlook months
+  const pipelineMonths: MonthSummary[] = useMemo(() => {
+    return sortedMonthKeys.map((key) => {
+      const monthDeals = monthGroups.get(key)!;
       const date = parseISO(`${key}-01`);
-      const month = date.getMonth(); // 0-indexed
-      const year = date.getFullYear();
-      const q = Math.floor(month / 3) + 1;
-      const qKey = `${year}-Q${q}`;
-      const qLabel = `Q${q} ${year}`;
-
-      if (!quarterMap.has(qKey)) {
-        quarterMap.set(qKey, { months: [], count: 0, value: 0 });
-      }
-      const quarter = quarterMap.get(qKey)!;
-      quarter.months.push({
+      return {
         key,
         label: format(date, 'MMMM yyyy'),
-        count: bucket.count,
-        value: bucket.value,
-      });
-      quarter.count += bucket.count;
-      quarter.value += bucket.value;
-    }
+        dealCount: monthDeals.length,
+        value: groupValue(monthDeals),
+        goal: goals.get(key) ?? null,
+      };
+    });
+  }, [sortedMonthKeys, monthGroups, goals, groupValue]);
 
-    // Build flat row list: quarter header → months → next quarter...
-    const rows: Array<{ label: string; count: number; value: number; isQuarter: boolean }> = [];
-    for (const [, quarter] of quarterMap) {
-      // Month rows
-      for (const m of quarter.months) {
-        rows.push({ label: m.label, count: m.count, value: m.value, isQuarter: false });
+  const totalDeals = deals.length;
+  const totalValue = useMemo(() => groupValue(deals), [deals, groupValue]);
+
+  const unscheduledSummary = useMemo(() => {
+    if (unscheduledDeals.length === 0) return null;
+    return { dealCount: unscheduledDeals.length, value: groupValue(unscheduledDeals) };
+  }, [unscheduledDeals, groupValue]);
+
+  // Expand/collapse handlers
+  const handleToggleExpandAll = useCallback(() => {
+    setAllExpanded((prev) => {
+      const next = !prev;
+      if (next) {
+        setExpandedMonths(new Set([...sortedMonthKeys, ...(unscheduledDeals.length > 0 ? ['unscheduled'] : [])]));
+      } else {
+        setExpandedMonths(new Set());
       }
-      // Quarter subtotal (only if more than 1 month in quarter)
-      if (quarter.months.length > 0) {
-        const qLabel = `Q${Math.floor(parseISO(`${quarter.months[0].key}-01`).getMonth() / 3) + 1} ${parseISO(`${quarter.months[0].key}-01`).getFullYear()}`;
-        rows.push({ label: qLabel, count: quarter.count, value: quarter.value, isQuarter: true });
+      return next;
+    });
+  }, [sortedMonthKeys, unscheduledDeals.length]);
+
+  const handleToggleMonth = useCallback((key: string) => {
+    setExpandedMonths((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
       }
-    }
+      return next;
+    });
+  }, []);
 
-    if (unscheduledCount > 0) {
-      rows.push({ label: 'Unscheduled', count: unscheduledCount, value: unscheduledValue, isQuarter: false });
-    }
+  const handleMonthClick = useCallback((monthKey: string) => {
+    setExpandedMonths((prev) => {
+      const next = new Set(prev);
+      next.add(monthKey);
+      return next;
+    });
 
-    return rows;
-  }, [filteredAndSortedDeals]);
-
-  const clearFilters = () => {
-    setStartDate(undefined);
-    setEndDate(undefined);
-  };
-
-  const hasFilters = startDate || endDate;
+    // Scroll to section after a tick to allow expand
+    requestAnimationFrame(() => {
+      const el = sectionRefs.current[monthKey];
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  }, []);
 
   if (loading) {
     return (
-      <div className="p-6">
-        <h1 className="text-2xl font-bold mb-6">Upcoming Deals</h1>
-        <div className="text-muted-foreground">Loading deals...</div>
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Upcoming Deals</h1>
+          <p className="text-sm text-muted-foreground">Solutions Pipeline &middot; Verbal Commit</p>
+        </div>
+        <div className="space-y-4">
+          <div className="h-40 rounded-lg bg-muted animate-pulse" />
+          <div className="h-48 rounded-lg bg-muted animate-pulse" />
+          <div className="h-14 rounded-lg bg-muted animate-pulse" />
+          <div className="h-14 rounded-lg bg-muted animate-pulse" />
+        </div>
       </div>
     );
   }
 
-  const SortIcon = ({ column }: { column: SortKey }) => {
-    if (sortKey !== column) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
-    return sortDir === 'asc'
-      ? <ArrowUp className="h-3 w-3 ml-1" />
-      : <ArrowDown className="h-3 w-3 ml-1" />;
-  };
+  const currentMonthGoal = goals.get(currentMonth) ?? 0;
+  const showHero = heroData !== null;
 
   return (
     <div className="p-6 space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Upcoming Deals</h1>
         <p className="text-sm text-muted-foreground">
@@ -189,182 +201,73 @@ export function UpcomingDealsContent() {
         </p>
       </div>
 
+      {/* Error */}
       {error && (
         <div className="text-sm text-amber-600 bg-amber-50 rounded-md p-3">
           {error}
         </div>
       )}
 
-      {/* Summary + Filters */}
-      <div className="flex flex-wrap items-center gap-4">
-        <Card className="flex-shrink-0">
-          <CardContent className="flex items-center gap-2 py-3 px-4">
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-            <div>
-              <p className="text-xs text-muted-foreground">Total Pipeline Value</p>
-              <p className="text-lg font-semibold">
-                {formatDealValue(String(totalValue * 100))}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="flex items-center gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                <CalendarIcon className="h-4 w-4" />
-                {startDate ? format(startDate, 'MMM d, yyyy') : 'Start date'}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={startDate}
-                onSelect={setStartDate}
-              />
-            </PopoverContent>
-          </Popover>
-
-          <span className="text-muted-foreground">to</span>
-
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                <CalendarIcon className="h-4 w-4" />
-                {endDate ? format(endDate, 'MMM d, yyyy') : 'End date'}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={endDate}
-                onSelect={setEndDate}
-              />
-            </PopoverContent>
-          </Popover>
-
-          {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1">
-              <X className="h-3 w-3" />
-              Clear
-            </Button>
-          )}
+      {/* Empty state */}
+      {deals.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground">
+          No deals found in Verbal Commit stage
         </div>
-
-        <span className="text-sm text-muted-foreground">
-          {filteredAndSortedDeals.length} deal{filteredAndSortedDeals.length !== 1 ? 's' : ''}
-        </span>
-      </div>
-
-      {/* Summary by Month/Quarter */}
-      {summaryRows.length > 0 && (
-        <Card>
-          <CardContent className="p-0">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b text-left text-sm text-muted-foreground">
-                  <th className="px-4 py-2 font-medium">Period</th>
-                  <th className="px-4 py-2 font-medium text-right">Deals</th>
-                  <th className="px-4 py-2 font-medium text-right">Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {summaryRows.map((row) => (
-                  <tr
-                    key={row.label}
-                    className={
-                      row.isQuarter
-                        ? 'border-b bg-muted/50 font-semibold'
-                        : 'border-b last:border-0'
-                    }
-                  >
-                    <td className="px-4 py-2 text-sm">{row.label}</td>
-                    <td className="px-4 py-2 text-sm text-right">{row.count}</td>
-                    <td className="px-4 py-2 text-sm text-right">
-                      {formatDealValue(String(row.value * 100))}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
       )}
 
-      {/* Deals Table */}
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b text-left text-sm text-muted-foreground">
-                  <th className="px-4 py-3 font-medium">
-                    <button onClick={() => handleSort('title')} className="inline-flex items-center hover:text-foreground">
-                      Title <SortIcon column="title" />
-                    </button>
-                  </th>
-                  <th className="px-4 py-3 font-medium">
-                    <button onClick={() => handleSort('value')} className="inline-flex items-center hover:text-foreground">
-                      Value <SortIcon column="value" />
-                    </button>
-                  </th>
-                  <th className="px-4 py-3 font-medium">
-                    <button onClick={() => handleSort('accountName')} className="inline-flex items-center hover:text-foreground">
-                      Account <SortIcon column="accountName" />
-                    </button>
-                  </th>
-                  <th className="px-4 py-3 font-medium">
-                    <button onClick={() => handleSort('contactName')} className="inline-flex items-center hover:text-foreground">
-                      Contact <SortIcon column="contactName" />
-                    </button>
-                  </th>
-                  <th className="px-4 py-3 font-medium">
-                    <button onClick={() => handleSort('forecastCloseDate')} className="inline-flex items-center hover:text-foreground">
-                      Forecast Close <SortIcon column="forecastCloseDate" />
-                    </button>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredAndSortedDeals.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
-                      {deals.length === 0
-                        ? 'No deals found in Verbal Commit stage'
-                        : 'No deals match the selected date range'}
-                    </td>
-                  </tr>
-                ) : (
-                  filteredAndSortedDeals.map((deal) => (
-                    <tr key={deal.id} className="border-b last:border-0 hover:bg-muted/50">
-                      <td className="px-4 py-3 font-medium">
-                        <a
-                          href={deal.dealUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-primary hover:underline"
-                        >
-                          {deal.title}
-                          <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
-                        </a>
-                      </td>
-                      <td className="px-4 py-3">{formatDealValue(deal.value)}</td>
-                      <td className="px-4 py-3">{deal.accountName || '\u2014'}</td>
-                      <td className="px-4 py-3">{deal.contactName || '\u2014'}</td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {deal.forecastCloseDate
-                          ? format(parseISO(deal.forecastCloseDate), 'MMM d, yyyy')
-                          : '\u2014'}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+      {/* Hero Card */}
+      {deals.length > 0 && showHero && (
+        <MonthHeroCard
+          monthLabel={format(parseISO(`${currentMonth}-01`), 'MMMM yyyy')}
+          goal={currentMonthGoal}
+          confirmedPOValue={heroData.confirmedPOValue}
+          confirmedPOCount={heroData.confirmedPOCount}
+          verbalCommitValue={heroData.verbalCommitValue}
+          verbalCommitCount={heroData.verbalCommitCount}
+        />
+      )}
+
+      {/* Pipeline Outlook */}
+      {deals.length > 0 && <PipelineOutlook
+        months={pipelineMonths}
+        unscheduled={unscheduledSummary}
+        totalDeals={totalDeals}
+        totalValue={totalValue}
+        allExpanded={allExpanded}
+        onToggleExpandAll={handleToggleExpandAll}
+        onMonthClick={handleMonthClick}
+      />}
+
+      {/* Month Sections */}
+      {sortedMonthKeys.map((key) => {
+        const monthDeals = monthGroups.get(key)!;
+        const date = parseISO(`${key}-01`);
+        const label = format(date, 'MMMM yyyy');
+        return (
+          <div key={key} ref={(el) => { sectionRefs.current[key] = el; }}>
+            <DealMonthSection
+              label={label}
+              deals={monthDeals}
+              totalValue={groupValue(monthDeals)}
+              isOpen={expandedMonths.has(key)}
+              onToggle={() => handleToggleMonth(key)}
+            />
           </div>
-        </CardContent>
-      </Card>
+        );
+      })}
+
+      {/* Unscheduled Section */}
+      {unscheduledDeals.length > 0 && (
+        <div ref={(el) => { sectionRefs.current['unscheduled'] = el; }}>
+          <DealMonthSection
+            label="Unscheduled"
+            deals={unscheduledDeals}
+            totalValue={groupValue(unscheduledDeals)}
+            isOpen={expandedMonths.has('unscheduled')}
+            onToggle={() => handleToggleMonth('unscheduled')}
+          />
+        </div>
+      )}
     </div>
   );
 }
