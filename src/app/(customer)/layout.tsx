@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { Toaster } from '@/components/ui/sonner';
 import { CustomerHeader } from '@/components/customer/customer-header';
 import { UserProvider } from '@/contexts/user-context';
+import type { Profile } from '@/types';
 
 async function getCustomerData() {
   const supabase = await createClient();
@@ -20,7 +21,7 @@ async function getCustomerData() {
     .eq('id', user.id)
     .single();
 
-  return { user, profile };
+  return { user, profile: profile as Profile | null };
 }
 
 export default async function CustomerLayout({

@@ -18,24 +18,21 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
-  AlertTriangle,
   Timer,
   Layers,
   Target,
   Users,
-  BarChart3,
-  Activity,
   ChevronLeft,
   ChevronRight,
-  Info,
   HelpCircle,
-  CalendarX,
-  Receipt,
   Tv,
 } from 'lucide-react';
-import { LazyRevenueChart } from '@/components/dashboard/lazy-charts';
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from 'date-fns';
 import type { DashboardData } from '@/app/actions/dashboard';
+import { useUser } from '@/contexts/user-context';
+import { useMyTodos, useToggleTodo } from '@/hooks/queries/use-l10-todos';
+import type { MyTodoWithTeam } from '@/app/(dashboard)/l10/todos-actions';
+import { ExternalLink, ListChecks } from 'lucide-react';
 
 type PeriodType = 'month' | 'quarter' | 'ytd' | 'last12';
 
@@ -103,36 +100,6 @@ const METRIC_TOOLTIPS = {
     description: 'Percentage of pipeline revenue from your top 3 clients.',
     why: 'Risk indicator. >70% = high risk (client loss impact); <50% = healthy diversification.',
   },
-  salesHealth: {
-    title: 'Sales Health',
-    description: 'POs Received vs Monthly Goal, as a percentage.',
-    why: 'Answers "Is sales bringing in enough new business?" <80% indicates sales pipeline needs attention.',
-  },
-  opsHealth: {
-    title: 'Operations Health',
-    description: 'Invoiced Revenue vs POs Received ratio.',
-    why: 'Answers "Is operations keeping up with sales?" <60% indicates bottleneck in delivery.',
-  },
-  cycleTime: {
-    title: 'Cycle Time by Status',
-    description: 'Average days projects spend in each status before moving to the next.',
-    why: 'Identifies where projects slow down. Highlighted statuses (Procurement, Engineering) are common bottlenecks.',
-  },
-  velocity: {
-    title: 'PO vs Invoice Velocity',
-    description: 'Comparison of projects received vs projects completed over the last 6 months.',
-    why: 'If POs > Invoiced, backlog is growing. If Invoiced > POs, backlog is shrinking (good for delivery, watch sales).',
-  },
-  lowInvoice: {
-    title: 'Low Invoice Warning',
-    description: 'Alert when the current month is on pace to miss the invoiced revenue goal.',
-    why: 'Early warning to take action before month-end. Based on pace of invoicing so far this month.',
-  },
-  notScheduled: {
-    title: 'Projects Not Scheduled',
-    description: 'Projects that have been waiting for scheduling beyond the threshold (default: 14 days).',
-    why: 'Ensures projects don\'t sit idle without a plan. Helps identify process bottlenecks early.',
-  },
   bottleneckSummary: {
     title: 'Bottleneck Summary',
     description: 'Projects stuck in key bottleneck statuses: Engineering Review, In Procurement, and Hold.',
@@ -178,9 +145,7 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
   const [periodPickerOpen, setPeriodPickerOpen] = useState(false);
 
   // Expanded sections state
-  const [expandedOverdue, setExpandedOverdue] = useState(false);
   const [expandedStuck, setExpandedStuck] = useState(false);
-  const [expandedNotScheduled, setExpandedNotScheduled] = useState(false);
 
   // Use data from server
   const { projects, statuses, statusHistory, goals, thresholds } = initialData;
@@ -346,44 +311,6 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
     [projectsInProgress]
   );
 
-  const overdueProjects = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return projects.filter(p => {
-      if (!p.goal_completion_date) return false;
-      if (p.current_status_id === invoicedStatus?.id) return false;
-      return new Date(p.goal_completion_date) < today;
-    });
-  }, [projects, invoicedStatus]);
-
-  // Revenue by month (next 6 months) - memoized
-  const revenueByMonth = useMemo(() => {
-    const result: { month: string; revenue: number }[] = [];
-    for (let i = 0; i < 6; i++) {
-      const date = new Date();
-      date.setMonth(date.getMonth() + i);
-      const monthStr = date.toLocaleString('default', { month: 'short', year: '2-digit' });
-
-      const monthRevenue = projects.filter(p => {
-        if (!p.goal_completion_date) return false;
-        const goalDate = new Date(p.goal_completion_date);
-        return goalDate.getMonth() === date.getMonth() && goalDate.getFullYear() === date.getFullYear();
-      }).reduce((sum, p) => sum + (p.sales_amount || 0), 0);
-
-      result.push({ month: monthStr, revenue: monthRevenue });
-    }
-    return result;
-  }, [projects]);
-
-  // Last 3 invoiced projects - memoized
-  const lastInvoiced = useMemo(() => statusHistory
-    .filter(h => h.status?.name === 'Invoiced' && h.project)
-    .slice(0, 3), [statusHistory]);
-
-  // Last 3 new projects - memoized (sorted by created_date, the PO received date)
-  const lastCreated = useMemo(() => [...projects]
-    .sort((a, b) => new Date(b.created_date || 0).getTime() - new Date(a.created_date || 0).getTime())
-    .slice(0, 3), [projects]);
 
   // Average days to invoice - memoized (uses created_date as PO received date)
   const avgDaysToInvoice = useMemo(() => {
@@ -463,99 +390,6 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
   const projectsCompletedCount = invoicedInPeriod.length;
   const projectsCompletedPrevCount = previousPeriodData.projectsCompleted;
 
-  // Status distribution for bottleneck analysis
-  const statusDistribution = useMemo(() => {
-    const distribution = statuses
-      .filter(s => s.name !== 'Invoiced') // Exclude invoiced from bottleneck view
-      .map(status => {
-        const projectsInStatus = projects.filter(p => p.current_status_id === status.id);
-        const revenue = projectsInStatus.reduce((sum, p) => sum + (p.sales_amount || 0), 0);
-        return {
-          name: status.name,
-          count: projectsInStatus.length,
-          revenue,
-          color: status.name.toLowerCase().includes('procurement') ? '#f59e0b' :
-                 status.name.toLowerCase().includes('engineering') ? '#3b82f6' :
-                 '#10B981'
-        };
-      })
-      .filter(s => s.count > 0);
-    return distribution;
-  }, [statuses, projects]);
-
-  // Sales vs Operations Health Diagnostic
-  const diagnosticData = useMemo(() => {
-    // Sales health: Are we getting enough POs?
-    const salesHealth = periodGoal.revenue > 0
-      ? (posReceivedRevenue / periodGoal.revenue) * 100
-      : 100;
-
-    // Operations health: Are we completing enough projects?
-    // Compare invoiced to POs received ratio
-    const completionRatio = posReceivedRevenue > 0
-      ? (invoicedRevenue / posReceivedRevenue) * 100
-      : 100;
-
-    // Bottleneck analysis - find where projects are stuck
-    const procurementStatus = statuses.find(s =>
-      s.name.toLowerCase().includes('procurement') ||
-      s.name.toLowerCase().includes('material')
-    );
-    const engineeringStatus = statuses.find(s =>
-      s.name.toLowerCase().includes('engineering') ||
-      s.name.toLowerCase().includes('design')
-    );
-
-    const projectsInProcurement = procurementStatus
-      ? projects.filter(p => p.current_status_id === procurementStatus.id).length
-      : 0;
-    const projectsInEngineering = engineeringStatus
-      ? projects.filter(p => p.current_status_id === engineeringStatus.id).length
-      : 0;
-
-    const revenueInProcurement = procurementStatus
-      ? projects.filter(p => p.current_status_id === procurementStatus.id)
-          .reduce((sum, p) => sum + (p.sales_amount || 0), 0)
-      : 0;
-    const revenueInEngineering = engineeringStatus
-      ? projects.filter(p => p.current_status_id === engineeringStatus.id)
-          .reduce((sum, p) => sum + (p.sales_amount || 0), 0)
-      : 0;
-
-    // Determine the diagnosis using configurable thresholds
-    let diagnosis: 'sales' | 'operations' | 'healthy' | 'both';
-    let message: string;
-
-    const salesThreshold = thresholds.salesHealthThreshold;
-    const opsThreshold = thresholds.operationsHealthThreshold;
-
-    if (salesHealth < salesThreshold && completionRatio >= salesThreshold) {
-      diagnosis = 'sales';
-      message = 'Low PO intake is the bottleneck. Operations is completing work faster than sales is bringing it in.';
-    } else if (salesHealth >= salesThreshold && completionRatio < opsThreshold) {
-      diagnosis = 'operations';
-      message = 'Sales is healthy but operations is behind. Focus on clearing bottlenecks.';
-    } else if (salesHealth < salesThreshold && completionRatio < opsThreshold) {
-      diagnosis = 'both';
-      message = 'Both sales and operations need attention.';
-    } else {
-      diagnosis = 'healthy';
-      message = 'Both sales intake and operations throughput are healthy.';
-    }
-
-    return {
-      salesHealth,
-      completionRatio,
-      projectsInProcurement,
-      projectsInEngineering,
-      revenueInProcurement,
-      revenueInEngineering,
-      diagnosis,
-      message,
-      salesThreshold,
-      opsThreshold
-    };
-  }, [posReceivedRevenue, invoicedRevenue, periodGoal.revenue, statuses, projects, thresholds.salesHealthThreshold, thresholds.operationsHealthThreshold]);
 
   // ============================================
   // TIER 1 METRICS
@@ -640,114 +474,6 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
   // TIER 2 METRICS
   // ============================================
 
-  // 4. Cycle Time Breakdown - Avg days in each status
-  const cycleTimeBreakdown = useMemo(() => {
-    const statusTimes: Record<string, { totalDays: number; count: number }> = {};
-
-    // For each project, calculate time spent in each status
-    projects.forEach(project => {
-      const projectHistory = statusHistory
-        .filter(h => h.project_id === project.id)
-        .sort((a, b) => new Date(a.changed_at).getTime() - new Date(b.changed_at).getTime());
-
-      for (let i = 0; i < projectHistory.length; i++) {
-        const current = projectHistory[i];
-        const next = projectHistory[i + 1];
-        const statusName = current.status?.name;
-
-        if (!statusName || statusName === 'Invoiced') continue;
-
-        const startDate = new Date(current.changed_at);
-        const endDate = next ? new Date(next.changed_at) : new Date();
-        const daysInStatus = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-
-        if (!statusTimes[statusName]) {
-          statusTimes[statusName] = { totalDays: 0, count: 0 };
-        }
-        statusTimes[statusName].totalDays += daysInStatus;
-        statusTimes[statusName].count++;
-      }
-    });
-
-    // Calculate averages and sort by display order
-    return statuses
-      .filter(s => s.name !== 'Invoiced')
-      .map(status => ({
-        name: status.name,
-        avgDays: statusTimes[status.name]
-          ? Math.round(statusTimes[status.name].totalDays / statusTimes[status.name].count)
-          : 0,
-        displayOrder: status.display_order
-      }))
-      .sort((a, b) => a.displayOrder - b.displayOrder);
-  }, [projects, statusHistory, statuses]);
-
-  // 5. Throughput Trend - Projects completed per month (last 6 months)
-  const throughputTrend = useMemo(() => {
-    const result: { month: string; completed: number; revenue: number }[] = [];
-
-    for (let i = 5; i >= 0; i--) {
-      const date = new Date();
-      date.setMonth(date.getMonth() - i);
-      const monthStart = startOfMonth(date);
-      const monthEnd = endOfMonth(date);
-      const monthStr = format(date, 'MMM');
-
-      const completedInMonth = statusHistory.filter(h => {
-        if (h.status?.name !== 'Invoiced') return false;
-        const changedAt = new Date(h.changed_at);
-        return changedAt >= monthStart && changedAt <= monthEnd;
-      });
-
-      result.push({
-        month: monthStr,
-        completed: completedInMonth.length,
-        revenue: completedInMonth.reduce((sum, h) => sum + (h.project?.sales_amount || 0), 0)
-      });
-    }
-
-    return result;
-  }, [statusHistory]);
-
-  // 6. PO Velocity vs Invoice Velocity (last 6 months)
-  const velocityComparison = useMemo(() => {
-    const result: { month: string; posReceived: number; invoiced: number }[] = [];
-
-    for (let i = 5; i >= 0; i--) {
-      const date = new Date();
-      date.setMonth(date.getMonth() - i);
-      const monthStart = startOfMonth(date);
-      const monthEnd = endOfMonth(date);
-      const monthStr = format(date, 'MMM');
-
-      // POs received (projects created) - uses created_date (user-editable PO date)
-      const posInMonth = projects.filter(p => {
-        if (!p.created_date) return false;
-        const createdDate = new Date(p.created_date + 'T00:00:00'); // Parse as local date
-        return createdDate >= monthStart && createdDate <= monthEnd;
-      });
-
-      // Invoiced - use invoiced_date for consistency
-      const invoicedInMonth = projects.filter(p => {
-        if (!p.invoiced_date) return false;
-        const invoicedDate = new Date(p.invoiced_date + 'T00:00:00');
-        return invoicedDate >= monthStart && invoicedDate <= monthEnd;
-      });
-
-      result.push({
-        month: monthStr,
-        posReceived: posInMonth.length,
-        invoiced: invoicedInMonth.length
-      });
-    }
-
-    // Calculate if backlog is growing or shrinking
-    const totalPOs = result.reduce((sum, r) => sum + r.posReceived, 0);
-    const totalInvoiced = result.reduce((sum, r) => sum + r.invoiced, 0);
-    const netChange = totalPOs - totalInvoiced;
-
-    return { monthly: result, totalPOs, totalInvoiced, netChange };
-  }, [projects]);
 
   // ============================================
   // TIER 3 METRICS
@@ -793,101 +519,6 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
   // NEW ALERT METRICS
   // ============================================
 
-  // Low Invoice Month Warning - Calculate projected month-end invoicing
-  const lowInvoiceWarning = useMemo(() => {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth() + 1;
-    const dayOfMonth = now.getDate();
-    const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
-
-    // Get current month's goal
-    const monthGoal = goals.find(g => g.year === currentYear && g.month === currentMonth);
-    const invoicedGoal = monthGoal?.invoiced_revenue_goal || 0;
-
-    // Get invoiced revenue so far this month
-    const monthStart = startOfMonth(now);
-    const invoicedThisMonth = statusHistory.filter(h => {
-      if (h.status?.name !== 'Invoiced') return false;
-      const changedAt = new Date(h.changed_at);
-      return changedAt >= monthStart;
-    });
-    const currentInvoiced = invoicedThisMonth.reduce((sum, h) => sum + (h.project?.sales_amount || 0), 0);
-
-    // Calculate projected month-end based on current pace
-    const dailyRate = dayOfMonth > 0 ? currentInvoiced / dayOfMonth : 0;
-    const projectedMonthEnd = dailyRate * daysInMonth;
-
-    // Calculate percentage of goal
-    const projectedPercent = invoicedGoal > 0 ? (projectedMonthEnd / invoicedGoal) * 100 : 100;
-    const currentPercent = invoicedGoal > 0 ? (currentInvoiced / invoicedGoal) * 100 : 100;
-
-    // Determine warning level
-    const warningThreshold = thresholds.lowInvoiceWarningPercent;
-    const isWarning = projectedPercent < warningThreshold;
-    const isCritical = projectedPercent < 60;
-
-    return {
-      currentInvoiced,
-      projectedMonthEnd,
-      invoicedGoal,
-      projectedPercent,
-      currentPercent,
-      dayOfMonth,
-      daysInMonth,
-      daysRemaining: daysInMonth - dayOfMonth,
-      isWarning,
-      isCritical,
-      warningThreshold
-    };
-  }, [statusHistory, goals, thresholds.lowInvoiceWarningPercent]);
-
-  // Projects Not Scheduled - Find projects waiting too long without being scheduled
-  const projectsNotScheduled = useMemo(() => {
-    const today = new Date();
-    const warningDays = thresholds.notScheduledWarningDays;
-
-    // Find statuses that are pre-scheduling
-    const preSchedulingStatuses = statuses.filter(s =>
-      s.name === 'PO Received' ||
-      s.name.toLowerCase().includes('engineering') ||
-      s.name.toLowerCase().includes('procurement') ||
-      s.name === 'Pending Scheduling'
-    ).map(s => s.id);
-
-    // Find projects in pre-scheduling statuses without a start date or with a far-out start date
-    const waitingProjects = projects
-      .filter(p => {
-        // Must be in a pre-scheduling status
-        if (!p.current_status_id || !preSchedulingStatuses.includes(p.current_status_id)) return false;
-        // Must not be invoiced
-        if (p.current_status_id === invoicedStatus?.id) return false;
-
-        // Check how long since creation
-        const createdDate = p.created_date ? new Date(p.created_date + 'T00:00:00') : null;
-        if (!createdDate) return false;
-
-        const daysSinceCreation = Math.floor((today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
-        return daysSinceCreation >= warningDays;
-      })
-      .map(p => {
-        const createdDate = p.created_date ? new Date(p.created_date + 'T00:00:00') : today;
-        const daysWaiting = Math.floor((today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
-        return {
-          ...p,
-          daysWaiting,
-          statusName: p.current_status?.name || 'Unknown'
-        };
-      })
-      .sort((a, b) => b.daysWaiting - a.daysWaiting);
-
-    return {
-      projects: waitingProjects,
-      count: waitingProjects.length,
-      totalRevenue: waitingProjects.reduce((sum, p) => sum + (p.sales_amount || 0), 0),
-      warningDays
-    };
-  }, [projects, statuses, invoicedStatus, thresholds.notScheduledWarningDays]);
 
   // Enhanced Bottleneck Summary
   const bottleneckSummary = useMemo(() => {
@@ -1267,100 +898,9 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
           </MetricTooltip>
       </div>
 
-      {/* ROW 2: Health Diagnostic + Overdue/WIP Alerts */}
+      {/* ROW 2: Stuck + Bottlenecks + My Tasks */}
       <div className="grid gap-3 lg:grid-cols-3">
-        {/* Health Diagnostic - Compact */}
-        <Card className={`border-l-4 ${
-          diagnosticData.diagnosis === 'healthy' ? 'border-l-green-500' :
-          diagnosticData.diagnosis === 'sales' ? 'border-l-amber-500' :
-          diagnosticData.diagnosis === 'operations' ? 'border-l-red-500' :
-          'border-l-red-600'
-        }`}>
-          <CardHeader className="pb-2 pt-3 px-4">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <AlertTriangle className={`h-4 w-4 ${
-                diagnosticData.diagnosis === 'healthy' ? 'text-green-500' :
-                diagnosticData.diagnosis === 'sales' ? 'text-amber-500' :
-                'text-red-500'
-              }`} />
-              Health: {diagnosticData.diagnosis === 'healthy' ? 'OK' : diagnosticData.diagnosis === 'sales' ? 'Sales ⚠' : diagnosticData.diagnosis === 'operations' ? 'Ops ⚠' : 'Both ⚠'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-3 space-y-2">
-            <div className="grid grid-cols-2 gap-3">
-              <MetricTooltip metric="salesHealth">
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="text-muted-foreground flex items-center gap-1">Sales <HelpCircle className="h-2.5 w-2.5 opacity-50" /></span>
-                    <span className={`font-bold ${diagnosticData.salesHealth >= diagnosticData.salesThreshold ? 'text-green-600' : 'text-amber-600'}`}>
-                      {diagnosticData.salesHealth.toFixed(0)}%
-                    </span>
-                  </div>
-                  <Progress value={Math.min(diagnosticData.salesHealth, 100)} className={`h-1.5 ${diagnosticData.salesHealth >= diagnosticData.salesThreshold ? '[&>div]:bg-green-500' : '[&>div]:bg-amber-500'}`} />
-                </div>
-              </MetricTooltip>
-              <MetricTooltip metric="opsHealth">
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="text-muted-foreground flex items-center gap-1">Ops <HelpCircle className="h-2.5 w-2.5 opacity-50" /></span>
-                    <span className={`font-bold ${diagnosticData.completionRatio >= diagnosticData.opsThreshold ? 'text-green-600' : 'text-amber-600'}`}>
-                      {diagnosticData.completionRatio.toFixed(0)}%
-                    </span>
-                  </div>
-                  <Progress value={Math.min(diagnosticData.completionRatio, 100)} className={`h-1.5 ${diagnosticData.completionRatio >= diagnosticData.opsThreshold ? '[&>div]:bg-green-500' : '[&>div]:bg-amber-500'}`} />
-                </div>
-              </MetricTooltip>
-            </div>
-            {(diagnosticData.projectsInProcurement > 0 || diagnosticData.projectsInEngineering > 0) && (
-              <div className="flex gap-2 text-xs pt-1">
-                {diagnosticData.projectsInProcurement > 0 && (
-                  <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 rounded">
-                    Proc: {diagnosticData.projectsInProcurement}
-                  </span>
-                )}
-                {diagnosticData.projectsInEngineering > 0 && (
-                  <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 rounded">
-                    Eng: {diagnosticData.projectsInEngineering}
-                  </span>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Overdue Projects - Compact */}
-        <Card className={overdueProjects.length > 0 ? 'border-l-4 border-l-red-500' : ''}>
-          <CardHeader className="pb-2 pt-3 px-4">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <AlertTriangle className={`h-4 w-4 ${overdueProjects.length > 0 ? 'text-red-500' : 'text-green-500'}`} />
-              Overdue: {overdueProjects.length}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-3">
-            {overdueProjects.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No overdue projects</p>
-            ) : (
-              <div className="space-y-1.5">
-                {(expandedOverdue ? overdueProjects : overdueProjects.slice(0, 3)).map(p => (
-                  <Link key={p.id} href={`/projects/${p.sales_order_number || p.id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
-                    <span className="font-medium truncate max-w-[120px]">{p.client_name}</span>
-                    <span className="text-red-600">{formatCurrency(p.sales_amount || 0)}</span>
-                  </Link>
-                ))}
-                {overdueProjects.length > 3 && (
-                  <button
-                    onClick={() => setExpandedOverdue(!expandedOverdue)}
-                    className="text-[10px] text-primary hover:underline cursor-pointer"
-                  >
-                    {expandedOverdue ? 'Show less' : `+${overdueProjects.length - 3} more`}
-                  </button>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* WIP Aging - Compact */}
+        {/* WIP Aging - Stuck Projects */}
         <Card className={wipAgingData.totalStuck > 0 ? 'border-l-4 border-l-amber-500' : ''}>
           <CardHeader className="pb-2 pt-3 px-4">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -1373,7 +913,7 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
               <p className="text-xs text-muted-foreground">No stuck projects</p>
             ) : (
               <div className="space-y-1.5">
-                {(expandedStuck ? wipAgingData.stuckProjects : wipAgingData.stuckProjects.slice(0, 3)).map(p => (
+                {(expandedStuck ? wipAgingData.stuckProjects : wipAgingData.stuckProjects.slice(0, 5)).map(p => (
                   <Link key={p.id} href={`/projects/${p.sales_order_number || p.id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
                     <span className="font-medium truncate max-w-[100px]">{p.client_name}</span>
                     <div className="flex items-center gap-2">
@@ -1384,112 +924,12 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
                     </div>
                   </Link>
                 ))}
-                {wipAgingData.totalStuck > 3 && (
+                {wipAgingData.totalStuck > 5 && (
                   <button
                     onClick={() => setExpandedStuck(!expandedStuck)}
                     className="text-[10px] text-primary hover:underline cursor-pointer"
                   >
-                    {expandedStuck ? 'Show less' : `+${wipAgingData.totalStuck - 3} more (${formatCurrency(wipAgingData.totalStuckRevenue)})`}
-                  </button>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ROW 2B: New Alerts - Low Invoice Warning, Not Scheduled, Bottleneck Summary */}
-      <div className="grid gap-3 lg:grid-cols-3">
-        {/* Low Invoice Month Warning */}
-        {lowInvoiceWarning.invoicedGoal > 0 && (
-          <Card className={`${lowInvoiceWarning.isCritical ? 'border-l-4 border-l-red-500' : lowInvoiceWarning.isWarning ? 'border-l-4 border-l-amber-500' : ''}`}>
-            <CardHeader className="pb-2 pt-3 px-4">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <MetricTooltip metric="lowInvoice">
-                  <span className="flex items-center gap-2 cursor-help">
-                    <Receipt className={`h-4 w-4 ${lowInvoiceWarning.isCritical ? 'text-red-500' : lowInvoiceWarning.isWarning ? 'text-amber-500' : 'text-green-500'}`} />
-                    Invoice Pace
-                    <HelpCircle className="h-3 w-3 opacity-50" />
-                  </span>
-                </MetricTooltip>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-3">
-              {lowInvoiceWarning.isWarning ? (
-                <div className="space-y-2">
-                  <div className="flex items-baseline justify-between">
-                    <span className={`text-lg font-bold ${lowInvoiceWarning.isCritical ? 'text-red-600' : 'text-amber-600'}`}>
-                      {lowInvoiceWarning.projectedPercent.toFixed(0)}%
-                    </span>
-                    <span className="text-xs text-muted-foreground">projected</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    On pace for {formatCurrency(lowInvoiceWarning.projectedMonthEnd)} of {formatCurrency(lowInvoiceWarning.invoicedGoal)} goal
-                  </p>
-                  <div className="flex justify-between text-xs">
-                    <span>Current: {formatCurrency(lowInvoiceWarning.currentInvoiced)}</span>
-                    <span>{lowInvoiceWarning.daysRemaining} days left</span>
-                  </div>
-                  <Progress
-                    value={lowInvoiceWarning.currentPercent}
-                    className={`h-1.5 ${lowInvoiceWarning.isCritical ? '[&>div]:bg-red-500' : '[&>div]:bg-amber-500'}`}
-                  />
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-lg font-bold text-green-600">
-                      {lowInvoiceWarning.projectedPercent.toFixed(0)}%
-                    </span>
-                    <span className="text-xs text-muted-foreground">on track</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {formatCurrency(lowInvoiceWarning.currentInvoiced)} invoiced, {lowInvoiceWarning.daysRemaining} days left
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Projects Not Scheduled Alert */}
-        <Card className={projectsNotScheduled.count > 0 ? 'border-l-4 border-l-amber-500' : ''}>
-          <CardHeader className="pb-2 pt-3 px-4">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <MetricTooltip metric="notScheduled">
-                <span className="flex items-center gap-2 cursor-help">
-                  <CalendarX className={`h-4 w-4 ${projectsNotScheduled.count > 0 ? 'text-amber-500' : 'text-green-500'}`} />
-                  Not Scheduled (&gt;{projectsNotScheduled.warningDays}d)
-                  <HelpCircle className="h-3 w-3 opacity-50" />
-                </span>
-              </MetricTooltip>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-3">
-            {projectsNotScheduled.count === 0 ? (
-              <p className="text-xs text-muted-foreground">All projects scheduled</p>
-            ) : (
-              <div className="space-y-1.5">
-                <p className="text-xs text-amber-600 font-medium">
-                  {projectsNotScheduled.count} project{projectsNotScheduled.count !== 1 ? 's' : ''} waiting ({formatCurrency(projectsNotScheduled.totalRevenue)})
-                </p>
-                {(expandedNotScheduled ? projectsNotScheduled.projects : projectsNotScheduled.projects.slice(0, 3)).map(p => (
-                  <Link key={p.id} href={`/projects/${p.sales_order_number || p.id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
-                    <span className="font-medium truncate max-w-[100px]">{p.client_name}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground truncate max-w-[60px]">{p.statusName}</span>
-                      <Badge variant="outline" className="text-amber-700 border-amber-300 text-[10px] px-1 py-0">
-                        {p.daysWaiting}d
-                      </Badge>
-                    </div>
-                  </Link>
-                ))}
-                {projectsNotScheduled.count > 3 && (
-                  <button
-                    onClick={() => setExpandedNotScheduled(!expandedNotScheduled)}
-                    className="text-[10px] text-primary hover:underline cursor-pointer"
-                  >
-                    {expandedNotScheduled ? 'Show less' : `+${projectsNotScheduled.count - 3} more`}
+                    {expandedStuck ? 'Show less' : `+${wipAgingData.totalStuck - 5} more (${formatCurrency(wipAgingData.totalStuckRevenue)})`}
                   </button>
                 )}
               </div>
@@ -1497,7 +937,7 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
           </CardContent>
         </Card>
 
-        {/* Bottleneck Summary Card */}
+        {/* Bottleneck Summary */}
         <Card className={bottleneckSummary.hasBottlenecks ? 'border-l-4 border-l-blue-500' : ''}>
           <CardHeader className="pb-2 pt-3 px-4">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -1520,18 +960,6 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
               <p className="text-xs text-muted-foreground">No bottlenecks detected</p>
             ) : (
               <div className="space-y-2">
-                {bottleneckSummary.engineering.count > 0 && (
-                  <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-blue-500" />
-                      <span>Engineering</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{bottleneckSummary.engineering.count}</span>
-                      <span className="text-muted-foreground">({bottleneckSummary.engineering.avgDays}d avg)</span>
-                    </div>
-                  </div>
-                )}
                 {bottleneckSummary.procurement.count > 0 && (
                   <div className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2">
@@ -1541,6 +969,18 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{bottleneckSummary.procurement.count}</span>
                       <span className="text-muted-foreground">({bottleneckSummary.procurement.avgDays}d avg)</span>
+                    </div>
+                  </div>
+                )}
+                {bottleneckSummary.engineering.count > 0 && (
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-blue-500" />
+                      <span>Engineering</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{bottleneckSummary.engineering.count}</span>
+                      <span className="text-muted-foreground">({bottleneckSummary.engineering.avgDays}d avg)</span>
                     </div>
                   </div>
                 )}
@@ -1563,185 +1003,142 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
             )}
           </CardContent>
         </Card>
+
+        {/* My Tasks */}
+        <MyTasksCard />
       </div>
+    </div>
+  );
+}
 
-      {/* ROW 3: Velocity + Status Distribution */}
-      <div className="grid gap-3 lg:grid-cols-2">
-        {/* Velocity Chart - Compact */}
-        <Card>
-          <CardHeader className="pb-2 pt-3 px-4">
-            <CardTitle className="text-sm font-medium flex items-center justify-between">
-              <MetricTooltip metric="velocity">
-                <span className="flex items-center gap-2 cursor-help">
-                  <Activity className="h-4 w-4" />
-                  Velocity (6mo)
-                  <HelpCircle className="h-3 w-3 opacity-50" />
-                </span>
-              </MetricTooltip>
-              <span className={`text-xs ${velocityComparison.netChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                Net: {velocityComparison.netChange >= 0 ? '+' : ''}{velocityComparison.netChange}
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-3">
-            <div className="grid grid-cols-6 gap-1">
-              {velocityComparison.monthly.map(month => (
-                <div key={month.month} className="text-center">
-                  <p className="text-[10px] text-muted-foreground mb-1">{month.month}</p>
-                  <div className="space-y-0.5">
-                    <div className="h-8 bg-muted rounded-sm flex flex-col justify-end overflow-hidden">
-                      <div className="bg-blue-500" style={{ height: `${Math.min((month.posReceived / Math.max(...velocityComparison.monthly.map(m => Math.max(m.posReceived, m.invoiced)), 1)) * 100, 100)}%` }} />
-                    </div>
-                    <div className="h-8 bg-muted rounded-sm flex flex-col justify-end overflow-hidden">
-                      <div className="bg-green-500" style={{ height: `${Math.min((month.invoiced / Math.max(...velocityComparison.monthly.map(m => Math.max(m.posReceived, m.invoiced)), 1)) * 100, 100)}%` }} />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-center gap-4 mt-2 text-xs">
-              <span className="flex items-center gap-1"><span className="w-2 h-2 bg-blue-500 rounded-full" /> POs: {velocityComparison.totalPOs}</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 bg-green-500 rounded-full" /> Inv: {velocityComparison.totalInvoiced}</span>
-            </div>
-          </CardContent>
-        </Card>
+// ============================================
+// My Tasks Dashboard Card
+// ============================================
 
-        {/* Status Distribution - Compact */}
-        <Card>
-          <CardHeader className="pb-2 pt-3 px-4">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Status Distribution
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-3">
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-              {statusDistribution.slice(0, 6).map(status => (
-                <div key={status.name} className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: status.color }} />
-                    <span className="truncate max-w-[80px]">{status.name}</span>
-                  </div>
-                  <span className="font-medium">{status.count}</span>
-                </div>
-              ))}
-            </div>
-            {statusDistribution.length > 0 && (
-              <div className="mt-2 pt-2 border-t flex justify-between text-xs">
-                <span className="text-muted-foreground">Total Active</span>
-                <span className="font-bold">{statusDistribution.reduce((sum, s) => sum + s.count, 0)} projects</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+function MyTasksCard() {
+  const { user } = useUser();
+  const { data: allTodos, isLoading } = useMyTodos(user?.id ?? null);
+  const toggleTodo = useToggleTodo();
 
-      {/* ROW 4: Cycle Time + Recently Invoiced + Customer Concentration */}
-      <div className="grid gap-3 lg:grid-cols-3">
-        {/* Cycle Time - Compact */}
-        <Card>
-          <CardHeader className="pb-2 pt-3 px-4">
-            <CardTitle className="text-sm font-medium flex items-center justify-between">
-              <MetricTooltip metric="cycleTime">
-                <span className="flex items-center gap-2 cursor-help">
-                  <Clock className="h-4 w-4" />
-                  Cycle Time
-                  <HelpCircle className="h-3 w-3 opacity-50" />
-                </span>
-              </MetricTooltip>
-              <span className="text-xs font-bold">{cycleTimeBreakdown.reduce((sum, s) => sum + s.avgDays, 0)}d avg</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-3">
-            <div className="space-y-1">
-              {cycleTimeBreakdown.slice(0, 5).map(status => {
-                const maxDays = Math.max(...cycleTimeBreakdown.map(s => s.avgDays), 1);
-                const isBottleneck = status.name.toLowerCase().includes('procurement') || status.name.toLowerCase().includes('engineering');
-                return (
-                  <div key={status.name} className="flex items-center gap-2 text-xs">
-                    <span className={`w-20 truncate ${isBottleneck ? 'font-medium' : ''}`}>{status.name}</span>
-                    <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${isBottleneck ? 'bg-amber-500' : 'bg-[#023A2D]'}`} style={{ width: `${(status.avgDays / maxDays) * 100}%` }} />
-                    </div>
-                    <span className={`w-8 text-right font-mono ${isBottleneck ? 'font-bold text-amber-600' : ''}`}>{status.avgDays}d</span>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+  const handleToggle = async (id: string) => {
+    try {
+      await toggleTodo.mutateAsync(id);
+    } catch {
+      // silent
+    }
+  };
 
-        {/* Recently Invoiced - Compact */}
-        <Card>
-          <CardHeader className="pb-2 pt-3 px-4">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              Recently Invoiced
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-3">
-            {lastInvoiced.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No invoiced projects yet</p>
-            ) : (
-              <div className="space-y-1.5">
-                {lastInvoiced.map(h => (
-                  <Link key={h.id} href={`/projects/${h.project?.sales_order_number || h.project_id}`} className="flex items-center justify-between text-xs hover:bg-muted/50 rounded p-1 -mx-1">
-                    <span className="font-medium truncate max-w-[120px]">{h.project?.client_name}</span>
-                    <span className="text-green-600 font-medium">{formatCurrency(h.project?.sales_amount || 0)}</span>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+  const myActive = allTodos?.filter((t) => t.owner_id === user?.id && !t.is_done) || [];
+  const teamActive = allTodos?.filter((t) => t.owner_id !== user?.id && !t.is_done) || [];
+  const overdue = myActive.filter((t) => t.due_date && new Date(t.due_date + 'T00:00:00') < new Date());
 
-        {/* Customer Concentration - Compact */}
-        <Card className={`border-l-4 ${
-          customerConcentration.riskLevel === 'high' ? 'border-l-red-500' :
-          customerConcentration.riskLevel === 'medium' ? 'border-l-amber-500' :
-          'border-l-green-500'
-        }`}>
-          <CardHeader className="pb-2 pt-3 px-4">
-            <CardTitle className="text-sm font-medium flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Top Clients
-              </span>
-              <Badge variant={customerConcentration.riskLevel === 'high' ? 'destructive' : customerConcentration.riskLevel === 'medium' ? 'secondary' : 'outline'} className="text-[10px]">
-                {customerConcentration.concentrationPercent.toFixed(0)}%
+  return (
+    <Card className={overdue.length > 0 ? 'border-l-4 border-l-destructive' : ''}>
+      <CardHeader className="pb-2 pt-3 px-4">
+        <CardTitle className="text-sm font-medium flex items-center justify-between">
+          <span className="flex items-center gap-2">
+            <ListChecks className="h-4 w-4" />
+            My Tasks
+          </span>
+          <div className="flex items-center gap-1.5">
+            {overdue.length > 0 && (
+              <Badge variant="destructive" className="text-[10px]">
+                {overdue.length} overdue
               </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-3">
-            <div className="space-y-1.5">
-              {customerConcentration.top3.map((client, i) => {
-                const percent = customerConcentration.totalRevenue > 0 ? (client.revenue / customerConcentration.totalRevenue) * 100 : 0;
-                return (
-                  <div key={client.name} className="flex items-center gap-2 text-xs">
-                    <span className="text-muted-foreground">#{i + 1}</span>
-                    <span className="flex-1 truncate font-medium">{client.name}</span>
-                    <span>{percent.toFixed(0)}%</span>
-                  </div>
-                );
-              })}
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-2">{customerConcentration.totalClients} total clients</p>
-          </CardContent>
-        </Card>
-      </div>
+            )}
+            <Badge variant="secondary" className="text-[10px]">
+              {myActive.length} pending
+            </Badge>
+          </div>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="px-4 pb-3">
+        {isLoading ? (
+          <div className="h-20 animate-pulse rounded-md bg-muted" />
+        ) : myActive.length === 0 && teamActive.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-2">No pending tasks</p>
+        ) : (
+          <div className="space-y-1.5">
+            {myActive.slice(0, 5).map((todo) => (
+              <DashboardTodoRow key={todo.id} todo={todo} onToggle={handleToggle} />
+            ))}
+            {myActive.length > 5 && (
+              <p className="text-[10px] text-muted-foreground">+{myActive.length - 5} more</p>
+            )}
+            {teamActive.length > 0 && (
+              <div className="pt-1.5 mt-1.5 border-t">
+                <p className="text-[10px] text-muted-foreground mb-1">Assigned to others ({teamActive.length})</p>
+                {teamActive.slice(0, 3).map((todo) => (
+                  <DashboardTodoRow key={todo.id} todo={todo} onToggle={handleToggle} emphasized />
+                ))}
+                {teamActive.length > 3 && (
+                  <p className="text-[10px] text-muted-foreground">+{teamActive.length - 3} more</p>
+                )}
+              </div>
+            )}
+            <Link href="/l10/todos" className="block text-[10px] text-primary hover:underline pt-1">
+              View all tasks →
+            </Link>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
-      {/* ROW 5: Invoice Goal Date by Month */}
-      <Card>
-        <CardHeader className="pb-2 pt-3 px-4">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" />
-            Invoice Goal Date by Month
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-3">
-          <LazyRevenueChart data={revenueByMonth} />
-        </CardContent>
-      </Card>
+function DashboardTodoRow({
+  todo,
+  onToggle,
+  emphasized,
+}: {
+  todo: MyTodoWithTeam;
+  onToggle: (id: string) => void;
+  emphasized?: boolean;
+}) {
+  const isOverdue = todo.due_date && !todo.is_done && new Date(todo.due_date + 'T00:00:00') < new Date();
+  const sourceMeta = todo.source_issue?.source_meta as Record<string, string> | null;
+
+  return (
+    <div className={`flex items-center gap-2 rounded p-1 -mx-1 hover:bg-muted/50 ${emphasized ? 'border-l-2 border-l-primary pl-2' : ''}`}>
+      <Checkbox
+        checked={todo.is_done}
+        onCheckedChange={() => onToggle(todo.id)}
+        className="h-3.5 w-3.5"
+      />
+      <div className="flex-1 min-w-0">
+        <p className="text-xs truncate">{todo.title}</p>
+        <div className="flex items-center gap-1.5">
+          {sourceMeta?.clientName && sourceMeta?.salesOrder ? (
+            <Link
+              href={`/projects/${sourceMeta.salesOrder}`}
+              className="text-[10px] text-primary hover:underline"
+            >
+              {sourceMeta.clientName}
+            </Link>
+          ) : todo.source_issue ? (
+            <span className="text-[10px] text-muted-foreground truncate">↳ {todo.source_issue.title}</span>
+          ) : null}
+          {sourceMeta?.salesOrderUrl && (
+            <a
+              href={sourceMeta.salesOrderUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-0.5 text-[10px] text-primary hover:underline"
+            >
+              <ExternalLink className="h-2.5 w-2.5" />
+              {sourceMeta.salesOrder || 'Odoo'}
+            </a>
+          )}
+        </div>
+      </div>
+      {todo.profiles?.full_name && emphasized && (
+        <span className="text-[10px] text-muted-foreground shrink-0">{todo.profiles.full_name.split(' ')[0]}</span>
+      )}
+      {todo.due_date && (
+        <span className={`text-[10px] shrink-0 ${isOverdue ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+          {new Date(todo.due_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+        </span>
+      )}
     </div>
   );
 }
