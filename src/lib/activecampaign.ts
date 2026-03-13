@@ -3,6 +3,12 @@ import type {
   ACContact,
   ACAccountSearchResponse,
   ACContactsResponse,
+  ACDeal,
+  ACDealStage,
+  ACPipeline,
+  ACDealsResponse,
+  ACDealStagesResponse,
+  ACPipelinesResponse,
 } from '@/types/activecampaign';
 
 class ActiveCampaignClient {
@@ -87,6 +93,59 @@ class ActiveCampaignClient {
     const match = this.baseUrl.match(/https:\/\/([^.]+)\.api-us1\.com/);
     const accountName = match?.[1] || '';
     return `https://${accountName}.activehosted.com/app/accounts/${accountId}`;
+  }
+
+  async getContact(contactId: string): Promise<ACContact | null> {
+    try {
+      const data = await this.fetch<{ contact: ACContact }>(`/contacts/${contactId}`);
+      return data.contact || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async getPipelines(): Promise<ACPipeline[]> {
+    const data = await this.fetch<ACPipelinesResponse>('/dealGroups');
+    return data.dealGroups || [];
+  }
+
+  async getDealStages(pipelineId?: string): Promise<ACDealStage[]> {
+    const query = pipelineId ? `?filters[d_groupid]=${pipelineId}` : '';
+    const data = await this.fetch<ACDealStagesResponse>(`/dealStages${query}`);
+    return data.dealStages || [];
+  }
+
+  async getDeals(params: {
+    stageId?: string;
+    status?: number;
+    limit?: number;
+  } = {}): Promise<ACDeal[]> {
+    const searchParams = new URLSearchParams();
+    if (params.stageId) searchParams.set('filters[stage]', params.stageId);
+    if (params.status !== undefined) searchParams.set('filters[status]', String(params.status));
+    searchParams.set('limit', String(params.limit || 100));
+    const data = await this.fetch<ACDealsResponse>(`/deals?${searchParams.toString()}`);
+    return data.deals || [];
+  }
+
+  async getDealCustomFieldMeta(): Promise<Array<{ id: string; fieldLabel: string; fieldType: string }>> {
+    const data = await this.fetch<{
+      dealCustomFieldMeta: Array<{ id: string; fieldLabel: string; fieldType: string }>;
+    }>('/dealCustomFieldMeta');
+    return data.dealCustomFieldMeta || [];
+  }
+
+  async getDealCustomFieldData(dealId: string): Promise<Array<{ customFieldId: string; fieldValue: string }>> {
+    const data = await this.fetch<{
+      dealCustomFieldData: Array<{ customFieldId: string; fieldValue: string; dealId: string }>;
+    }>(`/deals/${dealId}/dealCustomFieldData`);
+    return data.dealCustomFieldData || [];
+  }
+
+  getDealUrl(dealId: string): string {
+    const match = this.baseUrl.match(/https:\/\/([^.]+)\.api-us1\.com/);
+    const accountName = match?.[1] || '';
+    return `https://${accountName}.activehosted.com/app/deals/${dealId}`;
   }
 }
 
