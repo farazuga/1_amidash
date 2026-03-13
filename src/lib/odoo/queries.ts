@@ -13,6 +13,8 @@ import type {
   OdooProduct,
   OdooActivity,
   OdooUser,
+  OdooAccount,
+  OdooMoveLine,
 } from '@/types/odoo';
 
 // ============================================================
@@ -206,6 +208,73 @@ export async function getActivitiesAssignedByUser(
     [...ACTIVITY_FIELDS],
     { order: 'date_deadline asc' }
   );
+}
+
+// ============================================================
+// Accounting
+// ============================================================
+
+/**
+ * Look up an accounting account by its code (e.g. "1200").
+ * Returns the account if found, null otherwise.
+ */
+export async function findAccountByCode(
+  client: OdooReadOnlyClient,
+  accountCode: string
+): Promise<OdooAccount | null> {
+  const results = await client.searchRead<OdooAccount>(
+    'account.account',
+    [['code', '=', accountCode]],
+    ['id', 'code', 'name'],
+    { limit: 1 }
+  );
+  return results.length > 0 ? results[0] : null;
+}
+
+/**
+ * Get the net movement (sum of balance) for journal entries on a specific
+ * account within a date range (inclusive). Only includes posted entries.
+ * Used for "date_range" mode in the scorecard.
+ */
+export async function getAccountMovement(
+  client: OdooReadOnlyClient,
+  accountCode: string,
+  dateFrom: string, // YYYY-MM-DD
+  dateTo: string // YYYY-MM-DD
+): Promise<number> {
+  const lines = await client.searchRead<OdooMoveLine>(
+    'account.move.line',
+    [
+      ['account_id.code', '=', accountCode],
+      ['date', '>=', dateFrom],
+      ['date', '<=', dateTo],
+      ['parent_state', '=', 'posted'],
+    ],
+    ['balance']
+  );
+  return lines.reduce((sum, line) => sum + (line.balance || 0), 0);
+}
+
+/**
+ * Get the cumulative balance for an account as-of a specific date.
+ * Sums all posted journal items on or before the given date.
+ * Used for "last_day" mode in the scorecard.
+ */
+export async function getAccountBalance(
+  client: OdooReadOnlyClient,
+  accountCode: string,
+  asOfDate: string // YYYY-MM-DD
+): Promise<number> {
+  const lines = await client.searchRead<OdooMoveLine>(
+    'account.move.line',
+    [
+      ['account_id.code', '=', accountCode],
+      ['date', '<=', asOfDate],
+      ['parent_state', '=', 'posted'],
+    ],
+    ['balance']
+  );
+  return lines.reduce((sum, line) => sum + (line.balance || 0), 0);
 }
 
 // ============================================================

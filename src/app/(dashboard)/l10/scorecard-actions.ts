@@ -63,7 +63,7 @@ export async function getScorecard(teamId: string): Promise<ActionResult<Scoreca
     if (measError) throw measError;
 
     // Get last 13 weeks of entries
-    const measurableIds = (measurables || []).map((m) => m.id);
+    const measurableIds = (measurables || []).map((m: { id: string }) => m.id);
     let entries: ScorecardEntry[] = [];
 
     if (measurableIds.length > 0) {
@@ -105,7 +105,7 @@ export async function createMeasurable(input: unknown): Promise<ActionResult> {
     if (!validation.success) return { success: false, error: validation.error };
 
     const { supabase } = await getL10Client();
-    const { scorecardId, title, ownerId, unit, goalValue, goalDirection, autoSource } = validation.data;
+    const { scorecardId, title, ownerId, unit, goalValue, goalDirection, autoSource, odooAccountCode, odooAccountName, odooDateMode } = validation.data;
 
     // Get next display order
     const { data: existing } = await supabase
@@ -127,6 +127,9 @@ export async function createMeasurable(input: unknown): Promise<ActionResult> {
         goal_value: goalValue ?? null,
         goal_direction: goalDirection,
         auto_source: autoSource ?? null,
+        odoo_account_code: odooAccountCode ?? null,
+        odoo_account_name: odooAccountName ?? null,
+        odoo_date_mode: odooDateMode ?? null,
         display_order: nextOrder,
       });
 
@@ -152,7 +155,18 @@ export async function updateMeasurable(input: unknown): Promise<ActionResult> {
     if (updates.unit !== undefined) dbUpdates.unit = updates.unit;
     if (updates.goalValue !== undefined) dbUpdates.goal_value = updates.goalValue;
     if (updates.goalDirection !== undefined) dbUpdates.goal_direction = updates.goalDirection;
-    if (updates.autoSource !== undefined) dbUpdates.auto_source = updates.autoSource;
+    if (updates.autoSource !== undefined) {
+      dbUpdates.auto_source = updates.autoSource;
+      // Clear Odoo fields when switching away from odoo_account
+      if (updates.autoSource !== 'odoo_account') {
+        dbUpdates.odoo_account_code = null;
+        dbUpdates.odoo_account_name = null;
+        dbUpdates.odoo_date_mode = null;
+      }
+    }
+    if (updates.odooAccountCode !== undefined) dbUpdates.odoo_account_code = updates.odooAccountCode;
+    if (updates.odooAccountName !== undefined) dbUpdates.odoo_account_name = updates.odooAccountName;
+    if (updates.odooDateMode !== undefined) dbUpdates.odoo_date_mode = updates.odooDateMode;
     if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
 
     const { error } = await supabase
@@ -252,12 +266,14 @@ export async function autoPopulateScorecardWeek(
 
     if (!scorecard) return { success: false, error: 'No scorecard found' };
 
-    const { data: measurables } = await supabase
-      .from('l10_scorecard_measurables')
-      .select('id, auto_source')
+    // Cast needed: odoo_account_code/odoo_date_mode columns added by migration 050
+    // but not yet in generated database.ts types
+    const { data: measurables } = await (supabase
+      .from('l10_scorecard_measurables') as any)
+      .select('id, auto_source, odoo_account_code, odoo_date_mode')
       .eq('scorecard_id', scorecard.id)
       .eq('is_active', true)
-      .not('auto_source', 'is', null);
+      .not('auto_source', 'is', null) as { data: Array<{ id: string; auto_source: string; odoo_account_code: string | null; odoo_date_mode: string | null }> | null };
 
     if (!measurables || measurables.length === 0) return { success: true };
 
@@ -291,7 +307,7 @@ export async function autoPopulateScorecardWeek(
           .gte('created_date', startStr)
           .lte('created_date', endStr);
 
-        value = (projects || []).reduce((sum, p) => sum + (p.sales_amount || 0), 0);
+        value = (projects || []).reduce((sum: number, p: { sales_amount: number | null }) => sum + (p.sales_amount || 0), 0);
       } else if (measurable.auto_source === 'invoiced_revenue') {
         // SUM sales_amount WHERE invoiced_date in week range (Mon-Fri)
         const { data: projects } = await supabase
@@ -301,7 +317,7 @@ export async function autoPopulateScorecardWeek(
           .gte('invoiced_date', startStr)
           .lte('invoiced_date', endStr);
 
-        value = (projects || []).reduce((sum, p) => sum + (p.sales_amount || 0), 0);
+        value = (projects || []).reduce((sum: number, p: { sales_amount: number | null }) => sum + (p.sales_amount || 0), 0);
       } else if (measurable.auto_source === 'open_projects') {
         // COUNT projects that are NOT invoiced (open/active)
         let countQuery = supabase
@@ -312,6 +328,29 @@ export async function autoPopulateScorecardWeek(
         }
         const { count } = await countQuery;
         value = count ?? 0;
+      } else if (measurable.auto_source === 'odoo_account') {
+        if (!measurable.odoo_account_code || !measurable.odoo_date_mode) {
+          continue; // skip misconfigured measurables
+        }
+
+        const { isOdooConfigured, getOdooClient } = await import('@/lib/odoo');
+        if (!isOdooConfigured()) {
+          continue;
+        }
+
+        const { getAccountMovement, getAccountBalance } = await import('@/lib/odoo/queries');
+        const odooClient = getOdooClient();
+
+        if (measurable.odoo_date_mode === 'date_range') {
+          // Net movement from Saturday through Friday
+          const saturday = new Date(weekStart);
+          saturday.setDate(weekStart.getDate() - 2);
+          const satStr = saturday.toISOString().split('T')[0];
+          value = await getAccountMovement(odooClient, measurable.odoo_account_code, satStr, endStr);
+        } else if (measurable.odoo_date_mode === 'last_day') {
+          // Cumulative balance as-of Friday
+          value = await getAccountBalance(odooClient, measurable.odoo_account_code, endStr);
+        }
       }
 
       if (value !== null) {
