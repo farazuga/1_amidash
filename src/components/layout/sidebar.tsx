@@ -24,6 +24,7 @@ import {
   Presentation,
   LayoutTemplate,
   CheckSquare,
+  Handshake,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -62,6 +63,11 @@ const mainNavItems = [
     title: 'My Schedule',
     href: '/my-schedule',
     icon: CalendarDays,
+  },
+  {
+    title: 'Upcoming Deals',
+    href: '/upcoming-deals',
+    icon: Handshake,
   },
   {
     title: 'Settings',
