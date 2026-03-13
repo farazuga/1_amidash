@@ -89,6 +89,74 @@ export function UpcomingDealsContent() {
     return filteredAndSortedDeals.reduce((sum, deal) => sum + parseInt(deal.value, 10) / 100, 0);
   }, [filteredAndSortedDeals]);
 
+  const summaryRows = useMemo(() => {
+    const monthBuckets = new Map<string, { count: number; value: number }>();
+    let unscheduledCount = 0;
+    let unscheduledValue = 0;
+
+    for (const deal of filteredAndSortedDeals) {
+      const dollars = parseInt(deal.value, 10) / 100;
+      if (!deal.forecastCloseDate) {
+        unscheduledCount++;
+        unscheduledValue += dollars;
+        continue;
+      }
+      const key = deal.forecastCloseDate.slice(0, 7); // YYYY-MM
+      const bucket = monthBuckets.get(key) || { count: 0, value: 0 };
+      bucket.count++;
+      bucket.value += dollars;
+      monthBuckets.set(key, bucket);
+    }
+
+    // Sort months chronologically
+    const sortedMonths = Array.from(monthBuckets.entries()).sort(([a], [b]) => a.localeCompare(b));
+
+    // Group into quarters
+    const quarterMap = new Map<string, { months: Array<{ key: string; label: string; count: number; value: number }>; count: number; value: number }>();
+
+    for (const [key, bucket] of sortedMonths) {
+      const date = parseISO(`${key}-01`);
+      const month = date.getMonth(); // 0-indexed
+      const year = date.getFullYear();
+      const q = Math.floor(month / 3) + 1;
+      const qKey = `${year}-Q${q}`;
+      const qLabel = `Q${q} ${year}`;
+
+      if (!quarterMap.has(qKey)) {
+        quarterMap.set(qKey, { months: [], count: 0, value: 0 });
+      }
+      const quarter = quarterMap.get(qKey)!;
+      quarter.months.push({
+        key,
+        label: format(date, 'MMMM yyyy'),
+        count: bucket.count,
+        value: bucket.value,
+      });
+      quarter.count += bucket.count;
+      quarter.value += bucket.value;
+    }
+
+    // Build flat row list: quarter header → months → next quarter...
+    const rows: Array<{ label: string; count: number; value: number; isQuarter: boolean }> = [];
+    for (const [, quarter] of quarterMap) {
+      // Month rows
+      for (const m of quarter.months) {
+        rows.push({ label: m.label, count: m.count, value: m.value, isQuarter: false });
+      }
+      // Quarter subtotal (only if more than 1 month in quarter)
+      if (quarter.months.length > 0) {
+        const qLabel = `Q${Math.floor(parseISO(`${quarter.months[0].key}-01`).getMonth() / 3) + 1} ${parseISO(`${quarter.months[0].key}-01`).getFullYear()}`;
+        rows.push({ label: qLabel, count: quarter.count, value: quarter.value, isQuarter: true });
+      }
+    }
+
+    if (unscheduledCount > 0) {
+      rows.push({ label: 'Unscheduled', count: unscheduledCount, value: unscheduledValue, isQuarter: false });
+    }
+
+    return rows;
+  }, [filteredAndSortedDeals]);
+
   const clearFilters = () => {
     setStartDate(undefined);
     setEndDate(undefined);
@@ -188,6 +256,41 @@ export function UpcomingDealsContent() {
           {filteredAndSortedDeals.length} deal{filteredAndSortedDeals.length !== 1 ? 's' : ''}
         </span>
       </div>
+
+      {/* Summary by Month/Quarter */}
+      {summaryRows.length > 0 && (
+        <Card>
+          <CardContent className="p-0">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b text-left text-sm text-muted-foreground">
+                  <th className="px-4 py-2 font-medium">Period</th>
+                  <th className="px-4 py-2 font-medium text-right">Deals</th>
+                  <th className="px-4 py-2 font-medium text-right">Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summaryRows.map((row) => (
+                  <tr
+                    key={row.label}
+                    className={
+                      row.isQuarter
+                        ? 'border-b bg-muted/50 font-semibold'
+                        : 'border-b last:border-0'
+                    }
+                  >
+                    <td className="px-4 py-2 text-sm">{row.label}</td>
+                    <td className="px-4 py-2 text-sm text-right">{row.count}</td>
+                    <td className="px-4 py-2 text-sm text-right">
+                      {formatDealValue(String(row.value * 100))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Deals Table */}
       <Card>
