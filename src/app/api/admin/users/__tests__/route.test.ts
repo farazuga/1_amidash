@@ -28,7 +28,7 @@ describe('POST /api/admin/users', () => {
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
       },
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({
       email: 'newuser@example.com',
@@ -54,7 +54,7 @@ describe('POST /api/admin/users', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({
       email: 'newuser@example.com',
@@ -80,7 +80,7 @@ describe('POST /api/admin/users', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({
       email: 'not-an-email',
@@ -106,7 +106,7 @@ describe('POST /api/admin/users', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({
       email: 'newuser@example.com',
@@ -150,10 +150,10 @@ describe('POST /api/admin/users', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     vi.mocked(createServiceClient).mockResolvedValue(
-      mockServiceClient as unknown as ReturnType<typeof createServiceClient>
+      mockServiceClient as unknown as Awaited<ReturnType<typeof createServiceClient>>
     );
 
     const request = createMockRequest({
@@ -198,10 +198,10 @@ describe('POST /api/admin/users', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     vi.mocked(createServiceClient).mockResolvedValue(
-      mockServiceClient as unknown as ReturnType<typeof createServiceClient>
+      mockServiceClient as unknown as Awaited<ReturnType<typeof createServiceClient>>
     );
 
     const request = createMockRequest({
@@ -246,10 +246,10 @@ describe('POST /api/admin/users', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     vi.mocked(createServiceClient).mockResolvedValue(
-      mockServiceClient as unknown as ReturnType<typeof createServiceClient>
+      mockServiceClient as unknown as Awaited<ReturnType<typeof createServiceClient>>
     );
 
     const request = createMockRequest({
@@ -293,10 +293,10 @@ describe('POST /api/admin/users', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     vi.mocked(createServiceClient).mockResolvedValue(
-      mockServiceClient as unknown as ReturnType<typeof createServiceClient>
+      mockServiceClient as unknown as Awaited<ReturnType<typeof createServiceClient>>
     );
 
     const request = createMockRequest({
@@ -325,7 +325,7 @@ describe('POST /api/admin/users', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({
       email: 'customer@example.com',
@@ -353,7 +353,7 @@ describe('POST /api/admin/users', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({
       email: 'customer@example.com',
@@ -398,10 +398,10 @@ describe('POST /api/admin/users - error handling', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     vi.mocked(createServiceClient).mockResolvedValue(
-      mockServiceClient as unknown as ReturnType<typeof createServiceClient>
+      mockServiceClient as unknown as Awaited<ReturnType<typeof createServiceClient>>
     );
 
     const request = createMockRequest({
@@ -459,10 +459,10 @@ describe('POST /api/admin/users - error handling', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     vi.mocked(createServiceClient).mockResolvedValue(
-      mockServiceClient as unknown as ReturnType<typeof createServiceClient>
+      mockServiceClient as unknown as Awaited<ReturnType<typeof createServiceClient>>
     );
 
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -493,7 +493,7 @@ describe('GET /api/admin/users', () => {
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
       },
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const response = await GET();
     const data = await response.json();
@@ -514,7 +514,7 @@ describe('GET /api/admin/users', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const response = await GET();
     const data = await response.json();
@@ -553,7 +553,7 @@ describe('GET /api/admin/users', () => {
         }
         return {};
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const response = await GET();
     const data = await response.json();
@@ -587,7 +587,7 @@ describe('GET /api/admin/users', () => {
         }
         return {};
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const response = await GET();
     const data = await response.json();

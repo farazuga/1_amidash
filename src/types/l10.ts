@@ -135,7 +135,7 @@ export interface HeadlineWithCreator extends Headline {
 // Scorecard types
 export type MeasurableUnit = 'number' | 'currency' | 'percentage';
 export type GoalDirection = 'above' | 'below' | 'exact';
-export type AutoSource = 'po_revenue' | 'invoiced_revenue' | 'open_projects' | 'odoo_account';
+export type AutoSource = 'po_revenue' | 'invoiced_revenue' | 'open_projects' | 'odoo_account' | 'odoo_quotes';
 export type OdooDateMode = 'date_range' | 'last_day';
 
 export interface Scorecard {

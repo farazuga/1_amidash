@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, ArrowUp, ArrowDown, Equal, Trash2, Loader2 } from 'lucide-react';
+import { Plus, RefreshCw, ArrowUp, ArrowDown, Equal, Trash2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -119,6 +119,7 @@ const AUTO_SOURCE_LABELS: Record<string, string> = {
   invoiced_revenue: 'Invoices Closed',
   open_projects: 'Open Projects',
   odoo_account: 'Odoo Account',
+  odoo_quotes: 'Open Quotes',
 };
 
 interface ScorecardTabProps {
@@ -137,12 +138,43 @@ export function ScorecardTab({ teamId }: ScorecardTabProps) {
   const handleWeekClick = async (weekOf: string) => {
     setPopulatingWeek(weekOf);
     try {
-      await autoPopulate.mutateAsync({ teamId, weekOf });
-      toast.success(`Populated week of ${formatWeekRange(weekOf)}`);
+      const result = await autoPopulate.mutateAsync({ teamId, weekOf });
+      if (result.populated > 0) {
+        toast.success(`Populated ${result.populated} measurable${result.populated > 1 ? 's' : ''} for ${formatWeekRange(weekOf)}`);
+      } else {
+        toast.info(`No data to populate for ${formatWeekRange(weekOf)}`);
+      }
+      if (result.skipped.length > 0) {
+        toast.warning(`Skipped: ${result.skipped.join(', ')}`);
+      }
+      if (result.errors.length > 0) {
+        toast.error(`Errors: ${result.errors.join(', ')}`);
+      }
     } catch (error) {
       toast.error((error as Error).message);
     } finally {
       setPopulatingWeek(null);
+    }
+  };
+
+  const handleAutoPopulate = async () => {
+    // Auto-populate the most recent completed week
+    const latestWeek = weeks[0];
+    try {
+      const result = await autoPopulate.mutateAsync({ teamId, weekOf: latestWeek });
+      if (result.populated > 0) {
+        toast.success(`Populated ${result.populated} measurable${result.populated > 1 ? 's' : ''}`);
+      } else {
+        toast.info('No data to populate for latest week');
+      }
+      if (result.skipped.length > 0) {
+        toast.warning(`Skipped: ${result.skipped.join(', ')}`);
+      }
+      if (result.errors.length > 0) {
+        toast.error(`Errors: ${result.errors.join(', ')}`);
+      }
+    } catch (error) {
+      toast.error((error as Error).message);
     }
   };
 
@@ -167,10 +199,16 @@ export function ScorecardTab({ teamId }: ScorecardTabProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Scorecard</h3>
-        <Button size="sm" onClick={() => setAddOpen(true)} disabled={!scorecardId}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Measurable
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleAutoPopulate} disabled={autoPopulate.isPending}>
+            <RefreshCw className={cn('mr-2 h-4 w-4', autoPopulate.isPending && 'animate-spin')} />
+            Auto-populate
+          </Button>
+          <Button size="sm" onClick={() => setAddOpen(true)} disabled={!scorecardId}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Measurable
+          </Button>
+        </div>
       </div>
 
       {measurables.length === 0 ? (
@@ -486,7 +524,7 @@ function ScorecardEntryCell({
       )}
       title={isClickable && value !== null ? 'Click to view projects, double-click to edit' : undefined}
     >
-      {value !== null ? formatValue(value, unit) : '—'}
+      {value !== null ? formatValue(value, unit) : <span className="text-muted-foreground/50">—</span>}
     </button>
   );
 }
@@ -520,7 +558,7 @@ function AddMeasurableDialog({
     setAutoSource(value);
     if (value !== 'none' && value !== 'odoo_account' && !title.trim()) {
       setTitle(AUTO_SOURCE_LABELS[value] || '');
-      if (value === 'po_revenue' || value === 'invoiced_revenue') {
+      if (value === 'po_revenue' || value === 'invoiced_revenue' || value === 'odoo_quotes') {
         setUnit('currency');
       } else if (value === 'open_projects') {
         setUnit('number');
@@ -584,6 +622,7 @@ function AddMeasurableDialog({
                   <SelectItem value="po_revenue">Last 7 Day Sales (by created date)</SelectItem>
                   <SelectItem value="invoiced_revenue">Invoices Closed (by invoice date)</SelectItem>
                   <SelectItem value="open_projects">Open Projects (active count)</SelectItem>
+                  <SelectItem value="odoo_quotes">Open Quotes (Odoo)</SelectItem>
                   <SelectItem value="odoo_account">Odoo Account</SelectItem>
                 </SelectContent>
               </Select>
@@ -772,6 +811,7 @@ function EditMeasurableDialog({
                     <SelectItem value="po_revenue">Last 7 Day Sales (by created date)</SelectItem>
                     <SelectItem value="invoiced_revenue">Invoices Closed (by invoice date)</SelectItem>
                     <SelectItem value="open_projects">Open Projects (active count)</SelectItem>
+                    <SelectItem value="odoo_quotes">Open Quotes (Odoo)</SelectItem>
                     <SelectItem value="odoo_account">Odoo Account</SelectItem>
                   </SelectContent>
                 </Select>

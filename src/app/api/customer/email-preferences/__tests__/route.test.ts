@@ -27,7 +27,7 @@ describe('GET /api/customer/email-preferences', () => {
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
       },
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const response = await GET();
     const data = await response.json();
@@ -43,7 +43,7 @@ describe('GET /api/customer/email-preferences', () => {
           data: { user: { id: 'user-123', email: null } }
         }),
       },
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const response = await GET();
     const data = await response.json();
@@ -69,7 +69,7 @@ describe('GET /api/customer/email-preferences', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const response = await GET();
     const data = await response.json();
@@ -96,7 +96,7 @@ describe('GET /api/customer/email-preferences', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const response = await GET();
     const data = await response.json();
@@ -123,7 +123,7 @@ describe('GET /api/customer/email-preferences', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const response = await GET();
     const data = await response.json();
@@ -161,7 +161,7 @@ describe('GET /api/customer/email-preferences', () => {
       from: vi.fn().mockReturnValue({
         select: mockSelect,
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     await GET();
 
@@ -181,7 +181,7 @@ describe('PUT /api/customer/email-preferences', () => {
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
       },
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({ notifications_enabled: false });
 
@@ -199,7 +199,7 @@ describe('PUT /api/customer/email-preferences', () => {
           data: { user: { id: 'user-123', email: null } }
         }),
       },
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({ notifications_enabled: false });
 
@@ -217,7 +217,7 @@ describe('PUT /api/customer/email-preferences', () => {
           data: { user: { id: 'user-123', email: 'user@example.com' } }
         }),
       },
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({ notifications_enabled: 'true' });
 
@@ -235,7 +235,7 @@ describe('PUT /api/customer/email-preferences', () => {
           data: { user: { id: 'user-123', email: 'user@example.com' } }
         }),
       },
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({});
 
@@ -253,7 +253,7 @@ describe('PUT /api/customer/email-preferences', () => {
           data: { user: { id: 'user-123', email: 'user@example.com' } }
         }),
       },
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({ notifications_enabled: null });
 
@@ -276,7 +276,7 @@ describe('PUT /api/customer/email-preferences', () => {
       from: vi.fn().mockReturnValue({
         upsert: mockUpsert,
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({ notifications_enabled: false });
 
@@ -300,7 +300,7 @@ describe('PUT /api/customer/email-preferences', () => {
       from: vi.fn().mockReturnValue({
         upsert: mockUpsert,
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({ notifications_enabled: true });
 
@@ -324,7 +324,7 @@ describe('PUT /api/customer/email-preferences', () => {
       from: vi.fn().mockReturnValue({
         upsert: mockUpsert,
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({ notifications_enabled: true });
 
@@ -352,7 +352,7 @@ describe('PUT /api/customer/email-preferences', () => {
       from: vi.fn().mockReturnValue({
         upsert: mockUpsert,
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({ notifications_enabled: false });
 
@@ -381,7 +381,7 @@ describe('PUT /api/customer/email-preferences', () => {
       from: vi.fn().mockReturnValue({
         upsert: mockUpsert,
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({ notifications_enabled: true });
 
@@ -408,7 +408,7 @@ describe('PUT /api/customer/email-preferences', () => {
       from: vi.fn().mockReturnValue({
         upsert: mockUpsert,
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -454,7 +454,7 @@ describe('PUT /api/customer/email-preferences', () => {
           data: { user: { id: 'user-123', email: 'user@example.com' } }
         }),
       },
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
