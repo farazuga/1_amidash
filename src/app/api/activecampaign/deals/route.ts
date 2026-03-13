@@ -53,27 +53,53 @@ export async function GET() {
     // Fetch open deals in that stage
     const deals = await client.getDeals({ stageId: stage.id, status: 0 });
 
-    // Resolve contact and account names in parallel
+    // Find the "Forecasted Close Date" custom field ID
+    const customFieldMeta = await client.getDealCustomFieldMeta();
+    const forecastField = customFieldMeta.find(
+      (f) => f.fieldLabel.toLowerCase().includes('forecast') && f.fieldLabel.toLowerCase().includes('close')
+    );
+
+    if (forecastField) {
+      console.log(`Found forecast close date field: id=${forecastField.id}, label="${forecastField.fieldLabel}"`);
+    } else {
+      console.log('Available deal custom fields:', customFieldMeta.map(f => `${f.id}:${f.fieldLabel}`).join(', '));
+    }
+
+    // Resolve contact, account, and forecast close date in parallel
     const resolvedDeals: ACDealDisplay[] = await Promise.all(
       deals.map(async (deal) => {
-        const [contact, account] = await Promise.all([
+        const [contact, account, customFields] = await Promise.all([
           deal.contact ? client.getContact(deal.contact) : Promise.resolve(null),
           deal.account ? client.getAccount(deal.account) : Promise.resolve(null),
+          forecastField ? client.getDealCustomFieldData(deal.id) : Promise.resolve([]),
         ]);
 
         const contactName = contact
           ? `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || contact.email
           : '';
         const accountName = account?.name || '';
-
         const dealUrl = client.getDealUrl(deal.id);
 
-        return { ...deal, contactName, accountName, dealUrl };
+        // Get forecast close date from custom fields
+        let forecastCloseDate = '';
+        if (forecastField) {
+          const fcField = customFields.find((f) => f.customFieldId === forecastField.id);
+          forecastCloseDate = fcField?.fieldValue || '';
+        }
+
+        return { ...deal, contactName, accountName, dealUrl, forecastCloseDate };
       })
     );
 
-    // Sort by created date ascending
-    resolvedDeals.sort((a, b) => new Date(a.cdate).getTime() - new Date(b.cdate).getTime());
+    // Sort by forecast close date ascending (deals without date go to end)
+    resolvedDeals.sort((a, b) => {
+      const aDate = a.forecastCloseDate || '';
+      const bDate = b.forecastCloseDate || '';
+      if (!aDate && !bDate) return 0;
+      if (!aDate) return 1;
+      if (!bDate) return -1;
+      return new Date(aDate).getTime() - new Date(bDate).getTime();
+    });
 
     return NextResponse.json({ deals: resolvedDeals });
   } catch (error) {

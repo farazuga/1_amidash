@@ -16,12 +16,12 @@ function formatDealValue(cents: string): string {
   return `$${dollars.toLocaleString()}`;
 }
 
-type SortKey = 'title' | 'value' | 'accountName' | 'contactName' | 'nextdate';
+type SortKey = 'title' | 'value' | 'accountName' | 'contactName' | 'forecastCloseDate';
 type SortDir = 'asc' | 'desc';
 
 function getSortValue(deal: ACDealDisplay, key: SortKey): string | number {
   if (key === 'value') return parseInt(deal.value, 10);
-  if (key === 'nextdate') return deal.nextdate || '';
+  if (key === 'forecastCloseDate') return deal.forecastCloseDate || '';
   return (deal[key] || '').toLowerCase();
 }
 
@@ -31,7 +31,7 @@ export function UpcomingDealsContent() {
   const [error, setError] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  const [sortKey, setSortKey] = useState<SortKey>('nextdate');
+  const [sortKey, setSortKey] = useState<SortKey>('forecastCloseDate');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
 
   useEffect(() => {
@@ -66,8 +66,8 @@ export function UpcomingDealsContent() {
 
   const filteredAndSortedDeals = useMemo(() => {
     const filtered = deals.filter((deal) => {
-      const dateStr = deal.nextdate || deal.cdate;
-      const dealDate = parseISO(dateStr);
+      if (!deal.forecastCloseDate) return true; // show deals without forecast date
+      const dealDate = parseISO(deal.forecastCloseDate);
       if (startDate && dealDate < startDate) return false;
       if (endDate) {
         const endOfDay = new Date(endDate);
@@ -217,8 +217,8 @@ export function UpcomingDealsContent() {
                     </button>
                   </th>
                   <th className="px-4 py-3 font-medium">
-                    <button onClick={() => handleSort('nextdate')} className="inline-flex items-center hover:text-foreground">
-                      Forecast Close <SortIcon column="nextdate" />
+                    <button onClick={() => handleSort('forecastCloseDate')} className="inline-flex items-center hover:text-foreground">
+                      Forecast Close <SortIcon column="forecastCloseDate" />
                     </button>
                   </th>
                 </tr>
@@ -250,8 +250,8 @@ export function UpcomingDealsContent() {
                       <td className="px-4 py-3">{deal.accountName || '\u2014'}</td>
                       <td className="px-4 py-3">{deal.contactName || '\u2014'}</td>
                       <td className="px-4 py-3 text-muted-foreground">
-                        {deal.nextdate
-                          ? format(parseISO(deal.nextdate), 'MMM d, yyyy')
+                        {deal.forecastCloseDate
+                          ? format(parseISO(deal.forecastCloseDate), 'MMM d, yyyy')
                           : '\u2014'}
                       </td>
                     </tr>

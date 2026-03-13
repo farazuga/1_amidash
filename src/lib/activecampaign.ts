@@ -128,6 +128,20 @@ class ActiveCampaignClient {
     return data.deals || [];
   }
 
+  async getDealCustomFieldMeta(): Promise<Array<{ id: string; fieldLabel: string; fieldType: string }>> {
+    const data = await this.fetch<{
+      dealCustomFieldMeta: Array<{ id: string; fieldLabel: string; fieldType: string }>;
+    }>('/dealCustomFieldMeta');
+    return data.dealCustomFieldMeta || [];
+  }
+
+  async getDealCustomFieldData(dealId: string): Promise<Array<{ customFieldId: string; fieldValue: string }>> {
+    const data = await this.fetch<{
+      dealCustomFieldData: Array<{ customFieldId: string; fieldValue: string; dealId: string }>;
+    }>(`/deals/${dealId}/dealCustomFieldData`);
+    return data.dealCustomFieldData || [];
+  }
+
   getDealUrl(dealId: string): string {
     const match = this.baseUrl.match(/https:\/\/([^.]+)\.api-us1\.com/);
     const accountName = match?.[1] || '';
