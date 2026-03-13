@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { DollarSign, CalendarIcon, X } from 'lucide-react';
+import { DollarSign, CalendarIcon, X, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import type { ACDealDisplay } from '@/types/activecampaign';
 
@@ -16,12 +16,23 @@ function formatDealValue(cents: string): string {
   return `$${dollars.toLocaleString()}`;
 }
 
+type SortKey = 'title' | 'value' | 'accountName' | 'contactName' | 'nextdate';
+type SortDir = 'asc' | 'desc';
+
+function getSortValue(deal: ACDealDisplay, key: SortKey): string | number {
+  if (key === 'value') return parseInt(deal.value, 10);
+  if (key === 'nextdate') return deal.nextdate || '';
+  return (deal[key] || '').toLowerCase();
+}
+
 export function UpcomingDealsContent() {
   const [deals, setDeals] = useState<ACDealDisplay[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const [sortKey, setSortKey] = useState<SortKey>('nextdate');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
 
   useEffect(() => {
     async function fetchDeals() {
@@ -42,9 +53,21 @@ export function UpcomingDealsContent() {
     fetchDeals();
   }, []);
 
-  const filteredDeals = useMemo(() => {
-    return deals.filter((deal) => {
-      const dealDate = parseISO(deal.cdate);
+  const handleSort = useCallback((key: SortKey) => {
+    setSortKey((prev) => {
+      if (prev === key) {
+        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+        return key;
+      }
+      setSortDir('asc');
+      return key;
+    });
+  }, []);
+
+  const filteredAndSortedDeals = useMemo(() => {
+    const filtered = deals.filter((deal) => {
+      const dateStr = deal.nextdate || deal.cdate;
+      const dealDate = parseISO(dateStr);
       if (startDate && dealDate < startDate) return false;
       if (endDate) {
         const endOfDay = new Date(endDate);
@@ -53,11 +76,18 @@ export function UpcomingDealsContent() {
       }
       return true;
     });
-  }, [deals, startDate, endDate]);
+
+    return filtered.sort((a, b) => {
+      const aVal = getSortValue(a, sortKey);
+      const bVal = getSortValue(b, sortKey);
+      const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [deals, startDate, endDate, sortKey, sortDir]);
 
   const totalValue = useMemo(() => {
-    return filteredDeals.reduce((sum, deal) => sum + parseInt(deal.value, 10) / 100, 0);
-  }, [filteredDeals]);
+    return filteredAndSortedDeals.reduce((sum, deal) => sum + parseInt(deal.value, 10) / 100, 0);
+  }, [filteredAndSortedDeals]);
 
   const clearFilters = () => {
     setStartDate(undefined);
@@ -75,12 +105,19 @@ export function UpcomingDealsContent() {
     );
   }
 
+  const SortIcon = ({ column }: { column: SortKey }) => {
+    if (sortKey !== column) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
+    return sortDir === 'asc'
+      ? <ArrowUp className="h-3 w-3 ml-1" />
+      : <ArrowDown className="h-3 w-3 ml-1" />;
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Upcoming Deals</h1>
         <p className="text-sm text-muted-foreground">
-          Solution Pipeline &middot; Verbal Commit
+          Solutions Pipeline &middot; Verbal Commit
         </p>
       </div>
 
@@ -148,7 +185,7 @@ export function UpcomingDealsContent() {
         </div>
 
         <span className="text-sm text-muted-foreground">
-          {filteredDeals.length} deal{filteredDeals.length !== 1 ? 's' : ''}
+          {filteredAndSortedDeals.length} deal{filteredAndSortedDeals.length !== 1 ? 's' : ''}
         </span>
       </div>
 
@@ -159,15 +196,35 @@ export function UpcomingDealsContent() {
             <table className="w-full">
               <thead>
                 <tr className="border-b text-left text-sm text-muted-foreground">
-                  <th className="px-4 py-3 font-medium">Title</th>
-                  <th className="px-4 py-3 font-medium">Value</th>
-                  <th className="px-4 py-3 font-medium">Account</th>
-                  <th className="px-4 py-3 font-medium">Contact</th>
-                  <th className="px-4 py-3 font-medium">Date</th>
+                  <th className="px-4 py-3 font-medium">
+                    <button onClick={() => handleSort('title')} className="inline-flex items-center hover:text-foreground">
+                      Title <SortIcon column="title" />
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 font-medium">
+                    <button onClick={() => handleSort('value')} className="inline-flex items-center hover:text-foreground">
+                      Value <SortIcon column="value" />
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 font-medium">
+                    <button onClick={() => handleSort('accountName')} className="inline-flex items-center hover:text-foreground">
+                      Account <SortIcon column="accountName" />
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 font-medium">
+                    <button onClick={() => handleSort('contactName')} className="inline-flex items-center hover:text-foreground">
+                      Contact <SortIcon column="contactName" />
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 font-medium">
+                    <button onClick={() => handleSort('nextdate')} className="inline-flex items-center hover:text-foreground">
+                      Forecast Close <SortIcon column="nextdate" />
+                    </button>
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {filteredDeals.length === 0 ? (
+                {filteredAndSortedDeals.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
                       {deals.length === 0
@@ -176,14 +233,26 @@ export function UpcomingDealsContent() {
                     </td>
                   </tr>
                 ) : (
-                  filteredDeals.map((deal) => (
+                  filteredAndSortedDeals.map((deal) => (
                     <tr key={deal.id} className="border-b last:border-0 hover:bg-muted/50">
-                      <td className="px-4 py-3 font-medium">{deal.title}</td>
+                      <td className="px-4 py-3 font-medium">
+                        <a
+                          href={deal.dealUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-primary hover:underline"
+                        >
+                          {deal.title}
+                          <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
+                        </a>
+                      </td>
                       <td className="px-4 py-3">{formatDealValue(deal.value)}</td>
                       <td className="px-4 py-3">{deal.accountName || '\u2014'}</td>
                       <td className="px-4 py-3">{deal.contactName || '\u2014'}</td>
                       <td className="px-4 py-3 text-muted-foreground">
-                        {format(parseISO(deal.cdate), 'MMM d, yyyy')}
+                        {deal.nextdate
+                          ? format(parseISO(deal.nextdate), 'MMM d, yyyy')
+                          : '\u2014'}
                       </td>
                     </tr>
                   ))

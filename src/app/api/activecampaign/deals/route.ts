@@ -66,7 +66,9 @@ export async function GET() {
           : '';
         const accountName = account?.name || '';
 
-        return { ...deal, contactName, accountName };
+        const dealUrl = client.getDealUrl(deal.id);
+
+        return { ...deal, contactName, accountName, dealUrl };
       })
     );
 

@@ -96,4 +96,5 @@ export interface ACPipelinesResponse {
 export interface ACDealDisplay extends ACDeal {
   contactName: string;
   accountName: string;
+  dealUrl: string;
 }
