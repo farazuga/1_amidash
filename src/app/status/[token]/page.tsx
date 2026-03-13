@@ -316,7 +316,7 @@ export default async function ClientPortalPage({
         {/* Two-column layout */}
         <div className="md:grid md:grid-cols-2 md:gap-6 items-start">
           {/* Left column: status + contact */}
-          <div>
+          <div className="space-y-4">
             {leftBlocks.map((block) => (
               <BlockRenderer key={block.id} block={block} data={portalData} />
             ))}
@@ -324,7 +324,7 @@ export default async function ClientPortalPage({
 
           {/* Right column: builder blocks */}
           {rightBlocks.length > 0 && (
-            <div>
+            <div className="space-y-4">
               {rightBlocks.map((block) => (
                 <BlockRenderer key={block.id} block={block} data={portalData} />
               ))}

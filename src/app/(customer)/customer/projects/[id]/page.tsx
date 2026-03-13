@@ -265,10 +265,9 @@ export default async function CustomerProjectDetailPage({
           </Card>
         </div>
 
-        {/* Right column: Schedule + future blocks */}
-        <div className="space-y-4">
-          {/* Project Schedule */}
-          {(project.start_date || project.end_date) && (
+        {/* Right column: Schedule */}
+        {(project.start_date || project.end_date) && (
+          <div className="space-y-4">
             <Card className="border-[#023A2D]/20">
               <CardHeader className="py-3">
                 <div className="flex items-center gap-2">
@@ -286,8 +285,8 @@ export default async function CustomerProjectDetailPage({
                 />
               </CardContent>
             </Card>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Status History - full width bottom */}
