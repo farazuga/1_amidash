@@ -173,9 +173,17 @@ export function UpcomingDealsContent() {
 
   if (loading) {
     return (
-      <div className="p-6">
-        <h1 className="text-2xl font-bold mb-6">Upcoming Deals</h1>
-        <div className="text-muted-foreground">Loading deals...</div>
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Upcoming Deals</h1>
+          <p className="text-sm text-muted-foreground">Solutions Pipeline &middot; Verbal Commit</p>
+        </div>
+        <div className="space-y-4">
+          <div className="h-40 rounded-lg bg-muted animate-pulse" />
+          <div className="h-48 rounded-lg bg-muted animate-pulse" />
+          <div className="h-14 rounded-lg bg-muted animate-pulse" />
+          <div className="h-14 rounded-lg bg-muted animate-pulse" />
+        </div>
       </div>
     );
   }
@@ -200,8 +208,15 @@ export function UpcomingDealsContent() {
         </div>
       )}
 
+      {/* Empty state */}
+      {deals.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground">
+          No deals found in Verbal Commit stage
+        </div>
+      )}
+
       {/* Hero Card */}
-      {showHero && (
+      {deals.length > 0 && showHero && (
         <MonthHeroCard
           monthLabel={format(parseISO(`${currentMonth}-01`), 'MMMM yyyy')}
           goal={currentMonthGoal}
@@ -213,7 +228,7 @@ export function UpcomingDealsContent() {
       )}
 
       {/* Pipeline Outlook */}
-      <PipelineOutlook
+      {deals.length > 0 && <PipelineOutlook
         months={pipelineMonths}
         unscheduled={unscheduledSummary}
         totalDeals={totalDeals}
@@ -221,7 +236,7 @@ export function UpcomingDealsContent() {
         allExpanded={allExpanded}
         onToggleExpandAll={handleToggleExpandAll}
         onMonthClick={handleMonthClick}
-      />
+      />}
 
       {/* Month Sections */}
       {sortedMonthKeys.map((key) => {

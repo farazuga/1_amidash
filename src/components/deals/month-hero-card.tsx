@@ -40,6 +40,8 @@ export function MonthHeroCard({
 
   const GapIcon = gap > 0 ? TrendingUp : gap === 0 ? Minus : TrendingDown;
 
+  const hasGoal = goal > 0;
+
   return (
     <Card>
       <CardContent className="p-5 space-y-4">
@@ -47,12 +49,14 @@ export function MonthHeroCard({
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             {monthLabel}
           </h2>
-          <div className="flex items-center gap-1.5 text-sm">
-            <GapIcon className="h-3.5 w-3.5" />
-            <span className={gap >= 0 ? 'text-green-600' : 'text-red-600'}>
-              {gap >= 0 ? '+' : ''}{formatValue(Math.abs(gap))} {gap >= 0 ? 'over' : 'short'}
-            </span>
-          </div>
+          {hasGoal && (
+            <div className="flex items-center gap-1.5 text-sm">
+              <GapIcon className="h-3.5 w-3.5" />
+              <span className={gap >= 0 ? 'text-green-600' : 'text-red-600'}>
+                {gap >= 0 ? '+' : ''}{formatValue(Math.abs(gap))} {gap >= 0 ? 'over' : 'short'}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Main progress */}
@@ -60,16 +64,20 @@ export function MonthHeroCard({
           <div className="flex items-baseline justify-between text-sm">
             <span>
               <span className="text-2xl font-bold">{formatValue(totalValue)}</span>
-              <span className="text-muted-foreground"> of {formatValue(goal)} goal</span>
+              {hasGoal && (
+                <span className="text-muted-foreground"> of {formatValue(goal)} goal</span>
+              )}
             </span>
-            <span className="text-muted-foreground">{percentage}%</span>
+            {hasGoal && <span className="text-muted-foreground">{percentage}%</span>}
           </div>
-          <div className="h-3 w-full rounded-full bg-muted overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${barColor}`}
-              style={{ width: `${Math.min(percentage, 100)}%` }}
-            />
-          </div>
+          {hasGoal && (
+            <div className="h-3 w-full rounded-full bg-muted overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${barColor}`}
+                style={{ width: `${Math.min(percentage, 100)}%` }}
+              />
+            </div>
+          )}
         </div>
 
         {/* Breakdown */}
