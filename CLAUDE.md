@@ -191,3 +191,17 @@ The app uses internal cron jobs via `node-cron` (no external services needed):
   - Keeps Microsoft OAuth tokens active
   - Initialized via `src/instrumentation.ts` on server startup
   - Implementation: `src/lib/cron/token-refresh.ts`
+
+## Documentation
+
+Comprehensive project documentation lives in the `docs/` directory:
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) - System architecture, data flow, key patterns
+- [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) - All 37 API endpoints with auth, request/response details
+- [`docs/FEATURES.md`](docs/FEATURES.md) - Full feature inventory across all domains
+- [`docs/ENVIRONMENT_SETUP.md`](docs/ENVIRONMENT_SETUP.md) - Environment variables and dev setup
+- [`docs/DATABASE_SCHEMA.md`](docs/DATABASE_SCHEMA.md) - Tables, migrations, RLS policies
+- [`docs/TESTING.md`](docs/TESTING.md) - Test strategy, patterns, configuration
+- [`docs/SECURITY.md`](docs/SECURITY.md) - Auth, CSRF, RLS, encryption, headers
+- [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md) - Odoo, Microsoft, Claude API, Resend, ActiveCampaign
+- [`docs/RECOMMENDATIONS.md`](docs/RECOMMENDATIONS.md) - Testing, security, and performance improvements

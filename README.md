@@ -1,76 +1,116 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AmiDash
 
-## Getting Started
+## Overview
 
-First, run the development server:
+AmiDash is a project management dashboard built for Amitrace, an AV integration company. It manages project lifecycle from sales order through installation, including scheduling, file management, customer communication, and team meetings.
+
+## Tech Stack
+
+- **Framework:** Next.js 16 (App Router) with TypeScript strict mode
+- **Database:** Supabase (PostgreSQL with Row Level Security)
+- **Hosting:** Railway
+- **Styling:** Tailwind CSS 4 + shadcn/ui + Radix UI
+- **State:** Zustand (client) + TanStack Query (server)
+- **Testing:** Vitest (unit) + Playwright (E2E)
+- **Drag & Drop:** @dnd-kit
+- **PWA:** next-pwa with offline support
+
+## Key Features
+
+1. **Project Management** - Full CRUD with status workflow, filtering, sales order tracking
+2. **Calendar Scheduling** - Weekday-only resource calendar with drag-drop, copy (Cmd+drag), delete (Option+click), undo (Cmd+Z), conflict detection, Gantt view
+3. **L10 Meetings (EOS)** - Complete Level 10 meeting system: rocks, scorecards, issues (IDS), todos, headlines, timed segments, realtime collaboration
+4. **Customer Portal** - Token-based public portal with customizable blocks (status timeline, file uploads, delivery address confirmation, schedule view)
+5. **Odoo 18 Integration** - Read-only JSON-RPC integration pulling sales orders, auto-populating projects, generating AI descriptions
+6. **Microsoft Integration** - OAuth2 for Outlook calendar sync, SharePoint file management
+7. **Email Notifications** - Status change and welcome emails via Resend with opt-out controls
+8. **File Management** - Project files with SharePoint sync, camera capture, offline support
+9. **Digital Signage** - Separate signage-engine app for lobby displays
+10. **Approvals Workflow** - Customer approval tasks for deliverables
+
+## Quick Start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.local.example .env.local  # Configure environment variables
+npm run dev                        # Start development server on :3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Scripts
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `npm run dev` - Development server
+- `npm run build` - Production build
+- `npm test` - Run unit/integration tests (Vitest)
+- `npm run test:watch` - Tests in watch mode
+- `npm run test:coverage` - Coverage report (target: 85%)
+- `npm run test:e2e` - Playwright E2E tests
+- `npm run test:e2e:ui` - Playwright UI mode
+- `npm run test:e2e:puppeteer` - Jest Puppeteer E2E tests
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Project Structure
 
-## Learn More
+```
+src/
+├── app/
+│   ├── (auth)/          # Login page
+│   ├── (dashboard)/     # Protected staff routes
+│   │   ├── calendar/    # Master calendar
+│   │   ├── projects/    # Project management
+│   │   ├── l10/         # L10 meetings
+│   │   ├── admin/       # Admin settings
+│   │   ├── approvals/   # Approval queue
+│   │   └── my-schedule/ # Personal schedule
+│   ├── (customer)/      # Customer portal routes
+│   ├── api/             # API routes (37 endpoints)
+│   ├── confirm/[token]/ # Public confirmation page
+│   └── status/[token]/  # Public portal page
+├── components/
+│   ├── calendar/        # 39 calendar components
+│   ├── projects/        # 26 project components
+│   ├── l10/             # 36 L10 meeting components
+│   ├── portal/          # 13 portal components
+│   ├── files/           # 7 file management components
+│   ├── dashboard/       # 6 dashboard components
+│   └── ui/              # 32 shadcn/ui components
+├── hooks/
+│   ├── queries/         # 18 TanStack Query hooks
+│   └── ...              # 9 utility hooks
+├── lib/
+│   ├── calendar/        # Calendar utilities
+│   ├── supabase/        # Auth client + middleware
+│   ├── odoo/            # Odoo JSON-RPC client
+│   ├── microsoft-graph/ # Microsoft OAuth + Graph
+│   ├── email/           # Email templates + sending
+│   ├── sharepoint/      # SharePoint API
+│   ├── stores/          # Zustand stores
+│   └── ...              # Utilities, validation, crypto
+├── types/               # TypeScript type definitions
+└── test/                # Test utilities, factories, mocks
+```
 
-To learn more about Next.js, take a look at the following resources:
+## User Roles
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Role | Access |
+|------|--------|
+| Admin | Full system access, user management, settings |
+| Editor | Project CRUD, calendar management, L10 |
+| Viewer | Read-only dashboard access |
+| Customer | Portal-only access (own projects) |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Documentation
 
-## Active Campaign Integration
+See `docs/` for detailed documentation:
 
-The project form integrates with Active Campaign CRM for client and contact lookup.
+- [Architecture](docs/ARCHITECTURE.md)
+- [API Reference](docs/API_REFERENCE.md)
+- [Features](docs/FEATURES.md)
+- [Environment Setup](docs/ENVIRONMENT_SETUP.md)
+- [Database Schema](docs/DATABASE_SCHEMA.md)
+- [Testing](docs/TESTING.md)
+- [Security](docs/SECURITY.md)
+- [Integrations](docs/INTEGRATIONS.md)
+- [Recommendations](docs/RECOMMENDATIONS.md)
 
-### Setup
+## License
 
-1. Get your Active Campaign API credentials:
-   - Log into your Active Campaign account
-   - Go to Settings > Developer
-   - Copy your Account Name (the subdomain, e.g., "mycompany" from mycompany.activehosted.com)
-   - Copy your API Key
-
-2. Add environment variables to `.env.local`:
-   ```bash
-   ACTIVECAMPAIGN_ACCOUNT_NAME=your-account-name
-   ACTIVECAMPAIGN_API_KEY=your-api-key
-   ```
-
-### Features
-
-- **Client Name Autocomplete**: Type 2+ characters to search Active Campaign accounts
-- **Contact Auto-fill**: Contacts are loaded and auto-filled when an account is selected
-- **Contact Navigation**: Use prev/next arrows to cycle through multiple contacts
-- **AC Link**: Direct link to the AC account page appears after selection
-- **Manual Override**: All auto-filled values can be edited freely
-- **Secondary POC**: Email-only selection from AC contacts
-
-### API Rate Limits
-
-Active Campaign has a rate limit of 5 requests/second. The integration includes:
-- Client-side debouncing (300ms)
-- Server-side authentication to prevent abuse
-
-### Graceful Degradation
-
-If Active Campaign credentials are not configured:
-- The Client Name field works as a normal text input
-- POC fields work as normal text inputs
-- No AC-specific UI elements are shown
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Private - Amitrace internal use only.
