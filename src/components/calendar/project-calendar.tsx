@@ -39,6 +39,7 @@ import { ConflictsPanel } from './conflicts-panel';
 import { KeyboardShortcutsHelp } from './keyboard-shortcuts-help';
 import { useUndo } from '@/hooks/use-undo';
 import { useUndoStore } from '@/stores/undo-store';
+import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import {
@@ -148,6 +149,13 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   // Undo functionality
   const { pushAction } = useUndoStore();
   useUndo(); // This registers the keyboard shortcut listener
+
+  // Calendar navigation keyboard shortcuts (← → for month nav, T for today)
+  useKeyboardShortcuts([
+    { keys: 'arrowleft', handler: () => setCurrentDate(getPreviousMonth(currentDate)) },
+    { keys: 'arrowright', handler: () => setCurrentDate(getNextMonth(currentDate)) },
+    { keys: 't', handler: () => setCurrentDate(new Date()) },
+  ]);
 
   // Convert assignments to calendar events with scheduled days
   const events = useMemo(() => {
