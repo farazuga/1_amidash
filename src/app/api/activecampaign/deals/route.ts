@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getActiveCampaignClient, isActiveCampaignConfigured } from '@/lib/activecampaign';
 import type { ACDealDisplay } from '@/types/activecampaign';
@@ -6,7 +6,7 @@ import type { ACDealDisplay } from '@/types/activecampaign';
 const PIPELINE_NAME = 'Solutions';
 const STAGE_NAME = 'Verbal Commit';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -56,22 +56,6 @@ export async function GET(request: NextRequest) {
     // Find the "Forecasted Close Date" custom field ID
     const customFieldMeta = await client.getDealCustomFieldMeta();
 
-    // Debug mode: return custom field info and raw deal data
-    const debug = request.nextUrl.searchParams.get('debug');
-    if (debug) {
-      const firstDeal = deals[0];
-      const firstDealCustomFields = firstDeal
-        ? await client.getDealCustomFieldData(firstDeal.id)
-        : [];
-      return NextResponse.json({
-        customFieldMeta,
-        firstDealCustomFields,
-        firstDealKeys: firstDeal ? Object.keys(firstDeal) : [],
-        firstDealSample: firstDeal ? { title: firstDeal.title, nextdate: firstDeal.nextdate } : null,
-      firstDealRaw: firstDeal,
-      });
-    }
-
     const forecastField = customFieldMeta.find(
       (f) => f.fieldLabel.toLowerCase().includes('forecast') && f.fieldLabel.toLowerCase().includes('close')
     );
@@ -94,7 +78,7 @@ export async function GET(request: NextRequest) {
         // Get forecast close date from custom fields
         let forecastCloseDate = '';
         if (forecastField) {
-          const fcField = customFields.find((f) => f.customFieldId === forecastField.id);
+          const fcField = customFields.find((f) => String(f.customFieldId) === String(forecastField.id));
           forecastCloseDate = fcField?.fieldValue || '';
         }
 
