@@ -156,10 +156,18 @@ export const createMeasurableSchema = z.object({
   goalValue: z.number().optional(),
   goalDirection: z.enum(['above', 'below', 'exact']).optional().default('above'),
   autoSource: z.enum(['po_revenue', 'invoiced_revenue', 'open_projects', 'odoo_account', 'odoo_quotes']).nullable().optional(),
-  odooAccountCode: z.string().nullable().optional(),
-  odooAccountName: z.string().nullable().optional(),
+  odooAccountCode: z.string().max(20).nullable().optional(),
+  odooAccountName: z.string().max(200).nullable().optional(),
   odooDateMode: z.enum(['date_range', 'last_day']).nullable().optional(),
-});
+}).refine(
+  (data) => {
+    if (data.autoSource === 'odoo_account') {
+      return !!data.odooAccountCode && !!data.odooDateMode;
+    }
+    return true;
+  },
+  { message: 'Odoo Account source requires account code and date mode', path: ['odooAccountCode'] }
+);
 
 export const updateMeasurableSchema = z.object({
   id: uuidSchema,
@@ -169,8 +177,8 @@ export const updateMeasurableSchema = z.object({
   goalValue: z.number().nullable().optional(),
   goalDirection: z.enum(['above', 'below', 'exact']).optional(),
   autoSource: z.enum(['po_revenue', 'invoiced_revenue', 'open_projects', 'odoo_account', 'odoo_quotes']).nullable().optional(),
-  odooAccountCode: z.string().nullable().optional(),
-  odooAccountName: z.string().nullable().optional(),
+  odooAccountCode: z.string().max(20).nullable().optional(),
+  odooAccountName: z.string().max(200).nullable().optional(),
   odooDateMode: z.enum(['date_range', 'last_day']).nullable().optional(),
   isActive: z.boolean().optional(),
 });

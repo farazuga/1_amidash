@@ -276,8 +276,18 @@ describe('Calendar Actions', () => {
         }),
       });
 
+      const selectMock = vi.fn().mockReturnValue({
+        in: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({
+            data: [],
+            error: null,
+          }),
+        }),
+      });
+
       const insertMock = vi.fn().mockResolvedValue({ error: null });
 
+      let assignmentCallCount = 0;
       const mockSupabase = {
         auth: {
           getUser: vi.fn().mockResolvedValue({
@@ -287,10 +297,11 @@ describe('Calendar Actions', () => {
         },
         from: vi.fn().mockImplementation((table: string) => {
           if (table === 'project_assignments') {
-            return {
-              select: selectMock,
-              update: updateMock,
-            };
+            assignmentCallCount++;
+            if (assignmentCallCount === 1) {
+              return { select: selectMock };
+            }
+            return { update: updateMock };
           }
           if (table === 'booking_status_history') {
             return {
@@ -315,6 +326,7 @@ describe('Calendar Actions', () => {
     it('records history for each assignment', async () => {
       const historyInsertMock = vi.fn().mockResolvedValue({ error: null });
 
+      let assignmentCallCount2 = 0;
       const mockSupabase = {
         auth: {
           getUser: vi.fn().mockResolvedValue({
@@ -324,6 +336,19 @@ describe('Calendar Actions', () => {
         },
         from: vi.fn().mockImplementation((table: string) => {
           if (table === 'project_assignments') {
+            assignmentCallCount2++;
+            if (assignmentCallCount2 === 1) {
+              return {
+                select: vi.fn().mockReturnValue({
+                  in: vi.fn().mockReturnValue({
+                    eq: vi.fn().mockResolvedValue({
+                      data: [],
+                      error: null,
+                    }),
+                  }),
+                }),
+              };
+            }
             return {
               select: vi.fn().mockReturnValue({
                 in: vi.fn().mockReturnValue({

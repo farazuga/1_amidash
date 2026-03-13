@@ -77,8 +77,8 @@ describe('dashboard.ts - getDashboardData', () => {
     ];
 
     const mockGoals: DashboardRevenueGoal[] = [
-      { year: 2024, month: 1, revenue_goal: 100000, projects_goal: 5 },
-      { year: 2024, month: 2, revenue_goal: 120000, projects_goal: 6 },
+      { year: 2024, month: 1, revenue_goal: 100000, projects_goal: 5, invoiced_revenue_goal: 80000 },
+      { year: 2024, month: 2, revenue_goal: 120000, projects_goal: 6, invoiced_revenue_goal: 96000 },
     ];
 
     const mockSupabase = {

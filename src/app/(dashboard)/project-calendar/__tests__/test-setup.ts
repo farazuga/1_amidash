@@ -183,7 +183,7 @@ export function createTestProject(options?: {
     project_manager_id: null,
     billing_type: null,
     priority: 'medium',
-  } as ProjectWithDetails;
+  } as unknown as ProjectWithDetails;
 }
 
 /**

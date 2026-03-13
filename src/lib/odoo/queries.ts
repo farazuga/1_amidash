@@ -11,6 +11,8 @@ import type {
   OdooOrderLine,
   OdooPartner,
   OdooProduct,
+  OdooAccount,
+  OdooMoveLine,
   OdooActivity,
   OdooUser,
 } from '@/types/odoo';
@@ -136,6 +138,107 @@ export async function getPartnerContacts(
     ['id', 'name', 'email', 'phone', 'mobile', 'child_ids'],
     { limit: 10 }
   );
+}
+
+// ============================================================
+// Accounting
+// ============================================================
+
+/**
+ * Look up an accounting account by its code (e.g. "1200").
+ * Returns the account if found, null otherwise.
+ */
+export async function findAccountByCode(
+  client: OdooReadOnlyClient,
+  accountCode: string
+): Promise<OdooAccount | null> {
+  const results = await client.searchRead<OdooAccount>(
+    'account.account',
+    [['code', '=', accountCode]],
+    ['id', 'code', 'name'],
+    { limit: 1 }
+  );
+  return results.length > 0 ? results[0] : null;
+}
+
+/**
+ * Get the net movement (sum of balance) for journal entries on a specific
+ * account within a date range (inclusive). Only includes posted entries.
+ * Used for "date_range" mode in the scorecard.
+ */
+export async function getAccountMovement(
+  client: OdooReadOnlyClient,
+  accountCode: string,
+  dateFrom: string, // YYYY-MM-DD
+  dateTo: string // YYYY-MM-DD
+): Promise<number> {
+  const lines = await client.searchRead<OdooMoveLine>(
+    'account.move.line',
+    [
+      ['account_id.code', '=', accountCode],
+      ['date', '>=', dateFrom],
+      ['date', '<=', dateTo],
+      ['parent_state', '=', 'posted'],
+    ],
+    ['balance']
+  );
+  return lines.reduce((sum, line) => sum + (line.balance || 0), 0);
+}
+
+/**
+ * Get the cumulative balance for an account as-of a specific date.
+ * Sums all posted journal items on or before the given date.
+ * Used for "last_day" mode in the scorecard.
+ */
+export async function getAccountBalance(
+  client: OdooReadOnlyClient,
+  accountCode: string,
+  asOfDate: string // YYYY-MM-DD
+): Promise<number> {
+  const lines = await client.searchRead<OdooMoveLine>(
+    'account.move.line',
+    [
+      ['account_id.code', '=', accountCode],
+      ['date', '<=', asOfDate],
+      ['parent_state', '=', 'posted'],
+    ],
+    ['balance']
+  );
+  return lines.reduce((sum, line) => sum + (line.balance || 0), 0);
+}
+
+// ============================================================
+// Quotes (Quotations)
+// ============================================================
+
+/**
+ * Get the total value of open (non-expired, non-confirmed) quotes as of a date.
+ * In Odoo, quotes are sale.order with state in ('draft', 'sent').
+ * "Not expired" means validity_date is false/null or >= asOfDate.
+ * Returns the sum of amount_total for matching quotes.
+ */
+export async function getOpenQuotesTotal(
+  client: OdooReadOnlyClient,
+  asOfDate: string // YYYY-MM-DD
+): Promise<number> {
+  const domain = [
+    ['state', 'in', ['draft', 'sent']],
+    ['create_date', '<=', `${asOfDate} 23:59:59`],
+    '|',
+    ['validity_date', '=', false],
+    ['validity_date', '>=', asOfDate],
+  ] as unknown as unknown[][];
+
+  const quotes = await client.searchRead<{
+    id: number;
+    amount_total: number;
+    validity_date: string | false;
+  }>(
+    'sale.order',
+    domain,
+    ['id', 'amount_total', 'validity_date']
+  );
+  return quotes.reduce((sum, q) => sum + (q.amount_total || 0), 0);
 }
 
 // ============================================================
