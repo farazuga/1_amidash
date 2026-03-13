@@ -1,22 +1,18 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Loader2, Mail, MailX, AlertTriangle, Settings, FolderSync, ExternalLink, Unlink, BarChart3, HelpCircle, FolderPlus, CheckCircle2, KeyRound, Archive, UserCheck } from 'lucide-react';
+import { Loader2, AlertTriangle, Settings, FolderSync, ExternalLink, Unlink, FolderPlus, CheckCircle2, Archive } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { SharePointConfigDialog } from '@/components/admin/sharepoint-config-dialog';
+import { EmailSettingsSection } from '@/components/admin/email-settings-section';
+import { DashboardThresholdsSection, DEFAULT_DASHBOARD_SETTINGS } from '@/components/admin/dashboard-thresholds-section';
+import type { DashboardSettings } from '@/components/admin/dashboard-thresholds-section';
+import { TokenStatusSection } from '@/components/admin/token-status-section';
+import { ApprovalUserSection } from '@/components/admin/approval-user-section';
 import {
   getSharePointConfig,
   removeSharePointConfig,
@@ -26,14 +22,7 @@ import {
   getInvoicedProjectsWithFoldersCount,
   archiveInvoicedProjects,
 } from './sharepoint-actions';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { getApprovalUserId, setApprovalUserId, getApprovalCandidates } from './approval-actions';
+import { getApprovalUserId, getApprovalCandidates } from './approval-actions';
 import type { SharePointGlobalConfig, Profile } from '@/types';
 
 interface AppSetting {
@@ -42,112 +31,11 @@ interface AppSetting {
   updated_at: string | null;
 }
 
-interface TokenStatusSummary {
-  total_connections: number;
-  access_tokens: {
-    valid: number;
-    expiring_soon: number;
-    expired: number;
-  };
-  refresh_tokens: {
-    healthy: number;
-    should_refresh_soon: number;
-    at_risk: number;
-  };
-  checked_at: string;
-}
-
-interface DashboardSettings {
-  wipAgingDays: number;
-  salesHealthThreshold: number;
-  operationsHealthThreshold: number;
-  ontimeGoodThreshold: number;
-  ontimeWarningThreshold: number;
-  concentrationHighThreshold: number;
-  concentrationMediumThreshold: number;
-  backlogWarningMonths: number;
-  // New settings for dashboard improvements
-  notScheduledWarningDays: number;
-  lowInvoiceWarningPercent: number;
-  signageMinProjectValue: number;
-  signageUpcomingDays: number;
-}
-
-const DEFAULT_DASHBOARD_SETTINGS: DashboardSettings = {
-  wipAgingDays: 14,
-  salesHealthThreshold: 80,
-  operationsHealthThreshold: 60,
-  ontimeGoodThreshold: 80,
-  ontimeWarningThreshold: 60,
-  concentrationHighThreshold: 70,
-  concentrationMediumThreshold: 50,
-  backlogWarningMonths: 6,
-  // New settings for dashboard improvements
-  notScheduledWarningDays: 14,
-  lowInvoiceWarningPercent: 80,
-  signageMinProjectValue: 10000,
-  signageUpcomingDays: 30,
-};
-
-const SETTING_TOOLTIPS: Record<keyof DashboardSettings, { label: string; tooltip: string }> = {
-  wipAgingDays: {
-    label: 'WIP Aging Threshold (days)',
-    tooltip: 'Projects stuck in a status longer than this are flagged. Recommended: 14 days. Lower values catch issues faster but may create noise.',
-  },
-  salesHealthThreshold: {
-    label: 'Sales Health Threshold (%)',
-    tooltip: 'POs received vs goal percentage. Below this triggers "Sales Attention Needed". Recommended: 80%. Industry standard is 75-85%.',
-  },
-  operationsHealthThreshold: {
-    label: 'Operations Health Threshold (%)',
-    tooltip: 'Invoiced vs POs received ratio. Below this indicates operations bottleneck. Recommended: 60%. Adjust based on your typical project cycle time.',
-  },
-  ontimeGoodThreshold: {
-    label: 'On-Time Good Threshold (%)',
-    tooltip: 'On-time completion percentage at or above this shows green. Recommended: 80%. World-class is 90%+.',
-  },
-  ontimeWarningThreshold: {
-    label: 'On-Time Warning Threshold (%)',
-    tooltip: 'On-time completion below good but above this shows amber. Below this shows red. Recommended: 60%.',
-  },
-  concentrationHighThreshold: {
-    label: 'Concentration High Risk (%)',
-    tooltip: 'Top 3 clients at or above this % of revenue = high risk. Recommended: 70%. High concentration increases business risk.',
-  },
-  concentrationMediumThreshold: {
-    label: 'Concentration Medium Risk (%)',
-    tooltip: 'Top 3 clients at or above this % = medium risk. Below this is healthy. Recommended: 50%.',
-  },
-  backlogWarningMonths: {
-    label: 'Backlog Warning (months)',
-    tooltip: 'Backlog depth above this shows warning. Recommended: 6 months. Too much backlog may indicate capacity issues.',
-  },
-  // New settings for dashboard improvements
-  notScheduledWarningDays: {
-    label: 'Not Scheduled Warning (days)',
-    tooltip: 'Projects waiting longer than this without being scheduled trigger an alert. Recommended: 14 days.',
-  },
-  lowInvoiceWarningPercent: {
-    label: 'Low Invoice Warning (%)',
-    tooltip: 'If projected invoicing for the month is below this percentage of goal, show a warning. Recommended: 80%.',
-  },
-  signageMinProjectValue: {
-    label: 'Signage Min Project Value ($)',
-    tooltip: 'Only show projects with value above this threshold on digital signage. Helps prioritize Solutions over Box Sales.',
-  },
-  signageUpcomingDays: {
-    label: 'Signage Upcoming Days',
-    tooltip: 'Number of days to look ahead for "Upcoming Projects" on signage. Recommended: 30 days.',
-  },
-};
-
 export default function AdminSettingsPage() {
   const [emailsEnabled, setEmailsEnabled] = useState(true);
   const [dashboardSettings, setDashboardSettings] = useState<DashboardSettings>(DEFAULT_DASHBOARD_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
   const [tableExists, setTableExists] = useState(true);
-  const [isPending, startTransition] = useTransition();
-  const [isSavingDashboard, setIsSavingDashboard] = useState(false);
   const supabase = createClient();
 
   // SharePoint state
@@ -166,19 +54,10 @@ export default function AdminSettingsPage() {
   const [invoicedProjectsCount, setInvoicedProjectsCount] = useState<number>(0);
   const [isArchiving, setIsArchiving] = useState(false);
 
-  // Disable all project emails state
-  const [isDisablingEmails, setIsDisablingEmails] = useState(false);
-
-  // Token status state
-  const [tokenStatus, setTokenStatus] = useState<TokenStatusSummary | null>(null);
-  const [tokenStatusLoading, setTokenStatusLoading] = useState(true);
-  const [tokenStatusError, setTokenStatusError] = useState<string | null>(null);
-
   // Customer approval state
   const [approvalUserId, setApprovalUserIdState] = useState<string | null>(null);
   const [approvalCandidates, setApprovalCandidates] = useState<Profile[]>([]);
   const [approvalLoading, setApprovalLoading] = useState(true);
-  const [isSavingApproval, setIsSavingApproval] = useState(false);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -266,34 +145,6 @@ export default function AdminSettingsPage() {
     fetchSharePointSettings();
   }, []);
 
-  // Fetch token status
-  useEffect(() => {
-    const fetchTokenStatus = async () => {
-      setTokenStatusLoading(true);
-      setTokenStatusError(null);
-      try {
-        const response = await fetch('/api/admin/token-status');
-        if (!response.ok) {
-          if (response.status === 403) {
-            setTokenStatusError('Admin access required');
-          } else {
-            setTokenStatusError('Failed to load token status');
-          }
-          return;
-        }
-        const data = await response.json();
-        setTokenStatus(data.summary);
-      } catch (error) {
-        console.error('Error fetching token status:', error);
-        setTokenStatusError('Failed to load token status');
-      } finally {
-        setTokenStatusLoading(false);
-      }
-    };
-
-    fetchTokenStatus();
-  }, []);
-
   // Fetch customer approval settings
   useEffect(() => {
     const fetchApprovalSettings = async () => {
@@ -314,24 +165,6 @@ export default function AdminSettingsPage() {
 
     fetchApprovalSettings();
   }, []);
-
-  const handleApprovalUserChange = async (value: string) => {
-    const newUserId = value === 'none' ? null : value;
-    setIsSavingApproval(true);
-    try {
-      const result = await setApprovalUserId(newUserId);
-      if (result.success) {
-        setApprovalUserIdState(newUserId);
-        toast.success(newUserId ? 'Approval user updated' : 'Approval user cleared');
-      } else {
-        toast.error(result.error || 'Failed to update approval user');
-      }
-    } catch {
-      toast.error('Failed to update approval user');
-    } finally {
-      setIsSavingApproval(false);
-    }
-  };
 
   const handleCreateMissingFolders = async () => {
     setIsCreatingFolders(true);
@@ -413,130 +246,6 @@ export default function AdminSettingsPage() {
     }
   };
 
-  const handleDisableAllProjectEmails = async () => {
-    if (!confirm('Are you sure you want to disable email notifications for all non-invoiced projects? Individual projects can be re-enabled from their project settings.')) {
-      return;
-    }
-
-    setIsDisablingEmails(true);
-    try {
-      // Look up the "Invoiced" status ID
-      const { data: invoicedStatus, error: statusError } = await supabase
-        .from('statuses')
-        .select('id')
-        .eq('name', 'Invoiced')
-        .single();
-
-      if (statusError) {
-        toast.error('Failed to find Invoiced status');
-        console.error('Error finding Invoiced status:', statusError);
-        return;
-      }
-
-      // Disable emails for all non-invoiced projects (with a status that isn't Invoiced)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { count: count1, error: error1 } = await (supabase.from('projects') as any)
-        .update({ email_notifications_enabled: false })
-        .neq('current_status_id', invoicedStatus.id)
-        .not('current_status_id', 'is', null)
-        .select('id', { count: 'exact', head: true });
-
-      // Also disable for projects with null current_status_id
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { count: count2, error: error2 } = await (supabase.from('projects') as any)
-        .update({ email_notifications_enabled: false })
-        .is('current_status_id', null)
-        .select('id', { count: 'exact', head: true });
-
-      if (error1 || error2) {
-        toast.error('Failed to disable project emails');
-        console.error('Error disabling project emails:', error1 || error2);
-        return;
-      }
-
-      const totalCount = (count1 || 0) + (count2 || 0);
-      toast.success(`Disabled emails for ${totalCount} project${totalCount !== 1 ? 's' : ''}`);
-    } catch (error) {
-      console.error('Error disabling all project emails:', error);
-      toast.error('Failed to disable project emails');
-    } finally {
-      setIsDisablingEmails(false);
-    }
-  };
-
-  const handleToggleEmails = async (enabled: boolean) => {
-    startTransition(async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase.from as any)('app_settings')
-        .upsert(
-          { key: 'emails_enabled', value: enabled, updated_at: new Date().toISOString() },
-          { onConflict: 'key' }
-        );
-
-      if (error) {
-        toast.error('Failed to update email settings');
-        console.error('Error updating settings:', error);
-        return;
-      }
-
-      setEmailsEnabled(enabled);
-      toast.success(enabled ? 'Client emails enabled' : 'Client emails disabled');
-    });
-  };
-
-  const handleDashboardSettingChange = (key: keyof DashboardSettings, value: string) => {
-    const numValue = parseInt(value) || 0;
-    setDashboardSettings(prev => ({ ...prev, [key]: numValue }));
-  };
-
-  const handleSaveDashboardSettings = async () => {
-    setIsSavingDashboard(true);
-
-    const settingKeyMap: Record<keyof DashboardSettings, string> = {
-      wipAgingDays: 'dashboard_wip_aging_days',
-      salesHealthThreshold: 'dashboard_sales_health_threshold',
-      operationsHealthThreshold: 'dashboard_operations_health_threshold',
-      ontimeGoodThreshold: 'dashboard_ontime_good_threshold',
-      ontimeWarningThreshold: 'dashboard_ontime_warning_threshold',
-      concentrationHighThreshold: 'dashboard_concentration_high_threshold',
-      concentrationMediumThreshold: 'dashboard_concentration_medium_threshold',
-      backlogWarningMonths: 'dashboard_backlog_warning_months',
-      // New settings
-      notScheduledWarningDays: 'dashboard_not_scheduled_warning_days',
-      lowInvoiceWarningPercent: 'dashboard_low_invoice_warning_percent',
-      signageMinProjectValue: 'dashboard_signage_min_project_value',
-      signageUpcomingDays: 'dashboard_signage_upcoming_days',
-    };
-
-    try {
-      const updates = Object.entries(dashboardSettings).map(([key, value]) => ({
-        key: settingKeyMap[key as keyof DashboardSettings],
-        value: value,
-        updated_at: new Date().toISOString(),
-      }));
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase.from as any)('app_settings')
-        .upsert(updates, { onConflict: 'key' });
-
-      if (error) {
-        throw error;
-      }
-
-      toast.success('Dashboard settings saved');
-    } catch (error) {
-      console.error('Error saving dashboard settings:', error);
-      toast.error('Failed to save dashboard settings');
-    } finally {
-      setIsSavingDashboard(false);
-    }
-  };
-
-  const handleResetDashboardSettings = () => {
-    setDashboardSettings(DEFAULT_DASHBOARD_SETTINGS);
-    toast.info('Settings reset to defaults. Click Save to apply.');
-  };
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -604,99 +313,8 @@ WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND pr
         <p className="text-muted-foreground">Configure application settings</p>
       </div>
 
-      {/* Email Settings Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Mail className="h-5 w-5" />
-            Email Notifications
-          </CardTitle>
-          <CardDescription>
-            Control email notifications sent to clients
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Global Email Toggle */}
-          <div className="flex items-center justify-between rounded-lg border p-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <Label htmlFor="emails-enabled" className="text-base font-medium">
-                  Enable Client Emails
-                </Label>
-                {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              </div>
-              <p className="text-sm text-muted-foreground">
-                When disabled, no emails will be sent to clients for status changes or welcome messages.
-                This is a global kill switch for all client email notifications.
-              </p>
-            </div>
-            <Switch
-              id="emails-enabled"
-              checked={emailsEnabled}
-              onCheckedChange={handleToggleEmails}
-              disabled={isPending}
-            />
-          </div>
-
-          {/* Warning when disabled */}
-          {!emailsEnabled && (
-            <Alert>
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Emails Disabled</AlertTitle>
-              <AlertDescription>
-                Client email notifications are currently disabled. Clients will not receive
-                status change notifications or welcome emails until this is re-enabled.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Disable All Project Emails */}
-          <div className="rounded-lg border p-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-medium flex items-center gap-2">
-                  <MailX className="h-4 w-4" />
-                  Disable All Project Emails
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Turns off email notifications for all non-invoiced projects. Individual projects can be re-enabled from their project settings.
-                </p>
-              </div>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleDisableAllProjectEmails}
-                disabled={isDisablingEmails}
-              >
-                {isDisablingEmails ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Disabling...
-                  </>
-                ) : (
-                  'Disable All'
-                )}
-              </Button>
-            </div>
-          </div>
-
-          {/* Info about per-project settings */}
-          <div className="rounded-lg bg-muted p-4">
-            <div className="flex items-start gap-3">
-              <Settings className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div>
-                <p className="text-sm font-medium">Per-Project Settings</p>
-                <p className="text-sm text-muted-foreground">
-                  You can also disable email notifications for individual projects.
-                  Edit a project and toggle the &quot;Email Notifications&quot; setting.
-                  Both this global setting AND the project setting must be enabled for
-                  emails to be sent.
-                </p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Email Settings */}
+      <EmailSettingsSection initialEmailsEnabled={emailsEnabled} />
 
       {/* SharePoint Settings Card */}
       <Card>
@@ -907,408 +525,18 @@ WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND pr
         </CardContent>
       </Card>
 
-      {/* Microsoft Token Status Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <KeyRound className="h-5 w-5" />
-            Microsoft Token Status
-          </CardTitle>
-          <CardDescription>
-            Monitor Microsoft authentication tokens for all users
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {tokenStatusLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : tokenStatusError ? (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>{tokenStatusError}</AlertDescription>
-            </Alert>
-          ) : tokenStatus ? (
-            <>
-              {/* Summary Stats */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Access Tokens */}
-                <div className="rounded-lg border p-4">
-                  <p className="text-sm font-medium mb-3">Access Tokens</p>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Valid</span>
-                      <span className="text-sm font-medium text-green-600">{tokenStatus.access_tokens.valid}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Expiring Soon</span>
-                      <span className="text-sm font-medium text-yellow-600">{tokenStatus.access_tokens.expiring_soon}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Expired</span>
-                      <span className="text-sm font-medium text-red-600">{tokenStatus.access_tokens.expired}</span>
-                    </div>
-                  </div>
-                </div>
+      {/* Microsoft Token Status */}
+      <TokenStatusSection />
 
-                {/* Refresh Tokens */}
-                <div className="rounded-lg border p-4">
-                  <p className="text-sm font-medium mb-3">Refresh Tokens</p>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Healthy</span>
-                      <span className="text-sm font-medium text-green-600">{tokenStatus.refresh_tokens.healthy}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Refresh Soon</span>
-                      <span className="text-sm font-medium text-yellow-600">{tokenStatus.refresh_tokens.should_refresh_soon}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">At Risk</span>
-                      <span className="text-sm font-medium text-red-600">{tokenStatus.refresh_tokens.at_risk}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Total and Warning */}
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">
-                  Total connections: <span className="font-medium text-foreground">{tokenStatus.total_connections}</span>
-                </span>
-                {(tokenStatus.refresh_tokens.at_risk > 0) && (
-                  <span className="text-red-600 flex items-center gap-1">
-                    <AlertTriangle className="h-3.5 w-3.5" />
-                    {tokenStatus.refresh_tokens.at_risk} user{tokenStatus.refresh_tokens.at_risk !== 1 ? 's' : ''} may need to reconnect soon
-                  </span>
-                )}
-              </div>
-
-              {/* View Details Link */}
-              <div className="pt-2 border-t">
-                <a
-                  href="/api/admin/token-status"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
-                >
-                  View Full Details
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </div>
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">No Microsoft connections found</p>
-          )}
-
-          <div className="text-xs text-muted-foreground border-t pt-4">
-            <p><strong>Access tokens:</strong> Last ~1 hour, auto-refresh using refresh token</p>
-            <p><strong>Refresh tokens:</strong> Last 90 days of inactivity, each use extends the window</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Dashboard Threshold Settings */}
-      <TooltipProvider>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
-              Dashboard Thresholds
-            </CardTitle>
-            <CardDescription>
-              Configure the thresholds used for health diagnostics and alerts on the dashboard
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Health Diagnostic Thresholds */}
-            <div>
-              <h3 className="text-sm font-semibold mb-4">Health Diagnostic</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {(['salesHealthThreshold', 'operationsHealthThreshold'] as const).map(key => (
-                  <div key={key} className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor={key} className="text-sm">
-                        {SETTING_TOOLTIPS[key].label}
-                      </Label>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          <p>{SETTING_TOOLTIPS[key].tooltip}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <Input
-                      id={key}
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={dashboardSettings[key]}
-                      onChange={(e) => handleDashboardSettingChange(key, e.target.value)}
-                      className="w-full"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* WIP Aging Threshold */}
-            <div>
-              <h3 className="text-sm font-semibold mb-4">WIP Aging Alert</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="wipAgingDays" className="text-sm">
-                      {SETTING_TOOLTIPS.wipAgingDays.label}
-                    </Label>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        <p>{SETTING_TOOLTIPS.wipAgingDays.tooltip}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <Input
-                    id="wipAgingDays"
-                    type="number"
-                    min={1}
-                    max={90}
-                    value={dashboardSettings.wipAgingDays}
-                    onChange={(e) => handleDashboardSettingChange('wipAgingDays', e.target.value)}
-                    className="w-full"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="backlogWarningMonths" className="text-sm">
-                      {SETTING_TOOLTIPS.backlogWarningMonths.label}
-                    </Label>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        <p>{SETTING_TOOLTIPS.backlogWarningMonths.tooltip}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <Input
-                    id="backlogWarningMonths"
-                    type="number"
-                    min={1}
-                    max={24}
-                    value={dashboardSettings.backlogWarningMonths}
-                    onChange={(e) => handleDashboardSettingChange('backlogWarningMonths', e.target.value)}
-                    className="w-full"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* On-Time Completion Thresholds */}
-            <div>
-              <h3 className="text-sm font-semibold mb-4">On-Time Completion</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {(['ontimeGoodThreshold', 'ontimeWarningThreshold'] as const).map(key => (
-                  <div key={key} className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor={key} className="text-sm">
-                        {SETTING_TOOLTIPS[key].label}
-                      </Label>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          <p>{SETTING_TOOLTIPS[key].tooltip}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <Input
-                      id={key}
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={dashboardSettings[key]}
-                      onChange={(e) => handleDashboardSettingChange(key, e.target.value)}
-                      className="w-full"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Customer Concentration Thresholds */}
-            <div>
-              <h3 className="text-sm font-semibold mb-4">Customer Concentration Risk</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {(['concentrationHighThreshold', 'concentrationMediumThreshold'] as const).map(key => (
-                  <div key={key} className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor={key} className="text-sm">
-                        {SETTING_TOOLTIPS[key].label}
-                      </Label>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          <p>{SETTING_TOOLTIPS[key].tooltip}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <Input
-                      id={key}
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={dashboardSettings[key]}
-                      onChange={(e) => handleDashboardSettingChange(key, e.target.value)}
-                      className="w-full"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Dashboard Alert Thresholds */}
-            <div>
-              <h3 className="text-sm font-semibold mb-4">Dashboard Alerts</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {(['notScheduledWarningDays', 'lowInvoiceWarningPercent'] as const).map(key => (
-                  <div key={key} className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor={key} className="text-sm">
-                        {SETTING_TOOLTIPS[key].label}
-                      </Label>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          <p>{SETTING_TOOLTIPS[key].tooltip}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <Input
-                      id={key}
-                      type="number"
-                      min={key === 'notScheduledWarningDays' ? 1 : 0}
-                      max={key === 'notScheduledWarningDays' ? 90 : 100}
-                      value={dashboardSettings[key]}
-                      onChange={(e) => handleDashboardSettingChange(key, e.target.value)}
-                      className="w-full"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Digital Signage Settings */}
-            <div>
-              <h3 className="text-sm font-semibold mb-4">Digital Signage</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {(['signageMinProjectValue', 'signageUpcomingDays'] as const).map(key => (
-                  <div key={key} className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor={key} className="text-sm">
-                        {SETTING_TOOLTIPS[key].label}
-                      </Label>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          <p>{SETTING_TOOLTIPS[key].tooltip}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <Input
-                      id={key}
-                      type="number"
-                      min={key === 'signageMinProjectValue' ? 0 : 1}
-                      max={key === 'signageMinProjectValue' ? 1000000 : 365}
-                      value={dashboardSettings[key]}
-                      onChange={(e) => handleDashboardSettingChange(key, e.target.value)}
-                      className="w-full"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center justify-between pt-4 border-t">
-              <Button
-                variant="outline"
-                onClick={handleResetDashboardSettings}
-                disabled={isSavingDashboard}
-              >
-                Reset to Defaults
-              </Button>
-              <Button
-                onClick={handleSaveDashboardSettings}
-                disabled={isSavingDashboard}
-              >
-                {isSavingDashboard && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Save Settings
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </TooltipProvider>
+      {/* Dashboard Thresholds */}
+      <DashboardThresholdsSection initialSettings={dashboardSettings} />
 
       {/* Customer Approvals */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <UserCheck className="h-5 w-5" />
-            Customer Approvals
-          </CardTitle>
-          <CardDescription>
-            Select the user responsible for reviewing customer-uploaded files
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {approvalLoading ? (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading...
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <Label htmlFor="approval-user">Approval User</Label>
-              <Select
-                value={approvalUserId || 'none'}
-                onValueChange={handleApprovalUserChange}
-                disabled={isSavingApproval}
-              >
-                <SelectTrigger id="approval-user" className="w-full max-w-sm">
-                  <SelectValue placeholder="Select a user" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {approvalCandidates.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.full_name || user.email} ({user.role})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {isSavingApproval && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Saving...
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <ApprovalUserSection
+        initialApprovalUserId={approvalUserId}
+        approvalCandidates={approvalCandidates}
+        isLoading={approvalLoading}
+      />
 
       {/* SharePoint Config Dialog */}
       <SharePointConfigDialog
