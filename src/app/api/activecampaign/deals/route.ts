@@ -60,6 +60,17 @@ export async function GET() {
       (f) => f.fieldLabel.toLowerCase().includes('forecast') && f.fieldLabel.toLowerCase().includes('close')
     );
 
+    // Query projects that have both an AC account ID and a PO number
+    const { data: poProjects } = await supabase
+      .from('projects')
+      .select('activecampaign_account_id')
+      .not('activecampaign_account_id', 'is', null)
+      .not('po_number', 'is', null);
+
+    const poAccountIds = new Set(
+      (poProjects || []).map((p) => p.activecampaign_account_id as string)
+    );
+
     // Resolve contact, account, and forecast close date in parallel
     const resolvedDeals: ACDealDisplay[] = await Promise.all(
       deals.map(async (deal) => {
@@ -82,7 +93,9 @@ export async function GET() {
           forecastCloseDate = fcField?.fieldValue || '';
         }
 
-        return { ...deal, contactName, accountName, dealUrl, forecastCloseDate };
+        const hasConfirmedPO = deal.account ? poAccountIds.has(deal.account) : false;
+
+        return { ...deal, contactName, accountName, dealUrl, forecastCloseDate, hasConfirmedPO };
       })
     );
 
