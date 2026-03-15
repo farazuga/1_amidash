@@ -63,9 +63,10 @@ export type DisplayConfig = z.infer<typeof DisplayConfigSchema>;
 
 export const PollingConfigSchema = z.object({
   projects: z.number().default(30000),
+  invoicedProjects: z.number().default(60000),
+  purchaseOrders: z.number().default(30000),
   revenue: z.number().default(60000),
-  schedule: z.number().default(30000),
-  purchaseOrders: z.number().default(15000),
+  blocksConfig: z.number().default(30000),
 });
 export type PollingConfig = z.infer<typeof PollingConfigSchema>;
 

@@ -5,9 +5,7 @@
 import { ActiveProject, InvoicedProject } from '../../data/fetchers/projects';
 import { RecentPO, HighlightPO } from '../../data/fetchers/pos';
 import { RevenueData } from '../../data/fetchers/revenue';
-import { ScheduleEntry } from '../../data/fetchers/schedule';
-import { ProjectMetrics } from '../../data/fetchers/metrics';
-import { SignageSlide } from '../../data/fetchers/slide-config';
+import { BlocksConfig, SignageBlock } from '../../data/fetchers/blocks-config';
 
 // Project builders
 export function buildActiveProject(overrides: Partial<ActiveProject> = {}): ActiveProject {
@@ -114,78 +112,30 @@ export function buildRevenueData(overrides: Partial<RevenueData> = {}): RevenueD
   };
 }
 
-// Schedule builders
-export function buildScheduleEntry(overrides: Partial<ScheduleEntry> = {}): ScheduleEntry {
-  return {
-    userId: '1',
-    userName: 'Alice Johnson',
-    assignments: [
-      {
-        projectId: 'p1',
-        projectName: 'Website Redesign',
-        projectColor: '#3b82f6',
-        date: '2024-01-15',
-        hours: 8,
-      },
-    ],
-    ...overrides,
-  };
-}
-
-export function buildScheduleEntries(count: number = 3): ScheduleEntry[] {
-  const names = ['Alice Johnson', 'Bob Smith', 'Carol Williams', 'David Brown', 'Eve Davis'];
-  return Array.from({ length: count }, (_, i) =>
-    buildScheduleEntry({
-      userId: `${i + 1}`,
-      userName: names[i % names.length],
-    })
-  );
-}
-
-// Metrics builders
-export function buildProjectMetrics(overrides: Partial<ProjectMetrics> = {}): ProjectMetrics {
-  return {
-    total: 50,
-    byStatus: [
-      { status_name: 'In Progress', status_color: '#3b82f6', count: 20 },
-      { status_name: 'Complete', status_color: '#10b981', count: 25 },
-      { status_name: 'Pending', status_color: '#6b7280', count: 5 },
-    ],
-    byType: [
-      { type_name: 'Integration', count: 30 },
-      { type_name: 'Development', count: 20 },
-    ],
-    completedThisWeek: 5,
-    completedThisMonth: 15,
-    upcomingDeadlines: 3,
-    overdueCount: 2,
-    ...overrides,
-  };
-}
-
-// Slide config builders
-export function buildSignageSlide(overrides: Partial<SignageSlide> = {}): SignageSlide {
+// Blocks config builders
+export function buildSignageBlock(overrides: Partial<SignageBlock> = {}): SignageBlock {
   return {
     id: '1',
-    slide_type: 'active-projects',
-    title: null,
+    block_type: 'po-highlight',
+    title: 'Recent Purchase Orders',
+    content: {},
     enabled: true,
-    display_order: 1,
-    duration_ms: 15000,
-    config: {},
+    position: 'left',
+    display_order: 0,
     ...overrides,
   };
 }
 
-export function buildSignageSlides(count: number = 4): SignageSlide[] {
-  const types = ['active-projects', 'revenue-dashboard', 'po-ticker', 'team-schedule'] as const;
-  return Array.from({ length: count }, (_, i) =>
-    buildSignageSlide({
-      id: `${i + 1}`,
-      slide_type: types[i % types.length],
-      display_order: i + 1,
-    })
-  );
+export function buildBlocksConfig(overrides: Partial<BlocksConfig> = {}): BlocksConfig {
+  return {
+    blocks: [
+      buildSignageBlock({ id: '1', block_type: 'po-highlight', position: 'left', display_order: 0 }),
+      buildSignageBlock({ id: '2', block_type: 'projects-invoiced', title: 'Projects Invoiced', position: 'right', display_order: 1 }),
+      buildSignageBlock({ id: '3', block_type: 'quick-stats', title: 'Quick Stats', position: 'both', display_order: 2 }),
+    ],
+    settings: { rotation_interval_ms: 15000 },
+    ...overrides,
+  };
 }
 
 // Supabase mock response builders

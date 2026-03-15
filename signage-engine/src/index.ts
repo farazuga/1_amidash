@@ -124,17 +124,17 @@ class SignageEngine {
   }
 
   private checkAndReloadSlides(data: ReturnType<PollingManager['getCache']>): void {
-    const slideConfig = data.slideConfig.data;
-    if (!slideConfig || slideConfig.length === 0) return;
+    const blocksConfig = data.blocksConfig.data;
+    if (!blocksConfig || blocksConfig.blocks.length === 0) return;
 
-    // Create a simple hash of slide config to detect changes
-    const configHash = slideConfig.map(s => `${s.id}:${s.enabled}:${s.display_order}`).join('|');
+    // Create a simple hash of blocks config to detect changes
+    const configHash = blocksConfig.blocks.map(b => `${b.id}:${b.enabled}:${b.display_order}`).join('|');
 
     if (configHash !== this.lastSlideConfigHash) {
       this.lastSlideConfigHash = configHash;
       // Reload slides asynchronously (don't await in render loop)
-      this.state.slideManager?.reloadFromDatabase(slideConfig).catch(err => {
-        logger.error({ error: err }, 'Failed to reload slides from database');
+      this.state.slideManager?.reloadFromBlocksConfig(blocksConfig).catch(err => {
+        logger.error({ error: err }, 'Failed to reload slides from blocks config');
       });
     }
   }

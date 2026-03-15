@@ -1,38 +1,27 @@
 import { logger } from '../utils/logger.js';
 import { fetchActiveProjects, ActiveProject, fetchInvoicedProjects, InvoicedProject } from './fetchers/projects.js';
-import { fetchRecentPOs, fetchPOs, RecentPO, HighlightPO } from './fetchers/pos.js';
+import { fetchPOs, HighlightPO } from './fetchers/pos.js';
 import { fetchRevenueData, RevenueData } from './fetchers/revenue.js';
-import { fetchScheduleData, ScheduleEntry } from './fetchers/schedule.js';
-import { fetchProjectMetrics, ProjectMetrics } from './fetchers/metrics.js';
-import { fetchSlideConfig, SignageSlide } from './fetchers/slide-config.js';
-import { fetchDashboardMetrics, DashboardMetrics } from './fetchers/dashboard-metrics.js';
+import { fetchBlocksConfig, BlocksConfig } from './fetchers/blocks-config.js';
 import { isSupabaseConfigured } from './supabase-client.js';
 import { PollingConfig } from '../config/schema.js';
 
 export interface DataCache {
   projects: { data: ActiveProject[]; lastUpdated: Date | null };
-  pos: { data: RecentPO[]; lastUpdated: Date | null };
-  highlightPOs: { data: HighlightPO[]; lastUpdated: Date | null };
   invoicedProjects: { data: InvoicedProject[]; lastUpdated: Date | null };
+  pos: { data: HighlightPO[]; lastUpdated: Date | null };
   revenue: { data: RevenueData | null; lastUpdated: Date | null };
-  schedule: { data: ScheduleEntry[]; lastUpdated: Date | null };
-  metrics: { data: ProjectMetrics | null; lastUpdated: Date | null };
-  slideConfig: { data: SignageSlide[]; lastUpdated: Date | null };
-  dashboardMetrics: { data: DashboardMetrics | null; lastUpdated: Date | null };
+  blocksConfig: { data: BlocksConfig | null; lastUpdated: Date | null };
   connectionStatus: { isConnected: boolean; usingMockData: boolean; lastError: string | null };
 }
 
 export class PollingManager {
   private cache: DataCache = {
     projects: { data: [], lastUpdated: null },
-    pos: { data: [], lastUpdated: null },
-    highlightPOs: { data: [], lastUpdated: null },
     invoicedProjects: { data: [], lastUpdated: null },
+    pos: { data: [], lastUpdated: null },
     revenue: { data: null, lastUpdated: null },
-    schedule: { data: [], lastUpdated: null },
-    metrics: { data: null, lastUpdated: null },
-    slideConfig: { data: [], lastUpdated: null },
-    dashboardMetrics: { data: null, lastUpdated: null },
+    blocksConfig: { data: null, lastUpdated: null },
     connectionStatus: { isConnected: false, usingMockData: true, lastError: null },
   };
 
@@ -64,14 +53,10 @@ export class PollingManager {
     // Set up intervals
     this.intervals.push(
       setInterval(() => this.fetchProjects(), this.config.projects),
-      setInterval(() => this.fetchPOs(), this.config.purchaseOrders),
+      setInterval(() => this.fetchInvoicedProjects(), this.config.invoicedProjects),
       setInterval(() => this.fetchHighlightPOs(), this.config.purchaseOrders),
-      setInterval(() => this.fetchInvoicedProjects(), this.config.projects),
       setInterval(() => this.fetchRevenue(), this.config.revenue),
-      setInterval(() => this.fetchSchedule(), this.config.schedule),
-      setInterval(() => this.fetchMetrics(), this.config.projects), // Same as projects
-      setInterval(() => this.fetchSlideConfig(), 60000), // Every 60 seconds
-      setInterval(() => this.fetchDashboardMetrics(), 30000) // Every 30 seconds for dashboard metrics
+      setInterval(() => this.fetchBlocksConfig(), this.config.blocksConfig),
     );
 
     logger.info({ config: this.config }, 'Polling intervals configured');
@@ -86,14 +71,10 @@ export class PollingManager {
   private async fetchAll(): Promise<void> {
     await Promise.all([
       this.fetchProjects(),
-      this.fetchPOs(),
-      this.fetchHighlightPOs(),
       this.fetchInvoicedProjects(),
+      this.fetchHighlightPOs(),
       this.fetchRevenue(),
-      this.fetchSchedule(),
-      this.fetchMetrics(),
-      this.fetchSlideConfig(),
-      this.fetchDashboardMetrics(),
+      this.fetchBlocksConfig(),
     ]);
   }
 
@@ -107,26 +88,6 @@ export class PollingManager {
     }
   }
 
-  private async fetchPOs(): Promise<void> {
-    try {
-      const data = await fetchRecentPOs();
-      this.cache.pos = { data, lastUpdated: new Date() };
-      logger.debug({ count: data.length }, 'Fetched POs');
-    } catch (error) {
-      logger.error({ error }, 'Failed to fetch POs');
-    }
-  }
-
-  private async fetchHighlightPOs(): Promise<void> {
-    try {
-      const data = await fetchPOs();
-      this.cache.highlightPOs = { data, lastUpdated: new Date() };
-      logger.debug({ count: data.length }, 'Fetched highlight POs');
-    } catch (error) {
-      logger.error({ error }, 'Failed to fetch highlight POs');
-    }
-  }
-
   private async fetchInvoicedProjects(): Promise<void> {
     try {
       const data = await fetchInvoicedProjects();
@@ -134,6 +95,16 @@ export class PollingManager {
       logger.debug({ count: data.length }, 'Fetched invoiced projects');
     } catch (error) {
       logger.error({ error }, 'Failed to fetch invoiced projects');
+    }
+  }
+
+  private async fetchHighlightPOs(): Promise<void> {
+    try {
+      const data = await fetchPOs();
+      this.cache.pos = { data, lastUpdated: new Date() };
+      logger.debug({ count: data.length }, 'Fetched highlight POs');
+    } catch (error) {
+      logger.error({ error }, 'Failed to fetch highlight POs');
     }
   }
 
@@ -147,43 +118,13 @@ export class PollingManager {
     }
   }
 
-  private async fetchSchedule(): Promise<void> {
+  private async fetchBlocksConfig(): Promise<void> {
     try {
-      const data = await fetchScheduleData();
-      this.cache.schedule = { data, lastUpdated: new Date() };
-      logger.debug({ count: data.length }, 'Fetched schedule');
+      const data = await fetchBlocksConfig();
+      this.cache.blocksConfig = { data, lastUpdated: new Date() };
+      logger.debug({ blockCount: data.blocks.length }, 'Fetched blocks config');
     } catch (error) {
-      logger.error({ error }, 'Failed to fetch schedule');
-    }
-  }
-
-  private async fetchMetrics(): Promise<void> {
-    try {
-      const data = await fetchProjectMetrics();
-      this.cache.metrics = { data, lastUpdated: new Date() };
-      logger.debug({ total: data.total }, 'Fetched metrics');
-    } catch (error) {
-      logger.error({ error }, 'Failed to fetch metrics');
-    }
-  }
-
-  private async fetchSlideConfig(): Promise<void> {
-    try {
-      const data = await fetchSlideConfig();
-      this.cache.slideConfig = { data, lastUpdated: new Date() };
-      logger.debug({ count: data.length }, 'Fetched slide config');
-    } catch (error) {
-      logger.error({ error }, 'Failed to fetch slide config');
-    }
-  }
-
-  private async fetchDashboardMetrics(): Promise<void> {
-    try {
-      const data = await fetchDashboardMetrics();
-      this.cache.dashboardMetrics = { data, lastUpdated: new Date() };
-      logger.debug('Fetched dashboard metrics');
-    } catch (error) {
-      logger.error({ error }, 'Failed to fetch dashboard metrics');
+      logger.error({ error }, 'Failed to fetch blocks config');
     }
   }
 
@@ -195,13 +136,10 @@ export class PollingManager {
     const now = Date.now();
     const checks = [
       this.cache.projects.lastUpdated,
-      this.cache.pos.lastUpdated,
-      this.cache.highlightPOs.lastUpdated,
       this.cache.invoicedProjects.lastUpdated,
+      this.cache.pos.lastUpdated,
       this.cache.revenue.lastUpdated,
-      this.cache.schedule.lastUpdated,
-      this.cache.metrics.lastUpdated,
-      this.cache.dashboardMetrics.lastUpdated,
+      this.cache.blocksConfig.lastUpdated,
     ];
 
     return checks.some((date) => {

@@ -26,9 +26,10 @@ describe('API Server', () => {
     },
     polling: {
       projects: 30000,
+      invoicedProjects: 60000,
+      purchaseOrders: 30000,
       revenue: 60000,
-      schedule: 30000,
-      purchaseOrders: 15000,
+      blocksConfig: 30000,
     },
     slides: [{ type: 'active-projects', enabled: true, duration: 15000 }],
     transitions: { type: 'fade', duration: 500 },

@@ -1,7 +1,7 @@
 import { SKRSContext2D } from '@napi-rs/canvas';
 import { SlideConfig, DisplayConfig, TransitionConfig } from '../config/schema.js';
 import { DataCache } from '../data/polling-manager.js';
-import { SignageSlide } from '../data/fetchers/slide-config.js';
+import { BlocksConfig, SignageBlock } from '../data/fetchers/blocks-config.js';
 import { CanvasManager } from './canvas-manager.js';
 import { BaseSlide } from './slides/base-slide.js';
 import { ActiveProjectsSlide } from './slides/active-projects.js';
@@ -95,20 +95,20 @@ export class SlideManager {
     }
   }
 
-  // Reload slides from database config
-  async reloadFromDatabase(dbSlides: SignageSlide[]): Promise<void> {
+  // Reload slides from blocks config
+  async reloadFromBlocksConfig(blocksConfig: BlocksConfig): Promise<void> {
     const newSlides: BaseSlide[] = [];
 
-    for (const dbSlide of dbSlides) {
-      if (!dbSlide.enabled) continue;
+    for (const block of blocksConfig.blocks) {
+      if (!block.enabled) continue;
 
       const config: SlideConfig = {
-        type: this.mapSlideType(dbSlide.slide_type),
-        enabled: dbSlide.enabled,
-        duration: dbSlide.duration_ms,
-        title: dbSlide.title || undefined,
-        maxItems: (dbSlide.config as { maxItems?: number })?.maxItems,
-        scrollSpeed: (dbSlide.config as { scrollSpeed?: number })?.scrollSpeed,
+        type: this.mapSlideType(block.block_type),
+        enabled: block.enabled,
+        duration: blocksConfig.settings.rotation_interval_ms,
+        title: block.title || undefined,
+        maxItems: (block.content as { maxItems?: number })?.maxItems,
+        scrollSpeed: (block.content as { scrollSpeed?: number })?.scrollSpeed,
       };
 
       const slide = this.createSlide(config);
@@ -125,7 +125,7 @@ export class SlideManager {
         this.currentSlideIndex = 0;
         this.slideStartTime = Date.now();
       }
-      logger.info({ slideCount: newSlides.length }, 'Slides reloaded from database');
+      logger.info({ slideCount: newSlides.length }, 'Slides reloaded from blocks config');
     }
   }
 

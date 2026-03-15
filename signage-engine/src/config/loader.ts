@@ -14,7 +14,7 @@ const defaultSlides = [
 let currentConfig: SignageConfig = {
   ndi: { name: 'Amidash Signage', frameRate: 60 },
   display: { width: 3840, height: 2160, backgroundColor: '#053B2C', accentColor: '#C2E0AD', fontFamily: 'Inter' },
-  polling: { projects: 30000, revenue: 60000, schedule: 30000, purchaseOrders: 15000 },
+  polling: { projects: 30000, invoicedProjects: 60000, purchaseOrders: 30000, revenue: 60000, blocksConfig: 30000 },
   slides: defaultSlides,
   transitions: { type: 'fade', duration: 500 },
   api: { port: 3001, host: '127.0.0.1' },
