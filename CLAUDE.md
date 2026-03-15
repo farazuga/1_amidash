@@ -51,6 +51,9 @@ Calendar-specific E2E tests:
 - `e2e/manage-schedule.spec.ts` - Schedule dialog interactions
 - `e2e/project-calendar.spec.ts` - Gantt view, navigation, filters
 
+Odoo integration E2E tests:
+- `e2e/odoo-contact-pull.spec.ts` - Client name autocomplete, delivery address auto-fill, POC auto-fill
+
 ### Run Tests in Watch Mode
 
 ```bash
@@ -102,7 +105,8 @@ Read-only integration with Odoo 18 (SH) via JSON-RPC. Pulls sales order data to 
 - **Queries:** `src/lib/odoo/queries.ts` - Domain-specific query functions (sales orders, partners, products)
 - **Types:** `src/types/odoo.ts` - All Odoo TypeScript interfaces
 - **API Routes:**
-  - `POST /api/odoo/pull` - Pull sales order data by S1XXXX number
+  - `POST /api/odoo/pull` - Pull sales order data by S1XXXX number (includes delivery address from `partner_shipping_id`)
+  - `GET /api/odoo/partners?q=` - Search Odoo contacts (companies + individuals) for client name autocomplete
   - `POST /api/odoo/invoice-status` - Refresh invoice status for existing project
   - `POST /api/odoo/summarize` - Generate project description from line items (uses Claude API)
 
@@ -116,18 +120,30 @@ Triple-layer read-only enforcement:
 ### Data Flow
 
 1. User enters sales order number (S1XXXX) in project creation form
-2. "Pull from Odoo" button fetches: client info, POC, sales amount, PO number, salesperson, line items, invoice status
+2. "Pull from Odoo" button fetches: client info, POC, sales amount, PO number, salesperson, line items, invoice status, **delivery address** (from `partner_shipping_id`)
 3. Line items are sent to Claude API for project description generation (3-4 bullet summary)
 4. Project type auto-selected from line items:
    - Contains "install" → **Solution**
    - Contains "ami_vidpod" (no install) → **VidPod** (count auto-filled from quantity)
    - Neither → **Box Sale**
 
+### Client Name Autocomplete (Odoo)
+
+- Searches all `res.partner` records (companies + individual contacts) via `GET /api/odoo/partners?q=`
+- Shows Building2 icon for companies, User icon for contacts
+- Displays email and city/state in dropdown for identification
+- On partner select: auto-fills delivery address from partner's address fields
+- On contact (non-company) select: also auto-fills POC name, email, phone
+- **Note:** Active Campaign is no longer used for contact autocomplete (AC deals route kept for deal tracking)
+
 ### Key Files
 
 - `src/components/projects/odoo-pull-button.tsx` - Pull button component
-- `src/components/projects/project-form.tsx` - Form integration and auto-select logic
+- `src/components/projects/client-name-autocomplete.tsx` - Odoo partner search autocomplete
+- `src/components/projects/project-form.tsx` - Form integration, auto-select, and auto-fill logic
 - `src/components/projects/quick-info.tsx` - Invoice status display with refresh
+- `src/hooks/use-odoo-partners.ts` - Debounced Odoo partner search hook
+- `src/lib/odoo/queries.ts` - `searchPartners()`, `getShippingAddress()`, state/country code helpers
 - `supabase/migrations/047_odoo_integration.sql` - Database migration (4 columns)
 
 ### Database Columns (projects table)
