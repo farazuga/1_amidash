@@ -145,12 +145,14 @@ export async function createConfirmationRequest(
 
     const typedAssignments = assignments as AssignmentWithDays[];
 
-    // Check all assignments are in tentative status
-    const nonTentative = typedAssignments.filter(a => a.booking_status !== 'tentative');
-    if (nonTentative.length > 0) {
+    // Check all assignments are in draft or pending status
+    const invalidAssignments = typedAssignments.filter(
+      a => a.booking_status !== 'draft' && a.booking_status !== 'pending'
+    );
+    if (invalidAssignments.length > 0) {
       return {
         success: false,
-        error: 'All assignments must be in tentative status to send for confirmation',
+        error: 'All assignments must be in draft or pending status to send for confirmation',
       };
     }
 
@@ -189,10 +191,10 @@ export async function createConfirmationRequest(
       return { success: false, error: linkError.message };
     }
 
-    // Update assignment statuses to pending_confirm
+    // Update assignment statuses to pending
     const { error: updateError } = await supabase
       .from('project_assignments')
-      .update({ booking_status: 'pending_confirm' as BookingStatus })
+      .update({ booking_status: 'pending' as BookingStatus })
       .in('id', params.assignmentIds);
 
     if (updateError) {
@@ -203,8 +205,8 @@ export async function createConfirmationRequest(
     for (const assignment of typedAssignments) {
       await supabase.from('booking_status_history').insert({
         assignment_id: assignment.id,
-        old_status: 'tentative',
-        new_status: 'pending_confirm',
+        old_status: assignment.booking_status,
+        new_status: 'pending',
         changed_by: user.id,
         note: `Sent confirmation request to ${params.sendToEmail}`,
       });
@@ -328,7 +330,7 @@ export async function handleConfirmationResponse(
     }
 
     const newStatus = params.action === 'confirm' ? 'confirmed' : 'declined';
-    const newBookingStatus: BookingStatus = params.action === 'confirm' ? 'confirmed' : 'tentative';
+    const newBookingStatus: BookingStatus = params.action === 'confirm' ? 'confirmed' : 'pending';
 
     // Update confirmation request
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -365,7 +367,7 @@ export async function handleConfirmationResponse(
       for (const assignmentId of assignmentIds) {
         await supabase.from('booking_status_history').insert({
           assignment_id: assignmentId,
-          old_status: 'pending_confirm',
+          old_status: 'pending',
           new_status: newBookingStatus,
           note: params.action === 'confirm'
             ? 'Customer confirmed via portal'
@@ -749,19 +751,19 @@ export async function cancelConfirmationRequest(
 
     const assignmentIds = linkedAssignments?.map((la: { assignment_id: string }) => la.assignment_id) || [];
 
-    // Revert assignments to tentative
+    // Revert assignments to draft
     if (assignmentIds.length > 0) {
       await supabase
         .from('project_assignments')
-        .update({ booking_status: 'tentative' as BookingStatus })
+        .update({ booking_status: 'draft' as BookingStatus })
         .in('id', assignmentIds);
 
       // Record status changes
       for (const assignmentId of assignmentIds) {
         await supabase.from('booking_status_history').insert({
           assignment_id: assignmentId,
-          old_status: 'pending_confirm',
-          new_status: 'tentative',
+          old_status: 'pending',
+          new_status: 'draft',
           changed_by: user.id,
           note: 'Confirmation request cancelled',
         });
