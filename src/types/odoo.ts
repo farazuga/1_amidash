@@ -75,6 +75,18 @@ export interface OdooPartner {
   child_ids: number[]; // Contact person IDs under a company
 }
 
+/** res.partner model - shipping/delivery address fields */
+export interface OdooShippingPartner {
+  id: number;
+  name: string;
+  street: string | false;
+  street2: string | false;
+  city: string | false;
+  state_id: [number, string] | false;
+  zip: string | false;
+  country_id: [number, string] | false;
+}
+
 /** mail.activity model (chatter tasks/activities) */
 export interface OdooActivity {
   id: number;
@@ -137,6 +149,13 @@ export interface OdooPullResult {
     description: string;
     subtotal: number;
   }>;
+  deliveryAddress: {
+    street: string | null;
+    city: string | null;
+    state: string | null;
+    zip: string | null;
+    country: string | null;
+  } | null;
 }
 
 // ============================================================
