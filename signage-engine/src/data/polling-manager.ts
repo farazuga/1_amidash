@@ -1,6 +1,6 @@
 import { logger } from '../utils/logger.js';
-import { fetchActiveProjects, ActiveProject } from './fetchers/projects.js';
-import { fetchRecentPOs, RecentPO } from './fetchers/pos.js';
+import { fetchActiveProjects, ActiveProject, fetchInvoicedProjects, InvoicedProject } from './fetchers/projects.js';
+import { fetchRecentPOs, fetchPOs, RecentPO, HighlightPO } from './fetchers/pos.js';
 import { fetchRevenueData, RevenueData } from './fetchers/revenue.js';
 import { fetchScheduleData, ScheduleEntry } from './fetchers/schedule.js';
 import { fetchProjectMetrics, ProjectMetrics } from './fetchers/metrics.js';
@@ -12,6 +12,8 @@ import { PollingConfig } from '../config/schema.js';
 export interface DataCache {
   projects: { data: ActiveProject[]; lastUpdated: Date | null };
   pos: { data: RecentPO[]; lastUpdated: Date | null };
+  highlightPOs: { data: HighlightPO[]; lastUpdated: Date | null };
+  invoicedProjects: { data: InvoicedProject[]; lastUpdated: Date | null };
   revenue: { data: RevenueData | null; lastUpdated: Date | null };
   schedule: { data: ScheduleEntry[]; lastUpdated: Date | null };
   metrics: { data: ProjectMetrics | null; lastUpdated: Date | null };
@@ -24,6 +26,8 @@ export class PollingManager {
   private cache: DataCache = {
     projects: { data: [], lastUpdated: null },
     pos: { data: [], lastUpdated: null },
+    highlightPOs: { data: [], lastUpdated: null },
+    invoicedProjects: { data: [], lastUpdated: null },
     revenue: { data: null, lastUpdated: null },
     schedule: { data: [], lastUpdated: null },
     metrics: { data: null, lastUpdated: null },
@@ -61,6 +65,8 @@ export class PollingManager {
     this.intervals.push(
       setInterval(() => this.fetchProjects(), this.config.projects),
       setInterval(() => this.fetchPOs(), this.config.purchaseOrders),
+      setInterval(() => this.fetchHighlightPOs(), this.config.purchaseOrders),
+      setInterval(() => this.fetchInvoicedProjects(), this.config.projects),
       setInterval(() => this.fetchRevenue(), this.config.revenue),
       setInterval(() => this.fetchSchedule(), this.config.schedule),
       setInterval(() => this.fetchMetrics(), this.config.projects), // Same as projects
@@ -81,6 +87,8 @@ export class PollingManager {
     await Promise.all([
       this.fetchProjects(),
       this.fetchPOs(),
+      this.fetchHighlightPOs(),
+      this.fetchInvoicedProjects(),
       this.fetchRevenue(),
       this.fetchSchedule(),
       this.fetchMetrics(),
@@ -106,6 +114,26 @@ export class PollingManager {
       logger.debug({ count: data.length }, 'Fetched POs');
     } catch (error) {
       logger.error({ error }, 'Failed to fetch POs');
+    }
+  }
+
+  private async fetchHighlightPOs(): Promise<void> {
+    try {
+      const data = await fetchPOs();
+      this.cache.highlightPOs = { data, lastUpdated: new Date() };
+      logger.debug({ count: data.length }, 'Fetched highlight POs');
+    } catch (error) {
+      logger.error({ error }, 'Failed to fetch highlight POs');
+    }
+  }
+
+  private async fetchInvoicedProjects(): Promise<void> {
+    try {
+      const data = await fetchInvoicedProjects();
+      this.cache.invoicedProjects = { data, lastUpdated: new Date() };
+      logger.debug({ count: data.length }, 'Fetched invoiced projects');
+    } catch (error) {
+      logger.error({ error }, 'Failed to fetch invoiced projects');
     }
   }
 
@@ -168,6 +196,8 @@ export class PollingManager {
     const checks = [
       this.cache.projects.lastUpdated,
       this.cache.pos.lastUpdated,
+      this.cache.highlightPOs.lastUpdated,
+      this.cache.invoicedProjects.lastUpdated,
       this.cache.revenue.lastUpdated,
       this.cache.schedule.lastUpdated,
       this.cache.metrics.lastUpdated,

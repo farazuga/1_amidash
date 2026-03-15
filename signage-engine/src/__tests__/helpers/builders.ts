@@ -2,8 +2,8 @@
  * Test data builders for creating consistent test fixtures
  */
 
-import { ActiveProject } from '../../data/fetchers/projects';
-import { RecentPO } from '../../data/fetchers/pos';
+import { ActiveProject, InvoicedProject } from '../../data/fetchers/projects';
+import { RecentPO, HighlightPO } from '../../data/fetchers/pos';
 import { RevenueData } from '../../data/fetchers/revenue';
 import { ScheduleEntry } from '../../data/fetchers/schedule';
 import { ProjectMetrics } from '../../data/fetchers/metrics';
@@ -61,11 +61,39 @@ export function buildRecentPOs(count: number = 3): RecentPO[] {
   );
 }
 
+// HighlightPO builders
+export function buildHighlightPO(overrides: Partial<HighlightPO> = {}): HighlightPO {
+  return {
+    id: '1',
+    po_number: 'PO-2024-001',
+    project_name: 'Website Redesign',
+    client_name: 'Acme Corp',
+    amount: 15000,
+    created_at: new Date().toISOString(),
+    highlight_reason: 'newest',
+    ...overrides,
+  };
+}
+
+// InvoicedProject builders
+export function buildInvoicedProject(overrides: Partial<InvoicedProject> = {}): InvoicedProject {
+  return {
+    id: 'inv-1',
+    name: 'Lobby Display Install',
+    client_name: 'Marriott Downtown',
+    total_value: 45000,
+    completed_at: '2026-03-12T10:00:00Z',
+    ...overrides,
+  };
+}
+
 // Revenue builders
 export function buildRevenueData(overrides: Partial<RevenueData> = {}): RevenueData {
   return {
     currentMonthRevenue: 125000,
     currentMonthGoal: 150000,
+    quarterRevenue: 370000,
+    quarterGoal: 375000,
     yearToDateRevenue: 1250000,
     yearToDateGoal: 1500000,
     monthlyData: [

@@ -37,7 +37,8 @@ describe('fetchRecentPOs', () => {
     it('should return mock POs', async () => {
       const pos = await fetchRecentPOs();
 
-      expect(pos).toHaveLength(12);
+      expect(pos.length).toBeLessThanOrEqual(4);
+      expect(pos.length).toBeGreaterThan(0);
       expect(pos[0]).toHaveProperty('id');
       expect(pos[0]).toHaveProperty('po_number');
       expect(pos[0]).toHaveProperty('project_name');
@@ -88,8 +89,8 @@ describe('fetchRecentPOs', () => {
     const mockQuery = {
       select: vi.fn().mockReturnThis(),
       not: vi.fn().mockReturnThis(),
-      order: vi.fn().mockReturnThis(),
-      limit: vi.fn(),
+      gte: vi.fn().mockReturnThis(),
+      order: vi.fn(),
     };
 
     beforeEach(() => {
@@ -100,7 +101,7 @@ describe('fetchRecentPOs', () => {
     });
 
     it('should fetch POs from database', async () => {
-      mockQuery.limit.mockResolvedValueOnce({
+      mockQuery.order.mockResolvedValueOnce({
         data: [
           {
             id: 'po-1',
@@ -121,7 +122,7 @@ describe('fetchRecentPOs', () => {
     });
 
     it('should transform database response correctly', async () => {
-      mockQuery.limit.mockResolvedValueOnce({
+      mockQuery.order.mockResolvedValueOnce({
         data: [
           {
             id: 'po-123',
@@ -147,7 +148,7 @@ describe('fetchRecentPOs', () => {
     });
 
     it('should handle null sales_amount', async () => {
-      mockQuery.limit.mockResolvedValueOnce({
+      mockQuery.order.mockResolvedValueOnce({
         data: [
           {
             id: 'po-1',
@@ -166,7 +167,7 @@ describe('fetchRecentPOs', () => {
     });
 
     it('should return mock data on database error', async () => {
-      mockQuery.limit.mockResolvedValueOnce({
+      mockQuery.order.mockResolvedValueOnce({
         data: null,
         error: { message: 'Database error', code: 'PGRST000' },
       });
@@ -177,12 +178,12 @@ describe('fetchRecentPOs', () => {
       expect(pos.length).toBeGreaterThan(0);
       expect(logger.error).toHaveBeenCalledWith(
         { error: expect.any(Object) },
-        'Failed to fetch recent POs, returning mock data'
+        'Failed to fetch POs, returning mock data'
       );
     });
 
     it('should filter out projects without PO numbers', async () => {
-      mockQuery.limit.mockResolvedValueOnce({ data: [], error: null });
+      mockQuery.order.mockResolvedValueOnce({ data: [], error: null });
 
       await fetchRecentPOs();
 
@@ -190,23 +191,23 @@ describe('fetchRecentPOs', () => {
     });
 
     it('should order by created_at descending', async () => {
-      mockQuery.limit.mockResolvedValueOnce({ data: [], error: null });
+      mockQuery.order.mockResolvedValueOnce({ data: [], error: null });
 
       await fetchRecentPOs();
 
       expect(mockQuery.order).toHaveBeenCalledWith('created_at', { ascending: false });
     });
 
-    it('should limit results to 15 POs', async () => {
-      mockQuery.limit.mockResolvedValueOnce({ data: [], error: null });
+    it('should filter by start of current month', async () => {
+      mockQuery.order.mockResolvedValueOnce({ data: [], error: null });
 
       await fetchRecentPOs();
 
-      expect(mockQuery.limit).toHaveBeenCalledWith(15);
+      expect(mockQuery.gte).toHaveBeenCalledWith('created_at', expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/));
     });
 
     it('should handle empty result set', async () => {
-      mockQuery.limit.mockResolvedValueOnce({ data: [], error: null });
+      mockQuery.order.mockResolvedValueOnce({ data: [], error: null });
 
       const pos = await fetchRecentPOs();
 
@@ -214,7 +215,7 @@ describe('fetchRecentPOs', () => {
     });
 
     it('should handle null data gracefully', async () => {
-      mockQuery.limit.mockResolvedValueOnce({ data: null, error: null });
+      mockQuery.order.mockResolvedValueOnce({ data: null, error: null });
 
       const pos = await fetchRecentPOs();
 

@@ -13,6 +13,7 @@ export interface DbProject {
   created_date?: string | null;
   goal_completion_date?: string | null;
   created_at?: string;
+  updated_at?: string;
   current_status_id?: string | null;
   project_type_id?: string | null;
   salesperson_id?: string | null;

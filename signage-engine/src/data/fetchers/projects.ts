@@ -100,3 +100,71 @@ function getMockProjects(): ActiveProject[] {
     { id: '6', name: 'Project Zeta', client_name: 'Client F', status: 'Planning', status_color: '#8b5cf6', project_type: 'Support', salesperson: 'Jane Smith', start_date: '2024-03-10', due_date: '2024-09-01', total_value: 28000 },
   ];
 }
+
+// --- Invoiced Projects ---
+
+export interface InvoicedProject {
+  id: string;
+  name: string;
+  client_name: string;
+  total_value: number;
+  completed_at: string;
+}
+
+export async function fetchInvoicedProjects(): Promise<InvoicedProject[]> {
+  if (!isSupabaseConfigured() || !supabase) {
+    logger.debug('Supabase not configured, returning mock invoiced projects');
+    return getMockInvoicedProjects();
+  }
+
+  try {
+    // Get invoiced/complete status IDs
+    const { data: statuses } = await supabase
+      .from('statuses')
+      .select('id')
+      .or('name.ilike.%invoiced%,name.ilike.%complete%');
+
+    const statusIds = (statuses || []).map(s => s.id);
+
+    if (statusIds.length === 0) {
+      return getMockInvoicedProjects();
+    }
+
+    const { data, error } = await supabase
+      .from('projects')
+      .select(`
+        id,
+        client_name,
+        sales_amount,
+        updated_at
+      `)
+      .in('current_status_id', statusIds)
+      .order('updated_at', { ascending: false })
+      .limit(4);
+
+    if (error) throw error;
+
+    return (data || []).map((p) => {
+      const project = p as unknown as DbProject;
+      return {
+        id: project.id || '',
+        name: project.client_name || 'Unknown Project',
+        client_name: project.client_name || 'Unknown',
+        total_value: project.sales_amount || 0,
+        completed_at: project.updated_at || new Date().toISOString(),
+      };
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to fetch invoiced projects, returning mock data');
+    return getMockInvoicedProjects();
+  }
+}
+
+function getMockInvoicedProjects(): InvoicedProject[] {
+  return [
+    { id: 'inv-1', name: 'Lobby Display Install', client_name: 'Marriott Downtown', total_value: 45000, completed_at: '2026-03-12T10:00:00Z' },
+    { id: 'inv-2', name: 'Conference Room Signage', client_name: 'Wells Fargo Tower', total_value: 32000, completed_at: '2026-03-10T14:30:00Z' },
+    { id: 'inv-3', name: 'Retail Video Wall', client_name: 'Nike Factory Store', total_value: 78000, completed_at: '2026-03-08T09:15:00Z' },
+    { id: 'inv-4', name: 'Wayfinding Kiosks', client_name: 'St. Luke\'s Hospital', total_value: 56000, completed_at: '2026-03-05T16:45:00Z' },
+  ];
+}
