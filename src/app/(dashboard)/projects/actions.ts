@@ -694,8 +694,8 @@ export async function bulkUpdateScheduleStatus(data: BulkUpdateScheduleStatusDat
     return { success: false, error: 'No projects selected' };
   }
 
-  // Validate schedule status value
-  const validStatuses = ['draft', 'tentative', 'pending_confirm', 'confirmed'];
+  // Validate schedule status value (3-status workflow: draft, pending, confirmed)
+  const validStatuses = ['draft', 'pending', 'confirmed'];
   if (!validStatuses.includes(data.scheduleStatus)) {
     return { success: false, error: 'Invalid schedule status' };
   }

@@ -204,8 +204,8 @@ export function assignmentCreatedEmail(options: AssignmentCreatedEmailOptions): 
   const safeStatus = escapeHtml(bookingStatus);
 
   const statusLabels: Record<string, string> = {
-    pencil: 'Penciled In',
-    pending_confirm: 'Pending Confirmation',
+    draft: 'Draft',
+    pending: 'Pending',
     confirmed: 'Confirmed',
   };
 
@@ -266,8 +266,8 @@ export function assignmentStatusChangedEmail(options: AssignmentStatusChangedEma
   const safeProjectName = escapeHtml(projectName);
 
   const statusLabels: Record<string, string> = {
-    pencil: 'Penciled In',
-    pending_confirm: 'Pending Confirmation',
+    draft: 'Draft',
+    pending: 'Pending',
     confirmed: 'Confirmed',
   };
 
@@ -574,7 +574,7 @@ export function pmConfirmationResponseEmailTemplate(options: PMConfirmationRespo
 
     ${!isConfirmed ? `
       <p style="color: ${BRAND_COLORS.text}; font-size: 14px; line-height: 1.5; margin: 25px 0;">
-        The assignment status has been reverted to <strong>Tentative</strong>.
+        The assignment status has been reverted to <strong>Pending</strong>.
         Please contact the customer to reschedule, then send a new confirmation request.
       </p>
     ` : `
