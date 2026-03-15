@@ -1,14 +1,13 @@
 import type { Profile, Project } from './index';
 
 // Booking status for project assignments
-// Workflow: draft -> tentative -> (pending_confirm via confirmation flow) -> confirmed
-export type BookingStatus = 'draft' | 'tentative' | 'pending_confirm' | 'confirmed';
+// Workflow: draft -> pending -> confirmed
+export type BookingStatus = 'draft' | 'pending' | 'confirmed';
 
 // Display labels for booking statuses
 export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
   draft: 'Draft',
-  tentative: 'Tentative',
-  pending_confirm: 'Pending Confirmation',
+  pending: 'Pending',
   confirmed: 'Confirmed',
 };
 
@@ -20,17 +19,11 @@ export const BOOKING_STATUS_COLORS: Record<BookingStatus, { bg: string; text: st
     border: 'border-blue-300',
     dot: 'bg-blue-500',
   },
-  tentative: {
-    bg: 'bg-amber-100',
-    text: 'text-amber-800',
-    border: 'border-amber-300',
+  pending: {
+    bg: 'bg-amber-50/50',
+    text: 'text-amber-700/70',
+    border: 'border-amber-300 border-dashed',
     dot: 'bg-amber-500',
-  },
-  pending_confirm: {
-    bg: 'bg-purple-100',
-    text: 'text-purple-800',
-    border: 'border-purple-300',
-    dot: 'bg-purple-500',
   },
   confirmed: {
     bg: 'bg-green-100',
@@ -41,27 +34,20 @@ export const BOOKING_STATUS_COLORS: Record<BookingStatus, { bg: string; text: st
 };
 
 // Status visibility - draft is only visible to admin/editor (PM)
-export const BOOKING_STATUS_VISIBILITY: Record<BookingStatus, { visibleToEngineers: boolean; description: string }> = {
+export const BOOKING_STATUS_VISIBILITY: Record<BookingStatus, { visibleToEngineers: boolean }> = {
   draft: {
     visibleToEngineers: false,
-    description: 'PM planning - not visible to engineers',
   },
-  tentative: {
+  pending: {
     visibleToEngineers: true,
-    description: 'Planned but not yet sent to customer',
-  },
-  pending_confirm: {
-    visibleToEngineers: true,
-    description: 'Awaiting customer confirmation',
   },
   confirmed: {
     visibleToEngineers: true,
-    description: 'Customer confirmed',
   },
 };
 
-// Status cycle order for manual cycling (skips pending_confirm)
-export const BOOKING_STATUS_CYCLE: BookingStatus[] = ['draft', 'tentative', 'confirmed'];
+// Status cycle order for manual cycling
+export const BOOKING_STATUS_CYCLE: BookingStatus[] = ['draft', 'pending', 'confirmed'];
 
 // Default working hours
 export const DEFAULT_WORKING_HOURS = {
