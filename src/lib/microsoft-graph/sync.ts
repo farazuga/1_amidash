@@ -156,14 +156,6 @@ async function deleteSyncedEvent(
     .eq('work_date', workDate);
 }
 
-// ============================================
-// Slot reservation (race condition prevention)
-// ============================================
-
-/**
- * Reserve a sync slot to prevent race conditions.
- * Handles stale slots (pending for > 30 seconds) by cleaning them up.
- */
 /**
  * Check if an existing Outlook event exists for this assignment+user+date.
  * Returns the external event ID if found, null otherwise.
