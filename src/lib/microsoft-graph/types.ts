@@ -53,7 +53,8 @@ export interface OutlookEventInput {
 export interface SyncedCalendarEvent {
   id: string;
   assignment_id: string;
-  connection_id: string;
+  user_id: string;
+  work_date: string;
   external_event_id: string;
   last_synced_at: string;
   sync_error: string | null;

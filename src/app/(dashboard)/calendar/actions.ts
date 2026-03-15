@@ -347,15 +347,9 @@ export async function createAssignment(data: {
     triggerAssignmentSync({
       id: assignment.id,
       user_id: data.userId,
-      project_id: data.projectId,
       booking_status: data.bookingStatus || 'draft',
-      notes: data.notes || null,
-      project: {
-        id: assignedProject.id,
-        client_name: assignedProject.client_name,
-        start_date: assignedProject.start_date,
-        end_date: assignedProject.end_date,
-      },
+      project_id: data.projectId,
+      project_name: assignedProject.client_name,
     }).catch((err) => console.error('Outlook sync error:', err));
   }
 
@@ -437,21 +431,13 @@ export async function updateAssignmentStatus(data: {
   }
 
   // Sync to Outlook calendar (fire and forget)
-  if (assignedProject?.start_date && assignedProject?.end_date) {
-    triggerAssignmentSync({
-      id: currentAssignment.id,
-      user_id: currentAssignment.user_id,
-      project_id: currentAssignment.project_id,
-      booking_status: data.newStatus,
-      notes: currentAssignment.notes,
-      project: {
-        id: assignedProject.id,
-        client_name: assignedProject.client_name,
-        start_date: assignedProject.start_date,
-        end_date: assignedProject.end_date,
-      },
-    }).catch((err) => console.error('Outlook sync error:', err));
-  }
+  triggerAssignmentSync({
+    id: currentAssignment.id,
+    user_id: currentAssignment.user_id,
+    booking_status: data.newStatus,
+    project_id: currentAssignment.project_id,
+    project_name: assignedProject?.client_name || 'Unknown',
+  }).catch((err) => console.error('Outlook sync error:', err));
 
   revalidatePath('/calendar');
   revalidatePath(`/projects/${currentAssignment.project_id}`);
@@ -556,21 +542,13 @@ export async function bulkUpdateAssignmentStatus(data: {
       }
 
       // Sync to Outlook calendar
-      if (assignedProject?.start_date && assignedProject?.end_date) {
-        triggerAssignmentSync({
-          id: assignment.id,
-          user_id: assignment.user_id,
-          project_id: assignment.project_id,
-          booking_status: data.newStatus,
-          notes: assignment.notes,
-          project: {
-            id: assignedProject.id,
-            client_name: assignedProject.client_name,
-            start_date: assignedProject.start_date,
-            end_date: assignedProject.end_date,
-          },
-        }).catch((err) => console.error('Outlook sync error:', err));
-      }
+      triggerAssignmentSync({
+        id: assignment.id,
+        user_id: assignment.user_id,
+        booking_status: data.newStatus,
+        project_id: assignment.project_id,
+        project_name: assignedProject?.client_name || 'Unknown',
+      }).catch((err) => console.error('Outlook sync error:', err));
     });
   }
 
@@ -1131,7 +1109,7 @@ export async function getAdminUsersForAssignment(): Promise<ActionResult<{ id: s
 // ============================================
 
 /**
- * Helper to get assignment data for Outlook sync
+ * Helper to get assignment data for Outlook sync (new simplified shape)
  */
 async function getAssignmentForSync(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -1139,21 +1117,15 @@ async function getAssignmentForSync(
 ): Promise<{
   id: string;
   user_id: string;
-  project_id: string;
   booking_status: string;
-  notes: string | null;
-  project: {
-    id: string;
-    client_name: string;
-    start_date: string;
-    end_date: string;
-  };
+  project_id: string;
+  project_name: string;
 } | null> {
   const { data, error } = await supabase
     .from('project_assignments')
     .select(`
-      id, user_id, project_id, booking_status, notes,
-      project:projects(id, client_name, start_date, end_date)
+      id, user_id, project_id, booking_status,
+      project:projects(client_name)
     `)
     .eq('id', assignmentId)
     .single();
@@ -1162,23 +1134,14 @@ async function getAssignmentForSync(
     return null;
   }
 
-  const project = data.project as { id: string; client_name: string; start_date: string | null; end_date: string | null } | null;
-  if (!project?.start_date || !project?.end_date) {
-    return null;
-  }
+  const project = data.project as { client_name: string } | null;
 
   return {
     id: data.id,
     user_id: data.user_id,
-    project_id: data.project_id,
     booking_status: data.booking_status,
-    notes: data.notes,
-    project: {
-      id: project.id,
-      client_name: project.client_name,
-      start_date: project.start_date,
-      end_date: project.end_date,
-    },
+    project_id: data.project_id,
+    project_name: project?.client_name || 'Unknown',
   };
 }
 
@@ -1425,24 +1388,16 @@ export async function removeAssignmentDays(dayIds: string[]): Promise<ActionResu
   // Using batch-fetched data instead of N individual queries
   if (assignmentsData) {
     for (const assignment of assignmentsData) {
-      const project = assignment.project as { id: string; client_name: string; start_date: string | null; end_date: string | null } | null;
-      if (project?.start_date && project?.end_date) {
-        triggerAssignmentSync({
-          id: assignment.id,
-          user_id: assignment.user_id,
-          project_id: assignment.project_id,
-          booking_status: assignment.booking_status,
-          notes: assignment.notes,
-          project: {
-            id: project.id,
-            client_name: project.client_name,
-            start_date: project.start_date,
-            end_date: project.end_date,
-          },
-        }).catch((err) =>
-          console.error('Outlook sync error after removing days:', err)
-        );
-      }
+      const project = assignment.project as { client_name: string } | null;
+      triggerAssignmentSync({
+        id: assignment.id,
+        user_id: assignment.user_id,
+        booking_status: assignment.booking_status,
+        project_id: assignment.project_id,
+        project_name: project?.client_name || 'Unknown',
+      }).catch((err) =>
+        console.error('Outlook sync error after removing days:', err)
+      );
     }
   }
 
@@ -1550,21 +1505,13 @@ export async function cycleAssignmentStatus(assignmentId: string): Promise<Actio
   }
 
   // Sync to Outlook calendar (fire and forget)
-  if (assignedProject?.start_date && assignedProject?.end_date) {
-    triggerAssignmentSync({
-      id: currentAssignment.id,
-      user_id: currentAssignment.user_id,
-      project_id: currentAssignment.project_id,
-      booking_status: newStatus,
-      notes: currentAssignment.notes,
-      project: {
-        id: assignedProject.id,
-        client_name: assignedProject.client_name,
-        start_date: assignedProject.start_date,
-        end_date: assignedProject.end_date,
-      },
-    }).catch((err) => console.error('Outlook sync error:', err));
-  }
+  triggerAssignmentSync({
+    id: currentAssignment.id,
+    user_id: currentAssignment.user_id,
+    booking_status: newStatus,
+    project_id: currentAssignment.project_id,
+    project_name: assignedProject?.client_name || 'Unknown',
+  }).catch((err) => console.error('Outlook sync error:', err));
 
   revalidatePath('/calendar');
   revalidatePath(`/projects/${currentAssignment.project_id}`);
@@ -2269,22 +2216,14 @@ export async function cascadeStatusToAssignments(params: {
   // Sync to Outlook calendar for each assignment (fire and forget)
   if (assignments) {
     assignments.forEach((assignment) => {
-      const project = assignment.project as { id: string; client_name: string; start_date: string | null; end_date: string | null } | null;
-      if (project?.start_date && project?.end_date) {
-        triggerAssignmentSync({
-          id: assignment.id,
-          user_id: assignment.user_id,
-          project_id: assignment.project_id,
-          booking_status: params.newStatus,
-          notes: assignment.notes,
-          project: {
-            id: project.id,
-            client_name: project.client_name,
-            start_date: project.start_date,
-            end_date: project.end_date,
-          },
-        }).catch((err) => console.error('Outlook sync error:', err));
-      }
+      const project = assignment.project as { client_name: string } | null;
+      triggerAssignmentSync({
+        id: assignment.id,
+        user_id: assignment.user_id,
+        booking_status: params.newStatus,
+        project_id: assignment.project_id,
+        project_name: project?.client_name || 'Unknown',
+      }).catch((err) => console.error('Outlook sync error:', err));
     });
   }
 
