@@ -1,5 +1,6 @@
 // Calendar Components
 export { ProjectCalendar } from './project-calendar';
+export type { ExternalCalendarFilters } from './project-calendar';
 export { CalendarHeader } from './calendar-header';
 export { CalendarHeaderWithDates } from './calendar-header-with-dates';
 export { CalendarDayCell } from './calendar-day-cell';

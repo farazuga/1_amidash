@@ -67,13 +67,24 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 
+// External filters that can be applied from outside (e.g., master calendar page)
+export interface ExternalCalendarFilters {
+  projectFilter?: string;  // 'all' or project ID
+  engineerFilter?: string; // 'all' or user ID
+  statusFilter?: string;   // 'all' or BookingStatus
+  showPending?: boolean;
+}
+
 interface ProjectCalendarProps {
   project?: Project;
   onEventClick?: (event: CalendarEvent) => void;
   enableDragDrop?: boolean;
+  externalFilters?: ExternalCalendarFilters;
+  /** Callback to expose events to parent for building filter options */
+  onEventsLoaded?: (events: CalendarEvent[]) => void;
 }
 
-export function ProjectCalendar({ project, onEventClick, enableDragDrop = false }: ProjectCalendarProps) {
+export function ProjectCalendar({ project, onEventClick, enableDragDrop = false, externalFilters, onEventsLoaded }: ProjectCalendarProps) {
   const isMobile = useIsMobile();
   const isLargeScreen = useMediaQuery('(min-width: 1280px)');
   const { isAdmin } = useUser();
@@ -186,11 +197,37 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
     return counts;
   }, [events]);
 
-  // Filter events by status
+  // Notify parent when events change (for building filter options)
+  useEffect(() => {
+    if (onEventsLoaded && events.length > 0) {
+      onEventsLoaded(events);
+    }
+  }, [events, onEventsLoaded]);
+
+  // Filter events by status and external filters
   const filteredEvents = useMemo(() => {
-    if (statusFilter === 'all') return events;
-    return events.filter((e) => e.bookingStatus === statusFilter);
-  }, [events, statusFilter]);
+    let filtered = events;
+    // Internal status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((e) => e.bookingStatus === statusFilter);
+    }
+    // External filters from parent
+    if (externalFilters) {
+      if (externalFilters.showPending === false) {
+        filtered = filtered.filter((e) => e.bookingStatus !== 'pending');
+      }
+      if (externalFilters.projectFilter && externalFilters.projectFilter !== 'all') {
+        filtered = filtered.filter((e) => e.projectId === externalFilters.projectFilter);
+      }
+      if (externalFilters.engineerFilter && externalFilters.engineerFilter !== 'all') {
+        filtered = filtered.filter((e) => e.userId === externalFilters.engineerFilter);
+      }
+      if (externalFilters.statusFilter && externalFilters.statusFilter !== 'all') {
+        filtered = filtered.filter((e) => e.bookingStatus === externalFilters.statusFilter);
+      }
+    }
+    return filtered;
+  }, [events, statusFilter, externalFilters]);
 
   // Get assigned user IDs for sidebar indicator
   const assignedUserIds = useMemo(() => {
