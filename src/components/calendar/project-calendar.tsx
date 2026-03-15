@@ -83,12 +83,15 @@ interface ProjectCalendarProps {
   externalFilters?: ExternalCalendarFilters;
   /** Callback to expose events to parent for building filter options */
   onEventsLoaded?: (events: CalendarEvent[]) => void;
+  /** Server-side admin override (client-side useUser() may not resolve on some deployments) */
+  isAdminOverride?: boolean;
 }
 
-export function ProjectCalendar({ project, onEventClick, enableDragDrop = false, externalFilters, onEventsLoaded }: ProjectCalendarProps) {
+export function ProjectCalendar({ project, onEventClick, enableDragDrop = false, externalFilters, onEventsLoaded, isAdminOverride }: ProjectCalendarProps) {
   const isMobile = useIsMobile();
   const isLargeScreen = useMediaQuery('(min-width: 1280px)');
-  const { isAdmin } = useUser();
+  const { isAdmin: isAdminFromHook } = useUser();
+  const isAdmin = isAdminOverride ?? isAdminFromHook;
   // Initialize currentDate to project start date if available, otherwise today
   const [currentDate, setCurrentDate] = useState(() => {
     if (project?.start_date) {

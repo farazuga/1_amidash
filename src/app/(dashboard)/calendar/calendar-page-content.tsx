@@ -162,6 +162,7 @@ export function CalendarPageContent({ isAdmin, initialProject }: CalendarPageCon
         enableDragDrop={isAdmin && !!project}
         externalFilters={externalFilters}
         onEventsLoaded={handleEventsLoaded}
+        isAdminOverride={isAdmin}
       />
     </div>
   );
