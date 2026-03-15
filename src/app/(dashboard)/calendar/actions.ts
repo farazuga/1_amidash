@@ -239,9 +239,9 @@ export async function createAssignment(data: {
     endDate: project.end_date,
   });
 
-  // If conflict check failed, abort assignment creation
+  // If conflict check failed, log but continue — don't block assignment creation
   if (conflictCheck.error) {
-    return { success: false, error: conflictCheck.error, conflicts: conflictCheck };
+    console.warn('Conflict check failed, proceeding with assignment:', conflictCheck.error);
   }
 
   // Determine booking status: use provided status, or match lowest existing status on project

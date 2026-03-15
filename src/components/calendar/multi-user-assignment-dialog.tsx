@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { format, eachDayOfInterval, parseISO, isWeekend } from 'date-fns';
-import { Users, Loader2, Save } from 'lucide-react';
+import { Users, Loader2, Save, Plus } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -22,6 +22,8 @@ import type { AssignmentDay } from '@/types/calendar';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { DEFAULT_WORK_TIMES } from '@/lib/calendar/constants';
+import { AssignmentDialog } from './assignment-dialog';
+import type { Project } from '@/types';
 
 interface MultiUserAssignmentDialogProps {
   open: boolean;
@@ -50,6 +52,15 @@ export function MultiUserAssignmentDialog({
   // Track pending changes before saving
   const [pendingChanges, setPendingChanges] = useState<ChangeMap>(new Map());
   const [isSaving, setIsSaving] = useState(false);
+  const [addEngineerDialogOpen, setAddEngineerDialogOpen] = useState(false);
+
+  // Build a minimal Project object for the AssignmentDialog
+  const projectForDialog = useMemo(() => ({
+    id: projectId,
+    client_name: projectName,
+    start_date: projectStartDate,
+    end_date: projectEndDate,
+  } as Project), [projectId, projectName, projectStartDate, projectEndDate]);
 
   // Reset changes when dialog opens
   useEffect(() => {
@@ -332,13 +343,32 @@ export function MultiUserAssignmentDialog({
           <div className="text-center py-12 text-muted-foreground">
             <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p>No team members assigned to this project yet.</p>
-            <p className="text-sm">Use drag-and-drop or the assignment dialog to add team members first.</p>
+            <Button
+              variant="default"
+              size="sm"
+              className="mt-4 gap-2"
+              onClick={() => setAddEngineerDialogOpen(true)}
+            >
+              <Plus className="h-4 w-4" />
+              Add Engineer
+            </Button>
           </div>
         ) : (
           <div className="space-y-4">
             {/* Info bar */}
             <div className="flex items-center justify-between text-sm text-muted-foreground">
-              <span>{assignments.length} team member{assignments.length !== 1 ? 's' : ''} assigned</span>
+              <div className="flex items-center gap-2">
+                <span>{assignments.length} team member{assignments.length !== 1 ? 's' : ''} assigned</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1"
+                  onClick={() => setAddEngineerDialogOpen(true)}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add
+                </Button>
+              </div>
               {pendingChangeCount > 0 && (
                 <span className="text-primary font-medium">
                   {pendingChangeCount} pending change{pendingChangeCount !== 1 ? 's' : ''}
@@ -450,6 +480,16 @@ export function MultiUserAssignmentDialog({
           </div>
         )}
       </DialogContent>
+
+      {/* Add Engineer dialog */}
+      <AssignmentDialog
+        open={addEngineerDialogOpen}
+        onOpenChange={setAddEngineerDialogOpen}
+        project={projectForDialog}
+        onSuccess={() => {
+          refetch();
+        }}
+      />
     </Dialog>
   );
 }

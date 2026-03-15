@@ -11,6 +11,7 @@ import {
   type DragStartEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
+// Note: DndContext kept for move/copy assignments between days (not for sidebar drag)
 import { CalendarHeader } from './calendar-header';
 import { CalendarHeaderWithDates } from './calendar-header-with-dates';
 import { AssignmentCard } from './assignment-card';
@@ -19,8 +20,7 @@ import { CalendarDayCell } from './calendar-day-cell';
 import { DroppableDayCell } from './droppable-day-cell';
 import { CalendarLegend } from './calendar-legend';
 import { AssignmentDialog } from './assignment-dialog';
-import { AssignmentSidebar } from './assignment-sidebar';
-import { DraggingUserOverlay } from './draggable-user';
+// AssignmentSidebar removed — engineers are now added via "+" button in Manage Schedule dialog
 import { WEEKDAYS, BOOKING_STATUS_CONFIG, DEFAULT_WORK_TIMES } from '@/lib/calendar/constants';
 import {
   getCalendarDays,
@@ -31,7 +31,7 @@ import {
   sortEventsByStatus,
   convertToCalendarEvents,
 } from '@/lib/calendar/utils';
-import { useCalendarData, useAssignableUsers, useCreateAssignment, useCycleAssignmentStatus, useBulkUpdateAssignmentStatus, useMoveAssignmentDay, useAddAssignmentDays, useRemoveAssignmentDays } from '@/hooks/queries/use-assignments';
+import { useCalendarData, useCycleAssignmentStatus, useBulkUpdateAssignmentStatus, useMoveAssignmentDay, useAddAssignmentDays, useRemoveAssignmentDays } from '@/hooks/queries/use-assignments';
 import { useOutlookEvents } from '@/hooks/queries/use-outlook-events';
 import { AssignmentDaysDialog } from './assignment-days-dialog';
 import { MultiUserAssignmentDialog } from './multi-user-assignment-dialog';
@@ -42,7 +42,6 @@ import { useUndo } from '@/hooks/use-undo';
 import { useUndoStore } from '@/stores/undo-store';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useMediaQuery } from '@/hooks/use-media-query';
 import {
   Select,
   SelectContent,
@@ -89,7 +88,6 @@ interface ProjectCalendarProps {
 
 export function ProjectCalendar({ project, onEventClick, enableDragDrop = false, externalFilters, onEventsLoaded, isAdminOverride }: ProjectCalendarProps) {
   const isMobile = useIsMobile();
-  const isLargeScreen = useMediaQuery('(min-width: 1280px)');
   const { isAdmin: isAdminFromHook } = useUser();
   const isAdmin = isAdminOverride ?? isAdminFromHook;
   // Initialize currentDate to project start date if available, otherwise today
@@ -101,14 +99,6 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false,
   });
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [assignmentDialogOpen, setAssignmentDialogOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
-  // Auto-collapse sidebar on smaller screens
-  useEffect(() => {
-    if (!isLargeScreen && !sidebarCollapsed) {
-      setSidebarCollapsed(true);
-    }
-  }, [isLargeScreen, sidebarCollapsed]);
 
   // Navigate to project start date when project changes
   useEffect(() => {
@@ -152,9 +142,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false,
     projectId: project?.id,
   });
 
-  // Use assignable users instead of just admin users
-  const { data: assignableUsers = [], isLoading: isLoadingUsers } = useAssignableUsers();
-  const createAssignment = useCreateAssignment();
+  // createAssignment removed — engineers are now added via Manage Schedule dialog
   const cycleStatus = useCycleAssignmentStatus();
   const bulkUpdateStatus = useBulkUpdateAssignmentStatus();
   const moveAssignmentDay = useMoveAssignmentDay();
@@ -389,13 +377,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false,
     const nativeEvent = event.activatorEvent as MouseEvent | TouchEvent | KeyboardEvent;
     const isCopy = 'metaKey' in nativeEvent ? nativeEvent.metaKey || nativeEvent.ctrlKey : false;
 
-    if (active.data.current?.type === 'user') {
-      setActiveDragData({
-        type: 'user',
-        userId: active.data.current.userId,
-        userName: active.data.current.userName,
-      });
-    } else if (active.data.current?.type === 'move-assignment') {
+    if (active.data.current?.type === 'move-assignment') {
       setActiveDragData({
         type: 'move-assignment',
         userId: active.data.current.userId,
@@ -491,63 +473,8 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false,
         }
         return;
       }
-
-      // Handle assigning a new user from the sidebar
-      if (over.data.current?.type === 'day' && active.data.current?.type === 'user') {
-        const userId = active.data.current.userId;
-        const userName = active.data.current.userName;
-        const droppedDate = over.data.current.date;
-        const droppedDateStr = droppedDate.toISOString().split('T')[0];
-
-        // Check if project has dates set
-        if (!project.start_date || !project.end_date) {
-          toast.error('Project dates required', {
-            description: 'Please set project start and end dates before assigning users.',
-          });
-          return;
-        }
-
-        try {
-          const result = await createAssignment.mutateAsync({
-            projectId: project.id,
-            userId,
-            bookingStatus: 'draft' as BookingStatus,
-          });
-
-          // Add the dropped date as a scheduled day so it appears on the calendar
-          if (result.assignment) {
-            try {
-              await addAssignmentDays.mutateAsync({
-                assignmentId: result.assignment.id,
-                days: [{
-                  date: droppedDateStr,
-                  startTime: DEFAULT_WORK_TIMES.startTime,
-                  endTime: DEFAULT_WORK_TIMES.endTime,
-                }],
-              });
-            } catch (dayError) {
-              // Log but don't fail - assignment was created successfully
-              console.error('Failed to add initial scheduled day:', dayError);
-            }
-          }
-
-          if (result.conflicts?.hasConflicts) {
-            toast.warning(`${userName} assigned with conflicts`, {
-              description: `There are scheduling conflicts. Review in the assignment details.`,
-            });
-          } else {
-            toast.success(`${userName} assigned`, {
-              description: `Added to ${project.client_name} on ${droppedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`,
-            });
-          }
-        } catch (error) {
-          toast.error('Failed to assign user', {
-            description: error instanceof Error ? error.message : 'An error occurred',
-          });
-        }
-      }
     },
-    [project, createAssignment, moveAssignmentDay, addAssignmentDays, activeDragData, pushAction]
+    [project, moveAssignmentDay, addAssignmentDays, activeDragData, pushAction]
   );
 
   const renderCalendarGrid = () => (
@@ -900,7 +827,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false,
     return calendarContent;
   }
 
-  // Render calendar with drag-drop context and sidebar
+  // Render calendar with drag-drop context (for moving/copying assignments between days)
   return (
     <DndContext
       sensors={sensors}
@@ -908,26 +835,9 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false,
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4">
-        <div className="flex-1 min-w-0 overflow-x-auto">
-          {calendarContent}
-        </div>
-        {/* Hide sidebar on mobile - drag & drop not practical on touch */}
-        {!isMobile && (
-          <AssignmentSidebar
-            users={assignableUsers}
-            isLoading={isLoadingUsers}
-            collapsed={sidebarCollapsed}
-            onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-            assignedUserIds={assignedUserIds}
-          />
-        )}
-      </div>
+      {calendarContent}
 
       <DragOverlay>
-        {activeDragData?.type === 'user' && (
-          <DraggingUserOverlay userName={activeDragData.userName} />
-        )}
         {activeDragData?.type === 'move-assignment' && activeDragData.event && (
           <div className="relative opacity-80 pointer-events-none">
             <AssignmentCard
