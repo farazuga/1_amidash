@@ -1,11 +1,12 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, Globe, Lock, Calendar } from 'lucide-react';
+import { Settings, Globe, Lock, Calendar, User } from 'lucide-react';
 import { OutlookConnection } from '@/components/settings/outlook-connection';
 import { isMicrosoftConfigured } from '@/lib/microsoft-graph/auth';
 import { TimezoneSelect } from './timezone-select';
 import { ChangePasswordForm } from './change-password-form';
+import { ProfileNameForm } from './profile-name-form';
 
 export const metadata = {
   title: 'Settings | Amitrace',
@@ -69,6 +70,32 @@ export default async function SettingsPage() {
       </div>
 
       <div className="space-y-6">
+        {/* Personal Information */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <User className="h-5 w-5 text-muted-foreground" />
+              <CardTitle>Personal Information</CardTitle>
+            </div>
+            <CardDescription>
+              Your name and role. This is displayed in the mobile app and across the platform.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <ProfileNameForm userId={user.id} currentName={profile.full_name} />
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>Role:</span>
+                <span className="font-medium capitalize">{profile.role}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>Email:</span>
+                <span className="font-medium">{user.email}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Timezone */}
         <Card>
           <CardHeader>
