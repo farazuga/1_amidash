@@ -44,6 +44,9 @@ export function BookingStatusBadge({
         isInteractive && `focus-visible:outline-none focus-visible:ring-2 ${config.ringColor}`,
         // Pulse animation for pending status
         config.pulse && 'animate-pulse-subtle',
+        // Muted/dashed styling for pending status
+        config.borderStyle,
+        config.opacity,
         className
       )}
     >

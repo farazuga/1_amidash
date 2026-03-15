@@ -56,6 +56,7 @@ export function AssignmentCard({
   className,
 }: AssignmentCardProps) {
   const config = BOOKING_STATUS_CONFIG[event.bookingStatus];
+  const isPending = event.bookingStatus === 'pending';
 
   const handleStatusClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -166,6 +167,7 @@ export function AssignmentCard({
         // Enhanced hover state
         'hover:shadow-sm hover:-translate-y-px',
         isUpdating && 'opacity-50 pointer-events-none',
+        isPending && 'opacity-60 border-dashed',
         className
       )}
       title={showHoverInfo ? undefined : `${event.projectName} - ${event.userName}${onStatusClick ? ' • Click dot to change status' : ''}`}
@@ -236,6 +238,7 @@ export function AssignmentCard({
         'before:opacity-0 hover:before:opacity-100 before:transition-opacity',
         'before:pointer-events-none',
         isUpdating && 'opacity-50',
+        isPending && 'opacity-60 border-dashed',
         className
       )}
     >
