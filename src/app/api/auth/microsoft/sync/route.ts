@@ -6,6 +6,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { fullSyncForUser } from '@/lib/microsoft-graph/sync';
+import { clearTokenCache } from '@/lib/microsoft-graph/auth';
 
 export async function POST() {
   const supabase = await createClient();
@@ -20,6 +21,9 @@ export async function POST() {
   }
 
   try {
+    // Clear cached token to pick up any permission changes in Azure AD
+    clearTokenCache();
+
     const result = await fullSyncForUser(user.id);
 
     return NextResponse.json({

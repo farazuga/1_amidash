@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { retrySyncForAssignment } from '@/lib/microsoft-graph/sync';
+import { clearTokenCache } from '@/lib/microsoft-graph/auth';
 import { z } from 'zod';
 
 const retrySchema = z.object({
