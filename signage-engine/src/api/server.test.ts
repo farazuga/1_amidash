@@ -51,7 +51,7 @@ describe('API Server', () => {
       startTime: null,
       config: mockConfig,
       canvasManager: null,
-      slideManager: null,
+      layoutManager: null,
       pollingManager: null,
       ndiOutput: null,
     };
