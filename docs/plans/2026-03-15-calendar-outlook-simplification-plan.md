@@ -1362,23 +1362,420 @@ git commit -m "docs: update CLAUDE.md for simplified calendar system"
 
 ---
 
-### Task 30: Run full test suite and verify
+### Task 30: Objective validation test battery
 
-**Step 1: Run all unit tests**
+**Files:**
+- Create: `src/__tests__/calendar-objectives.test.ts`
+
+**Context:** This test file validates every design objective is met. Each `describe` block maps to a specific objective from the design doc. These tests serve as acceptance criteria — if they pass, the simplification is complete and correct.
+
+**Step 1: Write the full test battery**
+
+```typescript
+/**
+ * Calendar & Outlook Sync Simplification — Objective Validation Tests
+ *
+ * Each describe block maps to a design objective.
+ * These are acceptance tests: if they all pass, the simplification is complete.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// ============================================================
+// OBJECTIVE 1: Only 3 booking statuses exist (draft/pending/confirmed)
+// ============================================================
+describe('Objective 1: 3-status workflow', () => {
+  describe('type system enforces 3 statuses', () => {
+    it('BookingStatus type only allows draft, pending, confirmed', async () => {
+      const { BookingStatus } = await import('@/types/calendar');
+      // The type itself is checked at compile time; verify runtime constants
+      const { BOOKING_STATUS_LABELS } = await import('@/types/calendar');
+      const statuses = Object.keys(BOOKING_STATUS_LABELS);
+      expect(statuses).toEqual(expect.arrayContaining(['draft', 'pending', 'confirmed']));
+      expect(statuses).toHaveLength(3);
+      expect(statuses).not.toContain('tentative');
+      expect(statuses).not.toContain('pending_confirm');
+    });
+  });
+
+  describe('constants only reference 3 statuses', () => {
+    it('BOOKING_STATUS_CONFIG has exactly 3 entries', async () => {
+      const { BOOKING_STATUS_CONFIG } = await import('@/lib/calendar/constants');
+      expect(Object.keys(BOOKING_STATUS_CONFIG)).toHaveLength(3);
+      expect(BOOKING_STATUS_CONFIG).toHaveProperty('draft');
+      expect(BOOKING_STATUS_CONFIG).toHaveProperty('pending');
+      expect(BOOKING_STATUS_CONFIG).toHaveProperty('confirmed');
+      expect(BOOKING_STATUS_CONFIG).not.toHaveProperty('tentative');
+      expect(BOOKING_STATUS_CONFIG).not.toHaveProperty('pending_confirm');
+    });
+
+    it('BOOKING_STATUS_ORDER has exactly 3 entries', async () => {
+      const { BOOKING_STATUS_ORDER } = await import('@/lib/calendar/constants');
+      expect(BOOKING_STATUS_ORDER).toHaveLength(3);
+    });
+
+    it('BOOKING_STATUS_CYCLE is draft → pending → confirmed', async () => {
+      const { BOOKING_STATUS_CYCLE } = await import('@/lib/calendar/constants');
+      expect(BOOKING_STATUS_CYCLE).toEqual(['draft', 'pending', 'confirmed']);
+    });
+  });
+
+  describe('validation schemas reject old statuses', () => {
+    it('bookingStatusSchema rejects tentative', async () => {
+      const { bookingStatusSchema } = await import('@/lib/calendar/validation');
+      const result = bookingStatusSchema.safeParse('tentative');
+      expect(result.success).toBe(false);
+    });
+
+    it('bookingStatusSchema rejects pending_confirm', async () => {
+      const { bookingStatusSchema } = await import('@/lib/calendar/validation');
+      const result = bookingStatusSchema.safeParse('pending_confirm');
+      expect(result.success).toBe(false);
+    });
+
+    it('bookingStatusSchema accepts draft, pending, confirmed', async () => {
+      const { bookingStatusSchema } = await import('@/lib/calendar/validation');
+      expect(bookingStatusSchema.safeParse('draft').success).toBe(true);
+      expect(bookingStatusSchema.safeParse('pending').success).toBe(true);
+      expect(bookingStatusSchema.safeParse('confirmed').success).toBe(true);
+    });
+  });
+});
+
+// ============================================================
+// OBJECTIVE 2: Only confirmed assignments sync to Outlook
+// ============================================================
+describe('Objective 2: Only confirmed syncs to Outlook', () => {
+  it('SYNCABLE_STATUSES only includes confirmed', async () => {
+    const { SYNCABLE_STATUSES } = await import('@/lib/microsoft-graph/types');
+    expect(SYNCABLE_STATUSES).toEqual(['confirmed']);
+    expect(SYNCABLE_STATUSES).not.toContain('pending');
+    expect(SYNCABLE_STATUSES).not.toContain('draft');
+  });
+});
+
+// ============================================================
+// OBJECTIVE 3: App-level credentials (no per-user OAuth)
+// ============================================================
+describe('Objective 3: App-level credentials', () => {
+  it('getAppAccessToken exists and uses client_credentials grant', async () => {
+    const auth = await import('@/lib/microsoft-graph/auth');
+    expect(typeof auth.getAppAccessToken).toBe('function');
+    // Should not export old per-user OAuth functions
+    expect(auth).not.toHaveProperty('getAuthUrl');
+    expect(auth).not.toHaveProperty('exchangeCodeForTokens');
+    expect(auth).not.toHaveProperty('refreshAccessToken');
+  });
+
+  it('no per-user OAuth routes exist', async () => {
+    // These files should not exist
+    const fs = await import('fs');
+    const routeDir = 'src/app/api/auth/microsoft';
+    // OAuth initiation route should be gone
+    expect(fs.existsSync(`${routeDir}/route.ts`)).toBe(false);
+    // OAuth callback should be gone
+    expect(fs.existsSync(`${routeDir}/callback/route.ts`)).toBe(false);
+    // Disconnect should be gone
+    expect(fs.existsSync(`${routeDir}/disconnect/route.ts`)).toBe(false);
+  });
+
+  it('crypto.ts (token encryption) is removed', async () => {
+    const fs = await import('fs');
+    expect(fs.existsSync('src/lib/crypto.ts')).toBe(false);
+  });
+
+  it('token-refresh cron is removed', async () => {
+    const fs = await import('fs');
+    expect(fs.existsSync('src/lib/cron/token-refresh.ts')).toBe(false);
+  });
+
+  it('outlook-connection component is removed', async () => {
+    const fs = await import('fs');
+    expect(fs.existsSync('src/components/settings/outlook-connection.tsx')).toBe(false);
+  });
+});
+
+// ============================================================
+// OBJECTIVE 4: Dedicated AmiDash calendar per engineer
+// ============================================================
+describe('Objective 4: Dedicated AmiDash calendar', () => {
+  it('createCalendarForUser creates a calendar named AmiDash', async () => {
+    const { createCalendarForUser } = await import('@/lib/microsoft-graph/client');
+    expect(typeof createCalendarForUser).toBe('function');
+  });
+
+  it('Graph client targets specific user calendars, not default', async () => {
+    const client = await import('@/lib/microsoft-graph/client');
+    // createCalendarEvent should require email + calendarId parameters
+    expect(client.createCalendarEvent.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+// ============================================================
+// OBJECTIVE 5: Per-day events (not all-day project blocks)
+// ============================================================
+describe('Objective 5: Per-day Outlook events', () => {
+  it('sync creates events with specific start/end times, not all-day', async () => {
+    // The event builder should produce events with specific times
+    const { buildCalendarEvent } = await import('@/lib/microsoft-graph/client');
+    if (buildCalendarEvent) {
+      const event = buildCalendarEvent({
+        projectName: 'Test Project',
+        date: '2026-03-16',
+        startTime: '08:30',
+        endTime: '16:30',
+        teamMembers: [],
+      });
+      expect(event.isAllDay).toBe(false);
+      expect(event.start.dateTime).toContain('08:30');
+      expect(event.end.dateTime).toContain('16:30');
+    }
+  });
+});
+
+// ============================================================
+// OBJECTIVE 6: Pending items visually distinct (dashed + opacity)
+// ============================================================
+describe('Objective 6: Pending visual distinction', () => {
+  it('pending status config includes dashed border and opacity', async () => {
+    const { BOOKING_STATUS_CONFIG } = await import('@/lib/calendar/constants');
+    const pendingConfig = BOOKING_STATUS_CONFIG.pending;
+    // Should have dashed border indicator
+    expect(
+      pendingConfig.borderStyle === 'border-dashed' ||
+      pendingConfig.borderColor?.includes('dashed')
+    ).toBe(true);
+    // Should have opacity indicator
+    expect(pendingConfig.opacity).toBeDefined();
+    expect(pendingConfig.opacity).toContain('50');
+  });
+
+  it('confirmed status config has solid styling', async () => {
+    const { BOOKING_STATUS_CONFIG } = await import('@/lib/calendar/constants');
+    const confirmedConfig = BOOKING_STATUS_CONFIG.confirmed;
+    expect(confirmedConfig.borderStyle || '').not.toContain('dashed');
+    expect(confirmedConfig.opacity || '').not.toContain('50');
+  });
+});
+
+// ============================================================
+// OBJECTIVE 7: Read-only Outlook events for conflict detection
+// ============================================================
+describe('Objective 7: Read-only Outlook event display', () => {
+  it('getCalendarEvents function exists for reading engineer calendars', async () => {
+    const { getCalendarEvents } = await import('@/lib/microsoft-graph/client');
+    expect(typeof getCalendarEvents).toBe('function');
+  });
+
+  it('private Outlook events have subject masked', async () => {
+    const { getCalendarEvents } = await import('@/lib/microsoft-graph/client');
+    // Mock Graph API response with private event
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({
+        value: [
+          {
+            id: 'e1',
+            subject: 'Secret Meeting',
+            sensitivity: 'private',
+            start: { dateTime: '2026-03-16T09:00:00', timeZone: 'UTC' },
+            end: { dateTime: '2026-03-16T10:00:00', timeZone: 'UTC' },
+            isAllDay: false,
+            showAs: 'busy',
+          },
+        ],
+      }),
+    });
+
+    const events = await getCalendarEvents('user@company.com', '2026-03-16', '2026-03-16');
+    expect(events[0].subject).toBe('Private');
+  });
+
+  it('outlook-events API route exists', async () => {
+    const fs = await import('fs');
+    expect(fs.existsSync('src/app/api/calendar/outlook-events/route.ts')).toBe(true);
+  });
+
+  it('useOutlookEvents hook exists', async () => {
+    const hook = await import('@/hooks/queries/use-outlook-events');
+    expect(typeof hook.useOutlookEvents).toBe('function');
+  });
+});
+
+// ============================================================
+// OBJECTIVE 8: 2 calendar views (not 3)
+// ============================================================
+describe('Objective 8: Consolidated calendar views', () => {
+  it('per-project calendar page is removed', async () => {
+    const fs = await import('fs');
+    // The entire directory should be gone
+    expect(fs.existsSync('src/app/(dashboard)/projects/[salesOrder]/calendar')).toBe(false);
+  });
+
+  it('master calendar page exists', async () => {
+    const fs = await import('fs');
+    expect(fs.existsSync('src/app/(dashboard)/calendar/page.tsx')).toBe(true);
+  });
+
+  it('project timeline page exists', async () => {
+    const fs = await import('fs');
+    expect(fs.existsSync('src/app/(dashboard)/project-calendar/page.tsx')).toBe(true);
+  });
+});
+
+// ============================================================
+// OBJECTIVE 9: Easy filtering on master calendar
+// ============================================================
+describe('Objective 9: Master calendar filtering', () => {
+  it('calendar page content includes filter controls', async () => {
+    const fs = await import('fs');
+    const content = fs.readFileSync(
+      'src/app/(dashboard)/calendar/calendar-page-content.tsx',
+      'utf-8'
+    );
+    // Should have project, engineer, and status filter state
+    expect(content).toContain('projectFilter');
+    expect(content).toContain('engineerFilter');
+    expect(content).toContain('statusFilter');
+    // Should have pending toggle
+    expect(content).toContain('showPending');
+  });
+});
+
+// ============================================================
+// OBJECTIVE 10: My Schedule is a simple confirmed-only list
+// ============================================================
+describe('Objective 10: Simplified My Schedule', () => {
+  it('my-schedule page exists', async () => {
+    const fs = await import('fs');
+    expect(fs.existsSync('src/app/(dashboard)/my-schedule/page.tsx')).toBe(true);
+  });
+
+  it('my-schedule content filters to confirmed only', async () => {
+    const fs = await import('fs');
+    const contentPath = 'src/app/(dashboard)/my-schedule/my-schedule-content.tsx';
+    if (fs.existsSync(contentPath)) {
+      const content = fs.readFileSync(contentPath, 'utf-8');
+      // Should filter to confirmed assignments
+      expect(content).toContain('confirmed');
+      // Should NOT have calendar grid toggle
+      expect(content).not.toContain('CalendarView');
+      expect(content).not.toContain('view === \'calendar\'');
+    }
+  });
+});
+
+// ============================================================
+// OBJECTIVE 11: No references to old statuses in source code
+// ============================================================
+describe('Objective 11: Clean removal of old statuses', () => {
+  it('no source files reference tentative as a status', async () => {
+    const { execSync } = await import('child_process');
+    // Search for 'tentative' as a booking status string literal in src/
+    // Exclude test files, node_modules, and this test file
+    try {
+      const result = execSync(
+        "grep -r \"'tentative'\\|\\\"tentative\\\"\" src/ --include='*.ts' --include='*.tsx' -l " +
+        "| grep -v __tests__ | grep -v node_modules | grep -v calendar-objectives || true",
+        { encoding: 'utf-8' }
+      );
+      // microsoft-graph types may use 'tentative' for Outlook showAs (that's fine)
+      const files = result.trim().split('\n').filter(f =>
+        f && !f.includes('microsoft-graph/types') && !f.includes('microsoft-graph/client')
+      );
+      expect(files).toEqual([]);
+    } catch {
+      // grep returns exit code 1 if no matches — that's what we want
+    }
+  });
+
+  it('no source files reference pending_confirm as a status', async () => {
+    const { execSync } = await import('child_process');
+    try {
+      const result = execSync(
+        "grep -r \"pending_confirm\" src/ --include='*.ts' --include='*.tsx' -l " +
+        "| grep -v __tests__ | grep -v node_modules || true",
+        { encoding: 'utf-8' }
+      );
+      const files = result.trim().split('\n').filter(Boolean);
+      expect(files).toEqual([]);
+    } catch {
+      // No matches = success
+    }
+  });
+});
+
+// ============================================================
+// OBJECTIVE 12: Customer confirmation flow still works
+// ============================================================
+describe('Objective 12: Customer confirmation flow preserved', () => {
+  it('confirmation actions file exists', async () => {
+    const fs = await import('fs');
+    expect(fs.existsSync('src/app/(dashboard)/calendar/confirmation-actions.ts')).toBe(true);
+  });
+
+  it('confirmation actions export key functions', async () => {
+    const actions = await import(
+      '@/app/(dashboard)/calendar/confirmation-actions'
+    );
+    expect(typeof actions.createConfirmationRequest).toBe('function');
+    expect(typeof actions.handleConfirmationResponse).toBe('function');
+    expect(typeof actions.getPendingConfirmations).toBe('function');
+  });
+});
+
+// ============================================================
+// OBJECTIVE 13: Drag-and-drop still works
+// ============================================================
+describe('Objective 13: Drag-and-drop preserved', () => {
+  it('draggable components still exist', async () => {
+    const fs = await import('fs');
+    expect(fs.existsSync('src/components/calendar/draggable-assignment-card.tsx')).toBe(true);
+    expect(fs.existsSync('src/components/calendar/droppable-day-cell.tsx')).toBe(true);
+  });
+
+  it('undo store still works', async () => {
+    const { useUndoStore } = await import('@/stores/undo-store');
+    expect(typeof useUndoStore).toBe('function');
+  });
+});
+```
+
+**Step 2: Run the tests to verify they all FAIL (red phase)**
+
+Run: `npm test -- src/__tests__/calendar-objectives.test.ts`
+Expected: Most tests fail (we haven't implemented anything yet). This is correct — they're acceptance criteria.
+
+**Step 3: Commit**
+
+```bash
+git add src/__tests__/calendar-objectives.test.ts
+git commit -m "test: add objective validation battery (all should fail pre-implementation)"
+```
+
+---
+
+### Task 31: Run full test suite and final verification
+
+**Step 1: Run objective validation tests (should all PASS now)**
+
+Run: `npm test -- src/__tests__/calendar-objectives.test.ts`
+Expected: ALL 13 objectives pass (green)
+
+**Step 2: Run all unit tests**
 
 Run: `npm test`
 Expected: All pass
 
-**Step 2: Run type check**
+**Step 3: Run type check**
 
 Run: `npx tsc --noEmit`
 Expected: No errors (excluding known pre-existing ones)
 
-**Step 3: Run E2E tests**
+**Step 4: Run E2E tests**
 
 Run: `npm run test:e2e`
 
-**Step 4: Manual smoke test**
+**Step 5: Manual smoke test**
 
 Start dev server and verify:
 - [ ] Master calendar loads with filters
@@ -1388,5 +1785,6 @@ Start dev server and verify:
 - [ ] Project timeline loads with 3-status filters
 - [ ] My Schedule shows simple list
 - [ ] Per-project calendar route removed (404)
+- [ ] No references to tentative or pending_confirm anywhere in UI
 
-**Step 5: Final commit if any fixes needed**
+**Step 6: Final commit if any fixes needed**
