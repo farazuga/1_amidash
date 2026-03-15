@@ -406,7 +406,7 @@ describe('Calendar Utils', () => {
   });
 
   describe('sortEventsByStatus', () => {
-    it('sorts confirmed first, then pending, then tentative, then draft', () => {
+    it('sorts confirmed first, then pending, then draft', () => {
       const events: CalendarEvent[] = [
         {
           id: '1',
@@ -448,23 +448,8 @@ describe('Calendar Utils', () => {
           salesOrderNumber: null,
           userId: 'u1',
           userName: 'User',
-          bookingStatus: 'pending_confirm',
+          bookingStatus: 'pending',
           assignmentId: '3',
-          excludedDates: [],
-          scheduledDays: [],
-        },
-        {
-          id: '4',
-          title: 'Test',
-          start: new Date(),
-          end: new Date(),
-          projectId: 'p1',
-          projectName: 'Test',
-          salesOrderNumber: null,
-          userId: 'u1',
-          userName: 'User',
-          bookingStatus: 'tentative',
-          assignmentId: '4',
           excludedDates: [],
           scheduledDays: [],
         },
@@ -473,9 +458,8 @@ describe('Calendar Utils', () => {
       const sorted = sortEventsByStatus(events);
 
       expect(sorted[0].bookingStatus).toBe('confirmed');
-      expect(sorted[1].bookingStatus).toBe('pending_confirm');
-      expect(sorted[2].bookingStatus).toBe('tentative');
-      expect(sorted[3].bookingStatus).toBe('draft');
+      expect(sorted[1].bookingStatus).toBe('pending');
+      expect(sorted[2].bookingStatus).toBe('draft');
     });
 
     it('does not mutate original array', () => {

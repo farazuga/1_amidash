@@ -66,7 +66,7 @@ const statusChangePayload: Omit<UndoAction, 'timestamp'> = {
   description: 'Status changed to confirmed',
   data: {
     assignmentId: 'assign-5',
-    previousStatus: 'tentative',
+    previousStatus: 'pending',
     newStatus: 'confirmed',
     userName: 'Eve',
   },
@@ -575,7 +575,7 @@ describe('useUndoStore', () => {
       expect(action.type).toBe('status-change');
       expect(action.description).toBe('Status changed to confirmed');
       expect(action.data.assignmentId).toBe('assign-5');
-      expect(action.data.previousStatus).toBe('tentative');
+      expect(action.data.previousStatus).toBe('pending');
       expect(action.data.newStatus).toBe('confirmed');
       expect(action.data.userName).toBe('Eve');
     });

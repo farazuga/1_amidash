@@ -244,7 +244,7 @@ export function createOverlappingProjects(options: {
     client_name: 'Project B',
     start_date: toISODate(addDays(startDate, 2)), // Overlaps by 3 days
     end_date: toISODate(addDays(startDate, 6)),
-    schedule_status: 'tentative',
+    schedule_status: 'pending',
     assignments: [assignment2],
   });
 
@@ -335,7 +335,7 @@ export function createMultipleProjectsFixture(currentMonth: Date) {
       client_name: 'Beta Inc',
       start_date: toISODate(addDays(firstMonday, 7)),
       end_date: toISODate(addDays(firstMonday, 11)),
-      schedule_status: 'tentative',
+      schedule_status: 'pending',
       assignments: [createTestAssignment({ user: TEST_ENGINEERS.bob })],
     }),
     createTestProject({
@@ -408,25 +408,18 @@ export function createMixedStatusFixture(currentMonth: Date) {
       assignments: [createTestAssignment({ user: TEST_ENGINEERS.alice })],
     }),
     createTestProject({
-      client_name: 'Tentative Project',
+      client_name: 'Pending Project',
       start_date: toISODate(addDays(firstMonday, 7)),
       end_date: toISODate(addDays(firstMonday, 11)),
-      schedule_status: 'tentative',
+      schedule_status: 'pending',
       assignments: [createTestAssignment({ user: TEST_ENGINEERS.bob })],
     }),
     createTestProject({
-      client_name: 'Pending Project',
+      client_name: 'Confirmed Project',
       start_date: toISODate(addDays(firstMonday, 14)),
       end_date: toISODate(addDays(firstMonday, 18)),
-      schedule_status: 'pending_confirm',
-      assignments: [createTestAssignment({ user: TEST_ENGINEERS.charlie })],
-    }),
-    createTestProject({
-      client_name: 'Confirmed Project',
-      start_date: toISODate(addDays(firstMonday, 21)),
-      end_date: toISODate(addDays(firstMonday, 25)),
       schedule_status: 'confirmed',
-      assignments: [createTestAssignment({ user: TEST_ENGINEERS.alice })],
+      assignments: [createTestAssignment({ user: TEST_ENGINEERS.charlie })],
     }),
   ];
 
@@ -448,39 +441,29 @@ export const MOCK_BOOKING_STATUS_CONFIG = {
   draft: {
     label: 'Draft',
     shortLabel: 'D',
-    bgColor: 'bg-blue-100',
+    bgColor: 'bg-blue-50',
     textColor: 'text-blue-800',
-    borderColor: 'border-blue-300',
+    borderColor: 'border-blue-200',
     dotColor: 'bg-blue-500',
     description: 'PM planning - not visible to engineers',
     visibleToEngineers: false,
   },
-  tentative: {
-    label: 'Tentative',
-    shortLabel: 'T',
-    bgColor: 'bg-amber-100',
-    textColor: 'text-amber-800',
-    borderColor: 'border-amber-300',
+  pending: {
+    label: 'Pending',
+    shortLabel: 'P',
+    bgColor: 'bg-amber-50/50',
+    textColor: 'text-amber-700/70',
+    borderColor: 'border-amber-200 border-dashed',
     dotColor: 'bg-amber-500',
-    description: 'Planned but not yet sent to customer',
-    visibleToEngineers: true,
-  },
-  pending_confirm: {
-    label: 'Pending Confirmation',
-    shortLabel: 'PC',
-    bgColor: 'bg-purple-100',
-    textColor: 'text-purple-800',
-    borderColor: 'border-purple-300',
-    dotColor: 'bg-purple-500',
     description: 'Awaiting customer confirmation',
     visibleToEngineers: true,
   },
   confirmed: {
     label: 'Confirmed',
     shortLabel: 'C',
-    bgColor: 'bg-green-100',
+    bgColor: 'bg-green-50',
     textColor: 'text-green-800',
-    borderColor: 'border-green-300',
+    borderColor: 'border-green-200',
     dotColor: 'bg-green-500',
     description: 'Customer confirmed',
     visibleToEngineers: true,
@@ -494,8 +477,8 @@ export function setupComponentMocks() {
   // Mock the constants module
   vi.mock('@/lib/calendar/constants', () => ({
     BOOKING_STATUS_CONFIG: MOCK_BOOKING_STATUS_CONFIG,
-    BOOKING_STATUS_ORDER: ['confirmed', 'pending_confirm', 'tentative', 'draft'],
-    BOOKING_STATUS_CYCLE: ['draft', 'tentative', 'confirmed'],
+    BOOKING_STATUS_ORDER: ['confirmed', 'pending', 'draft'],
+    BOOKING_STATUS_CYCLE: ['draft', 'pending', 'confirmed'],
     DEFAULT_WORKING_HOURS: { start: '07:00', end: '16:00' },
     WEEKDAYS: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
     WEEKDAYS_FULL: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
