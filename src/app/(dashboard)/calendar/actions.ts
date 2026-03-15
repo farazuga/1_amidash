@@ -256,26 +256,25 @@ export async function createAssignment(data: {
       .eq('project_id', data.projectId);
 
     if (existingAssignments && existingAssignments.length > 0) {
-      // Status hierarchy: draft (lowest) -> tentative -> pending_confirm -> confirmed (highest)
+      // Status hierarchy: draft (lowest) -> pending -> confirmed (highest)
       const statusPriority: Record<BookingStatus, number> = {
         draft: 0,
-        tentative: 1,
-        pending_confirm: 2,
-        confirmed: 3,
+        pending: 1,
+        confirmed: 2,
       };
 
       // Find the lowest status among existing assignments
-      let lowestPriority = 4; // Higher than any valid status
+      let lowestPriority = 3; // Higher than any valid status
       for (const assignment of existingAssignments) {
-        const priority = statusPriority[assignment.booking_status as BookingStatus] ?? 4;
+        const priority = statusPriority[assignment.booking_status as BookingStatus] ?? 3;
         if (priority < lowestPriority) {
           lowestPriority = priority;
         }
       }
 
       // Map priority back to status
-      const priorityToStatus: BookingStatus[] = ['draft', 'tentative', 'pending_confirm', 'confirmed'];
-      if (lowestPriority < 4) {
+      const priorityToStatus: BookingStatus[] = ['draft', 'pending', 'confirmed'];
+      if (lowestPriority < 3) {
         bookingStatus = priorityToStatus[lowestPriority];
       }
     }
@@ -1481,13 +1480,12 @@ export async function getAssignmentDays(assignmentId: string): Promise<ActionRes
 // Status cycling (click-to-toggle)
 // ============================================
 
-// Status cycle for PM manual cycling - skips pending_confirm (requires confirmation flow)
-// Workflow: draft → tentative → confirmed → draft
-const STATUS_CYCLE: BookingStatus[] = ['draft', 'tentative', 'confirmed'];
+// Status cycle for PM manual cycling
+// Workflow: draft → pending → confirmed → draft
+const STATUS_CYCLE: BookingStatus[] = ['draft', 'pending', 'confirmed'];
 
 /**
- * Cycle assignment status: draft → tentative → confirmed → draft
- * Note: pending_confirm is NOT in the cycle - it's only reached via the customer confirmation flow
+ * Cycle assignment status: draft → pending → confirmed → draft
  */
 export async function cycleAssignmentStatus(assignmentId: string): Promise<ActionResult<{ newStatus: BookingStatus }>> {
   const { error: authError, supabase, user } = await requireAdmin();
@@ -1511,16 +1509,10 @@ export async function cycleAssignmentStatus(assignmentId: string): Promise<Actio
   }
 
   // Calculate next status
-  // Special case: if current status is pending_confirm (from confirmation flow), cycle to confirmed
-  let newStatus: BookingStatus;
-  if (currentAssignment.booking_status === 'pending_confirm') {
-    newStatus = 'confirmed';
-  } else {
-    const currentIndex = STATUS_CYCLE.indexOf(currentAssignment.booking_status as BookingStatus);
-    // If status not in cycle (shouldn't happen), default to draft
-    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % STATUS_CYCLE.length;
-    newStatus = STATUS_CYCLE[nextIndex];
-  }
+  const currentIndex = STATUS_CYCLE.indexOf(currentAssignment.booking_status as BookingStatus);
+  // If status not in cycle (shouldn't happen), default to draft
+  const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % STATUS_CYCLE.length;
+  const newStatus: BookingStatus = STATUS_CYCLE[nextIndex];
 
   // Update the assignment
   const { error: updateError } = await supabase
