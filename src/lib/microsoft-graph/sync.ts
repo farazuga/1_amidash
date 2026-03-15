@@ -16,11 +16,8 @@ import {
 import type { SyncResult } from './types';
 import { SYNCABLE_STATUSES } from './types';
 
-// Constants for slot reservation (race condition prevention)
+// Constants
 const PENDING_SLOT_MARKER = '__pending__';
-const PENDING_SLOT_TIMEOUT_MS = 30000; // 30 seconds
-const MAX_SLOT_RETRIES = 3;
-const INITIAL_RETRY_DELAY_MS = 1000;
 const CONCURRENCY_LIMIT = 5;
 
 /**
@@ -30,20 +27,6 @@ function getBaseUrl(): string {
   return process.env.NEXT_PUBLIC_APP_URL || 'https://app.amidash.com';
 }
 
-/**
- * Check if a pending slot is stale (older than timeout)
- */
-function isSlotStale(lastSyncedAt: string): boolean {
-  const slotAge = Date.now() - new Date(lastSyncedAt).getTime();
-  return slotAge > PENDING_SLOT_TIMEOUT_MS;
-}
-
-/**
- * Sleep for a specified duration
- */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 // ============================================
 // Database helpers
@@ -181,53 +164,24 @@ async function deleteSyncedEvent(
  * Reserve a sync slot to prevent race conditions.
  * Handles stale slots (pending for > 30 seconds) by cleaning them up.
  */
-async function reserveSyncSlot(
+/**
+ * Check if an existing Outlook event exists for this assignment+user+date.
+ * Returns the external event ID if found, null otherwise.
+ */
+async function getExistingEventId(
   assignmentId: string,
   userId: string,
   workDate: string
-): Promise<{ isNew: boolean; existingEventId: string | null; isPending: boolean }> {
-  const supabase = await createServiceClient();
-
+): Promise<string | null> {
   const existing = await getSyncedEvent(assignmentId, userId, workDate);
-
-  if (existing) {
-    if (existing.external_event_id && existing.external_event_id !== PENDING_SLOT_MARKER) {
-      return { isNew: false, existingEventId: existing.external_event_id, isPending: false };
-    }
-
-    if (existing.external_event_id === PENDING_SLOT_MARKER) {
-      if (isSlotStale(existing.last_synced_at)) {
-        console.log('Cleaning up stale pending slot for assignment:', assignmentId, 'date:', workDate);
-        await deleteSyncedEvent(assignmentId, userId, workDate);
-      } else {
-        return { isNew: false, existingEventId: null, isPending: true };
-      }
-    }
+  if (existing?.external_event_id && existing.external_event_id !== PENDING_SLOT_MARKER) {
+    return existing.external_event_id;
   }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error: insertError } = await (supabase as any)
-    .from('synced_calendar_events')
-    .insert({
-      assignment_id: assignmentId,
-      user_id: userId,
-      work_date: workDate,
-      external_event_id: PENDING_SLOT_MARKER,
-      last_synced_at: new Date().toISOString(),
-      sync_error: null,
-    });
-
-  if (!insertError) {
-    return { isNew: true, existingEventId: null, isPending: false };
+  // Clean up any stale pending markers
+  if (existing?.external_event_id === PENDING_SLOT_MARKER) {
+    await deleteSyncedEvent(assignmentId, userId, workDate);
   }
-
-  // Insert failed due to race condition - re-check
-  const recheckExisting = await getSyncedEvent(assignmentId, userId, workDate);
-  if (recheckExisting?.external_event_id && recheckExisting.external_event_id !== PENDING_SLOT_MARKER) {
-    return { isNew: false, existingEventId: recheckExisting.external_event_id, isPending: false };
-  }
-
-  return { isNew: false, existingEventId: null, isPending: true };
+  return null;
 }
 
 // ============================================
@@ -327,36 +281,20 @@ async function syncDayToOutlook(params: {
       dashboardUrl: baseUrl,
     });
 
-    for (let attempt = 0; attempt < MAX_SLOT_RETRIES; attempt++) {
-      const { isNew, existingEventId, isPending } = await reserveSyncSlot(assignmentId, userId, workDate);
+    // Check for existing synced event
+    const existingEventId = await getExistingEventId(assignmentId, userId, workDate);
 
-      if (!isNew && existingEventId) {
-        await updateCalendarEvent(email, calendarId, existingEventId, event);
-        await storeSyncedEvent(assignmentId, userId, workDate, existingEventId);
-        return { success: true, eventId: existingEventId };
-      }
-
-      if (isPending) {
-        const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt);
-        console.log(`Slot pending for ${workDate}, waiting ${delay}ms (retry ${attempt + 1}/${MAX_SLOT_RETRIES})`);
-        await sleep(delay);
-
-        const existing = await getSyncedEvent(assignmentId, userId, workDate);
-        if (existing?.external_event_id && existing.external_event_id !== PENDING_SLOT_MARKER) {
-          await updateCalendarEvent(email, calendarId, existing.external_event_id, event);
-          return { success: true, eventId: existing.external_event_id };
-        }
-        continue;
-      }
-
-      if (isNew) {
-        const response = await createCalendarEvent(email, calendarId, event);
-        await storeSyncedEvent(assignmentId, userId, workDate, response.id);
-        return { success: true, eventId: response.id };
-      }
+    if (existingEventId) {
+      // Update existing Outlook event
+      await updateCalendarEvent(email, calendarId, existingEventId, event);
+      await storeSyncedEvent(assignmentId, userId, workDate, existingEventId);
+      return { success: true, eventId: existingEventId };
     }
 
-    throw new Error('Failed to acquire sync slot after maximum retries');
+    // Create new Outlook event
+    const response = await createCalendarEvent(email, calendarId, event);
+    await storeSyncedEvent(assignmentId, userId, workDate, response.id);
+    return { success: true, eventId: response.id };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Failed to sync day to Outlook:', workDate, errorMessage);
