@@ -1,15 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 import { createServiceClient } from '@/lib/supabase/server';
 import * as sharepoint from '@/lib/sharepoint/client';
-import { MicrosoftAuthError } from '@/lib/sharepoint/client';
-import { decryptToken, isEncryptionConfigured } from '@/lib/crypto';
-import type { CalendarConnection } from '@/lib/microsoft-graph/types';
 import type { FileCategory, FileCategoryWithLegacy, SharePointGlobalConfig } from '@/types';
 
 /**
  * Mobile API endpoint for uploading presales files to SharePoint _PRESALES folder
  *
  * Authentication: Bearer token (Supabase JWT) in Authorization header
+ * SharePoint auth: App-level client credentials (no per-user Microsoft connection needed)
  *
  * Request:
  * - Content-Type: multipart/form-data
@@ -22,37 +20,6 @@ import type { FileCategory, FileCategoryWithLegacy, SharePointGlobalConfig } fro
  *   - category: File category (schematics, sow, media, other)
  *   - notes (optional): Notes about the file
  */
-
-// Helper: Get Microsoft connection for a user (uses service client)
-async function getMicrosoftConnectionForMobile(userId: string): Promise<CalendarConnection | null> {
-  const supabase = await createServiceClient();
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
-    .from('calendar_connections')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('provider', 'microsoft')
-    .maybeSingle();
-
-  if (error || !data) {
-    return null;
-  }
-
-  if (isEncryptionConfigured() && data.access_token) {
-    try {
-      data.access_token = decryptToken(data.access_token);
-      if (data.refresh_token) {
-        data.refresh_token = decryptToken(data.refresh_token);
-      }
-    } catch (err) {
-      console.error('[Mobile Presales] Token decryption failed:', err);
-      return null;
-    }
-  }
-
-  return data as CalendarConnection;
-}
 
 // Helper: Get global SharePoint config
 async function getGlobalSharePointConfig(): Promise<SharePointGlobalConfig | null> {
@@ -145,17 +112,7 @@ export async function POST(request: Request) {
       referenceName: sanitizedReference,
     });
 
-    // 6. Get Microsoft connection
-    const msConnection = await getMicrosoftConnectionForMobile(user.id);
-    if (!msConnection) {
-      console.error('[Mobile Presales] No Microsoft connection for user:', user.id);
-      return Response.json(
-        { error: 'Please connect your Microsoft account in the web app' },
-        { status: 403 }
-      );
-    }
-
-    // 7. Get global SharePoint config
+    // 6. Get global SharePoint config
     const globalConfig = await getGlobalSharePointConfig();
     if (!globalConfig) {
       return Response.json(
@@ -164,13 +121,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // 8. Find or create _PRESALES folder
-    // The _PRESALES folder is at the same level as the project base folder
+    // 7. Find or create _PRESALES folder
     const driveId = globalConfig.drive_id;
     let presalesFolder;
 
     // Try to find _PRESALES folder as sibling of the base folder
-    // Get parent of base folder to find _PRESALES at the same level
     const baseFolderPath = globalConfig.base_folder_path;
     const parentPath = baseFolderPath === '/' || baseFolderPath === 'Root'
       ? ''
@@ -179,7 +134,7 @@ export async function POST(request: Request) {
     let resolvedPresalesPath = parentPath ? `${parentPath}/_PRESALES` : '/_PRESALES';
 
     try {
-      presalesFolder = await sharepoint.getItemByPath(msConnection, driveId, resolvedPresalesPath);
+      presalesFolder = await sharepoint.getItemByPath(driveId, resolvedPresalesPath);
       console.log('[Mobile Presales] Found _PRESALES folder:', presalesFolder?.id);
     } catch {
       console.log('[Mobile Presales] _PRESALES folder not found at', resolvedPresalesPath);
@@ -188,7 +143,7 @@ export async function POST(request: Request) {
     // If not found as sibling, try at drive root
     if (!presalesFolder) {
       try {
-        presalesFolder = await sharepoint.getItemByPath(msConnection, driveId, '/_PRESALES');
+        presalesFolder = await sharepoint.getItemByPath(driveId, '/_PRESALES');
         resolvedPresalesPath = '/_PRESALES';
         console.log('[Mobile Presales] Found _PRESALES at root:', presalesFolder?.id);
       } catch {
@@ -199,11 +154,11 @@ export async function POST(request: Request) {
     // Create _PRESALES folder at root if it doesn't exist
     if (!presalesFolder) {
       try {
-        const rootFolder = await sharepoint.getItemByPath(msConnection, driveId, '/');
+        const rootFolder = await sharepoint.getItemByPath(driveId, '/');
         if (!rootFolder) {
           throw new Error('Could not access drive root');
         }
-        presalesFolder = await sharepoint.createFolder(msConnection, driveId, rootFolder.id, '_PRESALES');
+        presalesFolder = await sharepoint.createFolder(driveId, rootFolder.id, '_PRESALES');
         resolvedPresalesPath = '/_PRESALES';
         console.log('[Mobile Presales] Created _PRESALES folder:', presalesFolder.id);
       } catch (err) {
@@ -215,20 +170,20 @@ export async function POST(request: Request) {
       }
     }
 
-    // 9. Find or create reference subfolder within _PRESALES
+    // 8. Find or create reference subfolder within _PRESALES
     const sanitizedFolderName = sanitizedReference.replace(/[<>:"/\\|?*]/g, '-').trim();
     let referenceFolder;
 
     try {
       referenceFolder = await sharepoint.getItemByPath(
-        msConnection, driveId, `${resolvedPresalesPath}/${sanitizedFolderName}`
+        driveId, `${resolvedPresalesPath}/${sanitizedFolderName}`
       );
       console.log('[Mobile Presales] Found reference folder:', referenceFolder?.id);
     } catch {
       // Create it
       try {
         referenceFolder = await sharepoint.createFolder(
-          msConnection, driveId, presalesFolder.id, sanitizedFolderName
+          driveId, presalesFolder.id, sanitizedFolderName
         );
         console.log('[Mobile Presales] Created reference folder:', sanitizedFolderName);
       } catch (createErr) {
@@ -242,13 +197,12 @@ export async function POST(request: Request) {
 
     const targetFolderId = referenceFolder?.id || presalesFolder.id;
 
-    // 10. Upload to SharePoint
+    // 9. Upload to SharePoint
     console.log('[Mobile Presales] Uploading to SharePoint...');
     const arrayBuffer = await file.arrayBuffer();
     const blob = new Blob([arrayBuffer], { type: file.type });
 
     const uploadResult = await sharepoint.uploadFile(
-      msConnection,
       driveId,
       targetFolderId,
       file.name,
@@ -264,19 +218,18 @@ export async function POST(request: Request) {
     const spItem = uploadResult.item;
     console.log('[Mobile Presales] SharePoint upload complete');
 
-    // 11. Get thumbnail if available
+    // 10. Get thumbnail if available
     let thumbnailUrl: string | null = null;
     if (spItem.file?.mimeType?.startsWith('image/') || spItem.file?.mimeType?.startsWith('video/')) {
       try {
-        const thumbnails = await sharepoint.getThumbnails(msConnection, driveId, spItem.id);
+        const thumbnails = await sharepoint.getThumbnails(driveId, spItem.id);
         thumbnailUrl = thumbnails?.[0]?.medium?.url || thumbnails?.[0]?.small?.url || null;
       } catch {
         console.log('[Mobile Presales] Thumbnail not available');
       }
     }
 
-    // 12. Save to presales_files table
-    // Use real AC deal ID if provided, otherwise generate from reference name
+    // 11. Save to presales_files table
     const resolvedDealId = dealId || `mobile_${sanitizedReference.toLowerCase().replace(/\s+/g, '_')}`;
     const resolvedDealName = dealName || sanitizedReference;
 
@@ -326,13 +279,6 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error('[Mobile Presales] Unexpected error:', error);
-
-    if (error instanceof MicrosoftAuthError) {
-      return Response.json(
-        { error: error.message },
-        { status: 403 }
-      );
-    }
 
     return Response.json(
       { error: error instanceof Error ? error.message : 'Upload failed' },
