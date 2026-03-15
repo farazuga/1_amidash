@@ -511,7 +511,7 @@ test.describe('Calendar', () => {
   });
 
   test.describe('Status Cycle', () => {
-    test.skip('should cycle through 3 statuses: draft -> tentative -> confirmed -> draft', async ({ page }) => {
+    test.skip('should cycle through 3 statuses: draft -> pending -> confirmed -> draft', async ({ page }) => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
@@ -524,13 +524,13 @@ test.describe('Calendar', () => {
       // Click to cycle status (assuming click cycles status)
       await assignmentCard.click();
 
-      // Status should cycle: draft -> tentative -> confirmed -> draft
+      // Status should cycle: draft -> pending -> confirmed -> draft
       // Verify status doesn't include 'complete'
       const statusBadge = page.getByTestId('booking-status-badge').first();
       const statusText = await statusBadge.textContent();
 
-      // Status should be one of: Draft, Tentative, Confirmed (not Complete)
-      expect(['Draft', 'Tentative', 'Confirmed']).toContain(statusText);
+      // Status should be one of: Draft, Pending, Confirmed (not Complete)
+      expect(['Draft', 'Pending', 'Confirmed']).toContain(statusText);
     });
   });
 

@@ -416,8 +416,8 @@ test.describe('Manage Schedule Dialog', () => {
       const options = page.getByRole('option');
       const optionCount = await options.count();
 
-      // Should be 4: draft, tentative, pending_confirm, confirmed
-      expect(optionCount).toBe(4);
+      // Should be 3: draft, pending, confirmed
+      expect(optionCount).toBe(3);
 
       // Verify no 'complete' option
       const optionTexts = await options.allTextContents();
@@ -437,8 +437,7 @@ test.describe('Manage Schedule Dialog', () => {
 
       // Verify expected options
       await expect(page.getByRole('option', { name: /draft/i })).toBeVisible();
-      await expect(page.getByRole('option', { name: /tentative/i })).toBeVisible();
-      await expect(page.getByRole('option', { name: /pending.*confirm/i })).toBeVisible();
+      await expect(page.getByRole('option', { name: /pending/i })).toBeVisible();
       await expect(page.getByRole('option', { name: /confirmed/i })).toBeVisible();
     });
   });
