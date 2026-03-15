@@ -7,8 +7,10 @@ import { cn } from '@/lib/utils';
 import { AssignmentCard } from './assignment-card';
 import { DraggableAssignmentCard } from './draggable-assignment-card';
 import { DayEventsPopover } from './day-events-popover';
+import { OutlookEventBlock } from './outlook-event-block';
 import { isDateInRange } from '@/lib/calendar/utils';
 import type { CalendarEvent } from '@/types/calendar';
+import type { OutlookEvent } from '@/lib/microsoft-graph/types';
 import type { ScheduledDayInfo } from '@/app/(dashboard)/calendar/actions';
 
 // Constants for event display
@@ -34,6 +36,7 @@ interface DroppableDayCellProps {
   projectEndDate?: string | null;
   enableDragMove?: boolean;
   scheduledDaysWithIds?: Record<string, ScheduledDayInfo[]>;
+  outlookEvents?: OutlookEvent[];
 }
 
 export function DroppableDayCell({
@@ -55,6 +58,7 @@ export function DroppableDayCell({
   projectEndDate,
   enableDragMove = false,
   scheduledDaysWithIds,
+  outlookEvents = [],
 }: DroppableDayCellProps) {
   const droppableId = `day-${format(date, 'yyyy-MM-dd')}`;
   const { isOver, setNodeRef } = useDroppable({
@@ -191,6 +195,10 @@ export function DroppableDayCell({
             showEditButton={showEditButton}
           />
         )}
+
+        {outlookEvents.map((outlookEvent) => (
+          <OutlookEventBlock key={outlookEvent.id} event={outlookEvent} />
+        ))}
       </div>
     </div>
   );

@@ -45,6 +45,9 @@ export { AssignmentSidebar } from './assignment-sidebar';
 export { BulkActionsToolbar } from './bulk-actions-toolbar';
 export { BulkAssignDialog } from './bulk-assign-dialog';
 
+// Outlook Calendar Components
+export { OutlookEventBlock } from './outlook-event-block';
+
 // Availability Components
 export { AvailabilityDialog } from './availability-dialog';
 

@@ -5,8 +5,10 @@ import { format } from 'date-fns';
 import { Plus } from 'lucide-react';
 import { AssignmentCard } from './assignment-card';
 import { DayEventsPopover } from './day-events-popover';
+import { OutlookEventBlock } from './outlook-event-block';
 import { isToday, isCurrentMonth, isDateInRange } from '@/lib/calendar/utils';
 import type { CalendarEvent } from '@/types/calendar';
+import type { OutlookEvent } from '@/lib/microsoft-graph/types';
 
 interface CalendarDayCellProps {
   date: Date;
@@ -24,6 +26,7 @@ interface CalendarDayCellProps {
   maxEventsVisible?: number;
   projectStartDate?: string | null;
   projectEndDate?: string | null;
+  outlookEvents?: OutlookEvent[];
 }
 
 export function CalendarDayCell({
@@ -42,6 +45,7 @@ export function CalendarDayCell({
   maxEventsVisible = 3,
   projectStartDate,
   projectEndDate,
+  outlookEvents = [],
 }: CalendarDayCellProps) {
   const today = isToday(date);
   const inCurrentMonth = isCurrentMonth(date, currentMonth);
@@ -126,6 +130,10 @@ export function CalendarDayCell({
             showEditButton={showEditButton}
           />
         )}
+
+        {outlookEvents.map((outlookEvent) => (
+          <OutlookEventBlock key={outlookEvent.id} event={outlookEvent} />
+        ))}
       </div>
     </div>
   );

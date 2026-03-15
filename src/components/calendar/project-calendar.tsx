@@ -32,6 +32,7 @@ import {
   convertToCalendarEvents,
 } from '@/lib/calendar/utils';
 import { useCalendarData, useAssignableUsers, useCreateAssignment, useCycleAssignmentStatus, useBulkUpdateAssignmentStatus, useMoveAssignmentDay, useAddAssignmentDays, useRemoveAssignmentDays } from '@/hooks/queries/use-assignments';
+import { useOutlookEvents } from '@/hooks/queries/use-outlook-events';
 import { AssignmentDaysDialog } from './assignment-days-dialog';
 import { MultiUserAssignmentDialog } from './multi-user-assignment-dialog';
 import { SendConfirmationDialog } from './send-confirmation-dialog';
@@ -233,6 +234,34 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false,
   const assignedUserIds = useMemo(() => {
     return new Set(events.map((e) => e.userId));
   }, [events]);
+
+  // Fetch Outlook events for visible engineers
+  const engineerIds = useMemo(() => Array.from(assignedUserIds), [assignedUserIds]);
+  const startDateStr = start.toISOString().split('T')[0];
+  const endDateStr = end.toISOString().split('T')[0];
+  const { data: outlookEventsMap } = useOutlookEvents({
+    engineerIds,
+    startDate: startDateStr,
+    endDate: endDateStr,
+    enabled: engineerIds.length > 0,
+  });
+
+  // Build a lookup: dateStr -> OutlookEvent[] for all engineers visible in this range
+  const outlookEventsByDate = useMemo(() => {
+    const map = new Map<string, import('@/lib/microsoft-graph/types').OutlookEvent[]>();
+    if (!outlookEventsMap) return map;
+    for (const eventsForEngineer of Object.values(outlookEventsMap)) {
+      for (const evt of eventsForEngineer) {
+        // Parse the event start date to get the day key
+        const startDate = new Date(evt.start.dateTime);
+        const dateStr = startDate.toISOString().split('T')[0];
+        const existing = map.get(dateStr) || [];
+        existing.push(evt);
+        map.set(dateStr, existing);
+      }
+    }
+    return map;
+  }, [outlookEventsMap]);
 
   // Drag sensors for better UX
   const sensors = useSensors(
@@ -541,6 +570,9 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false,
             ? date.toDateString() === selectedDate.toDateString()
             : false;
 
+          const dateStr = date.toISOString().split('T')[0];
+          const dayOutlookEvents = outlookEventsByDate.get(dateStr) || [];
+
           if (enableDragDrop) {
             return (
               <DroppableDayCell
@@ -560,6 +592,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false,
                 projectEndDate={project?.end_date}
                 enableDragMove={isAdmin}
                 scheduledDaysWithIds={scheduledDaysWithIds}
+                outlookEvents={dayOutlookEvents}
               />
             );
           }
@@ -579,6 +612,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false,
               showEditButton={!isMobile}
               projectStartDate={project?.start_date}
               projectEndDate={project?.end_date}
+              outlookEvents={dayOutlookEvents}
             />
           );
         })}
