@@ -38,14 +38,16 @@ export function CalendarPageContent({ isAdmin }: CalendarPageContentProps) {
       return;
     }
     const supabase = createClient();
-    supabase
-      .from('projects')
-      .select('*')
-      .or(`sales_order_number.eq.${projectParam},id.eq.${projectParam}`)
-      .single()
-      .then(({ data }) => {
-        if (data) setProject(data as unknown as Project);
-      });
+    // Sales order numbers start with 'S', UUIDs don't
+    const isUUID = !projectParam.startsWith('S');
+    const query = supabase.from('projects').select('*');
+    const filtered = isUUID
+      ? query.eq('id', projectParam)
+      : query.eq('sales_order_number', projectParam);
+    filtered.single().then(({ data, error }) => {
+      if (error) console.error('Failed to fetch project:', error.message);
+      if (data) setProject(data as unknown as Project);
+    });
   }, [projectParam]);
 
   // Filter state
