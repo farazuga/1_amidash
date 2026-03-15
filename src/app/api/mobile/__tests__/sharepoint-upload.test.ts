@@ -25,19 +25,12 @@ vi.mock('@/lib/supabase/server', () => ({
 
 // Mock sharepoint client (not needed for validation tests, but required for import)
 vi.mock('@/lib/sharepoint/client', () => ({
-  MicrosoftAuthError: class MicrosoftAuthError extends Error {},
   createFolder: vi.fn(),
   getCategoryFolderName: vi.fn(),
   getItemByPath: vi.fn(),
   getItem: vi.fn(),
   uploadFile: vi.fn(),
   getThumbnails: vi.fn(),
-}));
-
-// Mock crypto
-vi.mock('@/lib/crypto', () => ({
-  decryptToken: vi.fn((t: string) => t),
-  isEncryptionConfigured: vi.fn(() => false),
 }));
 
 // Import the handler after mocks are set up
@@ -202,7 +195,7 @@ describe('POST /api/mobile/sharepoint/upload', () => {
 
     const response = await POST(request);
 
-    // Should not be 400 (validation passed), will be 403 (no MS connection)
+    // Should not be 400 (validation passed), will be 404 (project not found) or 500
     expect(response.status).not.toBe(400);
   });
 });

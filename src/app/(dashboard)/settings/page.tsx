@@ -1,12 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, Globe, Lock, Calendar, User } from 'lucide-react';
-import { OutlookConnection } from '@/components/settings/outlook-connection';
-import { isMicrosoftConfigured } from '@/lib/microsoft-graph/auth';
+import { Settings, Globe, Lock } from 'lucide-react';
 import { TimezoneSelect } from './timezone-select';
 import { ChangePasswordForm } from './change-password-form';
-import { ProfileNameForm } from './profile-name-form';
 
 export const metadata = {
   title: 'Settings | Amitrace',
@@ -43,20 +40,6 @@ export default async function SettingsPage() {
   const profileWithTimezone = profile as any;
   const timezone = profileWithTimezone.timezone || 'America/New_York';
 
-  // Get user's Outlook calendar connection if Microsoft is configured
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let calendarConnection: any = null;
-  if (isMicrosoftConfigured()) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: connection } = await (supabase as any)
-      .from('calendar_connections')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('provider', 'microsoft')
-      .maybeSingle();
-    calendarConnection = connection;
-  }
-
   return (
     <div className="container mx-auto py-6 max-w-3xl">
       <div className="mb-6">
@@ -70,32 +53,6 @@ export default async function SettingsPage() {
       </div>
 
       <div className="space-y-6">
-        {/* Personal Information */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <User className="h-5 w-5 text-muted-foreground" />
-              <CardTitle>Personal Information</CardTitle>
-            </div>
-            <CardDescription>
-              Your name and role. This is displayed in the mobile app and across the platform.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <ProfileNameForm userId={user.id} currentName={profile.full_name} />
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span>Role:</span>
-                <span className="font-medium capitalize">{profile.role}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span>Email:</span>
-                <span className="font-medium">{user.email}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Timezone */}
         <Card>
           <CardHeader>
@@ -128,30 +85,6 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Calendar Integration */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-muted-foreground" />
-              <CardTitle>Calendar Integration</CardTitle>
-            </div>
-            <CardDescription>
-              Connect your Microsoft account to sync calendars and access SharePoint
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isMicrosoftConfigured() ? (
-              <OutlookConnection
-                connection={calendarConnection}
-                returnUrl="/settings"
-              />
-            ) : (
-              <div className="text-sm text-muted-foreground">
-                Microsoft integration is not configured. Contact your administrator to set up the Microsoft OAuth credentials.
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

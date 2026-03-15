@@ -3,9 +3,6 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import * as sharepoint from '@/lib/sharepoint/client';
-import { MicrosoftAuthError } from '@/lib/sharepoint/client';
-import { decryptToken, isEncryptionConfigured } from '@/lib/crypto';
-import type { CalendarConnection } from '@/lib/microsoft-graph/types';
 import type {
   ProjectFile,
   PresalesFile,
@@ -84,39 +81,6 @@ export interface DeleteFileResult {
 // Helper Functions
 // ============================================================================
 
-export async function getMicrosoftConnection(userId: string): Promise<CalendarConnection | null> {
-  const supabase = await createServiceClient();
-
-  // Use type assertion since calendar_connections may not be in generated types yet
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
-    .from('calendar_connections')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('provider', 'microsoft')
-    .maybeSingle();
-
-  if (error || !data) {
-    return null;
-  }
-
-  // Decrypt tokens if encryption is configured
-  // Tokens are encrypted at rest for security
-  if (isEncryptionConfigured() && data.access_token) {
-    try {
-      data.access_token = decryptToken(data.access_token);
-      if (data.refresh_token) {
-        data.refresh_token = decryptToken(data.refresh_token);
-      }
-    } catch (err) {
-      console.error('[getMicrosoftConnection] Token decryption failed:', err);
-      return null;
-    }
-  }
-
-  return data as CalendarConnection;
-}
-
 function getFileExtension(fileName: string): string {
   const parts = fileName.split('.');
   return parts.length > 1 ? parts.pop()?.toLowerCase() || '' : '';
@@ -166,8 +130,7 @@ async function ensureProjectFolder(
   projectId: string,
   salesOrderNumber: string,
   clientName: string,
-  userId: string,
-  msConnection: CalendarConnection
+  userId: string
 ): Promise<{ success: boolean; connection?: ProjectSharePointConnection; error?: string }> {
   const db = await getTypedClient();
 
@@ -195,7 +158,6 @@ async function ensureProjectFolder(
 
     // Create project folder under the base folder
     const projectFolder = await sharepoint.createFolder(
-      msConnection,
       globalConfig.drive_id,
       globalConfig.base_folder_id,
       folderName
@@ -206,7 +168,7 @@ async function ensureProjectFolder(
     for (const category of categories) {
       const categoryFolderName = sharepoint.getCategoryFolderName(category);
       try {
-        await sharepoint.createFolder(msConnection, globalConfig.drive_id, projectFolder.id, categoryFolderName);
+        await sharepoint.createFolder(globalConfig.drive_id, projectFolder.id, categoryFolderName);
       } catch {
         // Folder may already exist
         console.log(`Category folder ${categoryFolderName} may already exist`);
@@ -270,12 +232,6 @@ export async function connectSharePointFolder(
     return { success: false, error: 'Authentication required' };
   }
 
-  // Get Microsoft connection for SharePoint API calls
-  const msConnection = await getMicrosoftConnection(user.id);
-  if (!msConnection) {
-    return { success: false, error: 'Please connect your Microsoft account first' };
-  }
-
   try {
     let finalFolderId = data.folderId;
     let finalFolderPath = data.folderPath;
@@ -287,14 +243,13 @@ export async function connectSharePointFolder(
       const parentPath = data.folderPath.substring(0, data.folderPath.lastIndexOf('/'));
 
       // Get parent folder
-      const parentFolder = await sharepoint.getItemByPath(msConnection, data.driveId, parentPath);
+      const parentFolder = await sharepoint.getItemByPath(data.driveId, parentPath);
       if (!parentFolder) {
         return { success: false, error: 'Parent folder not found' };
       }
 
       // Create new folder
       const newFolder = await sharepoint.createFolder(
-        msConnection,
         data.driveId,
         parentFolder.id,
         folderName
@@ -310,7 +265,7 @@ export async function connectSharePointFolder(
       for (const category of categories) {
         const folderName = sharepoint.getCategoryFolderName(category);
         try {
-          await sharepoint.createFolder(msConnection, data.driveId, finalFolderId, folderName);
+          await sharepoint.createFolder(data.driveId, finalFolderId, folderName);
         } catch (err) {
           // Folder may already exist, that's OK
           console.log(`Category folder ${folderName} may already exist`);
@@ -480,21 +435,6 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
     return { success: false, error: `Authentication failed: ${authError instanceof Error ? authError.message : 'Unknown error'}` };
   }
 
-  // Get Microsoft connection first
-  let msConnection;
-  try {
-    console.log('[uploadFile] === STEP 4: Getting Microsoft connection ===');
-    msConnection = await getMicrosoftConnection(user.id);
-    if (!msConnection) {
-      console.error('[uploadFile] No Microsoft connection for user:', user.id);
-      return { success: false, error: 'Please connect your Microsoft account' };
-    }
-    console.log('[uploadFile] Microsoft connection found');
-  } catch (msError) {
-    console.error('[uploadFile] Microsoft connection error:', msError);
-    return { success: false, error: `Microsoft connection failed: ${msError instanceof Error ? msError.message : 'Unknown error'}` };
-  }
-
   // Get project details for folder creation
   let project: { client_name: string; sales_order_number: string };
   try {
@@ -524,8 +464,7 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
       data.projectId,
       project.sales_order_number,
       project.client_name,
-      user.id,
-      msConnection
+      user.id
     );
 
     if (!folderResult.success || !folderResult.connection) {
@@ -548,7 +487,6 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
     let categoryFolder;
     try {
       categoryFolder = await sharepoint.getItemByPath(
-        msConnection,
         connection.drive_id,
         `${connection.folder_path}/${categoryFolderName}`
       );
@@ -560,8 +498,8 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
     if (!categoryFolder) {
       // Create category folder if it doesn't exist
       console.log('[uploadFile] Creating category folder...');
-      const rootFolder = await sharepoint.getItem(msConnection, connection.drive_id, connection.folder_id);
-      await sharepoint.createFolder(msConnection, connection.drive_id, rootFolder.id, categoryFolderName);
+      const rootFolder = await sharepoint.getItem(connection.drive_id, connection.folder_id);
+      await sharepoint.createFolder(connection.drive_id, rootFolder.id, categoryFolderName);
       console.log('[uploadFile] Category folder created');
     }
 
@@ -578,7 +516,6 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
 
     const blob = new Blob([data.fileContent], { type: data.contentType });
     const uploadResult = await sharepoint.uploadFile(
-      msConnection,
       connection.drive_id,
       targetFolderId,
       data.fileName,
@@ -605,7 +542,7 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
     let thumbnailUrl: string | null = null;
     if (spItem.file?.mimeType?.startsWith('image/') || spItem.file?.mimeType?.startsWith('video/')) {
       try {
-        const thumbnails = await sharepoint.getThumbnails(msConnection, connection.drive_id, spItem.id);
+        const thumbnails = await sharepoint.getThumbnails(connection.drive_id, spItem.id);
         thumbnailUrl = thumbnails?.[0]?.medium?.url || thumbnails?.[0]?.small?.url || null;
         console.log('[uploadFile] Thumbnail URL:', thumbnailUrl ? 'obtained' : 'not available');
       } catch (thumbError) {
@@ -669,15 +606,6 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
     console.error('[uploadFile] Unexpected error:', error);
     console.error('[uploadFile] Error stack:', error instanceof Error ? error.stack : 'No stack');
 
-    // Check if this is a Microsoft authentication error requiring reconnection
-    if (error instanceof MicrosoftAuthError) {
-      return {
-        success: false,
-        error: error.message,
-        requiresReconnect: error.requiresReconnect,
-      };
-    }
-
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Upload failed',
@@ -709,11 +637,6 @@ export async function syncFilesFromSharePoint(projectId: string): Promise<SyncFi
     return { success: false, error: 'Project is not connected to SharePoint' };
   }
 
-  const msConnection = await getMicrosoftConnection(user.id);
-  if (!msConnection) {
-    return { success: false, error: 'Please connect your Microsoft account' };
-  }
-
   try {
     let syncedCount = 0;
     const categories: FileCategory[] = ['schematics', 'sow', 'media', 'other'];
@@ -723,7 +646,6 @@ export async function syncFilesFromSharePoint(projectId: string): Promise<SyncFi
 
       try {
         const items = await sharepoint.listFolderContentsByPath(
-          msConnection,
           connection.drive_id,
           `${connection.folder_path}/${folderName}`
         );
@@ -743,7 +665,7 @@ export async function syncFilesFromSharePoint(projectId: string): Promise<SyncFi
           let thumbnailUrl: string | null = null;
           if (item.file?.mimeType?.startsWith('image/') || item.file?.mimeType?.startsWith('video/')) {
             try {
-              const thumbnails = await sharepoint.getThumbnails(msConnection, connection.drive_id, item.id);
+              const thumbnails = await sharepoint.getThumbnails(connection.drive_id, item.id);
               thumbnailUrl = thumbnails?.[0]?.medium?.url || thumbnails?.[0]?.small?.url || null;
             } catch {
               // Thumbnails not available
@@ -866,18 +788,14 @@ export async function deleteFile(fileId: string): Promise<DeleteFileResult> {
   try {
     // Delete from SharePoint if connected and has SharePoint ID
     if (file.sharepoint_item_id && file.connection) {
-      const msConnection = await getMicrosoftConnection(user.id);
-      if (msConnection) {
-        try {
-          await sharepoint.deleteItem(
-            msConnection,
-            file.connection.drive_id,
-            file.sharepoint_item_id
-          );
-        } catch (err) {
-          // File may already be deleted from SharePoint, continue with DB deletion
-          console.log('SharePoint delete error (may already be deleted):', err);
-        }
+      try {
+        await sharepoint.deleteItem(
+          file.connection.drive_id,
+          file.sharepoint_item_id
+        );
+      } catch (err) {
+        // File may already be deleted from SharePoint, continue with DB deletion
+        console.log('SharePoint delete error (may already be deleted):', err);
       }
     }
 
@@ -932,14 +850,8 @@ export async function getDownloadUrl(fileId: string): Promise<{ success: boolean
     return { success: false, error: 'File not found or not connected to SharePoint' };
   }
 
-  const msConnection = await getMicrosoftConnection(user.id);
-  if (!msConnection) {
-    return { success: false, error: 'Please connect your Microsoft account' };
-  }
-
   try {
     const url = await sharepoint.getDownloadUrl(
-      msConnection,
       file.connection.drive_id,
       file.sharepoint_item_id
     );
@@ -994,16 +906,9 @@ export async function createShareLink(
     return { success: false, error: 'File not found or not connected to SharePoint' };
   }
 
-  const msConnection = await getMicrosoftConnection(user.id);
-  console.log('[createShareLink] MS Connection:', msConnection ? 'found' : 'not found');
-  if (!msConnection) {
-    return { success: false, error: 'Please connect your Microsoft account' };
-  }
-
   try {
     console.log('[createShareLink] Calling sharepoint.createShareLink...');
     const result = await sharepoint.createShareLink(
-      msConnection,
       file.connection.drive_id,
       file.sharepoint_item_id,
       { type, scope: 'organization' }
@@ -1053,26 +958,11 @@ export async function uploadPresalesFile(data: {
     return { success: false, error: 'Authentication required' };
   }
 
-  // For presales, we'll just store metadata now and upload to SharePoint when project is created
-  // Or we could upload to a PreSales folder in SharePoint
-
-  const msConnection = await getMicrosoftConnection(user.id);
-
-  let sharepointItemId: string | null = null;
-  let webUrl: string | null = null;
-  let downloadUrl: string | null = null;
-  let thumbnailUrl: string | null = null;
-
-  // If we have SharePoint connection, upload to PreSales folder
-  if (msConnection) {
-    try {
-      // This would require a configured PreSales site/drive
-      // For now, we'll store locally and sync later
-      // TODO: Implement presales SharePoint folder configuration
-    } catch (error) {
-      console.log('Presales SharePoint upload not configured, storing locally');
-    }
-  }
+  // TODO: Implement presales SharePoint folder upload
+  const sharepointItemId: string | null = null;
+  const webUrl: string | null = null;
+  const downloadUrl: string | null = null;
+  const thumbnailUrl: string | null = null;
 
   const { data: file, error: insertError } = await db
     .from('presales_files')
