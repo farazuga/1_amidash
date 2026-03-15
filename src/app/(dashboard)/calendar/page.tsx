@@ -5,8 +5,8 @@ import { CalendarPageContent } from './calendar-page-content';
 import { Loader2 } from 'lucide-react';
 
 export const metadata = {
-  title: 'Calendar | Amitrace',
-  description: 'Project scheduling calendar',
+  title: 'Master Calendar | Amitrace',
+  description: 'View and manage project schedules and team assignments',
 };
 
 export default async function CalendarPage() {
@@ -35,9 +35,9 @@ export default async function CalendarPage() {
   return (
     <div className="container mx-auto py-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">Project Calendar</h1>
+        <h1 className="text-2xl font-bold">Master Calendar</h1>
         <p className="text-muted-foreground">
-          View and manage project schedules and team assignments
+          Manage assignments and schedules across all projects
         </p>
       </div>
 
