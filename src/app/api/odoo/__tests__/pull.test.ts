@@ -18,10 +18,13 @@ vi.mock('@/lib/odoo/queries', () => ({
   getPartnerDetails: vi.fn(),
   getPartnerContacts: vi.fn(),
   getProductDetails: vi.fn(),
+  getShippingAddress: vi.fn(),
   buildOdooUrl: vi.fn(),
   odooFalseToNull: vi.fn((v: unknown) => (v === false ? null : v)),
   odooMany2oneName: vi.fn((v: unknown) => (v === false ? null : (v as [number, string])[1])),
   formatOdooPhone: vi.fn((v: unknown) => (v === false || !v ? null : v)),
+  parseStateCode: vi.fn((v: unknown) => (v === false ? null : (v as [number, string])?.[1] ?? null)),
+  parseCountryCode: vi.fn((v: unknown) => (v === false ? null : (v as [number, string])?.[1] ?? null)),
 }));
 
 import { createClient } from '@/lib/supabase/server';
@@ -32,6 +35,7 @@ import {
   getPartnerDetails,
   getPartnerContacts,
   getProductDetails,
+  getShippingAddress,
   buildOdooUrl,
 } from '@/lib/odoo/queries';
 
@@ -42,6 +46,7 @@ const mockGetSalesOrderLines = getSalesOrderLines as ReturnType<typeof vi.fn>;
 const mockGetPartnerDetails = getPartnerDetails as ReturnType<typeof vi.fn>;
 const mockGetPartnerContacts = getPartnerContacts as ReturnType<typeof vi.fn>;
 const mockGetProductDetails = getProductDetails as ReturnType<typeof vi.fn>;
+const mockGetShippingAddress = getShippingAddress as ReturnType<typeof vi.fn>;
 const mockBuildOdooUrl = buildOdooUrl as ReturnType<typeof vi.fn>;
 
 function makeRequest(body: Record<string, unknown>) {
@@ -177,6 +182,7 @@ describe('POST /api/odoo/pull', () => {
     ]);
 
     mockGetProductDetails.mockResolvedValue([]);
+    mockGetShippingAddress.mockResolvedValue(null);
     mockBuildOdooUrl.mockReturnValue('https://test.odoo.com/odoo/sales/42');
 
     const response = await POST(makeRequest({ salesOrderNumber: 'S12345' }));
@@ -192,6 +198,7 @@ describe('POST /api/odoo/pull', () => {
     expect(data.salesperson.odooName).toBe('Jane Doe');
     expect(data.salesperson.matchedProfileId).toBe('profile-1');
     expect(data.lineItems).toHaveLength(2);
+    expect(data.deliveryAddress).toBeNull();
   });
 
   it('handles Odoo API errors gracefully', async () => {
