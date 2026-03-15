@@ -17,7 +17,7 @@ test.describe('Manage Schedule Dialog', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Click manage schedule button
@@ -32,7 +32,7 @@ test.describe('Manage Schedule Dialog', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Open dialog
@@ -52,7 +52,7 @@ test.describe('Manage Schedule Dialog', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Open manage schedule dialog
@@ -75,7 +75,7 @@ test.describe('Manage Schedule Dialog', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Open dialog
@@ -106,7 +106,7 @@ test.describe('Manage Schedule Dialog', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Open dialog
@@ -140,7 +140,7 @@ test.describe('Manage Schedule Dialog', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Open dialog
@@ -171,7 +171,7 @@ test.describe('Manage Schedule Dialog', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Open dialog
@@ -205,7 +205,7 @@ test.describe('Manage Schedule Dialog', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Open dialog
@@ -223,7 +223,7 @@ test.describe('Manage Schedule Dialog', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Open dialog
@@ -241,7 +241,7 @@ test.describe('Manage Schedule Dialog', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Open dialog
@@ -261,7 +261,7 @@ test.describe('Manage Schedule Dialog', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Open dialog
@@ -285,7 +285,7 @@ test.describe('Manage Schedule Dialog', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Open dialog
@@ -309,7 +309,7 @@ test.describe('Manage Schedule Dialog', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Open dialog
@@ -340,7 +340,7 @@ test.describe('Manage Schedule Dialog', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Click on schedule status selector
@@ -359,7 +359,7 @@ test.describe('Manage Schedule Dialog', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Change status to trigger cascade dialog
@@ -381,7 +381,7 @@ test.describe('Manage Schedule Dialog', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Change status to trigger cascade dialog
@@ -405,7 +405,7 @@ test.describe('Manage Schedule Dialog', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Open schedule status selector
@@ -428,7 +428,7 @@ test.describe('Manage Schedule Dialog', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Open selector

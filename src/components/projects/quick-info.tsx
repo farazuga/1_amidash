@@ -296,7 +296,7 @@ export function QuickInfo({
           )}
 
           <Button variant="outline" size="sm" asChild>
-            <Link href={`/projects/${project.sales_order_number || project.id}/calendar`}>
+            <Link href={`/calendar?project=${project.sales_order_number || project.id}`}>
               <Calendar className="mr-1.5 h-3.5 w-3.5" />
               Schedule
             </Link>
