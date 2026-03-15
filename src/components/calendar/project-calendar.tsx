@@ -186,8 +186,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false,
   const statusCounts = useMemo(() => {
     const counts: Record<BookingStatus | 'total', number> = {
       draft: 0,
-      tentative: 0,
-      pending_confirm: 0,
+      pending: 0,
       confirmed: 0,
       total: 0,
     };
@@ -660,7 +659,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false,
   // Status summary bar component - clickable to bulk change status
   const statusSummaryBar = statusCounts.total > 0 && (
     <div className="flex items-center gap-2 text-sm bg-muted/50 p-2 rounded-lg">
-      {(['draft', 'tentative', 'pending_confirm', 'confirmed'] as const).map((status) => {
+      {(['draft', 'pending', 'confirmed'] as const).map((status) => {
         const config = BOOKING_STATUS_CONFIG[status];
         const count = statusCounts[status];
         const isCurrentStatus = count === statusCounts.total;
@@ -732,15 +731,9 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false,
                 Draft Only
               </div>
             </SelectItem>
-            <SelectItem value="tentative">
+            <SelectItem value="pending">
               <div className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-amber-500" />
-                Tentative Only
-              </div>
-            </SelectItem>
-            <SelectItem value="pending_confirm">
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-blue-500" />
                 Pending Only
               </div>
             </SelectItem>
@@ -770,18 +763,18 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false,
             </Button>
           )}
           {/* Send to Customer button - admin only, when there are tentative assignments */}
-          {isAdmin && project && statusCounts.tentative > 0 && (
+          {isAdmin && project && statusCounts.pending > 0 && (
             <Button
               variant="outline"
               size="sm"
               onClick={() => {
-                setConfirmationAssignment(events.find(e => e.bookingStatus === 'tentative') || null);
+                setConfirmationAssignment(events.find(e => e.bookingStatus === 'pending') || null);
                 setConfirmationDialogOpen(true);
               }}
               className="gap-2"
             >
               <Mail className="h-4 w-4" />
-              Send to Customer ({statusCounts.tentative})
+              Send to Customer ({statusCounts.pending})
             </Button>
           )}
           {/* Conflicts Panel - admin only */}
@@ -867,7 +860,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false,
           onOpenChange={setConfirmationDialogOpen}
           projectId={project.id}
           projectName={project.client_name}
-          assignments={events.filter(e => e.bookingStatus === 'tentative')}
+          assignments={events.filter(e => e.bookingStatus === 'pending')}
           customerEmail={project.poc_email || undefined}
           customerName={project.poc_name || undefined}
         />

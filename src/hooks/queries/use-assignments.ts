@@ -575,7 +575,7 @@ export function useRemoveAssignmentDays() {
 
 /**
  * Cycle assignment status (click-to-toggle)
- * pencil → pending_confirm → confirmed → pencil
+ * draft → pending → confirmed → draft
  */
 export function useCycleAssignmentStatus() {
   const queryClient = useQueryClient();

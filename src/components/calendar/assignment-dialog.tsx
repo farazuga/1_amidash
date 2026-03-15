@@ -96,7 +96,7 @@ export function AssignmentDialog({
     }
   };
 
-  const statuses: BookingStatus[] = ['draft', 'tentative', 'confirmed'];
+  const statuses: BookingStatus[] = ['draft', 'pending', 'confirmed'];
 
   if (!project) return null;
 
@@ -165,7 +165,7 @@ export function AssignmentDialog({
               <p className="text-xs text-muted-foreground">
                 {BOOKING_STATUS_CONFIG[bookingStatus].label}:{' '}
                 {bookingStatus === 'draft' && 'Internal draft, only visible to admin/editor'}
-                {bookingStatus === 'tentative' && 'Shared externally, awaiting confirmation'}
+                {bookingStatus === 'pending' && 'Awaiting customer confirmation'}
                 {bookingStatus === 'confirmed' && 'Finalized and committed booking'}
               </p>
             </div>

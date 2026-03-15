@@ -26,13 +26,13 @@ interface UserScheduleViewProps {
   currentDate: Date;
 }
 
-const ALL_STATUSES: BookingStatus[] = ['draft', 'tentative', 'pending_confirm', 'confirmed'];
+const ALL_STATUSES: BookingStatus[] = ['draft', 'pending', 'confirmed'];
 
 export function UserScheduleView({ userId, userName, currentDate }: UserScheduleViewProps) {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
   const [selectedStatuses, setSelectedStatuses] = useState<Set<BookingStatus>>(
-    new Set(['tentative', 'pending_confirm', 'confirmed'])
+    new Set(['pending', 'confirmed'])
   );
 
   const { data: schedule, isLoading } = useUserSchedule(userId, monthStart, monthEnd);

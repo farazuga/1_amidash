@@ -73,8 +73,7 @@ export function AssignmentCard({
   // Left border color based on status
   const borderLeftColor = {
     draft: 'border-l-blue-500',
-    tentative: 'border-l-amber-500',
-    pending_confirm: 'border-l-purple-500',
+    pending: 'border-l-amber-500',
     confirmed: 'border-l-green-500',
   }[event.bookingStatus];
 
@@ -304,7 +303,7 @@ export function AssignmentCard({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-            {event.bookingStatus === 'tentative' && onSendConfirmation && (
+            {event.bookingStatus === 'pending' && onSendConfirmation && (
               <DropdownMenuItem onClick={() => onSendConfirmation(event)}>
                 <Mail className="mr-2 h-4 w-4" />
                 Send to Customer
