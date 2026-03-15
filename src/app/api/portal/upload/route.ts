@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js';
+import { getSupabaseEnv, getServiceRoleKey } from '@/lib/supabase/server';
 import { validateFileType, sanitizeFilename, validateFileSize, stripExifData } from '@/lib/portal/file-security';
 import { checkUploadRateLimit } from '@/lib/portal/rate-limit';
 import { sendEmail } from '@/lib/email/send';
@@ -15,8 +16,9 @@ type AnySupabaseClient = any;
 /**
  * Get a typed service client for untyped tables
  */
-async function getServiceDb(): Promise<AnySupabaseClient> {
-  return (await createServiceClient()) as AnySupabaseClient;
+function getServiceDb(): AnySupabaseClient {
+  const { url } = getSupabaseEnv();
+  return createClient(url, getServiceRoleKey());
 }
 
 /**
@@ -24,7 +26,7 @@ async function getServiceDb(): Promise<AnySupabaseClient> {
  * Portal uploads use an admin's Microsoft credentials.
  */
 async function getMicrosoftConnectionForPortal(userId: string): Promise<CalendarConnection | null> {
-  const supabase = await getServiceDb();
+  const supabase = getServiceDb();
 
   const { data, error } = await supabase
     .from('calendar_connections')
@@ -57,7 +59,7 @@ async function getMicrosoftConnectionForPortal(userId: string): Promise<Calendar
  * Get the global SharePoint configuration from app_settings
  */
 async function getSharePointConfig(): Promise<SharePointGlobalConfig | null> {
-  const db = await getServiceDb();
+  const db = getServiceDb();
   const { data } = await db
     .from('app_settings')
     .select('value')
@@ -87,7 +89,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Validate token -> get project (service role since portal has no auth)
-    const db = await getServiceDb();
+    const db = getServiceDb();
 
     let { data: project, error: projectError } = await db
       .from('projects')
