@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { ProjectCalendar } from '@/components/calendar';
 import type { ExternalCalendarFilters } from '@/components/calendar';
 import type { CalendarEvent, BookingStatus } from '@/types/calendar';
+import type { Project } from '@/types';
 import { BOOKING_STATUS_CONFIG } from '@/lib/calendar/constants';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -16,7 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { X } from 'lucide-react';
+import { X, ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
 
 interface CalendarPageContentProps {
   isAdmin: boolean;
@@ -24,6 +27,26 @@ interface CalendarPageContentProps {
 
 export function CalendarPageContent({ isAdmin }: CalendarPageContentProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const projectParam = searchParams.get('project');
+
+  // Fetch project when ?project= param is present
+  const [project, setProject] = useState<Project | undefined>(undefined);
+  useEffect(() => {
+    if (!projectParam) {
+      setProject(undefined);
+      return;
+    }
+    const supabase = createClient();
+    supabase
+      .from('projects')
+      .select('*')
+      .or(`sales_order_number.eq.${projectParam},id.eq.${projectParam}`)
+      .single()
+      .then(({ data }) => {
+        if (data) setProject(data as unknown as Project);
+      });
+  }, [projectParam]);
 
   // Filter state
   const [showPending, setShowPending] = useState(true);
@@ -75,6 +98,18 @@ export function CalendarPageContent({ isAdmin }: CalendarPageContentProps) {
 
   return (
     <div className="space-y-4">
+      {/* Back to all projects link when viewing a specific project */}
+      {project && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Link href="/calendar" className="flex items-center gap-1 hover:text-foreground transition-colors">
+            <ArrowLeft className="h-4 w-4" />
+            Back to all projects
+          </Link>
+          <span>·</span>
+          <span className="font-medium text-foreground">{project.client_name}</span>
+        </div>
+      )}
+
       {/* Filter toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         {/* Project filter */}
@@ -141,7 +176,9 @@ export function CalendarPageContent({ isAdmin }: CalendarPageContentProps) {
 
       {/* Calendar */}
       <ProjectCalendar
+        project={project}
         onEventClick={handleEventClick}
+        enableDragDrop={isAdmin && !!project}
         externalFilters={externalFilters}
         onEventsLoaded={handleEventsLoaded}
       />
