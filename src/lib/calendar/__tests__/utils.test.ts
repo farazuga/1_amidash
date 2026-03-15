@@ -8,7 +8,6 @@ import {
   isCurrentMonth,
   isToday,
   isDateInRange,
-  isDateExcluded,
   convertToCalendarEvents,
   getEventsForDay,
   sortEventsByStatus,
@@ -219,27 +218,6 @@ describe('Calendar Utils', () => {
     });
   });
 
-  describe('isDateExcluded', () => {
-    it('returns true for excluded date', () => {
-      const date = new Date(2024, 0, 15);
-      const excluded = ['2024-01-15', '2024-01-16'];
-
-      expect(isDateExcluded(date, excluded)).toBe(true);
-    });
-
-    it('returns false for non-excluded date', () => {
-      const date = new Date(2024, 0, 17);
-      const excluded = ['2024-01-15', '2024-01-16'];
-
-      expect(isDateExcluded(date, excluded)).toBe(false);
-    });
-
-    it('returns false for empty excluded list', () => {
-      const date = new Date(2024, 0, 15);
-      expect(isDateExcluded(date, [])).toBe(false);
-    });
-  });
-
   describe('convertToCalendarEvents', () => {
     it('converts assignment results to calendar events', () => {
       const assignments: CalendarAssignmentResult[] = [
@@ -255,36 +233,13 @@ describe('Calendar Utils', () => {
           sales_order_number: null,
         },
       ];
-      const excludedDatesMap = new Map<string, string[]>();
-
-      const events = convertToCalendarEvents(assignments, excludedDatesMap);
+      const events = convertToCalendarEvents(assignments);
 
       expect(events).toHaveLength(1);
       expect(events[0].id).toBe('a1');
       expect(events[0].projectName).toBe('Test Project');
       expect(events[0].userName).toBe('John Doe');
       expect(events[0].bookingStatus).toBe('confirmed');
-    });
-
-    it('includes excluded dates from map', () => {
-      const assignments: CalendarAssignmentResult[] = [
-        {
-          assignment_id: 'a1',
-          project_id: 'p1',
-          project_name: 'Test Project',
-          project_start_date: '2024-01-10',
-          project_end_date: '2024-01-20',
-          user_id: 'u1',
-          user_name: 'John Doe',
-          booking_status: 'confirmed',
-          sales_order_number: null,
-        },
-      ];
-      const excludedDatesMap = new Map([['a1', ['2024-01-15', '2024-01-16']]]);
-
-      const events = convertToCalendarEvents(assignments, excludedDatesMap);
-
-      expect(events[0].excludedDates).toEqual(['2024-01-15', '2024-01-16']);
     });
 
     it('handles null user name', () => {
@@ -301,9 +256,7 @@ describe('Calendar Utils', () => {
           sales_order_number: null,
         },
       ];
-      const excludedDatesMap = new Map<string, string[]>();
-
-      const events = convertToCalendarEvents(assignments, excludedDatesMap);
+      const events = convertToCalendarEvents(assignments);
 
       expect(events[0].userName).toBe('Unknown');
     });
@@ -327,7 +280,7 @@ describe('Calendar Utils', () => {
       userName: 'User',
       bookingStatus: 'confirmed',
       assignmentId: id,
-      excludedDates: [],
+
       scheduledDays,
     });
 
@@ -380,7 +333,7 @@ describe('Calendar Utils', () => {
           userName: 'User',
           bookingStatus: 'confirmed',
           assignmentId: 'e1',
-          excludedDates: [],
+    
           scheduledDays: undefined as unknown as string[],
         },
       ];
@@ -420,7 +373,7 @@ describe('Calendar Utils', () => {
           userName: 'User',
           bookingStatus: 'draft',
           assignmentId: '1',
-          excludedDates: [],
+    
           scheduledDays: [],
         },
         {
@@ -435,7 +388,7 @@ describe('Calendar Utils', () => {
           userName: 'User',
           bookingStatus: 'confirmed',
           assignmentId: '2',
-          excludedDates: [],
+    
           scheduledDays: [],
         },
         {
@@ -450,7 +403,7 @@ describe('Calendar Utils', () => {
           userName: 'User',
           bookingStatus: 'pending',
           assignmentId: '3',
-          excludedDates: [],
+    
           scheduledDays: [],
         },
       ];
@@ -476,7 +429,7 @@ describe('Calendar Utils', () => {
           userName: 'User',
           bookingStatus: 'draft',
           assignmentId: '1',
-          excludedDates: [],
+    
           scheduledDays: [],
         },
       ];
@@ -502,7 +455,7 @@ describe('Calendar Utils', () => {
           userName: 'User 1',
           bookingStatus: 'confirmed',
           assignmentId: '1',
-          excludedDates: [],
+    
           scheduledDays: [],
         },
         {
@@ -517,7 +470,7 @@ describe('Calendar Utils', () => {
           userName: 'User 1',
           bookingStatus: 'confirmed',
           assignmentId: '2',
-          excludedDates: [],
+    
           scheduledDays: [],
         },
         {
@@ -532,7 +485,7 @@ describe('Calendar Utils', () => {
           userName: 'User 2',
           bookingStatus: 'confirmed',
           assignmentId: '3',
-          excludedDates: [],
+    
           scheduledDays: [],
         },
       ];
@@ -560,7 +513,7 @@ describe('Calendar Utils', () => {
           userName: 'User',
           bookingStatus: 'confirmed',
           assignmentId: '1',
-          excludedDates: [],
+    
           scheduledDays: [],
         },
         {
@@ -575,7 +528,7 @@ describe('Calendar Utils', () => {
           userName: 'User 2',
           bookingStatus: 'confirmed',
           assignmentId: '2',
-          excludedDates: [],
+    
           scheduledDays: [],
         },
       ];

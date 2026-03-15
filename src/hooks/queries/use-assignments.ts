@@ -13,9 +13,6 @@ import {
   updateAssignmentStatus,
   bulkUpdateAssignmentStatus,
   removeAssignment,
-  addExcludedDates,
-  removeExcludedDate,
-  bulkRemoveExcludedDates,
   updateProjectDates,
   checkConflicts,
   overrideConflict,
@@ -92,7 +89,6 @@ export function useUserAssignments(userId: string) {
         .select(`
           *,
           project:projects(id, client_name, start_date, end_date),
-          excluded_dates:assignment_excluded_dates(*)
         `)
         .eq('user_id', userId)
         .order('created_at', { ascending: true });
@@ -200,7 +196,6 @@ export function useAssignment(assignmentId: string) {
           *,
           project:projects(id, client_name, start_date, end_date),
           user:profiles!user_id(id, email, full_name),
-          excluded_dates:assignment_excluded_dates(*)
         `)
         .eq('id', assignmentId)
         .single();
@@ -269,64 +264,6 @@ export function useRemoveAssignment() {
   return useMutation({
     mutationFn: async (assignmentId: string) => {
       const result = await removeAssignment(assignmentId);
-      if (!result.success) throw new Error(result.error);
-      return result;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
-      queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
-      queryClient.invalidateQueries({ queryKey: USER_SCHEDULE_KEY });
-      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
-    },
-  });
-}
-
-export function useAddExcludedDates() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (data: {
-      assignmentId: string;
-      dates: string[];
-      reason?: string;
-    }) => {
-      const result = await addExcludedDates(data);
-      if (!result.success) throw new Error(result.error);
-      return result;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
-      queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
-      queryClient.invalidateQueries({ queryKey: USER_SCHEDULE_KEY });
-      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
-    },
-  });
-}
-
-export function useRemoveExcludedDate() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (excludedDateId: string) => {
-      const result = await removeExcludedDate(excludedDateId);
-      if (!result.success) throw new Error(result.error);
-      return result;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY });
-      queryClient.invalidateQueries({ queryKey: CALENDAR_KEY });
-      queryClient.invalidateQueries({ queryKey: USER_SCHEDULE_KEY });
-      queryClient.invalidateQueries({ queryKey: GANTT_KEY });
-    },
-  });
-}
-
-export function useBulkRemoveExcludedDates() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (excludedDateIds: string[]) => {
-      const result = await bulkRemoveExcludedDates(excludedDateIds);
       if (!result.success) throw new Error(result.error);
       return result;
     },

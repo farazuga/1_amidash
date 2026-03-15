@@ -9,7 +9,6 @@ import { triggerAssignmentSync, triggerAssignmentDelete } from '@/lib/microsoft-
 import type {
   BookingStatus,
   ProjectAssignment,
-  AssignmentExcludedDate,
   AssignmentDay,
   AssignmentBlock,
   GanttAssignment,
@@ -608,101 +607,6 @@ export async function removeAssignment(assignmentId: string): Promise<ActionResu
 }
 
 // ============================================
-// Excluded dates operations (DEPRECATED - use assignment_days instead)
-// These functions are kept for backward compatibility but new code should
-// use addAssignmentDays/removeAssignmentDays instead.
-// ============================================
-
-/**
- * @deprecated Use addAssignmentDays instead. The excluded_dates model is being phased out.
- */
-export async function addExcludedDates(data: {
-  assignmentId: string;
-  dates: string[];
-  reason?: string;
-}): Promise<ActionResult<AssignmentExcludedDate[]>> {
-  const { error: authError, supabase, user } = await requireAdmin();
-  if (authError || !supabase || !user) {
-    return { success: false, error: authError || 'Authentication failed' };
-  }
-
-  const excludedDates = data.dates.map(date => ({
-    assignment_id: data.assignmentId,
-    excluded_date: date,
-    reason: data.reason || null,
-    created_by: user.id,
-  }));
-
-  const { data: inserted, error: insertError } = await supabase
-    .from('assignment_excluded_dates')
-    .insert(excludedDates)
-    .select();
-
-  if (insertError) {
-    if (insertError.code === '23505') {
-      return { success: false, error: 'Some dates are already excluded' };
-    }
-    console.error('Excluded dates insert error:', insertError);
-    return { success: false, error: 'Failed to add excluded dates' };
-  }
-
-  revalidatePath('/calendar');
-  revalidatePath('/my-schedule');
-
-  return { success: true, data: inserted as AssignmentExcludedDate[] };
-}
-
-/**
- * @deprecated Use removeAssignmentDays instead. The excluded_dates model is being phased out.
- */
-export async function removeExcludedDate(excludedDateId: string): Promise<ActionResult> {
-  const { error: authError, supabase } = await requireAdmin();
-  if (authError || !supabase) {
-    return { success: false, error: authError || 'Authentication failed' };
-  }
-
-  const { error: deleteError } = await supabase
-    .from('assignment_excluded_dates')
-    .delete()
-    .eq('id', excludedDateId);
-
-  if (deleteError) {
-    console.error('Excluded date delete error:', deleteError);
-    return { success: false, error: 'Failed to remove excluded date' };
-  }
-
-  revalidatePath('/calendar');
-  revalidatePath('/my-schedule');
-
-  return { success: true };
-}
-
-/**
- * @deprecated Use removeAssignmentDays instead. The excluded_dates model is being phased out.
- */
-export async function bulkRemoveExcludedDates(excludedDateIds: string[]): Promise<ActionResult> {
-  const { error: authError, supabase } = await requireAdmin();
-  if (authError || !supabase) {
-    return { success: false, error: authError || 'Authentication failed' };
-  }
-
-  const { error: deleteError } = await supabase
-    .from('assignment_excluded_dates')
-    .delete()
-    .in('id', excludedDateIds);
-
-  if (deleteError) {
-    console.error('Bulk excluded dates delete error:', deleteError);
-    return { success: false, error: 'Failed to remove excluded dates' };
-  }
-
-  revalidatePath('/calendar');
-  revalidatePath('/my-schedule');
-
-  return { success: true };
-}
-
-// ============================================
 // Project dates operations
 // ============================================
 
@@ -1041,7 +945,6 @@ export async function getProjectAssignments(projectId: string): Promise<ActionRe
     .select(`
       *,
       user:profiles!user_id(id, email, full_name),
-      excluded_dates:assignment_excluded_dates(*),
       days:assignment_days(*)
     `)
     .eq('project_id', projectId)
@@ -1067,7 +970,6 @@ export async function getAssignment(assignmentId: string): Promise<ActionResult<
       *,
       project:projects(id, client_name, start_date, end_date),
       user:profiles!user_id(id, email, full_name),
-      excluded_dates:assignment_excluded_dates(*)
     `)
     .eq('id', assignmentId)
     .single();

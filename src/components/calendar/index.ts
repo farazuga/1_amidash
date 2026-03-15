@@ -24,7 +24,6 @@ export { DayTimeEditor } from './day-time-editor';
 export { BookingStatusBadge, BookingStatusDot } from './booking-status-badge';
 
 // Dialog Components
-export { DateExclusionDialog } from './date-exclusion-dialog';
 export { ConflictWarningDialog } from './conflict-warning-dialog';
 
 // Picker Components

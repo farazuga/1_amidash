@@ -176,7 +176,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false,
     const scheduledDaysMap = new Map<string, string[]>(
       Object.entries(calendarAssignments.scheduledDaysMap || {})
     );
-    return convertToCalendarEvents(calendarAssignments.data, new Map(), scheduledDaysMap);
+    return convertToCalendarEvents(calendarAssignments.data, scheduledDaysMap);
   }, [calendarAssignments]);
 
   // Extract scheduledDaysWithIds for drag-drop support

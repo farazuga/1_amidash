@@ -4,9 +4,7 @@
  */
 
 import { Client } from '@microsoft/microsoft-graph-client';
-import { refreshAccessToken, isTokenExpired, calculateExpiresAt } from '../microsoft-graph/auth';
-import { createServiceClient } from '@/lib/supabase/server';
-import type { CalendarConnection } from '../microsoft-graph/types';
+import { getAppAccessToken } from '../microsoft-graph/auth';
 import type {
   SharePointSite,
   SharePointDrive,
@@ -20,112 +18,24 @@ import type {
 } from './types';
 import type { FileCategory, FileCategoryWithLegacy } from '@/types';
 
-// Re-use the calendar connection for SharePoint (same Microsoft OAuth)
-type MicrosoftConnection = CalendarConnection;
-
-// Custom error class for authentication issues that require user action
-export class MicrosoftAuthError extends Error {
-  constructor(message: string, public readonly requiresReconnect: boolean = false) {
-    super(message);
-    this.name = 'MicrosoftAuthError';
-  }
-}
-
 /**
- * Validate that a token looks like a valid JWT (has 3 dot-separated parts)
+ * Get a Microsoft Graph client using app-level credentials
  */
-function isValidJwtFormat(token: string): boolean {
-  if (!token || typeof token !== 'string') return false;
-  const parts = token.split('.');
-  return parts.length === 3 && parts.every(part => part.length > 0);
-}
+export async function getSharePointClient(): Promise<Client> {
+  const token = await getAppAccessToken();
 
-/**
- * Get a Microsoft Graph client with valid access token
- * Reuses the pattern from calendar integration
- */
-export async function getSharePointClient(
-  connection: MicrosoftConnection
-): Promise<{ client: Client; connection: MicrosoftConnection }> {
-  let currentConnection = connection;
-
-  // Validate current token format before using
-  if (!isValidJwtFormat(connection.access_token)) {
-    console.error('[SharePoint] Invalid token format detected - token is not a valid JWT');
-    throw new MicrosoftAuthError(
-      'Your Microsoft connection has expired or is invalid. Please go to Settings and reconnect your Microsoft account.',
-      true
-    );
-  }
-
-  // Check if token needs refresh
-  if (isTokenExpired(connection.token_expires_at)) {
-    console.log('[SharePoint] Access token expired, refreshing...');
-
-    try {
-      const newTokens = await refreshAccessToken(connection.refresh_token);
-
-      // Validate the refreshed token
-      if (!isValidJwtFormat(newTokens.access_token)) {
-        console.error('[SharePoint] Refreshed token is not a valid JWT');
-        throw new MicrosoftAuthError(
-          'Failed to refresh Microsoft connection. Please go to Settings and reconnect your Microsoft account.',
-          true
-        );
-      }
-
-      // Update tokens in database
-      const supabase = await createServiceClient();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any)
-        .from('calendar_connections')
-        .update({
-          access_token: newTokens.access_token,
-          refresh_token: newTokens.refresh_token,
-          token_expires_at: calculateExpiresAt(newTokens.expires_in).toISOString(),
-        })
-        .eq('id', connection.id);
-
-      if (error) {
-        console.error('[SharePoint] Failed to update tokens:', error);
-        throw new Error('Failed to update refreshed tokens');
-      }
-
-      currentConnection = {
-        ...connection,
-        access_token: newTokens.access_token,
-        refresh_token: newTokens.refresh_token,
-        token_expires_at: calculateExpiresAt(newTokens.expires_in).toISOString(),
-      };
-    } catch (error) {
-      console.error('[SharePoint] Token refresh failed:', error);
-      // Check if it's already our custom error
-      if (error instanceof MicrosoftAuthError) {
-        throw error;
-      }
-      throw new MicrosoftAuthError(
-        'Failed to refresh Microsoft connection. Please go to Settings and reconnect your Microsoft account.',
-        true
-      );
-    }
-  }
-
-  const client = Client.init({
+  return Client.init({
     authProvider: (done) => {
-      done(null, currentConnection.access_token);
+      done(null, token);
     },
   });
-
-  return { client, connection: currentConnection };
 }
 
 /**
  * Get the user's default SharePoint site
  */
-export async function getDefaultSite(
-  connection: MicrosoftConnection
-): Promise<SharePointSite> {
-  const { client } = await getSharePointClient(connection);
+export async function getDefaultSite(): Promise<SharePointSite> {
+  const client = await getSharePointClient();
 
   // Get the root SharePoint site for the organization
   const site = await client.api('/sites/root').get();
@@ -137,11 +47,10 @@ export async function getDefaultSite(
  * Get a specific SharePoint site by URL
  */
 export async function getSiteByUrl(
-  connection: MicrosoftConnection,
   hostname: string,
   sitePath: string
 ): Promise<SharePointSite> {
-  const { client } = await getSharePointClient(connection);
+  const client = await getSharePointClient();
 
   // Format: /sites/{hostname}:/{site-path}
   const site = await client.api(`/sites/${hostname}:${sitePath}`).get();
@@ -152,10 +61,8 @@ export async function getSiteByUrl(
 /**
  * List available SharePoint sites the user has access to
  */
-export async function listSites(
-  connection: MicrosoftConnection
-): Promise<SharePointSite[]> {
-  const { client } = await getSharePointClient(connection);
+export async function listSites(): Promise<SharePointSite[]> {
+  const client = await getSharePointClient();
 
   const response: SharePointListResponse<SharePointSite> = await client
     .api('/sites')
@@ -170,10 +77,9 @@ export async function listSites(
  * Get the default document library drive for a site
  */
 export async function getDefaultDrive(
-  connection: MicrosoftConnection,
   siteId: string
 ): Promise<SharePointDrive> {
-  const { client } = await getSharePointClient(connection);
+  const client = await getSharePointClient();
 
   const drive = await client.api(`/sites/${siteId}/drive`).get();
 
@@ -184,10 +90,9 @@ export async function getDefaultDrive(
  * List all drives (document libraries) in a site
  */
 export async function listDrives(
-  connection: MicrosoftConnection,
   siteId: string
 ): Promise<SharePointDrive[]> {
-  const { client } = await getSharePointClient(connection);
+  const client = await getSharePointClient();
 
   const response: SharePointListResponse<SharePointDrive> = await client
     .api(`/sites/${siteId}/drives`)
@@ -200,11 +105,10 @@ export async function listDrives(
  * List items (files and folders) in a drive folder
  */
 export async function listFolderContents(
-  connection: MicrosoftConnection,
   driveId: string,
   folderId: string = 'root'
 ): Promise<SharePointDriveItem[]> {
-  const { client } = await getSharePointClient(connection);
+  const client = await getSharePointClient();
 
   const response: SharePointListResponse<SharePointDriveItem> = await client
     .api(`/drives/${driveId}/items/${folderId}/children`)
@@ -219,11 +123,10 @@ export async function listFolderContents(
  * List items by folder path
  */
 export async function listFolderContentsByPath(
-  connection: MicrosoftConnection,
   driveId: string,
   folderPath: string
 ): Promise<SharePointDriveItem[]> {
-  const { client } = await getSharePointClient(connection);
+  const client = await getSharePointClient();
 
   // Encode the path properly
   const encodedPath = folderPath.startsWith('/') ? folderPath : `/${folderPath}`;
@@ -241,11 +144,10 @@ export async function listFolderContentsByPath(
  * Get a specific item by ID
  */
 export async function getItem(
-  connection: MicrosoftConnection,
   driveId: string,
   itemId: string
 ): Promise<SharePointDriveItem> {
-  const { client } = await getSharePointClient(connection);
+  const client = await getSharePointClient();
 
   const item = await client
     .api(`/drives/${driveId}/items/${itemId}`)
@@ -259,11 +161,10 @@ export async function getItem(
  * Get item by path
  */
 export async function getItemByPath(
-  connection: MicrosoftConnection,
   driveId: string,
   itemPath: string
 ): Promise<SharePointDriveItem | null> {
-  const { client } = await getSharePointClient(connection);
+  const client = await getSharePointClient();
 
   try {
     const encodedPath = itemPath.startsWith('/') ? itemPath : `/${itemPath}`;
@@ -285,12 +186,11 @@ export async function getItemByPath(
  * Create a folder in a drive
  */
 export async function createFolder(
-  connection: MicrosoftConnection,
   driveId: string,
   parentFolderId: string,
   folderName: string
 ): Promise<SharePointDriveItem> {
-  const { client } = await getSharePointClient(connection);
+  const client = await getSharePointClient();
 
   const folderData: CreateFolderRequest = {
     name: folderName,
@@ -309,11 +209,10 @@ export async function createFolder(
  * Create a folder by path (creates parent folders if needed)
  */
 export async function createFolderByPath(
-  connection: MicrosoftConnection,
   driveId: string,
   folderPath: string
 ): Promise<SharePointDriveItem> {
-  const { client } = await getSharePointClient(connection);
+  const client = await getSharePointClient();
 
   const encodedPath = folderPath.startsWith('/') ? folderPath : `/${folderPath}`;
 
@@ -337,21 +236,20 @@ export async function createFolderByPath(
  * Create the standard folder structure for a project
  */
 export async function createProjectFolderStructure(
-  connection: MicrosoftConnection,
   driveId: string,
   baseFolderId: string,
   projectName: string,
   categories: FileCategory[] = ['schematics', 'sow', 'media', 'other']
 ): Promise<Record<FileCategory, SharePointDriveItem>> {
   // Create main project folder
-  const projectFolder = await createFolder(connection, driveId, baseFolderId, projectName);
+  const projectFolder = await createFolder(driveId, baseFolderId, projectName);
 
   // Create category subfolders
   const categoryFolders: Partial<Record<FileCategory, SharePointDriveItem>> = {};
 
   for (const category of categories) {
     const categoryName = getCategoryFolderName(category);
-    const folder = await createFolder(connection, driveId, projectFolder.id, categoryName);
+    const folder = await createFolder(driveId, projectFolder.id, categoryName);
     categoryFolders[category] = folder;
   }
 
@@ -362,14 +260,13 @@ export async function createProjectFolderStructure(
  * Upload a small file (< 4MB) directly
  */
 export async function uploadSmallFile(
-  connection: MicrosoftConnection,
   driveId: string,
   folderId: string,
   fileName: string,
   fileContent: ArrayBuffer | Blob,
   contentType: string
 ): Promise<FileUploadResult> {
-  const { client } = await getSharePointClient(connection);
+  const client = await getSharePointClient();
 
   try {
     // Convert Blob to ArrayBuffer if needed
@@ -396,12 +293,11 @@ export async function uploadSmallFile(
  * Create an upload session for large files (> 4MB)
  */
 export async function createUploadSession(
-  connection: MicrosoftConnection,
   driveId: string,
   folderId: string,
   fileName: string
 ): Promise<SharePointUploadSession> {
-  const { client } = await getSharePointClient(connection);
+  const client = await getSharePointClient();
 
   const session = await client
     .api(`/drives/${driveId}/items/${folderId}:/${fileName}:/createUploadSession`)
@@ -418,7 +314,6 @@ export async function createUploadSession(
  * Upload a large file in chunks using upload session
  */
 export async function uploadLargeFile(
-  connection: MicrosoftConnection,
   driveId: string,
   folderId: string,
   fileName: string,
@@ -426,7 +321,7 @@ export async function uploadLargeFile(
   onProgress?: (progress: number) => void
 ): Promise<FileUploadResult> {
   try {
-    const session = await createUploadSession(connection, driveId, folderId, fileName);
+    const session = await createUploadSession(driveId, folderId, fileName);
 
     const chunkSize = 320 * 1024 * 10; // 3.2MB chunks (must be multiple of 320KB)
     const fileSize = fileContent.size;
@@ -477,7 +372,6 @@ export async function uploadLargeFile(
  * Upload a file (automatically chooses small or large file method)
  */
 export async function uploadFile(
-  connection: MicrosoftConnection,
   driveId: string,
   folderId: string,
   fileName: string,
@@ -488,9 +382,9 @@ export async function uploadFile(
   const SMALL_FILE_THRESHOLD = 4 * 1024 * 1024; // 4MB
 
   if (fileContent.size < SMALL_FILE_THRESHOLD) {
-    return uploadSmallFile(connection, driveId, folderId, fileName, fileContent, contentType);
+    return uploadSmallFile(driveId, folderId, fileName, fileContent, contentType);
   } else {
-    return uploadLargeFile(connection, driveId, folderId, fileName, fileContent, onProgress);
+    return uploadLargeFile(driveId, folderId, fileName, fileContent, onProgress);
   }
 }
 
@@ -498,11 +392,10 @@ export async function uploadFile(
  * Delete an item (file or folder)
  */
 export async function deleteItem(
-  connection: MicrosoftConnection,
   driveId: string,
   itemId: string
 ): Promise<void> {
-  const { client } = await getSharePointClient(connection);
+  const client = await getSharePointClient();
 
   await client.api(`/drives/${driveId}/items/${itemId}`).delete();
 }
@@ -511,11 +404,10 @@ export async function deleteItem(
  * Get a download URL for a file
  */
 export async function getDownloadUrl(
-  connection: MicrosoftConnection,
   driveId: string,
   itemId: string
 ): Promise<string> {
-  const { client } = await getSharePointClient(connection);
+  const client = await getSharePointClient();
 
   const item = await client
     .api(`/drives/${driveId}/items/${itemId}`)
@@ -529,12 +421,11 @@ export async function getDownloadUrl(
  * Create a sharing link for a file
  */
 export async function createShareLink(
-  connection: MicrosoftConnection,
   driveId: string,
   itemId: string,
   options: CreateShareLinkRequest
 ): Promise<ShareLinkResult> {
-  const { client } = await getSharePointClient(connection);
+  const client = await getSharePointClient();
 
   const result = await client
     .api(`/drives/${driveId}/items/${itemId}/createLink`)
@@ -547,11 +438,10 @@ export async function createShareLink(
  * Search for files in a drive
  */
 export async function searchFiles(
-  connection: MicrosoftConnection,
   driveId: string,
   query: string
 ): Promise<SharePointDriveItem[]> {
-  const { client } = await getSharePointClient(connection);
+  const client = await getSharePointClient();
 
   const response: SharePointListResponse<SharePointDriveItem> = await client
     .api(`/drives/${driveId}/root/search(q='${encodeURIComponent(query)}')`)
@@ -565,13 +455,12 @@ export async function searchFiles(
  * Move an item to a different folder
  */
 export async function moveItem(
-  connection: MicrosoftConnection,
   driveId: string,
   itemId: string,
   newParentFolderId: string,
   newName?: string
 ): Promise<SharePointDriveItem> {
-  const { client } = await getSharePointClient(connection);
+  const client = await getSharePointClient();
 
   const updateData: { parentReference: { id: string }; name?: string } = {
     parentReference: { id: newParentFolderId },
@@ -592,13 +481,12 @@ export async function moveItem(
  * Copy an item to a different folder
  */
 export async function copyItem(
-  connection: MicrosoftConnection,
   driveId: string,
   itemId: string,
   newParentFolderId: string,
   newName?: string
 ): Promise<void> {
-  const { client } = await getSharePointClient(connection);
+  const client = await getSharePointClient();
 
   const copyData: { parentReference: { driveId: string; id: string }; name?: string } = {
     parentReference: {
@@ -621,11 +509,10 @@ export async function copyItem(
  * Get thumbnail URLs for an image/video item
  */
 export async function getThumbnails(
-  connection: MicrosoftConnection,
   driveId: string,
   itemId: string
 ): Promise<SharePointDriveItem['thumbnails']> {
-  const { client } = await getSharePointClient(connection);
+  const client = await getSharePointClient();
 
   const response = await client
     .api(`/drives/${driveId}/items/${itemId}/thumbnails`)
@@ -654,7 +541,6 @@ function getCategoryFolderName(category: FileCategoryWithLegacy): string {
  * Returns the year folder ID for moving project folders into
  */
 export async function getOrCreateArchiveFolder(
-  connection: MicrosoftConnection,
   driveId: string,
   baseFolderId: string,
   baseFolderPath: string,
@@ -670,14 +556,14 @@ export async function getOrCreateArchiveFolder(
     : `${baseFolderPath}/${archiveFolderName}`;
 
   try {
-    archiveFolder = await getItemByPath(connection, driveId, archivePath);
+    archiveFolder = await getItemByPath(driveId, archivePath);
   } catch {
     // Folder doesn't exist
   }
 
   // Create _archive folder if it doesn't exist
   if (!archiveFolder) {
-    archiveFolder = await createFolder(connection, driveId, baseFolderId, archiveFolderName);
+    archiveFolder = await createFolder(driveId, baseFolderId, archiveFolderName);
   }
 
   // Try to get year folder
@@ -685,14 +571,14 @@ export async function getOrCreateArchiveFolder(
   const yearPath = `${archivePath}/${yearFolderName}`;
 
   try {
-    yearFolder = await getItemByPath(connection, driveId, yearPath);
+    yearFolder = await getItemByPath(driveId, yearPath);
   } catch {
     // Folder doesn't exist
   }
 
   // Create year folder if it doesn't exist
   if (!yearFolder) {
-    yearFolder = await createFolder(connection, driveId, archiveFolder.id, yearFolderName);
+    yearFolder = await createFolder(driveId, archiveFolder.id, yearFolderName);
   }
 
   return {

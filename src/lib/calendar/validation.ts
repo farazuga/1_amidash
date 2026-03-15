@@ -38,12 +38,6 @@ export const bulkUpdateStatusSchema = z.object({
   note: z.string().max(500, 'Note too long').optional(),
 });
 
-export const addExcludedDatesSchema = z.object({
-  assignmentId: uuidSchema,
-  dates: z.array(dateSchema).min(1, 'At least one date required').max(366, 'Too many dates'),
-  reason: z.string().max(500, 'Reason too long').optional(),
-});
-
 export const addAssignmentDaysSchema = z.object({
   assignmentId: uuidSchema,
   days: z.array(z.object({

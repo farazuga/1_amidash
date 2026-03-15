@@ -68,24 +68,11 @@ export interface ProjectAssignment {
   // Joined relations
   project?: Project;
   user?: Profile;
-  excluded_dates?: AssignmentExcludedDate[];
-  days?: AssignmentDay[];  // New: per-day time tracking
+  days?: AssignmentDay[];  // Per-day time tracking
   created_by_profile?: Profile;
 }
 
-// Days excluded from an assignment (legacy - kept for backward compatibility)
-export interface AssignmentExcludedDate {
-  id: string;
-  assignment_id: string;
-  excluded_date: string;
-  reason: string | null;
-  created_by: string | null;
-  created_at: string;
-  // Joined relations
-  created_by_profile?: Profile;
-}
-
-// Assignment day with start/end times (new model)
+// Assignment day with start/end times
 export interface AssignmentDay {
   id: string;
   assignment_id: string;
@@ -168,7 +155,6 @@ export interface CalendarEvent {
   userName: string;
   bookingStatus: BookingStatus;
   assignmentId: string;
-  excludedDates: string[];
   scheduledDays: string[];  // Specific days the user is scheduled (from assignment_days)
 }
 
@@ -198,13 +184,6 @@ export interface UpdateAssignmentStatusData {
   assignmentId: string;
   newStatus: BookingStatus;
   note?: string;
-}
-
-// Form data for adding excluded dates (legacy)
-export interface AddExcludedDatesData {
-  assignmentId: string;
-  dates: string[];
-  reason?: string;
 }
 
 // Form data for adding assignment days
@@ -247,7 +226,6 @@ export interface CalendarFilters {
   projectId?: string;
   userId?: string;
   bookingStatus?: BookingStatus[];
-  showExcludedDates?: boolean;
 }
 
 // Conflict detection result

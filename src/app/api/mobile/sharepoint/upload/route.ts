@@ -1,9 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { createServiceClient } from '@/lib/supabase/server';
 import * as sharepoint from '@/lib/sharepoint/client';
-import { MicrosoftAuthError } from '@/lib/sharepoint/client';
-import { decryptToken, isEncryptionConfigured } from '@/lib/crypto';
-import type { CalendarConnection } from '@/lib/microsoft-graph/types';
 import type { FileCategory, FileCategoryWithLegacy, SharePointGlobalConfig } from '@/types';
 
 /**
@@ -20,38 +17,6 @@ import type { FileCategory, FileCategoryWithLegacy, SharePointGlobalConfig } fro
  *   - category: File category (schematics, sow, media, other)
  *   - notes (optional): Notes about the file
  */
-
-// Helper: Get Microsoft connection for a user (uses service client)
-async function getMicrosoftConnectionForMobile(userId: string): Promise<CalendarConnection | null> {
-  const supabase = await createServiceClient();
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
-    .from('calendar_connections')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('provider', 'microsoft')
-    .maybeSingle();
-
-  if (error || !data) {
-    return null;
-  }
-
-  // Decrypt tokens if encryption is configured
-  if (isEncryptionConfigured() && data.access_token) {
-    try {
-      data.access_token = decryptToken(data.access_token);
-      if (data.refresh_token) {
-        data.refresh_token = decryptToken(data.refresh_token);
-      }
-    } catch (err) {
-      console.error('[Mobile Upload] Token decryption failed:', err);
-      return null;
-    }
-  }
-
-  return data as CalendarConnection;
-}
 
 // Helper: Get global SharePoint config (uses service client)
 async function getGlobalSharePointConfigForMobile(): Promise<SharePointGlobalConfig | null> {
@@ -140,18 +105,7 @@ export async function POST(request: Request) {
       projectId,
     });
 
-    // 6. Get Microsoft connection
-    const msConnection = await getMicrosoftConnectionForMobile(user.id);
-    if (!msConnection) {
-      console.error('[Mobile Upload] No Microsoft connection for user:', user.id);
-      return Response.json(
-        { error: 'Please connect your Microsoft account in the web app' },
-        { status: 403 }
-      );
-    }
-    console.log('[Mobile Upload] Microsoft connection found');
-
-    // 7. Get service client for database operations
+    // 6. Get service client for database operations
     const db = await createServiceClient();
 
     // 8. Get project details
@@ -195,7 +149,6 @@ export async function POST(request: Request) {
 
         // Create project folder under the base folder
         const projectFolder = await sharepoint.createFolder(
-          msConnection,
           globalConfig.drive_id,
           globalConfig.base_folder_id,
           folderName
@@ -206,7 +159,7 @@ export async function POST(request: Request) {
         for (const cat of categories) {
           const categoryFolderName = sharepoint.getCategoryFolderName(cat);
           try {
-            await sharepoint.createFolder(msConnection, globalConfig.drive_id, projectFolder.id, categoryFolderName);
+            await sharepoint.createFolder(globalConfig.drive_id, projectFolder.id, categoryFolderName);
           } catch {
             console.log(`[Mobile Upload] Category folder ${categoryFolderName} may already exist`);
           }
@@ -257,7 +210,6 @@ export async function POST(request: Request) {
 
     try {
       categoryFolder = await sharepoint.getItemByPath(
-        msConnection,
         connection.drive_id,
         `${connection.folder_path}/${categoryFolderName}`
       );
@@ -268,13 +220,12 @@ export async function POST(request: Request) {
 
     if (!categoryFolder) {
       try {
-        const rootFolder = await sharepoint.getItem(msConnection, connection.drive_id, connection.folder_id);
-        await sharepoint.createFolder(msConnection, connection.drive_id, rootFolder.id, categoryFolderName);
+        const rootFolder = await sharepoint.getItem(connection.drive_id, connection.folder_id);
+        await sharepoint.createFolder(connection.drive_id, rootFolder.id, categoryFolderName);
         console.log('[Mobile Upload] Category folder created');
 
         // Get the newly created folder
         categoryFolder = await sharepoint.getItemByPath(
-          msConnection,
           connection.drive_id,
           `${connection.folder_path}/${categoryFolderName}`
         );
@@ -291,7 +242,6 @@ export async function POST(request: Request) {
     const blob = new Blob([arrayBuffer], { type: file.type });
 
     const uploadResult = await sharepoint.uploadFile(
-      msConnection,
       connection.drive_id,
       targetFolderId,
       file.name,
@@ -317,7 +267,7 @@ export async function POST(request: Request) {
     let thumbnailUrl: string | null = null;
     if (spItem.file?.mimeType?.startsWith('image/') || spItem.file?.mimeType?.startsWith('video/')) {
       try {
-        const thumbnails = await sharepoint.getThumbnails(msConnection, connection.drive_id, spItem.id);
+        const thumbnails = await sharepoint.getThumbnails(connection.drive_id, spItem.id);
         thumbnailUrl = thumbnails?.[0]?.medium?.url || thumbnails?.[0]?.small?.url || null;
         console.log('[Mobile Upload] Thumbnail URL:', thumbnailUrl ? 'obtained' : 'not available');
       } catch {
@@ -374,14 +324,6 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error('[Mobile Upload] Unexpected error:', error);
-
-    // Check if this is a Microsoft authentication error requiring reconnection
-    if (error instanceof MicrosoftAuthError) {
-      return Response.json(
-        { error: error.message },
-        { status: 403 }
-      );
-    }
 
     return Response.json(
       { error: error instanceof Error ? error.message : 'Upload failed' },
