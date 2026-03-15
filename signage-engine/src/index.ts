@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { initConfig, getConfig, updateConfig as updateConfigFn, SignageConfig } from './config/index.js';
 import { PollingManager } from './data/polling-manager.js';
 import { CanvasManager } from './renderer/canvas-manager.js';
-import { SlideManager } from './renderer/slide-manager.js';
+import { LayoutManager } from './renderer/layout-manager.js';
 import { NDIOutput } from './ndi/output.js';
 import { createAPIServer, startServer, EngineState } from './api/server.js';
 import { logger } from './utils/logger.js';
@@ -21,7 +21,7 @@ function registerFonts(): void {
     GlobalFonts.registerFromPath(join(fontsDir, 'Inter-Regular.ttf'), 'Inter');
     GlobalFonts.registerFromPath(join(fontsDir, 'Inter-Bold.ttf'), 'Inter');
     GlobalFonts.registerFromPath(join(fontsDir, 'Inter-SemiBold.ttf'), 'Inter');
-    logger.info({ families: GlobalFonts.families.map(f => f.family) }, 'Fonts registered');
+    logger.info({ families: GlobalFonts.families.map((f: { family: string }) => f.family) }, 'Fonts registered');
   } catch (err) {
     logger.warn({ error: err }, 'Failed to register custom fonts, text may not render correctly');
   }
@@ -31,6 +31,7 @@ class SignageEngine {
   private state: EngineState;
   private frameLoop: NodeJS.Timeout | null = null;
   private lastSlideConfigHash: string = '';
+  private lastFrameTime: number = 0;
 
   constructor() {
     const config = initConfig();
@@ -39,7 +40,7 @@ class SignageEngine {
       startTime: null,
       config,
       canvasManager: null,
-      slideManager: null,
+      layoutManager: null,
       pollingManager: null,
       ndiOutput: null,
     };
@@ -55,16 +56,14 @@ class SignageEngine {
 
     // Initialize components
     this.state.canvasManager = new CanvasManager(this.state.config.display);
-    this.state.slideManager = new SlideManager(
-      this.state.config.slides,
-      this.state.config.display,
-      this.state.config.transitions
+    this.state.layoutManager = new LayoutManager(
+      this.state.config.display.width,
+      this.state.config.display.height
     );
     this.state.pollingManager = new PollingManager(this.state.config.polling);
     this.state.ndiOutput = new NDIOutput(this.state.config.ndi, this.state.config.display);
 
-    // Load assets and start services
-    await this.state.slideManager.loadAssets();
+    // Start services
     await this.state.pollingManager.start();
     await this.state.ndiOutput.initialize();
 
@@ -98,7 +97,7 @@ class SignageEngine {
 
     // Clear references
     this.state.canvasManager = null;
-    this.state.slideManager = null;
+    this.state.layoutManager = null;
     this.state.pollingManager = null;
     this.state.ndiOutput = null;
 
@@ -109,33 +108,39 @@ class SignageEngine {
   }
 
   private renderFrame(): void {
-    if (!this.state.canvasManager || !this.state.slideManager || !this.state.pollingManager || !this.state.ndiOutput) {
+    if (!this.state.canvasManager || !this.state.layoutManager || !this.state.pollingManager || !this.state.ndiOutput) {
       return;
     }
 
     const data = this.state.pollingManager.getCache();
+    const ctx = this.state.canvasManager.getBackContext();
 
-    // Check if slide config has changed and reload if necessary
-    this.checkAndReloadSlides(data);
+    // Check if block config has changed and update layout
+    this.checkAndReloadBlocks(data);
 
-    this.state.slideManager.render(this.state.canvasManager, data);
+    // Calculate deltaTime in ms
+    const now = Date.now();
+    const deltaTime = this.lastFrameTime ? now - this.lastFrameTime : 16.67;
+    this.lastFrameTime = now;
+
+    this.state.canvasManager.clear();
+    this.state.layoutManager.render(ctx, data as unknown as Record<string, unknown>, deltaTime);
+    this.state.canvasManager.swap();
+
     const frameData = this.state.canvasManager.getFrameData();
     this.state.ndiOutput.sendFrame(frameData);
   }
 
-  private checkAndReloadSlides(data: ReturnType<PollingManager['getCache']>): void {
-    const slideConfig = data.slideConfig.data;
-    if (!slideConfig || slideConfig.length === 0) return;
+  private checkAndReloadBlocks(data: ReturnType<PollingManager['getCache']>): void {
+    const blocksConfig = data.blocksConfig.data;
+    if (!blocksConfig || blocksConfig.blocks.length === 0) return;
 
-    // Create a simple hash of slide config to detect changes
-    const configHash = slideConfig.map(s => `${s.id}:${s.enabled}:${s.display_order}`).join('|');
+    // Create a simple hash of blocks config to detect changes
+    const configHash = blocksConfig.blocks.map(b => `${b.id}:${b.enabled}:${b.display_order}`).join('|');
 
     if (configHash !== this.lastSlideConfigHash) {
       this.lastSlideConfigHash = configHash;
-      // Reload slides asynchronously (don't await in render loop)
-      this.state.slideManager?.reloadFromDatabase(slideConfig).catch(err => {
-        logger.error({ error: err }, 'Failed to reload slides from database');
-      });
+      this.state.layoutManager?.updateConfig(blocksConfig.blocks, blocksConfig.settings);
     }
   }
 

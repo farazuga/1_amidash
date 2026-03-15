@@ -109,9 +109,10 @@ describe('Config Schema', () => {
       const config = PollingConfigSchema.parse({});
 
       expect(config.projects).toBe(30000);
+      expect(config.invoicedProjects).toBe(60000);
+      expect(config.purchaseOrders).toBe(30000);
       expect(config.revenue).toBe(60000);
-      expect(config.schedule).toBe(30000);
-      expect(config.purchaseOrders).toBe(15000);
+      expect(config.blocksConfig).toBe(30000);
     });
   });
 
