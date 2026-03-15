@@ -21,7 +21,7 @@ function registerFonts(): void {
     GlobalFonts.registerFromPath(join(fontsDir, 'Inter-Regular.ttf'), 'Inter');
     GlobalFonts.registerFromPath(join(fontsDir, 'Inter-Bold.ttf'), 'Inter');
     GlobalFonts.registerFromPath(join(fontsDir, 'Inter-SemiBold.ttf'), 'Inter');
-    logger.info({ families: GlobalFonts.families.map(f => f.family) }, 'Fonts registered');
+    logger.info({ families: GlobalFonts.families.map((f: { family: string }) => f.family) }, 'Fonts registered');
   } catch (err) {
     logger.warn({ error: err }, 'Failed to register custom fonts, text may not render correctly');
   }

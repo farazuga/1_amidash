@@ -96,8 +96,10 @@ describe('API Server', () => {
       expect(response.status).toBe(200);
       expect(response.body.isRunning).toBe(false);
       expect(response.body.uptime).toBe(0);
-      expect(response.body.currentSlide).toBe(0);
-      expect(response.body.totalSlides).toBe(0);
+      expect(response.body.renderer).toBeNull();
+      expect(response.body.fps).toBe(0);
+      expect(response.body.frameCount).toBe(0);
+      expect(response.body.dataStale).toBe(false);
     });
 
     it('should return uptime when running', async () => {

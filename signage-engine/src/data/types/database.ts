@@ -49,16 +49,5 @@ export interface DbRevenueGoal {
   amount: number;
 }
 
-// Slide configuration from the 'signage_slides' table
-export interface DbSignageSlide {
-  id: string;
-  slide_type: string;
-  title: string | null;
-  enabled: boolean;
-  display_order: number;
-  duration_ms: number;
-  config: Record<string, unknown>;
-}
-
 // Helper type for Supabase query results (allows null/undefined arrays)
 export type DbArray<T> = T[] | null | undefined;
