@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getOdooClient, isOdooConfigured } from '@/lib/odoo';
-import { searchPartners } from '@/lib/odoo/queries';
+import { searchPartners, parseStateCode, parseCountryCode } from '@/lib/odoo/queries';
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,6 +31,14 @@ export async function GET(request: NextRequest) {
       name: p.name,
       email: p.email || null,
       phone: p.phone || null,
+      isCompany: p.is_company,
+      address: p.street ? {
+        street: (p.street || '') + (p.city ? '' : ''),
+        city: p.city || null,
+        state: parseStateCode(p.state_id),
+        zip: p.zip || null,
+        country: parseCountryCode(p.country_id),
+      } : null,
     }));
 
     return NextResponse.json({ partners });

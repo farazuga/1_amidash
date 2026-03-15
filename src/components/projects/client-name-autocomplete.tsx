@@ -15,7 +15,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
-import { Loader2, Building2 } from 'lucide-react';
+import { Loader2, Building2, User } from 'lucide-react';
 import { useOdooPartnerSearch } from '@/hooks/use-odoo-partners';
 import type { OdooPartnerResult } from '@/hooks/use-odoo-partners';
 
@@ -114,7 +114,7 @@ export function ClientNameAutocomplete({
               ) : (
                 <>
                   {partners.length > 0 && (
-                    <CommandGroup heading="Odoo Partners">
+                    <CommandGroup heading="Odoo Contacts">
                       {partners.map((partner) => (
                         <CommandItem
                           key={partner.id}
@@ -122,14 +122,21 @@ export function ClientNameAutocomplete({
                           onSelect={() => handleSelect(partner)}
                           className="flex items-center gap-2 cursor-pointer"
                         >
-                          <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          {partner.isCompany ? (
+                            <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          ) : (
+                            <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          )}
                           <div className="flex-1 min-w-0">
                             <div className="font-medium truncate">{partner.name}</div>
-                            {partner.email && (
-                              <div className="text-xs text-muted-foreground truncate">
-                                {partner.email}
-                              </div>
-                            )}
+                            <div className="text-xs text-muted-foreground truncate">
+                              {[
+                                partner.email,
+                                partner.address?.city && partner.address?.state
+                                  ? `${partner.address.city}, ${partner.address.state}`
+                                  : partner.address?.city || partner.address?.state,
+                              ].filter(Boolean).join(' · ')}
+                            </div>
                           </div>
                         </CommandItem>
                       ))}

@@ -168,20 +168,20 @@ export async function getShippingAddress(
 }
 
 /**
- * Search for company partners by name (for client name autocomplete).
+ * Search for partners (contacts and companies) by name for client name autocomplete.
+ * Searches all res.partner records — both companies and individual contacts.
  */
 export async function searchPartners(
   client: OdooReadOnlyClient,
   searchTerm: string,
   limit: number = 10
-): Promise<Array<{ id: number; name: string; email: string | false; phone: string | false }>> {
-  return client.searchRead<{ id: number; name: string; email: string | false; phone: string | false }>(
+): Promise<Array<{ id: number; name: string; email: string | false; phone: string | false; is_company: boolean; street: string | false; city: string | false; state_id: [number, string] | false; zip: string | false; country_id: [number, string] | false }>> {
+  return client.searchRead<{ id: number; name: string; email: string | false; phone: string | false; is_company: boolean; street: string | false; city: string | false; state_id: [number, string] | false; zip: string | false; country_id: [number, string] | false }>(
     'res.partner',
     [
-      ['is_company', '=', true],
       ['name', 'ilike', searchTerm],
     ],
-    ['id', 'name', 'email', 'phone'],
+    ['id', 'name', 'email', 'phone', 'is_company', 'street', 'city', 'state_id', 'zip', 'country_id'],
     { limit }
   );
 }

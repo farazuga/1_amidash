@@ -3,11 +3,21 @@
 import { useState, useEffect } from 'react';
 import { useDebounce } from './use-debounce';
 
+export interface OdooPartnerAddress {
+  street: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  country: string | null;
+}
+
 export interface OdooPartnerResult {
   id: number;
   name: string;
   email: string | null;
   phone: string | null;
+  isCompany: boolean;
+  address: OdooPartnerAddress | null;
 }
 
 interface UseOdooPartnerSearchResult {

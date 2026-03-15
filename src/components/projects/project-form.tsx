@@ -542,7 +542,28 @@ export function ProjectForm({
         <ClientNameAutocomplete
           value={clientName}
           onChange={setClientName}
-          onPartnerSelect={setSelectedPartner}
+          onPartnerSelect={(partner) => {
+            setSelectedPartner(partner);
+            // Auto-fill delivery address from selected partner's address
+            if (partner?.address) {
+              setDeliveryAddress({
+                street: partner.address.street || '',
+                city: partner.address.city || '',
+                state: partner.address.state || '',
+                zip: partner.address.zip || '',
+                country: partner.address.country || 'US',
+              });
+            }
+            // Auto-fill POC fields from selected contact
+            if (partner && !partner.isCompany) {
+              if (partner.name) setPocName(partner.name);
+              if (partner.email) setPocEmail(partner.email);
+              if (partner.phone) {
+                const cleanPhone = partner.phone.replace(/^\+1\s*/, '').replace(/^1(?=\d{10})/, '');
+                setPocPhone(formatPhoneNumber(cleanPhone));
+              }
+            }
+          }}
           selectedPartner={selectedPartner}
           defaultValue={project?.client_name}
         />
