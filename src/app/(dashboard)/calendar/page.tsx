@@ -9,8 +9,13 @@ export const metadata = {
   description: 'View and manage project schedules and team assignments',
 };
 
-export default async function CalendarPage() {
+interface CalendarPageProps {
+  searchParams: Promise<{ project?: string }>;
+}
+
+export default async function CalendarPage({ searchParams }: CalendarPageProps) {
   const supabase = await createClient();
+  const { project: projectParam } = await searchParams;
 
   // Verify user is authenticated
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -32,6 +37,18 @@ export default async function CalendarPage() {
 
   const isAdmin = profile.role === 'admin';
 
+  // Fetch project if ?project= param is present (server-side)
+  let initialProject = null;
+  if (projectParam) {
+    const isUUID = !projectParam.startsWith('S');
+    const query = supabase.from('projects').select('*');
+    const { data } = await (isUUID
+      ? query.eq('id', projectParam)
+      : query.eq('sales_order_number', projectParam)
+    ).single();
+    initialProject = data;
+  }
+
   return (
     <div className="container mx-auto py-6">
       <div className="mb-6">
@@ -48,7 +65,7 @@ export default async function CalendarPage() {
           </div>
         }
       >
-        <CalendarPageContent isAdmin={isAdmin} />
+        <CalendarPageContent isAdmin={isAdmin} initialProject={initialProject as any} />
       </Suspense>
     </div>
   );

@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { ProjectCalendar } from '@/components/calendar';
 import type { ExternalCalendarFilters } from '@/components/calendar';
 import type { CalendarEvent, BookingStatus } from '@/types/calendar';
 import type { Project } from '@/types';
 import { BOOKING_STATUS_CONFIG } from '@/lib/calendar/constants';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -23,32 +22,12 @@ import Link from 'next/link';
 
 interface CalendarPageContentProps {
   isAdmin: boolean;
+  initialProject?: Project | null;
 }
 
-export function CalendarPageContent({ isAdmin }: CalendarPageContentProps) {
+export function CalendarPageContent({ isAdmin, initialProject }: CalendarPageContentProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const projectParam = searchParams.get('project');
-
-  // Fetch project when ?project= param is present
-  const [project, setProject] = useState<Project | undefined>(undefined);
-  useEffect(() => {
-    if (!projectParam) {
-      setProject(undefined);
-      return;
-    }
-    const supabase = createClient();
-    // Sales order numbers start with 'S', UUIDs don't
-    const isUUID = !projectParam.startsWith('S');
-    const query = supabase.from('projects').select('*');
-    const filtered = isUUID
-      ? query.eq('id', projectParam)
-      : query.eq('sales_order_number', projectParam);
-    filtered.single().then(({ data, error }) => {
-      if (error) console.error('Failed to fetch project:', error.message);
-      if (data) setProject(data as unknown as Project);
-    });
-  }, [projectParam]);
+  const project = initialProject ? (initialProject as Project) : undefined;
 
   // Filter state
   const [showPending, setShowPending] = useState(true);
