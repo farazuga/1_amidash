@@ -50,8 +50,11 @@ export async function POST(request: Request) {
     const token = authHeader?.replace('Bearer ', '');
 
     if (!token) {
+      console.log('[Mobile Upload] No Bearer token found in Authorization header');
       return Response.json({ error: 'Authentication required' }, { status: 401 });
     }
+
+    console.log('[Mobile Upload] Token present, verifying with Supabase...');
 
     // 2. Verify token with Supabase (using anon key client, not cookie-based)
     const supabase = createClient(
@@ -62,7 +65,7 @@ export async function POST(request: Request) {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
-      console.error('[Mobile Upload] Auth error:', authError);
+      console.log('[Mobile Upload] Auth failed:', authError?.message || 'No user returned');
       return Response.json({ error: 'Authentication required' }, { status: 401 });
     }
 
@@ -118,7 +121,7 @@ export async function POST(request: Request) {
       .single();
 
     if (projectError || !project) {
-      console.error('[Mobile Upload] Project not found:', projectError);
+      console.log('[Mobile Upload] Project not found:', projectError);
       return Response.json({ error: 'Project not found' }, { status: 404 });
     }
     console.log('[Mobile Upload] Project found:', project.sales_order_number, project.client_name);
@@ -188,14 +191,14 @@ export async function POST(request: Request) {
           .single();
 
         if (insertError) {
-          console.error('[Mobile Upload] Failed to save connection:', insertError);
+          console.log('[Mobile Upload] ERROR: Failed to save connection:', insertError);
           return Response.json({ error: 'Failed to setup project folder' }, { status: 500 });
         }
 
         connection = newConnection;
         console.log('[Mobile Upload] Project folder created:', folderPath);
       } catch (folderError) {
-        console.error('[Mobile Upload] Folder creation error:', folderError);
+        console.log('[Mobile Upload] ERROR: Folder creation error:', folderError);
         return Response.json(
           { error: folderError instanceof Error ? folderError.message : 'Failed to create project folder' },
           { status: 500 }
@@ -231,7 +234,7 @@ export async function POST(request: Request) {
           `${connection.folder_path}/${categoryFolderName}`
         );
       } catch (createError) {
-        console.error('[Mobile Upload] Failed to create category folder:', createError);
+        console.log('[Mobile Upload] ERROR: Failed to create category folder:', createError);
       }
     }
 
@@ -257,7 +260,7 @@ export async function POST(request: Request) {
     });
 
     if (!uploadResult.success || !uploadResult.item) {
-      console.error('[Mobile Upload] SharePoint upload failed:', uploadResult.error);
+      console.log('[Mobile Upload] ERROR: SharePoint upload failed:', uploadResult.error);
       return Response.json({ error: uploadResult.error || 'Upload failed' }, { status: 500 });
     }
 
@@ -309,7 +312,7 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError) {
-      console.error('[Mobile Upload] Database insert error:', insertError);
+      console.log('[Mobile Upload] ERROR: Database insert error:', insertError);
       return Response.json(
         { error: `Database error: ${insertError.message || 'Failed to save record'}` },
         { status: 500 }
@@ -324,7 +327,7 @@ export async function POST(request: Request) {
       file: fileRecord,
     });
   } catch (error) {
-    console.error('[Mobile Upload] Unexpected error:', error);
+    console.log('[Mobile Upload] ERROR: Unexpected error:', error);
 
     return Response.json(
       { error: error instanceof Error ? error.message : 'Upload failed' },
