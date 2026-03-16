@@ -80,6 +80,18 @@ export async function updateCalendarEvent(
   );
 }
 
+// Rename / update a calendar
+export async function updateCalendarForUser(
+  email: string,
+  calendarId: string,
+  updates: { name?: string }
+): Promise<{ id: string; name: string }> {
+  return graphFetch(`/users/${email}/calendars/${calendarId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+}
+
 // Delete an event
 export async function deleteCalendarEvent(
   email: string,

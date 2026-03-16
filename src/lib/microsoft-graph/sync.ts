@@ -8,6 +8,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import {
   createCalendarForUser,
   getCalendarForUser,
+  updateCalendarForUser,
   createCalendarEvent,
   updateCalendarEvent,
   deleteCalendarEvent,
@@ -207,6 +208,14 @@ export async function ensureAmiDashCalendar(
     // Verify the calendar still exists in Outlook
     const cal = await getCalendarForUser(email, existing.outlook_calendar_id);
     if (cal) {
+      // Rename if the calendar name doesn't match (e.g. "AmiDash" → "AmiDash - Faraz")
+      if (cal.name !== calendarName) {
+        try {
+          await updateCalendarForUser(email, existing.outlook_calendar_id, { name: calendarName });
+        } catch (err) {
+          console.error('Failed to rename AmiDash calendar:', err);
+        }
+      }
       return existing.outlook_calendar_id;
     }
     // Calendar was deleted in Outlook - remove stale DB record
@@ -371,9 +380,16 @@ export async function triggerAssignmentSync(assignment: {
   // Fetch project details for location, description, sales order
   const { data: projectData } = await supabase
     .from('projects')
-    .select('delivery_street, delivery_city, delivery_state, delivery_zip, project_description, sales_order_url')
+    .select('delivery_street, delivery_city, delivery_state, delivery_zip, project_description, sales_order_url, odoo_order_id')
     .eq('id', assignment.project_id)
     .single();
+
+  // Build Odoo sales order URL (use stored URL or construct from odoo_order_id)
+  const odooUrl = process.env.ODOO_URL;
+  const salesOrderUrl = projectData?.sales_order_url
+    || (projectData?.odoo_order_id && odooUrl
+      ? `${odooUrl}/web#id=${projectData.odoo_order_id}&model=sale.order&view_type=form`
+      : undefined);
 
   // Build location string from delivery address
   const locationParts = [
@@ -435,7 +451,7 @@ export async function triggerAssignmentSync(assignment: {
         projectId: assignment.project_id,
         teamMembers,
         location,
-        salesOrderUrl: projectData?.sales_order_url || undefined,
+        salesOrderUrl,
         projectDescription: projectData?.project_description || undefined,
       }),
   }));
@@ -549,7 +565,8 @@ export async function fullSyncForUser(userId: string): Promise<{
         delivery_state,
         delivery_zip,
         project_description,
-        sales_order_url
+        sales_order_url,
+        odoo_order_id
       )
     `)
     .eq('user_id', userId)
@@ -629,6 +646,13 @@ export async function fullSyncForUser(userId: string): Promise<{
     ].filter(Boolean);
     const location = locationParts.length > 0 ? locationParts.join(', ') : undefined;
 
+    // Build Odoo sales order URL
+    const odooUrl = process.env.ODOO_URL;
+    const projectSalesOrderUrl = project?.sales_order_url
+      || (project?.odoo_order_id && odooUrl
+        ? `${odooUrl}/web#id=${project.odoo_order_id}&model=sale.order&view_type=form`
+        : undefined);
+
     for (const day of days) {
       syncTasks.push({
         projectName,
@@ -645,7 +669,7 @@ export async function fullSyncForUser(userId: string): Promise<{
             projectId: assignment.project_id,
             teamMembers,
             location,
-            salesOrderUrl: project?.sales_order_url || undefined,
+            salesOrderUrl: projectSalesOrderUrl,
             projectDescription: project?.project_description || undefined,
           }),
       });
