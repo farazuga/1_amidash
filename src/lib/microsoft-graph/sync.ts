@@ -33,22 +33,22 @@ function getBaseUrl(): string {
 // ============================================
 
 /**
- * Get the engineer's Outlook email from the profiles table
+ * Get the engineer's Outlook email and name from the profiles table
  */
-async function getEngineerEmail(userId: string): Promise<string | null> {
+async function getEngineerProfile(userId: string): Promise<{ email: string; fullName: string } | null> {
   const supabase = await createServiceClient();
   const { data, error } = await supabase
     .from('profiles')
-    .select('email')
+    .select('email, full_name')
     .eq('id', userId)
     .single();
 
   if (error || !data) {
-    console.error('Failed to get engineer email:', error);
+    console.error('Failed to get engineer profile:', error);
     return null;
   }
 
-  return data.email;
+  return { email: data.email, fullName: data.full_name || '' };
 }
 
 /**
@@ -189,8 +189,10 @@ async function getExistingEventId(
  */
 export async function ensureAmiDashCalendar(
   userId: string,
-  email: string
+  email: string,
+  firstName?: string
 ): Promise<string> {
+  const calendarName = firstName ? `AmiDash - ${firstName}` : 'AmiDash';
   const supabase = await createServiceClient();
 
   // Check DB for existing calendar record
@@ -217,7 +219,7 @@ export async function ensureAmiDashCalendar(
   }
 
   // Create a new AmiDash calendar
-  const newCal = await createCalendarForUser(email);
+  const newCal = await createCalendarForUser(email, calendarName);
 
   // Store in DB
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -256,8 +258,12 @@ async function syncDayToOutlook(params: {
   startTime: string;
   endTime: string;
   projectName: string;
+  projectId: string;
   teamMembers: string[];
   pmContact?: string;
+  location?: string;
+  salesOrderUrl?: string;
+  projectDescription?: string;
 }): Promise<SyncResult> {
   const { assignmentId, userId, email, calendarId, workDate, startTime, endTime } = params;
 
@@ -265,12 +271,16 @@ async function syncDayToOutlook(params: {
     const baseUrl = getBaseUrl();
     const event = buildCalendarEvent({
       projectName: params.projectName,
+      projectId: params.projectId,
       date: workDate,
       startTime,
       endTime,
       teamMembers: params.teamMembers,
       pmContact: params.pmContact,
       dashboardUrl: baseUrl,
+      location: params.location,
+      salesOrderUrl: params.salesOrderUrl,
+      projectDescription: params.projectDescription,
     });
 
     // Check for existing synced event
@@ -322,17 +332,19 @@ export async function triggerAssignmentSync(assignment: {
     return;
   }
 
-  // Get engineer's email
-  const email = await getEngineerEmail(userId);
-  if (!email) {
-    console.error('Cannot sync: no email found for user', userId);
+  // Get engineer's profile
+  const profile = await getEngineerProfile(userId);
+  if (!profile) {
+    console.error('Cannot sync: no profile found for user', userId);
     return;
   }
+  const { email, fullName } = profile;
+  const firstName = fullName.split(' ')[0];
 
   // Ensure AmiDash calendar exists
   let calendarId: string;
   try {
-    calendarId = await ensureAmiDashCalendar(userId, email);
+    calendarId = await ensureAmiDashCalendar(userId, email, firstName);
   } catch (err) {
     console.error('Failed to ensure AmiDash calendar for user:', userId, err);
     return;
@@ -355,6 +367,22 @@ export async function triggerAssignmentSync(assignment: {
   if (!days || days.length === 0) {
     return;
   }
+
+  // Fetch project details for location, description, sales order
+  const { data: projectData } = await supabase
+    .from('projects')
+    .select('delivery_street, delivery_city, delivery_state, delivery_zip, project_description, sales_order_url')
+    .eq('id', assignment.project_id)
+    .single();
+
+  // Build location string from delivery address
+  const locationParts = [
+    projectData?.delivery_street,
+    projectData?.delivery_city,
+    projectData?.delivery_state,
+    projectData?.delivery_zip,
+  ].filter(Boolean);
+  const location = locationParts.length > 0 ? locationParts.join(', ') : undefined;
 
   // Fetch team members for this project (excluding current user)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -404,7 +432,11 @@ export async function triggerAssignmentSync(assignment: {
         startTime: day.start_time.slice(0, 5), // "08:00:00" -> "08:00"
         endTime: day.end_time.slice(0, 5),
         projectName: assignment.project_name,
+        projectId: assignment.project_id,
         teamMembers,
+        location,
+        salesOrderUrl: projectData?.sales_order_url || undefined,
+        projectDescription: projectData?.project_description || undefined,
       }),
   }));
 
@@ -437,11 +469,12 @@ export async function deleteAssignmentFromOutlook(
   }
 
   // Get engineer's email and calendar ID for deletion
-  const email = await getEngineerEmail(userId);
-  if (!email) {
-    console.error('Cannot delete events: no email found for user', userId);
+  const profile = await getEngineerProfile(userId);
+  if (!profile) {
+    console.error('Cannot delete events: no profile found for user', userId);
     return;
   }
+  const email = profile.email;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: calRecord } = await (supabase as any)
@@ -483,16 +516,18 @@ export async function fullSyncForUser(userId: string): Promise<{
 }> {
   const supabase = await createServiceClient();
 
-  // Get engineer's email
-  const email = await getEngineerEmail(userId);
-  if (!email) {
-    return { synced: 0, failed: 0, errors: ['No email found for user'] };
+  // Get engineer's profile
+  const profile = await getEngineerProfile(userId);
+  if (!profile) {
+    return { synced: 0, failed: 0, errors: ['No profile found for user'] };
   }
+  const { email, fullName } = profile;
+  const firstName = fullName.split(' ')[0];
 
   // Ensure AmiDash calendar exists
   let calendarId: string;
   try {
-    calendarId = await ensureAmiDashCalendar(userId, email);
+    calendarId = await ensureAmiDashCalendar(userId, email, firstName);
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     return { synced: 0, failed: 0, errors: [`Failed to ensure calendar: ${msg}`] };
@@ -508,7 +543,13 @@ export async function fullSyncForUser(userId: string): Promise<{
       booking_status,
       project:projects!inner(
         id,
-        client_name
+        client_name,
+        delivery_street,
+        delivery_city,
+        delivery_state,
+        delivery_zip,
+        project_description,
+        sales_order_url
       )
     `)
     .eq('user_id', userId)
@@ -575,8 +616,18 @@ export async function fullSyncForUser(userId: string): Promise<{
   for (const assignment of assignments) {
     const days = daysByAssignment.get(assignment.id) || [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const projectName = (assignment as any).project?.client_name || 'Unknown';
+    const project = (assignment as any).project;
+    const projectName = project?.client_name || 'Unknown';
     const teamMembers = teamByProject.get(assignment.project_id) || [];
+
+    // Build location from delivery address
+    const locationParts = [
+      project?.delivery_street,
+      project?.delivery_city,
+      project?.delivery_state,
+      project?.delivery_zip,
+    ].filter(Boolean);
+    const location = locationParts.length > 0 ? locationParts.join(', ') : undefined;
 
     for (const day of days) {
       syncTasks.push({
@@ -591,7 +642,11 @@ export async function fullSyncForUser(userId: string): Promise<{
             startTime: day.start_time.slice(0, 5),
             endTime: day.end_time.slice(0, 5),
             projectName,
+            projectId: assignment.project_id,
             teamMembers,
+            location,
+            salesOrderUrl: project?.sales_order_url || undefined,
+            projectDescription: project?.project_description || undefined,
           }),
       });
     }

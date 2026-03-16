@@ -123,6 +123,7 @@ describe('Objective 5: Per-day Outlook events (not all-day)', () => {
     const { buildCalendarEvent } = await import('@/lib/microsoft-graph/client');
     const event = buildCalendarEvent({
       projectName: 'Test Project',
+      projectId: 'test-id',
       date: '2026-03-20',
       startTime: '08:00',
       endTime: '17:00',

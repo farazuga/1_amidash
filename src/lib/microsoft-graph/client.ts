@@ -29,13 +29,14 @@ async function graphFetch(path: string, options: RequestInit = {}) {
   return response.json();
 }
 
-// Create a dedicated "AmiDash" calendar on a user's account
+// Create a dedicated "AmiDash - {FirstName}" calendar on a user's account
 export async function createCalendarForUser(
-  email: string
+  email: string,
+  calendarName: string = 'AmiDash'
 ): Promise<{ id: string; name: string }> {
   return graphFetch(`/users/${email}/calendars`, {
     method: 'POST',
-    body: JSON.stringify({ name: 'AmiDash' }),
+    body: JSON.stringify({ name: calendarName }),
   });
 }
 
@@ -129,38 +130,52 @@ export async function getCalendarEvents(
 // Build a calendar event from assignment data
 export function buildCalendarEvent(params: {
   projectName: string;
+  projectId: string;
   date: string;
   startTime: string;
   endTime: string;
   teamMembers: string[];
   pmContact?: string;
   dashboardUrl?: string;
+  location?: string;
+  salesOrderUrl?: string;
+  projectDescription?: string;
 }): OutlookEventInput {
   const body = [
     `📋 Project: ${params.projectName}`,
+    params.projectDescription ? `\n${params.projectDescription}` : null,
     params.teamMembers.length > 0
-      ? `👥 Team: ${params.teamMembers.join(', ')}`
+      ? `\n👥 Team: ${params.teamMembers.join(', ')}`
       : null,
     params.pmContact ? `📞 PM: ${params.pmContact}` : null,
-    params.dashboardUrl ? `🔗 Details: ${params.dashboardUrl}` : null,
+    params.dashboardUrl
+      ? `🔗 Dashboard: ${params.dashboardUrl}/projects/${params.projectId}`
+      : null,
+    params.salesOrderUrl ? `📦 Sales Order: ${params.salesOrderUrl}` : null,
   ]
     .filter(Boolean)
     .join('\n');
 
-  return {
+  const event: OutlookEventInput = {
     subject: params.projectName,
     body: { contentType: 'text', content: body },
     start: {
       dateTime: `${params.date}T${params.startTime}:00`,
-      timeZone: 'UTC',
+      timeZone: 'Eastern Standard Time',
     },
     end: {
       dateTime: `${params.date}T${params.endTime}:00`,
-      timeZone: 'UTC',
+      timeZone: 'Eastern Standard Time',
     },
     isAllDay: false,
     showAs: 'busy',
     categories: ['Green category'],
     sensitivity: 'normal',
   };
+
+  if (params.location) {
+    event.location = { displayName: params.location };
+  }
+
+  return event;
 }

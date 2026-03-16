@@ -42,6 +42,7 @@ export interface OutlookEvent {
 export interface OutlookEventInput {
   subject: string;
   body?: { contentType: string; content: string };
+  location?: { displayName: string };
   start: { dateTime: string; timeZone: string };
   end: { dateTime: string; timeZone: string };
   isAllDay: boolean;
