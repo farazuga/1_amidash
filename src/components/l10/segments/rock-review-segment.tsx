@@ -1,13 +1,15 @@
 'use client';
 
+import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { ArrowRightLeft } from 'lucide-react';
 import { useRocks, useToggleRockStatus, useDropRockToIssue } from '@/hooks/queries/use-l10-rocks';
 import { toast } from 'sonner';
-import type { RockStatus, RockMilestone } from '@/types/l10';
+import type { RockStatus, RockMilestone, RockWithOwner } from '@/types/l10';
 import { cn } from '@/lib/utils';
+import { RockDetailSheet } from '../rock-detail-sheet';
 
 function getCurrentQuarter(): string {
   const now = new Date();
@@ -24,6 +26,7 @@ export function RockReviewSegment({ teamId }: RockReviewSegmentProps) {
   const { data: rocks, isLoading } = useRocks(teamId, quarter);
   const toggleStatus = useToggleRockStatus();
   const dropToIssue = useDropRockToIssue();
+  const [selectedRock, setSelectedRock] = useState<RockWithOwner | null>(null);
 
   const handleToggle = async (id: string) => {
     try {
@@ -71,7 +74,7 @@ export function RockReviewSegment({ teamId }: RockReviewSegmentProps) {
             const progressValue = total > 0 ? (complete / total) * 100 : 0;
 
             return (
-              <div key={rock.id} className="flex items-center justify-between rounded-md border p-3">
+              <div key={rock.id} className="flex items-center justify-between rounded-md border p-3 cursor-pointer hover:bg-muted/30" onClick={() => setSelectedRock(rock)}>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium">{rock.title}</p>
                   <p className="text-xs text-muted-foreground">{rock.profiles?.full_name || '-'}</p>
@@ -85,12 +88,12 @@ export function RockReviewSegment({ teamId }: RockReviewSegmentProps) {
                 <div className="flex items-center gap-2">
                   <Badge
                     className={cn('cursor-pointer text-white', statusColors[rock.status])}
-                    onClick={() => handleToggle(rock.id)}
+                    onClick={(e) => { e.stopPropagation(); handleToggle(rock.id); }}
                   >
                     {rock.status.replace('_', ' ')}
                   </Badge>
                   {rock.status === 'off_track' && (
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDrop(rock.id, rock.title)} title="Drop to Issues">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); handleDrop(rock.id, rock.title); }} title="Drop to Issues">
                       <ArrowRightLeft className="h-3 w-3" />
                     </Button>
                   )}
@@ -100,6 +103,8 @@ export function RockReviewSegment({ teamId }: RockReviewSegmentProps) {
           })}
         </div>
       )}
+
+      <RockDetailSheet rock={selectedRock} onClose={() => setSelectedRock(null)} teamId={teamId} />
     </div>
   );
 }

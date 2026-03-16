@@ -445,14 +445,16 @@ export async function submitRating(input: unknown): Promise<ActionResult> {
     if (!validation.success) return { success: false, error: validation.error };
 
     const { supabase, user } = await getL10Client();
-    const { meetingId, rating, explanation } = validation.data;
+    const { meetingId, userId, rating, explanation } = validation.data;
+
+    const targetUserId = userId || user.id;
 
     const { error } = await supabase
       .from('l10_meeting_ratings')
       .upsert(
         {
           meeting_id: meetingId,
-          user_id: user.id,
+          user_id: targetUserId,
           rating,
           explanation: explanation || null,
         },
