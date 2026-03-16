@@ -180,7 +180,11 @@ export async function POST(request: Request) {
       );
       console.log('[Mobile Presales] Found reference folder:', referenceFolder?.id);
     } catch {
-      // Create it
+      console.log('[Mobile Presales] Reference folder not found by path, will create');
+    }
+
+    // Create reference folder if getItemByPath returned undefined or threw
+    if (!referenceFolder?.id) {
       try {
         referenceFolder = await sharepoint.createFolder(
           driveId, presalesFolder.id, sanitizedFolderName
