@@ -1,5 +1,4 @@
 import * as sharepoint from './client';
-import type { CalendarConnection } from '@/lib/microsoft-graph/types';
 import type { FileCategory, ProjectSharePointConnection, SharePointGlobalConfig } from '@/types';
 
 // ============================================================================
@@ -11,7 +10,6 @@ export interface CreateProjectFolderParams {
   salesOrderNumber: string;
   clientName: string;
   userId: string;
-  msConnection: CalendarConnection;
   globalConfig: SharePointGlobalConfig;
 }
 
@@ -61,7 +59,7 @@ export async function createProjectSharePointFolder(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db: any
 ): Promise<CreateProjectFolderResult> {
-  const { projectId, salesOrderNumber, clientName, userId, msConnection, globalConfig } = params;
+  const { projectId, salesOrderNumber, clientName, userId, globalConfig } = params;
 
   try {
     // Generate folder name: "S12345 ClientName"
@@ -69,7 +67,6 @@ export async function createProjectSharePointFolder(
 
     // Create project folder under the base folder
     const projectFolder = await sharepoint.createFolder(
-      msConnection,
       globalConfig.drive_id,
       globalConfig.base_folder_id,
       folderName
@@ -80,7 +77,7 @@ export async function createProjectSharePointFolder(
     for (const category of categories) {
       const categoryFolderName = sharepoint.getCategoryFolderName(category);
       try {
-        await sharepoint.createFolder(msConnection, globalConfig.drive_id, projectFolder.id, categoryFolderName);
+        await sharepoint.createFolder(globalConfig.drive_id, projectFolder.id, categoryFolderName);
       } catch {
         // Folder may already exist - this is fine
         console.log(`Category folder ${categoryFolderName} may already exist`);

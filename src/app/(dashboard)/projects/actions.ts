@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { createProjectSharePointFolder } from '@/lib/sharepoint/folder-operations';
-import { getGlobalSharePointConfig, getMicrosoftConnection } from '@/app/(dashboard)/projects/[salesOrder]/files/actions';
+import { getGlobalSharePointConfig } from '@/app/(dashboard)/projects/[salesOrder]/files/actions';
 import { syncProjectAssignmentsToOutlook } from '@/lib/microsoft-graph/sync';
 
 // Helper to get sales order number from project ID for revalidation
@@ -298,13 +298,6 @@ export async function createProject(data: CreateProjectData): Promise<CreateProj
           return;
         }
 
-        // Get user's Microsoft connection
-        const msConnection = await getMicrosoftConnection(user.id);
-        if (!msConnection) {
-          console.log('[createProject] User not connected to Microsoft, skipping folder creation');
-          return;
-        }
-
         // Create the SharePoint folder
         const result = await createProjectSharePointFolder(
           {
@@ -312,7 +305,6 @@ export async function createProject(data: CreateProjectData): Promise<CreateProj
             salesOrderNumber: data.sales_order_number!,
             clientName: data.client_name,
             userId: user.id,
-            msConnection,
             globalConfig,
           },
           supabase
@@ -481,15 +473,12 @@ export async function publishDraft(projectId: string, data: CreateProjectData): 
       try {
         const globalConfig = await getGlobalSharePointConfig();
         if (!globalConfig) return;
-        const msConnection = await getMicrosoftConnection(user.id);
-        if (!msConnection) return;
         const result = await createProjectSharePointFolder(
           {
             projectId,
             salesOrderNumber: data.sales_order_number!,
             clientName: data.client_name,
             userId: user.id,
-            msConnection,
             globalConfig,
           },
           supabase
@@ -694,8 +683,8 @@ export async function bulkUpdateScheduleStatus(data: BulkUpdateScheduleStatusDat
     return { success: false, error: 'No projects selected' };
   }
 
-  // Validate schedule status value
-  const validStatuses = ['draft', 'tentative', 'pending_confirm', 'confirmed'];
+  // Validate schedule status value (3-status workflow: draft, pending, confirmed)
+  const validStatuses = ['draft', 'pending', 'confirmed'];
   if (!validStatuses.includes(data.scheduleStatus)) {
     return { success: false, error: 'Invalid schedule status' };
   }

@@ -5,8 +5,6 @@ import { checkUploadRateLimit } from '@/lib/portal/rate-limit';
 import { sendEmail } from '@/lib/email/send';
 import { fileUploadNotificationEmail } from '@/lib/email/templates';
 import * as sharepoint from '@/lib/sharepoint/client';
-import { decryptToken, isEncryptionConfigured } from '@/lib/crypto';
-import type { CalendarConnection } from '@/lib/microsoft-graph/types';
 import type { SharePointGlobalConfig } from '@/types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -17,40 +15,6 @@ type AnySupabaseClient = any;
  */
 async function getServiceDb(): Promise<AnySupabaseClient> {
   return (await createServiceClient()) as AnySupabaseClient;
-}
-
-/**
- * Get Microsoft connection for a specific user (for SharePoint uploads).
- * Portal uploads use an admin's Microsoft credentials.
- */
-async function getMicrosoftConnectionForPortal(userId: string): Promise<CalendarConnection | null> {
-  const supabase = await getServiceDb();
-
-  const { data, error } = await supabase
-    .from('calendar_connections')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('provider', 'microsoft')
-    .maybeSingle();
-
-  if (error || !data) {
-    return null;
-  }
-
-  // Decrypt tokens if encryption is configured
-  if (isEncryptionConfigured() && data.access_token) {
-    try {
-      data.access_token = decryptToken(data.access_token);
-      if (data.refresh_token) {
-        data.refresh_token = decryptToken(data.refresh_token);
-      }
-    } catch (err) {
-      console.error('[Portal Upload] Token decryption failed:', err);
-      return null;
-    }
-  }
-
-  return data as CalendarConnection;
 }
 
 /**
@@ -144,80 +108,57 @@ export async function POST(request: NextRequest) {
     try {
       const spConfig = await getSharePointConfig();
       if (spConfig) {
-        // Find an admin user with a Microsoft connection to use for SharePoint
-        // Check the project's existing SharePoint connection for connected_by user
+        // Check the project's existing SharePoint connection
         const { data: spConnection } = await db
           .from('project_sharepoint_connections')
-          .select('connected_by, drive_id, folder_id, folder_path')
+          .select('drive_id, folder_id, folder_path')
           .eq('project_id', project.id)
           .maybeSingle();
 
-        let msUserId: string | null = spConnection?.connected_by || null;
+        // Determine upload folder: use project connection or project root
+        let targetDriveId = spConfig.drive_id;
+        let targetFolderId = spConfig.base_folder_id;
 
-        // If no project connection, try to find any admin with Microsoft connected
-        if (!msUserId) {
-          const { data: adminConnection } = await db
-            .from('calendar_connections')
-            .select('user_id')
-            .eq('provider', 'microsoft')
-            .limit(1)
-            .maybeSingle();
-
-          msUserId = adminConnection?.user_id || null;
-        }
-
-        if (msUserId) {
-          const msConnection = await getMicrosoftConnectionForPortal(msUserId);
-          if (msConnection) {
-            // Determine upload folder: use project connection or project root
-            let targetDriveId = spConfig.drive_id;
-            let targetFolderId = spConfig.base_folder_id;
-
-            if (spConnection) {
-              targetDriveId = spConnection.drive_id;
-              // Try to use or create client_uploads subfolder
-              try {
-                const uploadsFolder = await sharepoint.getItemByPath(
-                  msConnection,
-                  targetDriveId,
-                  `${spConnection.folder_path}/client_uploads`
-                );
-                if (uploadsFolder) {
-                  targetFolderId = uploadsFolder.id;
-                }
-              } catch {
-                // Create client_uploads folder
-                try {
-                  const newFolder = await sharepoint.createFolder(
-                    msConnection,
-                    targetDriveId,
-                    spConnection.folder_id,
-                    'client_uploads'
-                  );
-                  targetFolderId = newFolder.id;
-                } catch (folderErr) {
-                  console.error('[Portal Upload] Failed to create client_uploads folder:', folderErr);
-                  targetFolderId = spConnection.folder_id;
-                }
-              }
-            }
-
-            // Upload file to SharePoint
-            const blob = new Blob([new Uint8Array(cleanBuffer)], { type: typeCheck.mimeType! });
-            const uploadResult = await sharepoint.uploadFile(
-              msConnection,
+        if (spConnection) {
+          targetDriveId = spConnection.drive_id;
+          // Try to use or create client_uploads subfolder
+          try {
+            const uploadsFolder = await sharepoint.getItemByPath(
               targetDriveId,
-              targetFolderId,
-              storedFilename,
-              blob,
-              typeCheck.mimeType!
+              `${spConnection.folder_path}/client_uploads`
             );
-
-            if (uploadResult.success && uploadResult.item) {
-              sharepointItemId = uploadResult.item.id;
-              sharepointWebUrl = uploadResult.item.webUrl;
+            if (uploadsFolder) {
+              targetFolderId = uploadsFolder.id;
+            }
+          } catch {
+            // Create client_uploads folder
+            try {
+              const newFolder = await sharepoint.createFolder(
+                targetDriveId,
+                spConnection.folder_id,
+                'client_uploads'
+              );
+              targetFolderId = newFolder.id;
+            } catch (folderErr) {
+              console.error('[Portal Upload] Failed to create client_uploads folder:', folderErr);
+              targetFolderId = spConnection.folder_id;
             }
           }
+        }
+
+        // Upload file to SharePoint
+        const blob = new Blob([new Uint8Array(cleanBuffer)], { type: typeCheck.mimeType! });
+        const uploadResult = await sharepoint.uploadFile(
+          targetDriveId,
+          targetFolderId,
+          storedFilename,
+          blob,
+          typeCheck.mimeType!
+        );
+
+        if (uploadResult.success && uploadResult.item) {
+          sharepointItemId = uploadResult.item.id;
+          sharepointWebUrl = uploadResult.item.webUrl;
         }
       }
     } catch (spError) {
