@@ -1,7 +1,9 @@
 /**
  * Sync logic for pushing assignments to Outlook Calendar
  * Uses app-level client credentials (no per-user OAuth tokens)
- * Creates per-day events on a dedicated "AmiDash" calendar for each engineer
+ * Creates per-day events on dedicated calendars for each engineer:
+ *   - "AmiDash - {FirstName}" — personal assignments only
+ *   - "AmiDash - Projects" — all project assignments across all engineers
  */
 
 import { createServiceClient } from '@/lib/supabase/server';
@@ -20,12 +22,34 @@ import { SYNCABLE_STATUSES } from './types';
 // Constants
 const PENDING_SLOT_MARKER = '__pending__';
 const CONCURRENCY_LIMIT = 5;
+type CalendarType = 'personal' | 'projects';
 
 /**
  * Get the base URL for the app
  */
 function getBaseUrl(): string {
   return process.env.NEXT_PUBLIC_APP_URL || 'https://app.amidash.com';
+}
+
+/**
+ * Build Odoo sales order URL from project data
+ */
+function buildSalesOrderUrl(salesOrderUrl: string | null | undefined, odooOrderId: number | null | undefined): string | undefined {
+  if (salesOrderUrl) return salesOrderUrl;
+  const odooUrl = process.env.ODOO_URL;
+  if (odooOrderId && odooUrl) {
+    return `${odooUrl}/web#id=${odooOrderId}&model=sale.order&view_type=form`;
+  }
+  return undefined;
+}
+
+/**
+ * Build location string from delivery address parts
+ */
+function buildLocation(project: { delivery_street?: string | null; delivery_city?: string | null; delivery_state?: string | null; delivery_zip?: string | null } | null): string | undefined {
+  if (!project) return undefined;
+  const parts = [project.delivery_street, project.delivery_city, project.delivery_state, project.delivery_zip].filter(Boolean);
+  return parts.length > 0 ? parts.join(', ') : undefined;
 }
 
 
@@ -58,7 +82,8 @@ async function getEngineerProfile(userId: string): Promise<{ email: string; full
 async function getSyncedEvent(
   assignmentId: string,
   userId: string,
-  workDate: string
+  workDate: string,
+  calendarType: CalendarType = 'personal'
 ): Promise<{ id: string; external_event_id: string; last_synced_at: string } | null> {
   const supabase = await createServiceClient();
 
@@ -69,6 +94,7 @@ async function getSyncedEvent(
     .eq('assignment_id', assignmentId)
     .eq('user_id', userId)
     .eq('work_date', workDate)
+    .eq('calendar_type', calendarType)
     .single();
 
   if (error || !data) {
@@ -85,7 +111,8 @@ async function storeSyncedEvent(
   assignmentId: string,
   userId: string,
   workDate: string,
-  externalEventId: string
+  externalEventId: string,
+  calendarType: CalendarType = 'personal'
 ): Promise<void> {
   const supabase = await createServiceClient();
 
@@ -96,11 +123,12 @@ async function storeSyncedEvent(
       user_id: userId,
       work_date: workDate,
       external_event_id: externalEventId,
+      calendar_type: calendarType,
       last_synced_at: new Date().toISOString(),
       sync_error: null,
     },
     {
-      onConflict: 'assignment_id,user_id,work_date',
+      onConflict: 'assignment_id,user_id,work_date,calendar_type',
     }
   );
 
@@ -116,11 +144,12 @@ async function updateSyncError(
   assignmentId: string,
   userId: string,
   workDate: string,
-  errorMsg: string
+  errorMsg: string,
+  calendarType: CalendarType = 'personal'
 ): Promise<void> {
   const supabase = await createServiceClient();
 
-  const existing = await getSyncedEvent(assignmentId, userId, workDate);
+  const existing = await getSyncedEvent(assignmentId, userId, workDate, calendarType);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (supabase as any).from('synced_calendar_events').upsert(
@@ -128,12 +157,13 @@ async function updateSyncError(
       assignment_id: assignmentId,
       user_id: userId,
       work_date: workDate,
+      calendar_type: calendarType,
       external_event_id: existing?.external_event_id || '',
       last_synced_at: new Date().toISOString(),
       sync_error: errorMsg,
     },
     {
-      onConflict: 'assignment_id,user_id,work_date',
+      onConflict: 'assignment_id,user_id,work_date,calendar_type',
     }
   );
 }
@@ -144,7 +174,8 @@ async function updateSyncError(
 async function deleteSyncedEvent(
   assignmentId: string,
   userId: string,
-  workDate: string
+  workDate: string,
+  calendarType: CalendarType = 'personal'
 ): Promise<void> {
   const supabase = await createServiceClient();
 
@@ -154,7 +185,8 @@ async function deleteSyncedEvent(
     .delete()
     .eq('assignment_id', assignmentId)
     .eq('user_id', userId)
-    .eq('work_date', workDate);
+    .eq('work_date', workDate)
+    .eq('calendar_type', calendarType);
 }
 
 /**
@@ -164,15 +196,16 @@ async function deleteSyncedEvent(
 async function getExistingEventId(
   assignmentId: string,
   userId: string,
-  workDate: string
+  workDate: string,
+  calendarType: CalendarType = 'personal'
 ): Promise<string | null> {
-  const existing = await getSyncedEvent(assignmentId, userId, workDate);
+  const existing = await getSyncedEvent(assignmentId, userId, workDate, calendarType);
   if (existing?.external_event_id && existing.external_event_id !== PENDING_SLOT_MARKER) {
     return existing.external_event_id;
   }
   // Clean up any stale pending markers
   if (existing?.external_event_id === PENDING_SLOT_MARKER) {
-    await deleteSyncedEvent(assignmentId, userId, workDate);
+    await deleteSyncedEvent(assignmentId, userId, workDate, calendarType);
   }
   return null;
 }
@@ -182,10 +215,7 @@ async function getExistingEventId(
 // ============================================
 
 /**
- * Ensure the engineer has an "AmiDash" calendar in Outlook.
- * - Checks engineer_outlook_calendars table for existing record
- * - Verifies the calendar still exists in Outlook via Graph API
- * - Creates a new one if missing or deleted
+ * Ensure the engineer has an "AmiDash - {FirstName}" calendar in Outlook.
  * Returns the Outlook calendar ID.
  */
 export async function ensureAmiDashCalendar(
@@ -196,7 +226,6 @@ export async function ensureAmiDashCalendar(
   const calendarName = firstName ? `AmiDash - ${firstName}` : 'AmiDash';
   const supabase = await createServiceClient();
 
-  // Check DB for existing calendar record
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: existing } = await (supabase as any)
     .from('engineer_outlook_calendars')
@@ -205,10 +234,8 @@ export async function ensureAmiDashCalendar(
     .single();
 
   if (existing?.outlook_calendar_id) {
-    // Verify the calendar still exists in Outlook
     const cal = await getCalendarForUser(email, existing.outlook_calendar_id);
     if (cal) {
-      // Rename if the calendar name doesn't match (e.g. "AmiDash" → "AmiDash - Faraz")
       if (cal.name !== calendarName) {
         try {
           await updateCalendarForUser(email, existing.outlook_calendar_id, { name: calendarName });
@@ -218,7 +245,6 @@ export async function ensureAmiDashCalendar(
       }
       return existing.outlook_calendar_id;
     }
-    // Calendar was deleted in Outlook - remove stale DB record
     console.log('AmiDash calendar deleted from Outlook, recreating for user:', userId);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any)
@@ -227,10 +253,8 @@ export async function ensureAmiDashCalendar(
       .eq('id', existing.id);
   }
 
-  // Create a new AmiDash calendar
   const newCal = await createCalendarForUser(email, calendarName);
 
-  // Store in DB
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: insertError } = await (supabase as any)
     .from('engineer_outlook_calendars')
@@ -250,13 +274,61 @@ export async function ensureAmiDashCalendar(
   return newCal.id;
 }
 
+/**
+ * Ensure the user has an "AmiDash - Projects" calendar in Outlook.
+ * Returns the Outlook calendar ID.
+ */
+export async function ensureProjectsCalendar(
+  userId: string,
+  email: string
+): Promise<string> {
+  const calendarName = 'AmiDash - Projects';
+  const supabase = await createServiceClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: existing } = await (supabase as any)
+    .from('engineer_outlook_calendars')
+    .select('id, outlook_projects_calendar_id')
+    .eq('user_id', userId)
+    .single();
+
+  if (existing?.outlook_projects_calendar_id) {
+    const cal = await getCalendarForUser(email, existing.outlook_projects_calendar_id);
+    if (cal) {
+      if (cal.name !== calendarName) {
+        try {
+          await updateCalendarForUser(email, existing.outlook_projects_calendar_id, { name: calendarName });
+        } catch (err) {
+          console.error('Failed to rename Projects calendar:', err);
+        }
+      }
+      return existing.outlook_projects_calendar_id;
+    }
+    // Calendar was deleted — clear the stale ID
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any)
+      .from('engineer_outlook_calendars')
+      .update({ outlook_projects_calendar_id: null })
+      .eq('id', existing.id);
+  }
+
+  const newCal = await createCalendarForUser(email, calendarName);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any)
+    .from('engineer_outlook_calendars')
+    .update({ outlook_projects_calendar_id: newCal.id })
+    .eq('user_id', userId);
+
+  return newCal.id;
+}
+
 // ============================================
 // Single day sync
 // ============================================
 
 /**
  * Sync a single assignment day to Outlook.
- * Uses slot reservation with retry loop to prevent race conditions.
  */
 async function syncDayToOutlook(params: {
   assignmentId: string;
@@ -273,8 +345,10 @@ async function syncDayToOutlook(params: {
   location?: string;
   salesOrderUrl?: string;
   projectDescription?: string;
+  calendarType?: CalendarType;
 }): Promise<SyncResult> {
   const { assignmentId, userId, email, calendarId, workDate, startTime, endTime } = params;
+  const calendarType = params.calendarType || 'personal';
 
   try {
     const baseUrl = getBaseUrl();
@@ -293,23 +367,21 @@ async function syncDayToOutlook(params: {
     });
 
     // Check for existing synced event
-    const existingEventId = await getExistingEventId(assignmentId, userId, workDate);
+    const existingEventId = await getExistingEventId(assignmentId, userId, workDate, calendarType);
 
     if (existingEventId) {
-      // Update existing Outlook event
       await updateCalendarEvent(email, calendarId, existingEventId, event);
-      await storeSyncedEvent(assignmentId, userId, workDate, existingEventId);
+      await storeSyncedEvent(assignmentId, userId, workDate, existingEventId, calendarType);
       return { success: true, eventId: existingEventId };
     }
 
-    // Create new Outlook event
     const response = await createCalendarEvent(email, calendarId, event);
-    await storeSyncedEvent(assignmentId, userId, workDate, response.id);
+    await storeSyncedEvent(assignmentId, userId, workDate, response.id, calendarType);
     return { success: true, eventId: response.id };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Failed to sync day to Outlook:', workDate, errorMessage);
-    await updateSyncError(assignmentId, userId, workDate, errorMessage);
+    await updateSyncError(assignmentId, userId, workDate, errorMessage, calendarType);
     return { success: false, error: errorMessage };
   }
 }
@@ -319,12 +391,7 @@ async function syncDayToOutlook(params: {
 // ============================================
 
 /**
- * Main entry point: sync an assignment to Outlook.
- *
- * - Only syncs if status is confirmed (in SYNCABLE_STATUSES)
- * - If not confirmed, deletes any existing Outlook events for this assignment
- * - Fetches assignment_days and creates one Outlook event per day
- * - Fire-and-forget safe
+ * Main entry point: sync an assignment to Outlook (personal calendar).
  */
 export async function triggerAssignmentSync(assignment: {
   id: string;
@@ -335,13 +402,11 @@ export async function triggerAssignmentSync(assignment: {
 }): Promise<void> {
   const { id: assignmentId, user_id: userId, booking_status } = assignment;
 
-  // If not a syncable status, delete any existing events
   if (!SYNCABLE_STATUSES.includes(booking_status as (typeof SYNCABLE_STATUSES)[number])) {
     await deleteAssignmentFromOutlook(assignmentId, userId);
     return;
   }
 
-  // Get engineer's profile
   const profile = await getEngineerProfile(userId);
   if (!profile) {
     console.error('Cannot sync: no profile found for user', userId);
@@ -350,7 +415,6 @@ export async function triggerAssignmentSync(assignment: {
   const { email, fullName } = profile;
   const firstName = fullName.split(' ')[0];
 
-  // Ensure AmiDash calendar exists
   let calendarId: string;
   try {
     calendarId = await ensureAmiDashCalendar(userId, email, firstName);
@@ -359,7 +423,6 @@ export async function triggerAssignmentSync(assignment: {
     return;
   }
 
-  // Fetch assignment_days for this assignment
   const supabase = await createServiceClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: days, error: daysError } = await (supabase as any)
@@ -377,30 +440,15 @@ export async function triggerAssignmentSync(assignment: {
     return;
   }
 
-  // Fetch project details for location, description, sales order
   const { data: projectData } = await supabase
     .from('projects')
     .select('delivery_street, delivery_city, delivery_state, delivery_zip, project_description, sales_order_url, odoo_order_id')
     .eq('id', assignment.project_id)
     .single();
 
-  // Build Odoo sales order URL (use stored URL or construct from odoo_order_id)
-  const odooUrl = process.env.ODOO_URL;
-  const salesOrderUrl = projectData?.sales_order_url
-    || (projectData?.odoo_order_id && odooUrl
-      ? `${odooUrl}/web#id=${projectData.odoo_order_id}&model=sale.order&view_type=form`
-      : undefined);
+  const salesOrderUrl = buildSalesOrderUrl(projectData?.sales_order_url, projectData?.odoo_order_id);
+  const location = buildLocation(projectData);
 
-  // Build location string from delivery address
-  const locationParts = [
-    projectData?.delivery_street,
-    projectData?.delivery_city,
-    projectData?.delivery_state,
-    projectData?.delivery_zip,
-  ].filter(Boolean);
-  const location = locationParts.length > 0 ? locationParts.join(', ') : undefined;
-
-  // Fetch team members for this project (excluding current user)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: teamData } = await (supabase as any)
     .from('project_assignments')
@@ -411,20 +459,20 @@ export async function triggerAssignmentSync(assignment: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const teamMembers = (teamData || []).map((m: any) => m.profile?.full_name || 'Unknown');
 
-  // Get current synced events for this assignment to detect orphaned days
+  // Detect orphaned days (personal calendar only)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: existingSynced } = await (supabase as any)
     .from('synced_calendar_events')
     .select('work_date, external_event_id')
     .eq('assignment_id', assignmentId)
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .eq('calendar_type', 'personal');
 
   const currentDates = new Set(days.map((d: { work_date: string }) => d.work_date));
   const orphanedEvents = (existingSynced || []).filter(
     (e: { work_date: string }) => !currentDates.has(e.work_date)
   );
 
-  // Delete orphaned events (days that were removed from the assignment)
   for (const orphan of orphanedEvents) {
     if (orphan.external_event_id && orphan.external_event_id !== PENDING_SLOT_MARKER) {
       try {
@@ -433,10 +481,9 @@ export async function triggerAssignmentSync(assignment: {
         console.error('Failed to delete orphaned event:', orphan.work_date, err);
       }
     }
-    await deleteSyncedEvent(assignmentId, userId, orphan.work_date);
+    await deleteSyncedEvent(assignmentId, userId, orphan.work_date, 'personal');
   }
 
-  // Sync each day in batches
   const syncTasks = days.map((day: { work_date: string; start_time: string; end_time: string }) => ({
     execute: () =>
       syncDayToOutlook({
@@ -445,7 +492,7 @@ export async function triggerAssignmentSync(assignment: {
         email,
         calendarId,
         workDate: day.work_date,
-        startTime: day.start_time.slice(0, 5), // "08:00:00" -> "08:00"
+        startTime: day.start_time.slice(0, 5),
         endTime: day.end_time.slice(0, 5),
         projectName: assignment.project_name,
         projectId: assignment.project_id,
@@ -453,6 +500,7 @@ export async function triggerAssignmentSync(assignment: {
         location,
         salesOrderUrl,
         projectDescription: projectData?.project_description || undefined,
+        calendarType: 'personal',
       }),
   }));
 
@@ -464,7 +512,7 @@ export async function triggerAssignmentSync(assignment: {
 
 /**
  * Delete all Outlook events for an assignment+user.
- * Called when assignment is removed or status changes to non-syncable.
+ * Deletes from both personal and projects calendars.
  */
 export async function deleteAssignmentFromOutlook(
   assignmentId: string,
@@ -472,11 +520,10 @@ export async function deleteAssignmentFromOutlook(
 ): Promise<void> {
   const supabase = await createServiceClient();
 
-  // Look up all synced events for this assignment+user
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: syncedEvents, error } = await (supabase as any)
     .from('synced_calendar_events')
-    .select('id, work_date, external_event_id')
+    .select('id, work_date, external_event_id, calendar_type')
     .eq('assignment_id', assignmentId)
     .eq('user_id', userId);
 
@@ -484,7 +531,6 @@ export async function deleteAssignmentFromOutlook(
     return;
   }
 
-  // Get engineer's email and calendar ID for deletion
   const profile = await getEngineerProfile(userId);
   if (!profile) {
     console.error('Cannot delete events: no profile found for user', userId);
@@ -495,24 +541,25 @@ export async function deleteAssignmentFromOutlook(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: calRecord } = await (supabase as any)
     .from('engineer_outlook_calendars')
-    .select('outlook_calendar_id')
+    .select('outlook_calendar_id, outlook_projects_calendar_id')
     .eq('user_id', userId)
     .single();
 
-  const calendarId = calRecord?.outlook_calendar_id;
-
-  // Delete each event from Outlook
   for (const event of syncedEvents) {
-    if (event.external_event_id && event.external_event_id !== PENDING_SLOT_MARKER && calendarId) {
-      try {
-        await deleteCalendarEvent(email, calendarId, event.external_event_id);
-      } catch (err) {
-        console.error('Failed to delete Outlook event:', event.external_event_id, err);
+    if (event.external_event_id && event.external_event_id !== PENDING_SLOT_MARKER) {
+      const calId = event.calendar_type === 'projects'
+        ? calRecord?.outlook_projects_calendar_id
+        : calRecord?.outlook_calendar_id;
+      if (calId) {
+        try {
+          await deleteCalendarEvent(email, calId, event.external_event_id);
+        } catch (err) {
+          console.error('Failed to delete Outlook event:', event.external_event_id, err);
+        }
       }
     }
   }
 
-  // Remove all from synced_calendar_events
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (supabase as any)
     .from('synced_calendar_events')
@@ -522,8 +569,7 @@ export async function deleteAssignmentFromOutlook(
 }
 
 /**
- * Full sync for a user: sync all their confirmed assignments.
- * Used for manual "Sync Now" or initial sync.
+ * Full sync for a user: sync all their confirmed assignments to personal calendar.
  */
 export async function fullSyncForUser(userId: string): Promise<{
   synced: number;
@@ -532,7 +578,6 @@ export async function fullSyncForUser(userId: string): Promise<{
 }> {
   const supabase = await createServiceClient();
 
-  // Get engineer's profile
   const profile = await getEngineerProfile(userId);
   if (!profile) {
     return { synced: 0, failed: 0, errors: ['No profile found for user'] };
@@ -540,7 +585,6 @@ export async function fullSyncForUser(userId: string): Promise<{
   const { email, fullName } = profile;
   const firstName = fullName.split(' ')[0];
 
-  // Ensure AmiDash calendar exists
   let calendarId: string;
   try {
     calendarId = await ensureAmiDashCalendar(userId, email, firstName);
@@ -549,7 +593,6 @@ export async function fullSyncForUser(userId: string): Promise<{
     return { synced: 0, failed: 0, errors: [`Failed to ensure calendar: ${msg}`] };
   }
 
-  // Get all confirmed assignments with project data and assignment_days
   const { data: assignments, error: assignmentsError } = await supabase
     .from('project_assignments')
     .select(`
@@ -581,7 +624,6 @@ export async function fullSyncForUser(userId: string): Promise<{
     return { synced: 0, failed: 0, errors: [] };
   }
 
-  // Fetch all assignment_days for these assignments
   const assignmentIds = assignments.map((a) => a.id);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: allDays, error: daysError } = await (supabase as any)
@@ -595,7 +637,6 @@ export async function fullSyncForUser(userId: string): Promise<{
     return { synced: 0, failed: 0, errors: ['Failed to fetch assignment days'] };
   }
 
-  // Group days by assignment_id
   const daysByAssignment = new Map<string, Array<{ work_date: string; start_time: string; end_time: string }>>();
   for (const day of allDays || []) {
     if (!daysByAssignment.has(day.assignment_id)) {
@@ -604,7 +645,6 @@ export async function fullSyncForUser(userId: string): Promise<{
     daysByAssignment.get(day.assignment_id)!.push(day);
   }
 
-  // Fetch team members for all projects
   const projectIds = [...new Set(assignments.map((a) => a.project_id))];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: allTeamData } = await (supabase as any)
@@ -626,7 +666,6 @@ export async function fullSyncForUser(userId: string): Promise<{
   let failed = 0;
   const errors: string[] = [];
 
-  // Build all sync tasks (one per day per assignment)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const syncTasks: Array<{ projectName: string; execute: () => Promise<SyncResult> }> = [];
 
@@ -636,22 +675,8 @@ export async function fullSyncForUser(userId: string): Promise<{
     const project = (assignment as any).project;
     const projectName = project?.client_name || 'Unknown';
     const teamMembers = teamByProject.get(assignment.project_id) || [];
-
-    // Build location from delivery address
-    const locationParts = [
-      project?.delivery_street,
-      project?.delivery_city,
-      project?.delivery_state,
-      project?.delivery_zip,
-    ].filter(Boolean);
-    const location = locationParts.length > 0 ? locationParts.join(', ') : undefined;
-
-    // Build Odoo sales order URL
-    const odooUrl = process.env.ODOO_URL;
-    const projectSalesOrderUrl = project?.sales_order_url
-      || (project?.odoo_order_id && odooUrl
-        ? `${odooUrl}/web#id=${project.odoo_order_id}&model=sale.order&view_type=form`
-        : undefined);
+    const location = buildLocation(project);
+    const projectSalesOrderUrl = buildSalesOrderUrl(project?.sales_order_url, project?.odoo_order_id);
 
     for (const day of days) {
       syncTasks.push({
@@ -671,12 +696,160 @@ export async function fullSyncForUser(userId: string): Promise<{
             location,
             salesOrderUrl: projectSalesOrderUrl,
             projectDescription: project?.project_description || undefined,
+            calendarType: 'personal',
           }),
       });
     }
   }
 
-  // Process in batches
+  for (let i = 0; i < syncTasks.length; i += CONCURRENCY_LIMIT) {
+    const batch = syncTasks.slice(i, i + CONCURRENCY_LIMIT);
+    const results = await Promise.allSettled(batch.map((task) => task.execute()));
+
+    results.forEach((result, index) => {
+      const task = batch[index];
+      if (result.status === 'fulfilled' && result.value.success) {
+        synced++;
+      } else {
+        failed++;
+        const errorMsg =
+          result.status === 'fulfilled'
+            ? result.value.error
+            : result.reason?.message || 'Unknown error';
+        if (errorMsg) {
+          errors.push(`${task.projectName}: ${errorMsg}`);
+        }
+      }
+    });
+  }
+
+  return { synced, failed, errors };
+}
+
+/**
+ * Full sync of ALL confirmed assignments to a user's "AmiDash - Projects" calendar.
+ * Shows every engineer's assignments so the user has a global view.
+ * Event subjects include the engineer name: "ProjectName - EngineerName"
+ */
+export async function fullProjectsSyncForUser(userId: string): Promise<{
+  synced: number;
+  failed: number;
+  errors: string[];
+}> {
+  const supabase = await createServiceClient();
+
+  const profile = await getEngineerProfile(userId);
+  if (!profile) {
+    return { synced: 0, failed: 0, errors: ['No profile found for user'] };
+  }
+  const { email } = profile;
+
+  let projectsCalendarId: string;
+  try {
+    projectsCalendarId = await ensureProjectsCalendar(userId, email);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return { synced: 0, failed: 0, errors: [`Failed to ensure Projects calendar: ${msg}`] };
+  }
+
+  // Get ALL confirmed assignments across ALL engineers
+  const { data: assignments, error: assignmentsError } = await supabase
+    .from('project_assignments')
+    .select(`
+      id,
+      user_id,
+      project_id,
+      booking_status,
+      profile:profiles!inner(full_name),
+      project:projects!inner(
+        id,
+        client_name,
+        delivery_street,
+        delivery_city,
+        delivery_state,
+        delivery_zip,
+        project_description,
+        sales_order_url,
+        odoo_order_id
+      )
+    `)
+    .in('booking_status', [...SYNCABLE_STATUSES]);
+
+  if (assignmentsError) {
+    console.error('Failed to fetch assignments for projects sync:', assignmentsError);
+    return { synced: 0, failed: 0, errors: ['Failed to fetch assignments'] };
+  }
+
+  if (!assignments || assignments.length === 0) {
+    return { synced: 0, failed: 0, errors: [] };
+  }
+
+  // Fetch all assignment_days
+  const assignmentIds = assignments.map((a) => a.id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: allDays, error: daysError } = await (supabase as any)
+    .from('assignment_days')
+    .select('assignment_id, work_date, start_time, end_time')
+    .in('assignment_id', assignmentIds)
+    .order('work_date', { ascending: true });
+
+  if (daysError) {
+    console.error('Failed to fetch assignment days for projects sync:', daysError);
+    return { synced: 0, failed: 0, errors: ['Failed to fetch assignment days'] };
+  }
+
+  const daysByAssignment = new Map<string, Array<{ work_date: string; start_time: string; end_time: string }>>();
+  for (const day of allDays || []) {
+    if (!daysByAssignment.has(day.assignment_id)) {
+      daysByAssignment.set(day.assignment_id, []);
+    }
+    daysByAssignment.get(day.assignment_id)!.push(day);
+  }
+
+  let synced = 0;
+  let failed = 0;
+  const errors: string[] = [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const syncTasks: Array<{ projectName: string; execute: () => Promise<SyncResult> }> = [];
+
+  for (const assignment of assignments) {
+    const days = daysByAssignment.get(assignment.id) || [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const project = (assignment as any).project;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const assigneeProfile = (assignment as any).profile;
+    const assigneeName = assigneeProfile?.full_name || 'Unknown';
+    const projectName = project?.client_name || 'Unknown';
+    // Projects calendar shows "ProjectName - EngineerName" as subject
+    const eventSubject = `${projectName} - ${assigneeName}`;
+    const location = buildLocation(project);
+    const projectSalesOrderUrl = buildSalesOrderUrl(project?.sales_order_url, project?.odoo_order_id);
+
+    for (const day of days) {
+      syncTasks.push({
+        projectName: eventSubject,
+        execute: () =>
+          syncDayToOutlook({
+            assignmentId: assignment.id,
+            userId, // calendar owner, not the assignee
+            email,
+            calendarId: projectsCalendarId,
+            workDate: day.work_date,
+            startTime: day.start_time.slice(0, 5),
+            endTime: day.end_time.slice(0, 5),
+            projectName: eventSubject,
+            projectId: assignment.project_id,
+            teamMembers: [], // not needed for global view
+            location,
+            salesOrderUrl: projectSalesOrderUrl,
+            projectDescription: project?.project_description || undefined,
+            calendarType: 'projects',
+          }),
+      });
+    }
+  }
+
   for (let i = 0; i < syncTasks.length; i += CONCURRENCY_LIMIT) {
     const batch = syncTasks.slice(i, i + CONCURRENCY_LIMIT);
     const results = await Promise.allSettled(batch.map((task) => task.execute()));
@@ -704,12 +877,10 @@ export async function fullSyncForUser(userId: string): Promise<{
 /**
  * Sync all assignments for a project to Outlook.
  * Called when project data changes (name, dates, etc.).
- * Triggers sync for each assigned user.
  */
 export async function syncProjectAssignmentsToOutlook(projectId: string): Promise<void> {
   const supabase = await createServiceClient();
 
-  // Fetch project name
   const { data: project, error: projectError } = await supabase
     .from('projects')
     .select('id, client_name')
@@ -721,7 +892,6 @@ export async function syncProjectAssignmentsToOutlook(projectId: string): Promis
     return;
   }
 
-  // Fetch all assignments for this project
   const { data: assignments, error: assignmentsError } = await supabase
     .from('project_assignments')
     .select('id, user_id, project_id, booking_status')
@@ -736,7 +906,6 @@ export async function syncProjectAssignmentsToOutlook(projectId: string): Promis
     return;
   }
 
-  // Fire-and-forget sync for each assignment
   for (const assignment of assignments) {
     triggerAssignmentSync({
       id: assignment.id,
@@ -757,7 +926,6 @@ export const triggerAssignmentDelete = deleteAssignmentFromOutlook;
 
 /**
  * Retry sync for a specific assignment.
- * Validates that the assignment belongs to the requesting user for security.
  */
 export async function retrySyncForAssignment(
   assignmentId: string,
@@ -765,7 +933,6 @@ export async function retrySyncForAssignment(
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createServiceClient();
 
-  // Get assignment with project data - MUST filter by user_id for security
   const { data: assignment, error: fetchError } = await supabase
     .from('project_assignments')
     .select(`
@@ -800,7 +967,6 @@ export async function retrySyncForAssignment(
 
 /**
  * Get recent sync errors for a user.
- * Returns failed syncs from the synced_calendar_events table.
  */
 export async function getSyncErrors(userId: string): Promise<{
   errors: Array<{
