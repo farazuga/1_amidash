@@ -4,7 +4,7 @@ import type { MeetingWithDetails, MeetingSegment } from '@/types/l10';
 import { SegueSegment } from './segments/segue-segment';
 import { ScorecardSegment } from './segments/scorecard-segment';
 import { RockReviewSegment } from './segments/rock-review-segment';
-import { HeadlinesSegment } from './segments/headlines-segment';
+import { UpcomingDealsSegment } from './segments/upcoming-deals-segment';
 import { TodoReviewSegment } from './segments/todo-review-segment';
 import { IdsSegment } from './segments/ids-segment';
 import { ConcludeSegment } from './segments/conclude-segment';
@@ -24,7 +24,7 @@ export function MeetingSegmentContent({ segment, meeting, teamId }: MeetingSegme
     case 'rock_review':
       return <RockReviewSegment teamId={teamId} />;
     case 'headlines':
-      return <HeadlinesSegment meeting={meeting} teamId={teamId} />;
+      return <UpcomingDealsSegment />;
     case 'todo_review':
       return <TodoReviewSegment teamId={teamId} />;
     case 'ids':

@@ -39,6 +39,7 @@ import { useTeam } from '@/hooks/queries/use-l10-teams';
 import { toast } from 'sonner';
 import type { IssueWithCreator } from '@/types/l10';
 import { cn } from '@/lib/utils';
+import { IssueDetailSheet } from '../issues-tab';
 
 interface IdsSegmentProps {
   teamId: string;
@@ -53,6 +54,7 @@ export function IdsSegment({ teamId }: IdsSegmentProps) {
   const [solvingId, setSolvingId] = useState<string | null>(null);
   const [todoTitle, setTodoTitle] = useState('');
   const [todoOwnerId, setTodoOwnerId] = useState('');
+  const [selectedIssue, setSelectedIssue] = useState<IssueWithCreator | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -173,12 +175,19 @@ export function IdsSegment({ teamId }: IdsSegmentProps) {
                   rank={idx + 1}
                   isSolving={issue.id === solvingId}
                   onStartSolving={() => handleStartSolving(issue)}
+                  onClick={() => setSelectedIssue(issue)}
                 />
               ))}
             </div>
           </SortableContext>
         </DndContext>
       )}
+
+      <IssueDetailSheet
+        issue={selectedIssue}
+        onClose={() => setSelectedIssue(null)}
+        teamId={teamId}
+      />
     </div>
   );
 }
@@ -188,11 +197,13 @@ function SortableIssue({
   rank,
   isSolving,
   onStartSolving,
+  onClick,
 }: {
   issue: IssueWithCreator;
   rank: number;
   isSolving: boolean;
   onStartSolving: () => void;
+  onClick: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: issue.id });
 
@@ -215,7 +226,7 @@ function SortableIssue({
         <GripVertical className="h-4 w-4" />
       </button>
       <span className="text-xs font-mono text-muted-foreground w-5">#{rank}</span>
-      <span className="flex-1 text-sm">{issue.title}</span>
+      <span className="flex-1 text-sm cursor-pointer hover:text-primary" onClick={onClick}>{issue.title}</span>
       {issue.status === 'solving' ? (
         <Badge>Solving</Badge>
       ) : (

@@ -210,6 +210,7 @@ export const advanceSegmentSchema = z.object({
 
 export const submitRatingSchema = z.object({
   meetingId: uuidSchema,
+  userId: uuidSchema.optional(),
   rating: z.number().int().min(1).max(10),
   explanation: z.string().max(500).optional(),
 }).refine(

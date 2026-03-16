@@ -124,6 +124,7 @@ export function useSubmitRating() {
   return useMutation({
     mutationFn: async (data: {
       meetingId: string;
+      userId?: string;
       rating: number;
       explanation?: string;
     }) => {
