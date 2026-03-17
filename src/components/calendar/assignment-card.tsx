@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { BookingStatusDot } from './booking-status-badge';
 import { BOOKING_STATUS_CONFIG } from '@/lib/calendar/constants';
@@ -41,7 +42,7 @@ interface AssignmentCardProps {
   className?: string;
 }
 
-export function AssignmentCard({
+export const AssignmentCard = memo(function AssignmentCard({
   event,
   compact = false,
   onClick,
@@ -320,4 +321,4 @@ export function AssignmentCard({
       )}
     </div>
   );
-}
+});

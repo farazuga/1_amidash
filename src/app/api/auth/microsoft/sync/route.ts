@@ -25,6 +25,7 @@ export async function POST() {
     // Clear cached token to pick up any permission changes in Azure AD
     clearTokenCache();
 
+    // Sync personal calendar
     const result = await fullSyncForUser(user.id);
 
     return NextResponse.json({

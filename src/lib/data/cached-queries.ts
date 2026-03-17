@@ -58,7 +58,7 @@ export const getCachedSalespeople = cache(async () => {
   const supabase = await createClient();
   const { data } = await supabase
     .from('profiles')
-    .select('*')
+    .select('id, full_name, email')
     .eq('is_salesperson', true)
     .order('full_name');
   return (data || []) as Profile[];
@@ -76,8 +76,8 @@ export const getProject = cache(async (id: string) => {
       *,
       current_status:statuses(*),
       tags:project_tags(tag:tags(*)),
-      created_by_profile:profiles!projects_created_by_fkey(*),
-      salesperson:profiles!projects_salesperson_id_fkey(*)
+      created_by_profile:profiles!projects_created_by_fkey(id, full_name, email),
+      salesperson:profiles!projects_salesperson_id_fkey(id, full_name, email)
     `)
     .eq('id', id)
     .single();
@@ -97,8 +97,8 @@ export const getProjectBySalesOrder = cache(async (salesOrder: string) => {
       *,
       current_status:statuses(*),
       tags:project_tags(tag:tags(*)),
-      created_by_profile:profiles!projects_created_by_fkey(*),
-      salesperson:profiles!projects_salesperson_id_fkey(*)
+      created_by_profile:profiles!projects_created_by_fkey(id, full_name, email),
+      salesperson:profiles!projects_salesperson_id_fkey(id, full_name, email)
     `)
     .eq('sales_order_number', salesOrder)
     .single();
@@ -116,7 +116,7 @@ export const getStatusHistory = cache(async (projectId: string) => {
     .select(`
       *,
       status:statuses(*),
-      changed_by_profile:profiles(*)
+      changed_by_profile:profiles(id, full_name)
     `)
     .eq('project_id', projectId)
     .order('changed_at', { ascending: false });
