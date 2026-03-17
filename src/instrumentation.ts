@@ -8,9 +8,5 @@
  */
 
 export async function register() {
-  // Only run on the server (not during build or on client)
-  if (process.env.NEXT_RUNTIME === 'nodejs') {
-    const { initTokenRefreshCron } = await import('@/lib/cron/token-refresh');
-    initTokenRefreshCron();
-  }
+  // Server startup hook - background tasks can be registered here
 }

@@ -5,8 +5,8 @@ const uuidSchema = z.string().uuid('Invalid ID format');
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)');
 const timeSchema = z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Invalid time format (HH:MM or HH:MM:SS)');
 
-// Booking status enum - 4 statuses in the workflow
-export const bookingStatusSchema = z.enum(['draft', 'tentative', 'pending_confirm', 'confirmed']);
+// Booking status enum - 3 statuses in the workflow
+export const bookingStatusSchema = z.enum(['draft', 'pending', 'confirmed']);
 
 // Availability type enum
 export const availabilityTypeSchema = z.enum(['unavailable', 'limited', 'training', 'pto', 'sick']);
@@ -36,12 +36,6 @@ export const bulkUpdateStatusSchema = z.object({
   assignmentIds: z.array(uuidSchema).min(1, 'At least one assignment required').max(100, 'Too many assignments'),
   newStatus: bookingStatusSchema,
   note: z.string().max(500, 'Note too long').optional(),
-});
-
-export const addExcludedDatesSchema = z.object({
-  assignmentId: uuidSchema,
-  dates: z.array(dateSchema).min(1, 'At least one date required').max(366, 'Too many dates'),
-  reason: z.string().max(500, 'Reason too long').optional(),
 });
 
 export const addAssignmentDaysSchema = z.object({

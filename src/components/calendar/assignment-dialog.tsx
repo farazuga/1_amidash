@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -21,11 +21,17 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { BookingStatusBadge } from './booking-status-badge';
 import { useAdminUsers, useCreateAssignment } from '@/hooks/queries/use-assignments';
+import { useOutlookEvents } from '@/hooks/queries/use-outlook-events';
 import type { BookingStatus } from '@/types/calendar';
 import type { Project } from '@/types';
 import { BOOKING_STATUS_CONFIG } from '@/lib/calendar/constants';
 import { toast } from 'sonner';
 import { AlertTriangle, Loader2 } from 'lucide-react';
+
+function formatTime(dateTime: string): string {
+  const date = new Date(dateTime);
+  return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+}
 
 interface AssignmentDialogProps {
   open: boolean;
@@ -46,6 +52,19 @@ export function AssignmentDialog({
 
   const { data: adminUsers, isLoading: isLoadingUsers } = useAdminUsers();
   const createAssignment = useCreateAssignment();
+
+  // Fetch Outlook events for the selected engineer within the project date range
+  const { data: outlookEventsMap } = useOutlookEvents({
+    engineerIds: selectedUserId ? [selectedUserId] : [],
+    startDate: project?.start_date || '',
+    endDate: project?.end_date || '',
+    enabled: !!selectedUserId && !!project?.start_date && !!project?.end_date,
+  });
+
+  const outlookConflicts = useMemo(() => {
+    if (!outlookEventsMap || !selectedUserId) return [];
+    return outlookEventsMap[selectedUserId] || [];
+  }, [outlookEventsMap, selectedUserId]);
 
   const handleSubmit = async () => {
     if (!project || !selectedUserId) return;
@@ -77,7 +96,7 @@ export function AssignmentDialog({
     }
   };
 
-  const statuses: BookingStatus[] = ['draft', 'tentative', 'confirmed'];
+  const statuses: BookingStatus[] = ['draft', 'pending', 'confirmed'];
 
   if (!project) return null;
 
@@ -146,7 +165,7 @@ export function AssignmentDialog({
               <p className="text-xs text-muted-foreground">
                 {BOOKING_STATUS_CONFIG[bookingStatus].label}:{' '}
                 {bookingStatus === 'draft' && 'Internal draft, only visible to admin/editor'}
-                {bookingStatus === 'tentative' && 'Shared externally, awaiting confirmation'}
+                {bookingStatus === 'pending' && 'Awaiting customer confirmation'}
                 {bookingStatus === 'confirmed' && 'Finalized and committed booking'}
               </p>
             </div>
@@ -161,6 +180,18 @@ export function AssignmentDialog({
                 rows={3}
               />
             </div>
+
+            {outlookConflicts.length > 0 && (
+              <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm">
+                <p className="font-medium text-amber-800">Outlook conflicts:</p>
+                {outlookConflicts.map(event => (
+                  <p key={event.id} className="text-amber-700">
+                    {event.subject} — {formatTime(event.start.dateTime)} to {formatTime(event.end.dateTime)}
+                  </p>
+                ))}
+                <p className="mt-1 text-xs text-amber-600">You can still assign — this is informational only.</p>
+              </div>
+            )}
           </div>
         )}
 

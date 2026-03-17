@@ -70,20 +70,24 @@ npm run test:coverage
 
 - `src/app/(dashboard)/` - Dashboard pages (protected routes)
 - `src/app/(dashboard)/calendar/` - Master calendar page
-- `src/app/(dashboard)/projects/[id]/calendar/` - Project-specific calendar
-- `src/app/(dashboard)/project-calendar/` - Gantt-style project calendar view
+- `src/app/(dashboard)/project-calendar/` - Project timeline (Gantt-style) view
 - `src/components/calendar/` - Calendar components
 - `src/lib/calendar/` - Calendar utilities and constants
 - `src/types/calendar.ts` - Calendar TypeScript types
 
 ## Calendar System
 
-### Booking Statuses (4 total, no 'complete')
+### Booking Statuses (3 total)
 
 1. **Draft** - PM planning, not visible to engineers
-2. **Tentative** - Planned but not sent to customer
-3. **Pending Confirmation** - Awaiting customer confirmation
-4. **Confirmed** - Customer confirmed
+2. **Pending** - Awaiting customer confirmation
+3. **Confirmed** - Customer confirmed, syncs to engineer Outlook calendars
+
+### Calendar Views
+
+- **Master Calendar** (`/calendar`) - Full scheduling grid with drag & drop
+- **Project Timeline** (`/project-calendar`) - Gantt-style view across projects
+- **My Schedule** - Simple confirmed-only list for individual engineers
 
 ### Key Features
 
@@ -94,6 +98,9 @@ npm run test:coverage
 - Undo support (Cmd+Z)
 - Status cascade when changing project schedule status
 - Today indicator (vertical line)
+- App-level Microsoft Graph integration (client credentials, not per-user OAuth)
+- Dedicated "AmiDash" calendar created on each engineer's Outlook
+- Read-only Outlook event display for conflict detection
 
 ## Odoo 18 Integration
 
@@ -183,12 +190,10 @@ Required for Supabase connection:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 
-Required for Microsoft OAuth:
+Required for Microsoft Graph (app-level client credentials with application permissions):
 - `MICROSOFT_CLIENT_ID`
 - `MICROSOFT_CLIENT_SECRET`
-- `MICROSOFT_REDIRECT_URI`
 - `MICROSOFT_TENANT_ID`
-- `TOKEN_ENCRYPTION_KEY`
 
 Required for Odoo 18:
 - `ODOO_URL` - Odoo instance URL (e.g. `https://mycompany.odoo.com`)
@@ -201,9 +206,4 @@ Required for Claude API:
 
 ## Background Jobs
 
-The app uses internal cron jobs via `node-cron` (no external services needed):
-
-- **Token refresh**: Runs every 4 hours in production
-  - Keeps Microsoft OAuth tokens active
-  - Initialized via `src/instrumentation.ts` on server startup
-  - Implementation: `src/lib/cron/token-refresh.ts`
+No background jobs currently. Microsoft Graph tokens are managed via client credentials flow with in-memory caching (no refresh cron needed).

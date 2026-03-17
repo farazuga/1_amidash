@@ -21,7 +21,6 @@ import 'dotenv/config';
 import { createAdminClient } from './lib/supabase-admin';
 import { generateProjectFolderName } from '../src/lib/sharepoint/folder-operations';
 import * as sharepoint from '../src/lib/sharepoint/client';
-import { decryptToken, isEncryptionConfigured } from '../src/lib/crypto';
 import type { FileCategory, SharePointGlobalConfig } from '../src/types';
 
 // Parse command line arguments
@@ -37,13 +36,6 @@ interface ProjectWithoutFolder {
   id: string;
   client_name: string;
   sales_order_number: string;
-}
-
-interface MicrosoftConnection {
-  user_id: string;
-  access_token: string;
-  refresh_token: string;
-  expires_at: string;
 }
 
 async function main() {
@@ -76,54 +68,8 @@ async function main() {
   console.log(`  ✓ Base folder: ${globalConfig.base_folder_path}`);
   console.log('');
 
-  // Step 2: Get Microsoft connection
-  console.log('Step 2: Getting Microsoft connection...');
-
-  let msConnectionQuery = supabase
-    .from('calendar_connections')
-    .select('*')
-    .eq('provider', 'microsoft');
-
-  if (specificUserId) {
-    msConnectionQuery = msConnectionQuery.eq('user_id', specificUserId);
-  }
-
-  const { data: connections, error: connError } = await msConnectionQuery.limit(1);
-
-  if (connError || !connections || connections.length === 0) {
-    console.error('ERROR: No Microsoft connection found.');
-    if (specificUserId) {
-      console.error(`User ${specificUserId} does not have a Microsoft connection.`);
-    } else {
-      console.error('No users have connected their Microsoft account.');
-      console.error('Use --user-id to specify a user with a Microsoft connection.');
-    }
-    process.exit(1);
-  }
-
-  const rawConnection = connections[0] as MicrosoftConnection;
-  console.log(`  ✓ Using Microsoft connection from user: ${rawConnection.user_id}`);
-
-  // Decrypt tokens if encryption is configured
-  let msConnection = {
-    ...rawConnection,
-    access_token: rawConnection.access_token,
-    refresh_token: rawConnection.refresh_token,
-  };
-
-  if (isEncryptionConfigured()) {
-    try {
-      msConnection.access_token = decryptToken(rawConnection.access_token);
-      msConnection.refresh_token = decryptToken(rawConnection.refresh_token);
-      console.log('  ✓ Tokens decrypted');
-    } catch {
-      console.log('  ⚠ Token decryption failed, using raw tokens');
-    }
-  }
-  console.log('');
-
-  // Step 3: Get projects without SharePoint connections
-  console.log('Step 3: Finding projects without SharePoint folders...');
+  // Step 2: Get projects without SharePoint connections
+  console.log('Step 2: Finding projects without SharePoint folders...');
 
   // Get all projects with sales_order_number
   let projectsQuery = supabase
@@ -168,8 +114,8 @@ async function main() {
     process.exit(0);
   }
 
-  // Step 4: Create folders
-  console.log('Step 4: Creating SharePoint folders...');
+  // Step 3: Create folders
+  console.log('Step 3: Creating SharePoint folders...');
   console.log('');
 
   let successCount = 0;
@@ -192,7 +138,6 @@ async function main() {
     try {
       // Create project folder
       const projectFolder = await sharepoint.createFolder(
-        msConnection as any,
         globalConfig.drive_id,
         globalConfig.base_folder_id,
         folderName
@@ -204,7 +149,6 @@ async function main() {
         const categoryFolderName = sharepoint.getCategoryFolderName(category);
         try {
           await sharepoint.createFolder(
-            msConnection as any,
             globalConfig.drive_id,
             projectFolder.id,
             categoryFolderName
@@ -228,7 +172,7 @@ async function main() {
           folder_id: projectFolder.id,
           folder_path: folderPath,
           folder_url: projectFolder.webUrl,
-          connected_by: rawConnection.user_id,
+          connected_by: specificUserId || globalConfig.configured_by || 'script',
           auto_created: true,
         });
 

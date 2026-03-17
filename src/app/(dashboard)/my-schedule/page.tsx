@@ -33,14 +33,11 @@ export default async function MySchedulePage() {
       <div className="mb-4 sm:mb-6">
         <h1 className="text-xl sm:text-2xl font-bold">My Schedule</h1>
         <p className="text-sm sm:text-base text-muted-foreground">
-          Your personal project assignments and schedule
+          Your upcoming confirmed assignments
         </p>
       </div>
 
-      <MyScheduleContent
-        userId={user.id}
-        userName={profile.full_name || undefined}
-      />
+      <MyScheduleContent userId={user.id} />
     </div>
   );
 }

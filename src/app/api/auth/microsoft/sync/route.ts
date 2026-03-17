@@ -5,7 +5,8 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { fullSyncForUser } from '@/lib/microsoft-graph/sync';
+import { fullSyncForUser, fullProjectsSyncForUser } from '@/lib/microsoft-graph/sync';
+import { clearTokenCache } from '@/lib/microsoft-graph/auth';
 
 export async function POST() {
   const supabase = await createClient();
@@ -20,13 +21,22 @@ export async function POST() {
   }
 
   try {
-    const result = await fullSyncForUser(user.id);
+    // Clear cached token to pick up any permission changes in Azure AD
+    clearTokenCache();
+
+    // Sync both personal and projects calendars in parallel
+    const [personalResult, projectsResult] = await Promise.all([
+      fullSyncForUser(user.id),
+      fullProjectsSyncForUser(user.id),
+    ]);
 
     return NextResponse.json({
       success: true,
-      synced: result.synced,
-      failed: result.failed,
-      errors: result.errors.slice(0, 5), // Limit errors returned
+      personal: { synced: personalResult.synced, failed: personalResult.failed },
+      projects: { synced: projectsResult.synced, failed: projectsResult.failed },
+      synced: personalResult.synced + projectsResult.synced,
+      failed: personalResult.failed + projectsResult.failed,
+      errors: [...personalResult.errors, ...projectsResult.errors].slice(0, 10),
     });
   } catch (err) {
     console.error('Sync error:', err);

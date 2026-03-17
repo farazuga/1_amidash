@@ -11,6 +11,7 @@ import {
   type DragStartEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
+// Note: DndContext kept for move/copy assignments between days (not for sidebar drag)
 import { CalendarHeader } from './calendar-header';
 import { CalendarHeaderWithDates } from './calendar-header-with-dates';
 import { AssignmentCard } from './assignment-card';
@@ -19,8 +20,7 @@ import { CalendarDayCell } from './calendar-day-cell';
 import { DroppableDayCell } from './droppable-day-cell';
 import { CalendarLegend } from './calendar-legend';
 import { AssignmentDialog } from './assignment-dialog';
-import { AssignmentSidebar } from './assignment-sidebar';
-import { DraggingUserOverlay } from './draggable-user';
+// AssignmentSidebar removed — engineers are now added via "+" button in Manage Schedule dialog
 import { WEEKDAYS, BOOKING_STATUS_CONFIG, DEFAULT_WORK_TIMES } from '@/lib/calendar/constants';
 import {
   getCalendarDays,
@@ -31,7 +31,8 @@ import {
   sortEventsByStatus,
   convertToCalendarEvents,
 } from '@/lib/calendar/utils';
-import { useCalendarData, useAssignableUsers, useCreateAssignment, useCycleAssignmentStatus, useBulkUpdateAssignmentStatus, useMoveAssignmentDay, useAddAssignmentDays, useRemoveAssignmentDays } from '@/hooks/queries/use-assignments';
+import { useCalendarData, useCycleAssignmentStatus, useBulkUpdateAssignmentStatus, useMoveAssignmentDay, useAddAssignmentDays, useRemoveAssignmentDays } from '@/hooks/queries/use-assignments';
+import { useOutlookEvents } from '@/hooks/queries/use-outlook-events';
 import { AssignmentDaysDialog } from './assignment-days-dialog';
 import { MultiUserAssignmentDialog } from './multi-user-assignment-dialog';
 import { SendConfirmationDialog } from './send-confirmation-dialog';
@@ -41,7 +42,6 @@ import { useUndo } from '@/hooks/use-undo';
 import { useUndoStore } from '@/stores/undo-store';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useMediaQuery } from '@/hooks/use-media-query';
 import {
   Select,
   SelectContent,
@@ -67,16 +67,29 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 
+// External filters that can be applied from outside (e.g., master calendar page)
+export interface ExternalCalendarFilters {
+  projectFilter?: string;  // 'all' or project ID
+  engineerFilter?: string; // 'all' or user ID
+  statusFilter?: string;   // 'all' or BookingStatus
+  showPending?: boolean;
+}
+
 interface ProjectCalendarProps {
   project?: Project;
   onEventClick?: (event: CalendarEvent) => void;
   enableDragDrop?: boolean;
+  externalFilters?: ExternalCalendarFilters;
+  /** Callback to expose events to parent for building filter options */
+  onEventsLoaded?: (events: CalendarEvent[]) => void;
+  /** Server-side admin override (client-side useUser() may not resolve on some deployments) */
+  isAdminOverride?: boolean;
 }
 
-export function ProjectCalendar({ project, onEventClick, enableDragDrop = false }: ProjectCalendarProps) {
+export function ProjectCalendar({ project, onEventClick, enableDragDrop = false, externalFilters, onEventsLoaded, isAdminOverride }: ProjectCalendarProps) {
   const isMobile = useIsMobile();
-  const isLargeScreen = useMediaQuery('(min-width: 1280px)');
-  const { isAdmin } = useUser();
+  const { isAdmin: isAdminFromHook } = useUser();
+  const isAdmin = isAdminOverride ?? isAdminFromHook;
   // Initialize currentDate to project start date if available, otherwise today
   const [currentDate, setCurrentDate] = useState(() => {
     if (project?.start_date) {
@@ -86,14 +99,6 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   });
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [assignmentDialogOpen, setAssignmentDialogOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
-  // Auto-collapse sidebar on smaller screens
-  useEffect(() => {
-    if (!isLargeScreen && !sidebarCollapsed) {
-      setSidebarCollapsed(true);
-    }
-  }, [isLargeScreen, sidebarCollapsed]);
 
   // Navigate to project start date when project changes
   useEffect(() => {
@@ -137,9 +142,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
     projectId: project?.id,
   });
 
-  // Use assignable users instead of just admin users
-  const { data: assignableUsers = [], isLoading: isLoadingUsers } = useAssignableUsers();
-  const createAssignment = useCreateAssignment();
+  // createAssignment removed — engineers are now added via Manage Schedule dialog
   const cycleStatus = useCycleAssignmentStatus();
   const bulkUpdateStatus = useBulkUpdateAssignmentStatus();
   const moveAssignmentDay = useMoveAssignmentDay();
@@ -164,7 +167,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
     const scheduledDaysMap = new Map<string, string[]>(
       Object.entries(calendarAssignments.scheduledDaysMap || {})
     );
-    return convertToCalendarEvents(calendarAssignments.data, new Map(), scheduledDaysMap);
+    return convertToCalendarEvents(calendarAssignments.data, scheduledDaysMap);
   }, [calendarAssignments]);
 
   // Extract scheduledDaysWithIds for drag-drop support
@@ -174,8 +177,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   const statusCounts = useMemo(() => {
     const counts: Record<BookingStatus | 'total', number> = {
       draft: 0,
-      tentative: 0,
-      pending_confirm: 0,
+      pending: 0,
       confirmed: 0,
       total: 0,
     };
@@ -186,16 +188,70 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
     return counts;
   }, [events]);
 
-  // Filter events by status
+  // Notify parent when events change (for building filter options)
+  useEffect(() => {
+    if (onEventsLoaded && events.length > 0) {
+      onEventsLoaded(events);
+    }
+  }, [events, onEventsLoaded]);
+
+  // Filter events by status and external filters
   const filteredEvents = useMemo(() => {
-    if (statusFilter === 'all') return events;
-    return events.filter((e) => e.bookingStatus === statusFilter);
-  }, [events, statusFilter]);
+    let filtered = events;
+    // Internal status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((e) => e.bookingStatus === statusFilter);
+    }
+    // External filters from parent
+    if (externalFilters) {
+      if (externalFilters.showPending === false) {
+        filtered = filtered.filter((e) => e.bookingStatus !== 'pending');
+      }
+      if (externalFilters.projectFilter && externalFilters.projectFilter !== 'all') {
+        filtered = filtered.filter((e) => e.projectId === externalFilters.projectFilter);
+      }
+      if (externalFilters.engineerFilter && externalFilters.engineerFilter !== 'all') {
+        filtered = filtered.filter((e) => e.userId === externalFilters.engineerFilter);
+      }
+      if (externalFilters.statusFilter && externalFilters.statusFilter !== 'all') {
+        filtered = filtered.filter((e) => e.bookingStatus === externalFilters.statusFilter);
+      }
+    }
+    return filtered;
+  }, [events, statusFilter, externalFilters]);
 
   // Get assigned user IDs for sidebar indicator
   const assignedUserIds = useMemo(() => {
     return new Set(events.map((e) => e.userId));
   }, [events]);
+
+  // Fetch Outlook events for visible engineers
+  const engineerIds = useMemo(() => Array.from(assignedUserIds), [assignedUserIds]);
+  const startDateStr = start.toISOString().split('T')[0];
+  const endDateStr = end.toISOString().split('T')[0];
+  const { data: outlookEventsMap } = useOutlookEvents({
+    engineerIds,
+    startDate: startDateStr,
+    endDate: endDateStr,
+    enabled: engineerIds.length > 0,
+  });
+
+  // Build a lookup: dateStr -> OutlookEvent[] for all engineers visible in this range
+  const outlookEventsByDate = useMemo(() => {
+    const map = new Map<string, import('@/lib/microsoft-graph/types').OutlookEvent[]>();
+    if (!outlookEventsMap) return map;
+    for (const eventsForEngineer of Object.values(outlookEventsMap)) {
+      for (const evt of eventsForEngineer) {
+        // Parse the event start date to get the day key
+        const startDate = new Date(evt.start.dateTime);
+        const dateStr = startDate.toISOString().split('T')[0];
+        const existing = map.get(dateStr) || [];
+        existing.push(evt);
+        map.set(dateStr, existing);
+      }
+    }
+    return map;
+  }, [outlookEventsMap]);
 
   // Drag sensors for better UX
   const sensors = useSensors(
@@ -321,13 +377,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
     const nativeEvent = event.activatorEvent as MouseEvent | TouchEvent | KeyboardEvent;
     const isCopy = 'metaKey' in nativeEvent ? nativeEvent.metaKey || nativeEvent.ctrlKey : false;
 
-    if (active.data.current?.type === 'user') {
-      setActiveDragData({
-        type: 'user',
-        userId: active.data.current.userId,
-        userName: active.data.current.userName,
-      });
-    } else if (active.data.current?.type === 'move-assignment') {
+    if (active.data.current?.type === 'move-assignment') {
       setActiveDragData({
         type: 'move-assignment',
         userId: active.data.current.userId,
@@ -423,63 +473,8 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
         }
         return;
       }
-
-      // Handle assigning a new user from the sidebar
-      if (over.data.current?.type === 'day' && active.data.current?.type === 'user') {
-        const userId = active.data.current.userId;
-        const userName = active.data.current.userName;
-        const droppedDate = over.data.current.date;
-        const droppedDateStr = droppedDate.toISOString().split('T')[0];
-
-        // Check if project has dates set
-        if (!project.start_date || !project.end_date) {
-          toast.error('Project dates required', {
-            description: 'Please set project start and end dates before assigning users.',
-          });
-          return;
-        }
-
-        try {
-          const result = await createAssignment.mutateAsync({
-            projectId: project.id,
-            userId,
-            bookingStatus: 'draft' as BookingStatus,
-          });
-
-          // Add the dropped date as a scheduled day so it appears on the calendar
-          if (result.assignment) {
-            try {
-              await addAssignmentDays.mutateAsync({
-                assignmentId: result.assignment.id,
-                days: [{
-                  date: droppedDateStr,
-                  startTime: DEFAULT_WORK_TIMES.startTime,
-                  endTime: DEFAULT_WORK_TIMES.endTime,
-                }],
-              });
-            } catch (dayError) {
-              // Log but don't fail - assignment was created successfully
-              console.error('Failed to add initial scheduled day:', dayError);
-            }
-          }
-
-          if (result.conflicts?.hasConflicts) {
-            toast.warning(`${userName} assigned with conflicts`, {
-              description: `There are scheduling conflicts. Review in the assignment details.`,
-            });
-          } else {
-            toast.success(`${userName} assigned`, {
-              description: `Added to ${project.client_name} on ${droppedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`,
-            });
-          }
-        } catch (error) {
-          toast.error('Failed to assign user', {
-            description: error instanceof Error ? error.message : 'An error occurred',
-          });
-        }
-      }
     },
-    [project, createAssignment, moveAssignmentDay, addAssignmentDays, activeDragData, pushAction]
+    [project, moveAssignmentDay, addAssignmentDays, activeDragData, pushAction]
   );
 
   const renderCalendarGrid = () => (
@@ -504,6 +499,9 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
             ? date.toDateString() === selectedDate.toDateString()
             : false;
 
+          const dateStr = date.toISOString().split('T')[0];
+          const dayOutlookEvents = outlookEventsByDate.get(dateStr) || [];
+
           if (enableDragDrop) {
             return (
               <DroppableDayCell
@@ -523,6 +521,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
                 projectEndDate={project?.end_date}
                 enableDragMove={isAdmin}
                 scheduledDaysWithIds={scheduledDaysWithIds}
+                outlookEvents={dayOutlookEvents}
               />
             );
           }
@@ -542,6 +541,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
               showEditButton={!isMobile}
               projectStartDate={project?.start_date}
               projectEndDate={project?.end_date}
+              outlookEvents={dayOutlookEvents}
             />
           );
         })}
@@ -589,7 +589,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
   // Status summary bar component - clickable to bulk change status
   const statusSummaryBar = statusCounts.total > 0 && (
     <div className="flex items-center gap-2 text-sm bg-muted/50 p-2 rounded-lg">
-      {(['draft', 'tentative', 'pending_confirm', 'confirmed'] as const).map((status) => {
+      {(['draft', 'pending', 'confirmed'] as const).map((status) => {
         const config = BOOKING_STATUS_CONFIG[status];
         const count = statusCounts[status];
         const isCurrentStatus = count === statusCounts.total;
@@ -661,15 +661,9 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
                 Draft Only
               </div>
             </SelectItem>
-            <SelectItem value="tentative">
+            <SelectItem value="pending">
               <div className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-amber-500" />
-                Tentative Only
-              </div>
-            </SelectItem>
-            <SelectItem value="pending_confirm">
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-blue-500" />
                 Pending Only
               </div>
             </SelectItem>
@@ -699,18 +693,18 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
             </Button>
           )}
           {/* Send to Customer button - admin only, when there are tentative assignments */}
-          {isAdmin && project && statusCounts.tentative > 0 && (
+          {isAdmin && project && statusCounts.pending > 0 && (
             <Button
               variant="outline"
               size="sm"
               onClick={() => {
-                setConfirmationAssignment(events.find(e => e.bookingStatus === 'tentative') || null);
+                setConfirmationAssignment(events.find(e => e.bookingStatus === 'pending') || null);
                 setConfirmationDialogOpen(true);
               }}
               className="gap-2"
             >
               <Mail className="h-4 w-4" />
-              Send to Customer ({statusCounts.tentative})
+              Send to Customer ({statusCounts.pending})
             </Button>
           )}
           {/* Conflicts Panel - admin only */}
@@ -796,7 +790,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
           onOpenChange={setConfirmationDialogOpen}
           projectId={project.id}
           projectName={project.client_name}
-          assignments={events.filter(e => e.bookingStatus === 'tentative')}
+          assignments={events.filter(e => e.bookingStatus === 'pending')}
           customerEmail={project.poc_email || undefined}
           customerName={project.poc_name || undefined}
         />
@@ -833,7 +827,7 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
     return calendarContent;
   }
 
-  // Render calendar with drag-drop context and sidebar
+  // Render calendar with drag-drop context (for moving/copying assignments between days)
   return (
     <DndContext
       sensors={sensors}
@@ -841,26 +835,9 @@ export function ProjectCalendar({ project, onEventClick, enableDragDrop = false 
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4">
-        <div className="flex-1 min-w-0 overflow-x-auto">
-          {calendarContent}
-        </div>
-        {/* Hide sidebar on mobile - drag & drop not practical on touch */}
-        {!isMobile && (
-          <AssignmentSidebar
-            users={assignableUsers}
-            isLoading={isLoadingUsers}
-            collapsed={sidebarCollapsed}
-            onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-            assignedUserIds={assignedUserIds}
-          />
-        )}
-      </div>
+      {calendarContent}
 
       <DragOverlay>
-        {activeDragData?.type === 'user' && (
-          <DraggingUserOverlay userName={activeDragData.userName} />
-        )}
         {activeDragData?.type === 'move-assignment' && activeDragData.event && (
           <div className="relative opacity-80 pointer-events-none">
             <AssignmentCard
