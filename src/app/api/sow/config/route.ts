@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { internalError } from '@/lib/api/error-response';
 
 // SOW Configuration endpoint for iOS app
 // Returns active template, AI prompts, and equipment options
@@ -265,15 +266,6 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('SOW config error:', error);
-
-    // Return defaults on error
-    return NextResponse.json({
-      template: DEFAULT_TEMPLATE,
-      systemPrompt: DEFAULT_SYSTEM_PROMPT,
-      equipmentOptions: DEFAULT_EQUIPMENT_OPTIONS,
-      version: '1.0',
-      lastUpdated: new Date().toISOString(),
-    });
+    return internalError('SOW Config', error);
   }
 }

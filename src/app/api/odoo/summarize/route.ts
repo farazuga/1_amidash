@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { internalError } from '@/lib/api/error-response';
+import { validateOrigin } from '@/lib/api/csrf';
 
 interface LineItemInput {
   productName: string;
@@ -18,6 +20,9 @@ const SYSTEM_PROMPT = `You are a project management assistant for Amitrace, a br
 
 export async function POST(request: NextRequest) {
   try {
+    const csrfError = validateOrigin(request);
+    if (csrfError) return csrfError;
+
     // Auth check
     const supabase = await createClient();
     const {
@@ -84,18 +89,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ summary });
   } catch (error) {
-    console.error('Odoo summarize error:', error);
-
-    if (error instanceof Anthropic.APIError) {
-      return NextResponse.json(
-        { error: `Claude API error: ${error.message}` },
-        { status: error.status || 500 }
-      );
-    }
-
-    return NextResponse.json(
-      { error: 'Failed to generate project summary' },
-      { status: 500 }
-    );
+    return internalError('Odoo Summarize', error);
   }
 }

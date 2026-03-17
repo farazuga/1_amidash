@@ -16,9 +16,14 @@ import {
   parseCountryCode,
 } from '@/lib/odoo/queries';
 import type { OdooPullResult } from '@/types/odoo';
+import { internalError } from '@/lib/api/error-response';
+import { validateOrigin } from '@/lib/api/csrf';
 
 export async function POST(request: NextRequest) {
   try {
+    const csrfError = validateOrigin(request);
+    if (csrfError) return csrfError;
+
     // Auth check
     const supabase = await createClient();
     const {
@@ -194,15 +199,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Odoo pull error:', error);
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Failed to pull data from Odoo',
-      },
-      { status: 500 }
-    );
+    return internalError('Odoo Pull', error);
   }
 }

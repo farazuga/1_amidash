@@ -10,6 +10,7 @@ import {
   odooFalseToNull,
 } from '@/lib/odoo/queries';
 import type { OdooActivity, OdooActivityResult } from '@/types/odoo';
+import { internalError } from '@/lib/api/error-response';
 
 function transformActivity(activity: OdooActivity, odooBaseUrl: string): OdooActivityResult {
   const summary = odooFalseToNull(activity.summary);
@@ -82,15 +83,6 @@ export async function GET() {
 
     return NextResponse.json({ myActivities, assignedByMe, configured: true });
   } catch (error) {
-    console.error('Odoo activities error:', error);
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Failed to fetch activities from Odoo',
-      },
-      { status: 500 }
-    );
+    return internalError('Odoo Activities', error);
   }
 }

@@ -2,12 +2,17 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { uploadFile } from '@/app/(dashboard)/projects/[salesOrder]/files/actions';
 import type { FileCategory } from '@/types';
+import { internalError } from '@/lib/api/error-response';
+import { validateOrigin } from '@/lib/api/csrf';
 
 /**
  * API route for file uploads (used by offline sync and direct uploads)
  */
 export async function POST(request: Request) {
   try {
+    const csrfError = validateOrigin(request);
+    if (csrfError) return csrfError;
+
     const supabase = await createClient();
 
     // Verify authentication
@@ -60,10 +65,6 @@ export async function POST(request: Request) {
       file: result.file,
     });
   } catch (error) {
-    console.error('File upload error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Upload failed' },
-      { status: 500 }
-    );
+    return internalError('File Upload', error);
   }
 }
