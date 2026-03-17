@@ -67,9 +67,13 @@ export interface SyncResult {
   error?: string;
 }
 
-// Statuses that should be synced to Outlook
+// Statuses that should be synced to personal Outlook calendar
 export const SYNCABLE_STATUSES = ['confirmed'] as const;
 export type SyncableStatus = (typeof SYNCABLE_STATUSES)[number];
+
+// Statuses that should appear on the "AmiDash - Projects" calendar
+export const PROJECTS_CALENDAR_STATUSES = ['pending', 'confirmed'] as const;
+export type ProjectsCalendarStatus = (typeof PROJECTS_CALENDAR_STATUSES)[number];
 
 // Team member info for event body
 export interface TeamMemberForSync {

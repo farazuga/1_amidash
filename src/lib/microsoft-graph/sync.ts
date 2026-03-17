@@ -16,8 +16,8 @@ import {
   deleteCalendarEvent,
   buildCalendarEvent,
 } from './client';
-import type { SyncResult } from './types';
-import { SYNCABLE_STATUSES } from './types';
+import type { SyncResult, OutlookEventInput } from './types';
+import { SYNCABLE_STATUSES, PROJECTS_CALENDAR_STATUSES } from './types';
 
 // Constants
 const PENDING_SLOT_MARKER = '__pending__';
@@ -52,6 +52,110 @@ function buildLocation(project: { delivery_street?: string | null; delivery_city
   return parts.length > 0 ? parts.join(', ') : undefined;
 }
 
+
+// ============================================
+// Date range helpers
+// ============================================
+
+interface DateRange {
+  start: string; // YYYY-MM-DD
+  end: string;   // YYYY-MM-DD
+}
+
+/**
+ * Group sorted dates into contiguous weekday ranges.
+ * A gap of more than 1 business day (skipping weekends) starts a new range.
+ * E.g. Mon-Fri is one range, next Mon-Wed is a separate range.
+ */
+function groupDaysIntoRanges(sortedDates: string[]): DateRange[] {
+  if (sortedDates.length === 0) return [];
+
+  const ranges: DateRange[] = [];
+  let rangeStart = sortedDates[0];
+  let rangeEnd = sortedDates[0];
+
+  for (let i = 1; i < sortedDates.length; i++) {
+    const prev = new Date(rangeEnd + 'T00:00:00');
+    const curr = new Date(sortedDates[i] + 'T00:00:00');
+
+    // Calculate expected next business day from prev
+    const nextBizDay = new Date(prev);
+    nextBizDay.setDate(nextBizDay.getDate() + 1);
+    // Skip weekends
+    while (nextBizDay.getDay() === 0 || nextBizDay.getDay() === 6) {
+      nextBizDay.setDate(nextBizDay.getDate() + 1);
+    }
+
+    if (curr.getTime() === nextBizDay.getTime()) {
+      // Contiguous — extend range
+      rangeEnd = sortedDates[i];
+    } else {
+      // Gap — close current range, start new one
+      ranges.push({ start: rangeStart, end: rangeEnd });
+      rangeStart = sortedDates[i];
+      rangeEnd = sortedDates[i];
+    }
+  }
+  ranges.push({ start: rangeStart, end: rangeEnd });
+  return ranges;
+}
+
+/**
+ * Build a multi-day Outlook event for a project date range on the "AmiDash - Projects" calendar.
+ */
+function buildProjectCalendarEvent(params: {
+  projectName: string;
+  projectId: string;
+  range: DateRange;
+  engineers: string[];
+  location?: string;
+  salesOrderUrl?: string;
+  projectDescription?: string;
+  bookingStatus?: string;
+  dashboardUrl: string;
+}): OutlookEventInput {
+  const statusLabel = params.bookingStatus === 'pending' ? ' [Pending]' : '';
+  const body = [
+    `📋 Project: ${params.projectName}${statusLabel}`,
+    params.projectDescription ? `\n${params.projectDescription}` : null,
+    params.engineers.length > 0
+      ? `\n👥 Engineers: ${params.engineers.join(', ')}`
+      : null,
+    `🔗 Dashboard: ${params.dashboardUrl}/projects/${params.projectId}`,
+    params.salesOrderUrl ? `📦 Sales Order: ${params.salesOrderUrl}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  // For multi-day events, use all-day format with date-only values
+  // Graph API expects the end date to be the day AFTER the last day for all-day events
+  const endDate = new Date(params.range.end + 'T00:00:00');
+  endDate.setDate(endDate.getDate() + 1);
+  const endDateStr = endDate.toISOString().split('T')[0];
+
+  const event: OutlookEventInput = {
+    subject: `${params.projectName}${statusLabel}`,
+    body: { contentType: 'text', content: body },
+    start: {
+      dateTime: params.range.start,
+      timeZone: 'Eastern Standard Time',
+    },
+    end: {
+      dateTime: endDateStr,
+      timeZone: 'Eastern Standard Time',
+    },
+    isAllDay: true,
+    showAs: 'free', // Don't block time on the projects calendar
+    categories: params.bookingStatus === 'pending' ? ['Yellow category'] : ['Green category'],
+    sensitivity: 'normal',
+  };
+
+  if (params.location) {
+    event.location = { displayName: params.location };
+  }
+
+  return event;
+}
 
 // ============================================
 // Database helpers
@@ -511,8 +615,8 @@ export async function triggerAssignmentSync(assignment: {
 }
 
 /**
- * Delete all Outlook events for an assignment+user.
- * Deletes from both personal and projects calendars.
+ * Delete all personal Outlook events for an assignment+user.
+ * Projects calendar events are managed by fullProjectsSyncForUser (date-range based).
  */
 export async function deleteAssignmentFromOutlook(
   assignmentId: string,
@@ -523,9 +627,10 @@ export async function deleteAssignmentFromOutlook(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: syncedEvents, error } = await (supabase as any)
     .from('synced_calendar_events')
-    .select('id, work_date, external_event_id, calendar_type')
+    .select('id, work_date, external_event_id')
     .eq('assignment_id', assignmentId)
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .eq('calendar_type', 'personal');
 
   if (error || !syncedEvents || syncedEvents.length === 0) {
     return;
@@ -541,18 +646,15 @@ export async function deleteAssignmentFromOutlook(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: calRecord } = await (supabase as any)
     .from('engineer_outlook_calendars')
-    .select('outlook_calendar_id, outlook_projects_calendar_id')
+    .select('outlook_calendar_id')
     .eq('user_id', userId)
     .single();
 
-  for (const event of syncedEvents) {
-    if (event.external_event_id && event.external_event_id !== PENDING_SLOT_MARKER) {
-      const calId = event.calendar_type === 'projects'
-        ? calRecord?.outlook_projects_calendar_id
-        : calRecord?.outlook_calendar_id;
-      if (calId) {
+  if (calRecord?.outlook_calendar_id) {
+    for (const event of syncedEvents) {
+      if (event.external_event_id && event.external_event_id !== PENDING_SLOT_MARKER) {
         try {
-          await deleteCalendarEvent(email, calId, event.external_event_id);
+          await deleteCalendarEvent(email, calRecord.outlook_calendar_id, event.external_event_id);
         } catch (err) {
           console.error('Failed to delete Outlook event:', event.external_event_id, err);
         }
@@ -565,7 +667,8 @@ export async function deleteAssignmentFromOutlook(
     .from('synced_calendar_events')
     .delete()
     .eq('assignment_id', assignmentId)
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .eq('calendar_type', 'personal');
 }
 
 /**
@@ -727,9 +830,10 @@ export async function fullSyncForUser(userId: string): Promise<{
 }
 
 /**
- * Full sync of ALL confirmed assignments to a user's "AmiDash - Projects" calendar.
- * Shows every engineer's assignments so the user has a global view.
- * Event subjects include the engineer name: "ProjectName - EngineerName"
+ * Full sync of ALL project date ranges to a user's "AmiDash - Projects" calendar.
+ * Groups all assignment days by project into contiguous weekday ranges,
+ * then creates one all-day multi-day event per range.
+ * Includes pending and confirmed projects.
  */
 export async function fullProjectsSyncForUser(userId: string): Promise<{
   synced: number;
@@ -752,7 +856,7 @@ export async function fullProjectsSyncForUser(userId: string): Promise<{
     return { synced: 0, failed: 0, errors: [`Failed to ensure Projects calendar: ${msg}`] };
   }
 
-  // Get ALL confirmed assignments across ALL engineers
+  // Get ALL pending/confirmed assignments across ALL engineers
   const { data: assignments, error: assignmentsError } = await supabase
     .from('project_assignments')
     .select(`
@@ -773,7 +877,7 @@ export async function fullProjectsSyncForUser(userId: string): Promise<{
         odoo_order_id
       )
     `)
-    .in('booking_status', [...SYNCABLE_STATUSES]);
+    .in('booking_status', [...PROJECTS_CALENDAR_STATUSES]);
 
   if (assignmentsError) {
     console.error('Failed to fetch assignments for projects sync:', assignmentsError);
@@ -781,6 +885,8 @@ export async function fullProjectsSyncForUser(userId: string): Promise<{
   }
 
   if (!assignments || assignments.length === 0) {
+    // Clean up any existing project events since there are no assignments
+    await deleteAllProjectEventsForUser(userId, email, projectsCalendarId);
     return { synced: 0, failed: 0, errors: [] };
   }
 
@@ -789,7 +895,7 @@ export async function fullProjectsSyncForUser(userId: string): Promise<{
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: allDays, error: daysError } = await (supabase as any)
     .from('assignment_days')
-    .select('assignment_id, work_date, start_time, end_time')
+    .select('assignment_id, work_date')
     .in('assignment_id', assignmentIds)
     .order('work_date', { ascending: true });
 
@@ -798,80 +904,192 @@ export async function fullProjectsSyncForUser(userId: string): Promise<{
     return { synced: 0, failed: 0, errors: ['Failed to fetch assignment days'] };
   }
 
-  const daysByAssignment = new Map<string, Array<{ work_date: string; start_time: string; end_time: string }>>();
-  for (const day of allDays || []) {
-    if (!daysByAssignment.has(day.assignment_id)) {
-      daysByAssignment.set(day.assignment_id, []);
-    }
-    daysByAssignment.get(day.assignment_id)!.push(day);
-  }
-
-  let synced = 0;
-  let failed = 0;
-  const errors: string[] = [];
-
+  // Group days by project, collecting all dates and engineer names
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const syncTasks: Array<{ projectName: string; execute: () => Promise<SyncResult> }> = [];
+  const projectMap = new Map<string, {
+    projectName: string;
+    projectId: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    project: any;
+    engineers: Set<string>;
+    dates: Set<string>;
+    bookingStatus: string;
+  }>();
 
   for (const assignment of assignments) {
-    const days = daysByAssignment.get(assignment.id) || [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const project = (assignment as any).project;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const assigneeProfile = (assignment as any).profile;
-    const assigneeName = assigneeProfile?.full_name || 'Unknown';
-    const projectName = project?.client_name || 'Unknown';
-    // Projects calendar shows "ProjectName - EngineerName" as subject
-    const eventSubject = `${projectName} - ${assigneeName}`;
-    const location = buildLocation(project);
-    const projectSalesOrderUrl = buildSalesOrderUrl(project?.sales_order_url, project?.odoo_order_id);
+    const projectId = assignment.project_id;
 
-    for (const day of days) {
-      syncTasks.push({
-        projectName: eventSubject,
-        execute: () =>
-          syncDayToOutlook({
-            assignmentId: assignment.id,
-            userId, // calendar owner, not the assignee
-            email,
-            calendarId: projectsCalendarId,
-            workDate: day.work_date,
-            startTime: day.start_time.slice(0, 5),
-            endTime: day.end_time.slice(0, 5),
-            projectName: eventSubject,
-            projectId: assignment.project_id,
-            teamMembers: [], // not needed for global view
-            location,
-            salesOrderUrl: projectSalesOrderUrl,
-            projectDescription: project?.project_description || undefined,
-            calendarType: 'projects',
-          }),
+    if (!projectMap.has(projectId)) {
+      projectMap.set(projectId, {
+        projectName: project?.client_name || 'Unknown',
+        projectId,
+        project,
+        engineers: new Set(),
+        dates: new Set(),
+        // Use the "highest" status — confirmed > pending
+        bookingStatus: assignment.booking_status,
       });
+    }
+
+    const entry = projectMap.get(projectId)!;
+    entry.engineers.add(assigneeProfile?.full_name || 'Unknown');
+    if (assignment.booking_status === 'confirmed') {
+      entry.bookingStatus = 'confirmed';
+    }
+
+    // Add this assignment's days
+    const assignmentDays = (allDays || []).filter(
+      (d: { assignment_id: string }) => d.assignment_id === assignment.id
+    );
+    for (const day of assignmentDays) {
+      entry.dates.add(day.work_date);
     }
   }
 
-  for (let i = 0; i < syncTasks.length; i += CONCURRENCY_LIMIT) {
-    const batch = syncTasks.slice(i, i + CONCURRENCY_LIMIT);
-    const results = await Promise.allSettled(batch.map((task) => task.execute()));
+  // For each project, compute contiguous date ranges
+  const baseUrl = getBaseUrl();
+  let synced = 0;
+  let failed = 0;
+  const errors: string[] = [];
 
-    results.forEach((result, index) => {
-      const task = batch[index];
-      if (result.status === 'fulfilled' && result.value.success) {
-        synced++;
-      } else {
-        failed++;
-        const errorMsg =
-          result.status === 'fulfilled'
-            ? result.value.error
-            : result.reason?.message || 'Unknown error';
-        if (errorMsg) {
-          errors.push(`${task.projectName}: ${errorMsg}`);
+  // Track which (project_id, range_start) combos we want to keep
+  const desiredRanges: Array<{ projectId: string; rangeStart: string }> = [];
+
+  for (const [, entry] of projectMap) {
+    const sortedDates = [...entry.dates].sort();
+    const ranges = groupDaysIntoRanges(sortedDates);
+    const location = buildLocation(entry.project);
+    const salesOrderUrl = buildSalesOrderUrl(entry.project?.sales_order_url, entry.project?.odoo_order_id);
+
+    for (const range of ranges) {
+      desiredRanges.push({ projectId: entry.projectId, rangeStart: range.start });
+
+      const event = buildProjectCalendarEvent({
+        projectName: entry.projectName,
+        projectId: entry.projectId,
+        range,
+        engineers: [...entry.engineers],
+        location,
+        salesOrderUrl,
+        projectDescription: entry.project?.project_description || undefined,
+        bookingStatus: entry.bookingStatus,
+        dashboardUrl: baseUrl,
+      });
+
+      try {
+        // Check if we already have a synced event for this project+range
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: existing } = await (supabase as any)
+          .from('synced_project_calendar_events')
+          .select('id, external_event_id')
+          .eq('project_id', entry.projectId)
+          .eq('user_id', userId)
+          .eq('range_start', range.start)
+          .single();
+
+        if (existing?.external_event_id) {
+          // Update existing event
+          await updateCalendarEvent(email, projectsCalendarId, existing.external_event_id, event);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any)
+            .from('synced_project_calendar_events')
+            .update({
+              range_end: range.end,
+              last_synced_at: new Date().toISOString(),
+              sync_error: null,
+            })
+            .eq('id', existing.id);
+          synced++;
+        } else {
+          // Create new event
+          const response = await createCalendarEvent(email, projectsCalendarId, event);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any).from('synced_project_calendar_events').upsert(
+            {
+              project_id: entry.projectId,
+              user_id: userId,
+              range_start: range.start,
+              range_end: range.end,
+              external_event_id: response.id,
+              last_synced_at: new Date().toISOString(),
+              sync_error: null,
+            },
+            { onConflict: 'project_id,user_id,range_start' }
+          );
+          synced++;
         }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error('Failed to sync project range:', entry.projectName, range, errorMessage);
+        errors.push(`${entry.projectName}: ${errorMessage}`);
+        failed++;
       }
-    });
+    }
+  }
+
+  // Clean up orphaned project events (ranges that no longer exist)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: allExisting } = await (supabase as any)
+    .from('synced_project_calendar_events')
+    .select('id, project_id, range_start, external_event_id')
+    .eq('user_id', userId);
+
+  for (const existing of allExisting || []) {
+    const isDesired = desiredRanges.some(
+      (r) => r.projectId === existing.project_id && r.rangeStart === existing.range_start
+    );
+    if (!isDesired && existing.external_event_id) {
+      try {
+        await deleteCalendarEvent(email, projectsCalendarId, existing.external_event_id);
+      } catch (err) {
+        console.error('Failed to delete orphaned project event:', err);
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from('synced_project_calendar_events')
+        .delete()
+        .eq('id', existing.id);
+    }
   }
 
   return { synced, failed, errors };
+}
+
+/**
+ * Delete all project calendar events for a user (cleanup helper).
+ */
+async function deleteAllProjectEventsForUser(
+  userId: string,
+  email: string,
+  projectsCalendarId: string
+): Promise<void> {
+  const supabase = await createServiceClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: events } = await (supabase as any)
+    .from('synced_project_calendar_events')
+    .select('id, external_event_id')
+    .eq('user_id', userId);
+
+  for (const event of events || []) {
+    if (event.external_event_id) {
+      try {
+        await deleteCalendarEvent(email, projectsCalendarId, event.external_event_id);
+      } catch (err) {
+        console.error('Failed to delete project event:', err);
+      }
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any)
+    .from('synced_project_calendar_events')
+    .delete()
+    .eq('user_id', userId);
 }
 
 /**
