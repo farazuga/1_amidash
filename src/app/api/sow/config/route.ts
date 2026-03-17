@@ -207,49 +207,28 @@ export async function GET(request: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any;
 
-    // Try to get template from database
+    // Fetch all config from database in parallel
+    const [templateResult, promptResult, equipmentResult] = await Promise.all([
+      db.from('sow_templates').select('*').eq('is_active', true).order('created_at', { ascending: false }).limit(1).single(),
+      db.from('ai_prompts').select('content').eq('prompt_key', 'scope_builder_system').eq('is_active', true).single(),
+      db.from('equipment_catalog').select('category, name').eq('is_active', true).order('category', { ascending: true }).order('sort_order', { ascending: true }),
+    ]);
+
     let template = DEFAULT_TEMPLATE;
-    const { data: templateData } = await db
-      .from('sow_templates')
-      .select('*')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (templateData?.template_data) {
-      template = templateData.template_data as SOWTemplate;
+    if (templateResult.data?.template_data) {
+      template = templateResult.data.template_data as SOWTemplate;
     }
 
-    // Try to get system prompt from database
     let systemPrompt = DEFAULT_SYSTEM_PROMPT;
-    const { data: promptData } = await db
-      .from('ai_prompts')
-      .select('content')
-      .eq('prompt_key', 'scope_builder_system')
-      .eq('is_active', true)
-      .single();
-
-    if (promptData?.content) {
-      systemPrompt = promptData.content;
+    if (promptResult.data?.content) {
+      systemPrompt = promptResult.data.content;
     }
 
-    // Try to get equipment options from database
     let equipmentOptions = DEFAULT_EQUIPMENT_OPTIONS;
-    const { data: equipmentData } = await db
-      .from('equipment_catalog')
-      .select('category, name')
-      .eq('is_active', true)
-      .order('category', { ascending: true })
-      .order('sort_order', { ascending: true });
-
-    if (equipmentData && equipmentData.length > 0) {
-      // Group equipment by category
+    if (equipmentResult.data && equipmentResult.data.length > 0) {
       const grouped: Record<string, string[]> = {};
-      for (const item of equipmentData) {
-        if (!grouped[item.category]) {
-          grouped[item.category] = [];
-        }
+      for (const item of equipmentResult.data) {
+        if (!grouped[item.category]) grouped[item.category] = [];
         grouped[item.category].push(item.name);
       }
       equipmentOptions = { ...DEFAULT_EQUIPMENT_OPTIONS, ...grouped };
