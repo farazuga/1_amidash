@@ -1,4 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
+import { authenticateMobileRequest } from '@/lib/mobile/auth';
+import { internalError } from '@/lib/api/error-response';
 
 /**
  * Mobile API endpoint to check Microsoft connection status
@@ -13,24 +14,9 @@ import { createClient } from '@supabase/supabase-js';
  */
 export async function GET(request: Request) {
   try {
-    // 1. Extract and verify Bearer token
-    const authHeader = request.headers.get('Authorization');
-    const token = authHeader?.replace('Bearer ', '');
-
-    if (!token) {
-      return Response.json({ error: 'Authentication required' }, { status: 401 });
-    }
-
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-
-    if (error || !user) {
-      return Response.json({ error: 'Authentication required' }, { status: 401 });
-    }
+    // 1. Authenticate and authorize (staff only)
+    const authResult = await authenticateMobileRequest(request);
+    if (authResult instanceof Response) return authResult;
 
     // 2. Check if Microsoft is configured at the app level
     const connected = !!(
@@ -45,10 +31,6 @@ export async function GET(request: Request) {
       expires_at: null,
     });
   } catch (error) {
-    console.error('[Mobile Microsoft Status] Error:', error);
-    return Response.json(
-      { error: error instanceof Error ? error.message : 'Failed to check status' },
-      { status: 500 }
-    );
+    return internalError('Mobile MS Status', error);
   }
 }

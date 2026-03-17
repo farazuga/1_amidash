@@ -1,23 +1,10 @@
-import { createClient } from '@supabase/supabase-js';
 import { createServiceClient } from '@/lib/supabase/server';
 import * as sharepoint from '@/lib/sharepoint/client';
 import type { FileCategory, FileCategoryWithLegacy, SharePointGlobalConfig } from '@/types';
-
-/**
- * Mobile API endpoint for uploading files to SharePoint
- *
- * Authentication: Bearer token (Supabase JWT) in Authorization header
- * SharePoint auth: App-level client credentials (no per-user Microsoft connection needed)
- *
- * Request:
- * - Content-Type: multipart/form-data
- * - Headers: Authorization: Bearer <supabase-jwt>
- * - Body fields:
- *   - file: The file to upload
- *   - projectId: Project database UUID (not sales order number)
- *   - category: File category (schematics, sow, media, other)
- *   - notes (optional): Notes about the file
- */
+import { authenticateMobileRequest } from '@/lib/mobile/auth';
+import { internalError } from '@/lib/api/error-response';
+import { sanitizeFilename, stripExifData } from '@/lib/mobile/file-security';
+import { validateMobileFileSize } from '@/lib/mobile/file-security';
 
 // Helper: Get global SharePoint config (uses service client)
 async function getGlobalSharePointConfig(): Promise<SharePointGlobalConfig | null> {
@@ -43,42 +30,19 @@ function getFileExtension(fileName: string): string {
 
 export async function POST(request: Request) {
   try {
-    console.log('[Mobile Upload] === STEP 1: Starting upload ===');
+    // 1. Authenticate and authorize (staff only)
+    const authResult = await authenticateMobileRequest(request);
+    if (authResult instanceof Response) return authResult;
+    const { user } = authResult;
 
-    // 1. Extract Bearer token from Authorization header
-    const authHeader = request.headers.get('Authorization');
-    const token = authHeader?.replace('Bearer ', '');
-
-    if (!token) {
-      console.log('[Mobile Upload] No Bearer token found in Authorization header');
-      return Response.json({ error: 'Authentication required' }, { status: 401 });
-    }
-
-    console.log('[Mobile Upload] Token present, verifying with Supabase...');
-
-    // 2. Verify token with Supabase (using anon key client, not cookie-based)
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      console.log('[Mobile Upload] Auth failed:', authError?.message || 'No user returned');
-      return Response.json({ error: 'Authentication required' }, { status: 401 });
-    }
-
-    console.log('[Mobile Upload] User authenticated:', user.id);
-
-    // 3. Parse multipart form data
+    // 2. Parse multipart form data
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const projectId = formData.get('projectId') as string | null;
     const rawCategory = formData.get('category') as FileCategoryWithLegacy | null;
     const notes = formData.get('notes') as string | null;
 
-    // 4. Validate required fields
+    // 3. Validate required fields
     if (!file) {
       return Response.json({ error: 'File is required' }, { status: 400 });
     }
@@ -89,7 +53,15 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Category is required' }, { status: 400 });
     }
 
-    // 5. Map legacy category values to current values
+    // 4. Validate file size
+    if (!validateMobileFileSize(file.size)) {
+      return Response.json({ error: 'File too large. Maximum size is 50MB.' }, { status: 400 });
+    }
+
+    // 5. Sanitize filename
+    const safeName = sanitizeFilename(file.name);
+
+    // 6. Map legacy category values to current values
     let category: FileCategory;
     if (rawCategory === 'photos' || rawCategory === 'videos') {
       category = 'media';
@@ -102,17 +74,16 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log('[Mobile Upload] Input validated:', {
-      fileName: file.name,
-      fileSize: file.size,
-      category,
-      projectId,
-    });
+    // 7. Strip EXIF data from images
+    let fileBuffer: Buffer = Buffer.from(await file.arrayBuffer()) as Buffer;
+    if (file.type.startsWith('image/')) {
+      fileBuffer = await stripExifData(fileBuffer, file.type) as Buffer;
+    }
 
-    // 6. Get service client for database operations
+    // 8. Get service client for database operations
     const db = await createServiceClient();
 
-    // 7. Get project details
+    // 9. Get project details
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: project, error: projectError } = await (db as any)
       .from('projects')
@@ -121,12 +92,10 @@ export async function POST(request: Request) {
       .single();
 
     if (projectError || !project) {
-      console.log('[Mobile Upload] Project not found:', projectError);
       return Response.json({ error: 'Project not found' }, { status: 404 });
     }
-    console.log('[Mobile Upload] Project found:', project.sales_order_number, project.client_name);
 
-    // 8. Check if project already has a SharePoint connection
+    // 10. Check if project already has a SharePoint connection
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let { data: connection } = await (db as any)
       .from('project_sharepoint_connections')
@@ -134,10 +103,8 @@ export async function POST(request: Request) {
       .eq('project_id', projectId)
       .maybeSingle();
 
-    // 9. If no connection, auto-create project folder
+    // 11. If no connection, auto-create project folder
     if (!connection) {
-      console.log('[Mobile Upload] No existing connection, auto-creating folder...');
-
       const globalConfig = await getGlobalSharePointConfig();
       if (!globalConfig) {
         return Response.json(
@@ -147,32 +114,26 @@ export async function POST(request: Request) {
       }
 
       try {
-        // Generate folder name: "S12345 ClientName"
         const sanitizedClientName = project.client_name.replace(/[<>:"/\\|?*]/g, '-').trim();
         const folderName = `${project.sales_order_number} ${sanitizedClientName}`;
 
-        // Create project folder under the base folder
         const projectFolder = await sharepoint.createFolder(
           globalConfig.drive_id,
           globalConfig.base_folder_id,
           folderName
         );
 
-        // Create category subfolders
         const categories: FileCategory[] = ['schematics', 'sow', 'media', 'other'];
         for (const cat of categories) {
           const categoryFolderName = sharepoint.getCategoryFolderName(cat);
           try {
             await sharepoint.createFolder(globalConfig.drive_id, projectFolder.id, categoryFolderName);
           } catch {
-            console.log(`[Mobile Upload] Category folder ${categoryFolderName} may already exist`);
+            // Category folder may already exist
           }
         }
 
-        // Save connection to database
-        const folderPath = globalConfig.base_folder_path === '/' || globalConfig.base_folder_path === 'Root'
-          ? `/${folderName}`
-          : `${globalConfig.base_folder_path}/${folderName}`;
+        const folderPath = baseFolderToPath(globalConfig.base_folder_path, folderName);
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: newConnection, error: insertError } = await (db as any)
@@ -191,24 +152,18 @@ export async function POST(request: Request) {
           .single();
 
         if (insertError) {
-          console.log('[Mobile Upload] ERROR: Failed to save connection:', insertError);
+          console.error('[Mobile Upload] Failed to save connection:', insertError);
           return Response.json({ error: 'Failed to setup project folder' }, { status: 500 });
         }
 
         connection = newConnection;
-        console.log('[Mobile Upload] Project folder created:', folderPath);
       } catch (folderError) {
-        console.log('[Mobile Upload] ERROR: Folder creation error:', folderError);
-        return Response.json(
-          { error: folderError instanceof Error ? folderError.message : 'Failed to create project folder' },
-          { status: 500 }
-        );
+        console.error('[Mobile Upload] Folder creation error:', folderError);
+        return Response.json({ error: 'Failed to create project folder' }, { status: 500 });
       }
     }
 
-    console.log('[Mobile Upload] Using connection:', connection.folder_path);
-
-    // 10. Get or create category subfolder
+    // 12. Get or create category subfolder
     const categoryFolderName = sharepoint.getCategoryFolderName(category);
     let categoryFolder;
 
@@ -217,82 +172,67 @@ export async function POST(request: Request) {
         connection.drive_id,
         `${connection.folder_path}/${categoryFolderName}`
       );
-      console.log('[Mobile Upload] Category folder found:', categoryFolder?.id);
     } catch {
-      console.log('[Mobile Upload] Category folder not found, will create it');
+      // Category folder not found, will create it
     }
 
     if (!categoryFolder) {
       try {
         const rootFolder = await sharepoint.getItem(connection.drive_id, connection.folder_id);
         await sharepoint.createFolder(connection.drive_id, rootFolder.id, categoryFolderName);
-        console.log('[Mobile Upload] Category folder created');
-
-        // Get the newly created folder
         categoryFolder = await sharepoint.getItemByPath(
           connection.drive_id,
           `${connection.folder_path}/${categoryFolderName}`
         );
       } catch (createError) {
-        console.log('[Mobile Upload] ERROR: Failed to create category folder:', createError);
+        console.error('[Mobile Upload] Failed to create category folder:', createError);
       }
     }
 
     const targetFolderId = categoryFolder?.id || connection.folder_id;
 
-    // 11. Upload to SharePoint
-    console.log('[Mobile Upload] === Uploading to SharePoint ===');
-    const arrayBuffer = await file.arrayBuffer();
-    const blob = new Blob([arrayBuffer], { type: file.type });
+    // 13. Upload to SharePoint
+    const blob = new Blob([new Uint8Array(fileBuffer)], { type: file.type });
 
     const uploadResult = await sharepoint.uploadFile(
       connection.drive_id,
       targetFolderId,
-      file.name,
+      safeName,
       blob,
       file.type
     );
 
-    console.log('[Mobile Upload] SharePoint upload result:', {
-      success: uploadResult.success,
-      error: uploadResult.error,
-      itemId: uploadResult.item?.id,
-    });
-
     if (!uploadResult.success || !uploadResult.item) {
-      console.log('[Mobile Upload] ERROR: SharePoint upload failed:', uploadResult.error);
-      return Response.json({ error: uploadResult.error || 'Upload failed' }, { status: 500 });
+      console.error('[Mobile Upload] SharePoint upload failed:', uploadResult.error);
+      return Response.json({ error: 'Upload failed' }, { status: 500 });
     }
 
     const spItem = uploadResult.item;
-    console.log('[Mobile Upload] SharePoint upload complete');
 
-    // 12. Get thumbnail if available
+    // 14. Get thumbnail if available
     let thumbnailUrl: string | null = null;
     if (spItem.file?.mimeType?.startsWith('image/') || spItem.file?.mimeType?.startsWith('video/')) {
       try {
         const thumbnails = await sharepoint.getThumbnails(connection.drive_id, spItem.id);
         thumbnailUrl = thumbnails?.[0]?.medium?.url || thumbnails?.[0]?.small?.url || null;
-        console.log('[Mobile Upload] Thumbnail URL:', thumbnailUrl ? 'obtained' : 'not available');
       } catch {
-        console.log('[Mobile Upload] Thumbnail not available');
+        // Thumbnail not available
       }
     }
 
-    // 13. Save file record to database
-    console.log('[Mobile Upload] === Saving to database ===');
+    // 15. Save file record to database
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: fileRecord, error: insertError } = await (db as any)
       .from('project_files')
       .insert({
         project_id: projectId,
         connection_id: connection.id,
-        file_name: file.name,
+        file_name: safeName,
         sharepoint_item_id: spItem.id,
         category: category,
         file_size: spItem.size,
         mime_type: spItem.file?.mimeType || file.type,
-        file_extension: getFileExtension(file.name),
+        file_extension: getFileExtension(safeName),
         web_url: spItem.webUrl,
         download_url: spItem['@microsoft.graph.downloadUrl'],
         thumbnail_url: thumbnailUrl,
@@ -312,26 +252,21 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError) {
-      console.log('[Mobile Upload] ERROR: Database insert error:', insertError);
-      return Response.json(
-        { error: `Database error: ${insertError.message || 'Failed to save record'}` },
-        { status: 500 }
-      );
+      console.error('[Mobile Upload] Database insert error:', insertError);
+      return Response.json({ error: 'Failed to save file record' }, { status: 500 });
     }
-
-    console.log('[Mobile Upload] === Upload complete ===');
-    console.log('[Mobile Upload] File saved with ID:', fileRecord?.id);
 
     return Response.json({
       success: true,
       file: fileRecord,
     });
   } catch (error) {
-    console.log('[Mobile Upload] ERROR: Unexpected error:', error);
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : 'Upload failed' },
-      { status: 500 }
-    );
+    return internalError('Mobile SP Upload', error);
   }
+}
+
+function baseFolderToPath(baseFolderPath: string, folderName: string): string {
+  return baseFolderPath === '/' || baseFolderPath === 'Root'
+    ? `/${folderName}`
+    : `${baseFolderPath}/${folderName}`;
 }

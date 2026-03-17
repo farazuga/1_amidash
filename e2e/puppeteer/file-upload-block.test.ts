@@ -30,7 +30,7 @@ describe('File Upload Block', () => {
 
     // Basic smoke - the page loads
     const content = await page.content();
-    expect(content).toBeTruthy();
+    expect(content).toContain('<html');
   });
 
   it('rejects files over 3MB', async () => {

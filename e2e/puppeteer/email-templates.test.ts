@@ -42,6 +42,6 @@ describe('Email Template Customization', () => {
 
     // Basic smoke test - page shouldn't crash
     const content = await page.content();
-    expect(content).toBeTruthy();
+    expect(content).toContain('<html');
   });
 });

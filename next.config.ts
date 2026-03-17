@@ -54,12 +54,12 @@ const securityHeaders = [
     value: [
       // Default: deny all
       "default-src 'self'",
-      // Scripts: self + inline (required for Next.js)
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      // Scripts: self + inline (required for Next.js); unsafe-eval only in dev (hot reload)
+      `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
       // Styles: self + inline (required for Tailwind CSS)
       "style-src 'self' 'unsafe-inline'",
-      // Images: self + data URIs + any URL (portal builder allows admin-configured background images)
-      "img-src 'self' data: blob: https: http:",
+      // Images: self + data URIs + HTTPS URLs (portal builder allows admin-configured background images)
+      "img-src 'self' data: blob: https:",
       // Media: blob URLs for video/audio preview from camera capture
       "media-src 'self' blob:",
       // Fonts: self + data URIs
@@ -96,10 +96,10 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     optimizePackageImports: ['lucide-react', 'recharts', 'date-fns'],
-    // Increase body size limit for video uploads via Server Actions
-    // 720p video at ~2.5 Mbps = ~18 MB/min, so 100 MB covers ~5 min videos
+    // Body size limit for Server Actions (form data only)
+    // Video uploads use dedicated API routes, not server actions
     serverActions: {
-      bodySizeLimit: '100MB',  // Note: uppercase MB works more reliably
+      bodySizeLimit: '4MB',
     },
   },
   // Empty turbopack config to satisfy the PWA webpack compatibility check
@@ -132,14 +132,14 @@ const pwaConfig = withPWA({
   buildExcludes: [/middleware-manifest\.json$/],
   runtimeCaching: [
     {
-      // Cache API responses (not file uploads)
-      urlPattern: /^https:\/\/.*\/api\/((?!sharepoint|files).*)/,
+      // Cache safe API responses only (exclude uploads, auth, admin, AI, and sensitive routes)
+      urlPattern: /^https:\/\/.*\/api\/((?!sharepoint|files|admin|auth|ai|odoo|portal|sow|activecampaign|mobile|email).*)/,
       handler: 'NetworkFirst',
       options: {
         cacheName: 'api-cache',
         expiration: {
           maxEntries: 50,
-          maxAgeSeconds: 60 * 60 * 24, // 1 day
+          maxAgeSeconds: 60 * 60, // 1 hour
         },
       },
     },

@@ -28,7 +28,7 @@ describe('Address Confirmation Block', () => {
 
     // The portal should show the project info - basic smoke test
     const content = await page.content();
-    expect(content).toBeTruthy();
+    expect(content).toContain('<html');
   });
 
   it('rejects wrong email for confirmation', async () => {

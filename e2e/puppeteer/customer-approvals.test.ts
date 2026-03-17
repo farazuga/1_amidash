@@ -52,7 +52,7 @@ describe('Customer Approvals', () => {
     await new Promise((r) => setTimeout(r, 500));
 
     // Should not crash
-    expect(await page.title()).toBeTruthy();
+    expect(await page.title()).not.toBe('');
   });
 
   it('shows reject note as required', async () => {
@@ -62,6 +62,6 @@ describe('Customer Approvals', () => {
 
     // Basic smoke test - the page loads
     const content = await page.content();
-    expect(content).toBeTruthy();
+    expect(content).toContain('<html');
   });
 });

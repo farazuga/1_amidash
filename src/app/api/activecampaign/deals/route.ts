@@ -5,6 +5,7 @@ import type { ACDealDisplay } from '@/types/activecampaign';
 
 const PIPELINE_NAME = 'Solutions';
 const STAGE_NAME = 'Verbal Commit';
+const BATCH_SIZE = 10;
 
 export async function GET() {
   try {
@@ -71,33 +72,37 @@ export async function GET() {
       (poProjects || []).map((p) => p.activecampaign_account_id as string)
     );
 
-    // Resolve contact, account, and forecast close date in parallel
-    const resolvedDeals: ACDealDisplay[] = await Promise.all(
-      deals.map(async (deal) => {
-        const [contact, account, customFields] = await Promise.all([
-          deal.contact ? client.getContact(deal.contact) : Promise.resolve(null),
-          deal.account ? client.getAccount(deal.account) : Promise.resolve(null),
-          forecastField ? client.getDealCustomFieldData(deal.id) : Promise.resolve([]),
-        ]);
+    // Resolve contact, account, and forecast close date in batches
+    const resolvedDeals: ACDealDisplay[] = [];
+    for (let i = 0; i < deals.length; i += BATCH_SIZE) {
+      const batch = deals.slice(i, i + BATCH_SIZE);
+      const results = await Promise.all(
+        batch.map(async (deal) => {
+          const [contact, account, customFields] = await Promise.all([
+            deal.contact ? client.getContact(deal.contact) : Promise.resolve(null),
+            deal.account ? client.getAccount(deal.account) : Promise.resolve(null),
+            forecastField ? client.getDealCustomFieldData(deal.id) : Promise.resolve([]),
+          ]);
 
-        const contactName = contact
-          ? `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || contact.email
-          : '';
-        const accountName = account?.name || '';
-        const dealUrl = client.getDealUrl(deal.id);
+          const contactName = contact
+            ? `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || contact.email
+            : '';
+          const accountName = account?.name || '';
+          const dealUrl = client.getDealUrl(deal.id);
 
-        // Get forecast close date from custom fields
-        let forecastCloseDate = '';
-        if (forecastField) {
-          const fcField = customFields.find((f) => String(f.customFieldId) === String(forecastField.id));
-          forecastCloseDate = fcField?.fieldValue || '';
-        }
+          let forecastCloseDate = '';
+          if (forecastField) {
+            const fcField = customFields.find((f) => String(f.customFieldId) === String(forecastField.id));
+            forecastCloseDate = fcField?.fieldValue || '';
+          }
 
-        const hasConfirmedPO = deal.account ? poAccountIds.has(deal.account) : false;
+          const hasConfirmedPO = deal.account ? poAccountIds.has(deal.account) : false;
 
-        return { ...deal, contactName, accountName, dealUrl, forecastCloseDate, hasConfirmedPO };
-      })
-    );
+          return { ...deal, contactName, accountName, dealUrl, forecastCloseDate, hasConfirmedPO };
+        })
+      );
+      resolvedDeals.push(...results);
+    }
 
     // Sort by forecast close date ascending (deals without date go to end)
     resolvedDeals.sort((a, b) => {
