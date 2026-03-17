@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import * as sharepoint from '@/lib/sharepoint/client';
+import { internalError } from '@/lib/api/error-response';
 
 export async function GET(
   request: Request,
@@ -21,10 +22,6 @@ export async function GET(
 
     return NextResponse.json({ drives });
   } catch (error) {
-    console.error('Error listing SharePoint drives:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to list drives' },
-      { status: 500 }
-    );
+    return internalError('SP Site Drives', error);
   }
 }

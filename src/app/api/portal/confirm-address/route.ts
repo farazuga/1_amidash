@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getSupabaseEnv, getServiceRoleKey } from '@/lib/supabase/server';
+import { internalError } from '@/lib/api/error-response';
 
 export async function POST(request: NextRequest) {
   const { token, email } = await request.json();
@@ -61,8 +62,7 @@ export async function POST(request: NextRequest) {
     });
 
   if (error) {
-    console.error('Delivery address confirmation insert failed:', error);
-    return NextResponse.json({ error: `Failed to confirm: ${error.message}` }, { status: 500 });
+    return internalError('Portal Confirm', error);
   }
 
   return NextResponse.json({ success: true });

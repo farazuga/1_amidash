@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getOdooClient, isOdooConfigured } from '@/lib/odoo';
 import { findAccountByCode } from '@/lib/odoo/queries';
+import { internalError } from '@/lib/api/error-response';
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,10 +44,6 @@ export async function POST(request: NextRequest) {
       accountName: account.name,
     });
   } catch (error) {
-    console.error('Odoo account lookup error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to look up account' },
-      { status: 500 }
-    );
+    return internalError('Odoo Account', error);
   }
 }

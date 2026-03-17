@@ -207,3 +207,25 @@ Required for Claude API:
 ## Background Jobs
 
 No background jobs currently. Microsoft Graph tokens are managed via client credentials flow with in-memory caching (no refresh cron needed).
+
+## Security Review
+
+A comprehensive security audit was performed on 2026-03-17. Full findings, STRIDE analysis, OWASP Top 10 assessment, attack trees, threat-mitigation mapping, and a phased implementation plan are documented in:
+
+- **[`security_review.md`](security_review.md)** — Complete security review document
+
+### Critical Findings (3)
+
+1. **Debug endpoint exposed** — `/api/auth/microsoft/debug` has no auth, leaks Azure AD metadata
+2. **Mobile API no role checks** — Customer-role users can access all projects and upload to any project via `/api/mobile/*`
+3. **Mobile uploads skip file validation** — No type/size/name checks on mobile upload routes (portal has proper validation)
+
+### Implementation Phases
+
+- **Phase 1 (Day 1):** Delete debug endpoint, remove AI prompt override, reduce body size limit
+- **Phase 2 (Day 2):** Mobile API role checks, file validation, RLS enforcement
+- **Phase 3 (Day 3):** Error sanitization, search input escaping, dependency updates
+- **Phase 4 (Week 2):** Rate limiting (Upstash Redis), portal token expiry, CSP hardening, CSRF
+- **Phase 5 (Week 3):** Audit logging, structured logging, PWA cache security
+
+See `security_review.md` for the full master finding list (20 findings), security requirements (SR-001 through SR-016), and detailed attack trees.
