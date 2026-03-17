@@ -53,12 +53,12 @@ export async function getDashboardData(): Promise<DashboardData> {
   const supabase = await createClient();
 
   const [projectsRes, statusesRes, historyRes, goalsRes, settingsRes] = await Promise.all([
-    supabase.from('projects').select(`*, current_status:statuses(*)`).eq('is_draft' as any, false).then(res =>
+    supabase.from('projects').select('id, client_name, sales_order_number, sales_amount, goal_completion_date, current_status_id, created_at, created_date, invoiced_date, number_of_vidpods, current_status:statuses(id, name)').eq('is_draft' as any, false).then(res =>
       // Fallback: if is_draft column doesn't exist yet (migration 050 not applied), fetch all
-      res.error ? supabase.from('projects').select(`*, current_status:statuses(*)`) : res
+      res.error ? supabase.from('projects').select('id, client_name, sales_order_number, sales_amount, goal_completion_date, current_status_id, created_at, created_date, invoiced_date, number_of_vidpods, current_status:statuses(id, name)') : res
     ),
     supabase.from('statuses').select('*').order('display_order'),
-    supabase.from('status_history').select(`*, status:statuses(*), project:projects(id, client_name, sales_order_number, sales_amount)`).order('changed_at', { ascending: false }),
+    supabase.from('status_history').select(`*, status:statuses(*), project:projects(id, client_name, sales_order_number, sales_amount)`).gte('changed_at', new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString()).order('changed_at', { ascending: false }),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase.from as any)('revenue_goals').select('*'),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
