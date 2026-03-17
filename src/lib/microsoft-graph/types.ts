@@ -1,9 +1,7 @@
 /**
  * Types for Microsoft Graph / Outlook Calendar integration
- * App-level client credentials — no per-user OAuth tokens
  */
 
-// --- Legacy type kept for SharePoint integration compatibility ---
 export interface CalendarConnection {
   id: string;
   user_id: string;
@@ -17,48 +15,88 @@ export interface CalendarConnection {
   updated_at: string;
 }
 
-// --- New app-level calendar types ---
-
-export interface EngineerOutlookCalendar {
+export interface SyncedCalendarEvent {
   id: string;
-  user_id: string;
-  outlook_calendar_id: string;
-  outlook_email: string;
-  created_at: string;
-  updated_at: string;
+  assignment_id: string;
+  connection_id: string;
+  external_event_id: string;
+  last_synced_at: string;
+  sync_error: string | null;
 }
 
+export interface MicrosoftTokenResponse {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  token_type: string;
+  scope: string;
+}
+
+export interface MicrosoftUserInfo {
+  id: string;
+  displayName: string;
+  mail: string | null;
+  userPrincipalName: string;
+}
+
+export interface OutlookCalendarEvent {
+  id?: string;
+  subject: string;
+  body?: {
+    contentType: 'text' | 'html';
+    content: string;
+  };
+  start: {
+    dateTime: string;
+    timeZone: string;
+  };
+  end: {
+    dateTime: string;
+    timeZone: string;
+  };
+  isAllDay?: boolean;
+  showAs?: 'free' | 'tentative' | 'busy' | 'oof' | 'workingElsewhere' | 'unknown';
+  categories?: string[];
+  sensitivity?: 'normal' | 'personal' | 'private' | 'confidential';
+}
+
+// Input type for creating/updating events via Graph API
+export interface OutlookEventInput {
+  subject: string;
+  body?: {
+    contentType: 'text' | 'html';
+    content: string;
+  };
+  start: {
+    dateTime: string;
+    timeZone: string;
+  };
+  end: {
+    dateTime: string;
+    timeZone: string;
+  };
+  isAllDay?: boolean;
+  showAs?: 'free' | 'tentative' | 'busy' | 'oof' | 'workingElsewhere' | 'unknown';
+  categories?: string[];
+  sensitivity?: 'normal' | 'personal' | 'private' | 'confidential';
+}
+
+// Read-only event representation (from calendarView)
 export interface OutlookEvent {
   id: string;
   subject: string;
   start: { dateTime: string; timeZone: string };
   end: { dateTime: string; timeZone: string };
   isAllDay: boolean;
-  showAs: 'free' | 'tentative' | 'busy' | 'oof' | 'unknown';
+  showAs: 'free' | 'tentative' | 'busy' | 'oof' | 'workingElsewhere' | 'unknown';
   sensitivity: 'normal' | 'personal' | 'private' | 'confidential';
   isFromOutlook: true;
 }
 
-export interface OutlookEventInput {
-  subject: string;
-  body?: { contentType: string; content: string };
-  location?: { displayName: string };
-  start: { dateTime: string; timeZone: string };
-  end: { dateTime: string; timeZone: string };
-  isAllDay: boolean;
-  showAs: string;
-  categories?: string[];
-  sensitivity?: string;
-}
-
-export interface SyncedCalendarEvent {
+export interface OutlookEventCreateResponse {
   id: string;
-  assignment_id: string;
-  user_id: string;
-  work_date: string;
-  external_event_id: string;
-  last_synced_at: string;
-  sync_error: string | null;
+  subject: string;
+  webLink: string;
 }
 
 export interface SyncResult {
@@ -67,13 +105,18 @@ export interface SyncResult {
   error?: string;
 }
 
-// Statuses that should be synced to personal Outlook calendar
-export const SYNCABLE_STATUSES = ['confirmed'] as const;
-export type SyncableStatus = (typeof SYNCABLE_STATUSES)[number];
+// Configuration
+export interface MicrosoftOAuthConfig {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+  tenantId: string;
+  scopes: string[];
+}
 
-// Statuses that should appear on the "AmiDash - Projects" calendar
-export const PROJECTS_CALENDAR_STATUSES = ['pending', 'confirmed'] as const;
-export type ProjectsCalendarStatus = (typeof PROJECTS_CALENDAR_STATUSES)[number];
+// Statuses that should be synced to Outlook
+export const SYNCABLE_STATUSES = ['pending_confirm', 'confirmed'] as const;
+export type SyncableStatus = (typeof SYNCABLE_STATUSES)[number];
 
 // Team member info for event body
 export interface TeamMemberForSync {
@@ -93,6 +136,7 @@ export interface AssignmentForSync {
     client_name: string;
     start_date: string;
     end_date: string;
+    // Extended fields for enriched event body
     sales_order?: string | null;
     poc_name?: string | null;
     poc_email?: string | null;
@@ -100,5 +144,6 @@ export interface AssignmentForSync {
     scope_link?: string | null;
     sales_order_url?: string | null;
   };
+  // Other team members on this project (excluding this user)
   team_members?: TeamMemberForSync[];
 }

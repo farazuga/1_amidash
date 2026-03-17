@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { getSupabaseEnv, getServiceRoleKey } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { validateFileType, sanitizeFilename, validateFileSize, stripExifData } from '@/lib/portal/file-security';
 import { checkUploadRateLimit } from '@/lib/portal/rate-limit';
 import { sendEmail } from '@/lib/email/send';
@@ -14,16 +13,15 @@ type AnySupabaseClient = any;
 /**
  * Get a typed service client for untyped tables
  */
-function getServiceDb(): AnySupabaseClient {
-  const { url } = getSupabaseEnv();
-  return createClient(url, getServiceRoleKey());
+async function getServiceDb(): Promise<AnySupabaseClient> {
+  return (await createServiceClient()) as AnySupabaseClient;
 }
 
 /**
  * Get the global SharePoint configuration from app_settings
  */
 async function getSharePointConfig(): Promise<SharePointGlobalConfig | null> {
-  const db = getServiceDb();
+  const db = await getServiceDb();
   const { data } = await db
     .from('app_settings')
     .select('value')
@@ -53,7 +51,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Validate token -> get project (service role since portal has no auth)
-    const db = getServiceDb();
+    const db = await getServiceDb();
 
     let { data: project, error: projectError } = await db
       .from('projects')

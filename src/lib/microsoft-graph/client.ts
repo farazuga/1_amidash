@@ -29,14 +29,13 @@ async function graphFetch(path: string, options: RequestInit = {}) {
   return response.json();
 }
 
-// Create a dedicated "AmiDash - {FirstName}" calendar on a user's account
+// Create a dedicated "AmiDash" calendar on a user's account
 export async function createCalendarForUser(
-  email: string,
-  calendarName: string = 'AmiDash'
+  email: string
 ): Promise<{ id: string; name: string }> {
   return graphFetch(`/users/${email}/calendars`, {
     method: 'POST',
-    body: JSON.stringify({ name: calendarName }),
+    body: JSON.stringify({ name: 'AmiDash' }),
   });
 }
 
@@ -78,18 +77,6 @@ export async function updateCalendarEvent(
       body: JSON.stringify(event),
     }
   );
-}
-
-// Rename / update a calendar
-export async function updateCalendarForUser(
-  email: string,
-  calendarId: string,
-  updates: { name?: string }
-): Promise<{ id: string; name: string }> {
-  return graphFetch(`/users/${email}/calendars/${calendarId}`, {
-    method: 'PATCH',
-    body: JSON.stringify(updates),
-  });
 }
 
 // Delete an event
@@ -142,52 +129,38 @@ export async function getCalendarEvents(
 // Build a calendar event from assignment data
 export function buildCalendarEvent(params: {
   projectName: string;
-  projectId: string;
   date: string;
   startTime: string;
   endTime: string;
   teamMembers: string[];
   pmContact?: string;
   dashboardUrl?: string;
-  location?: string;
-  salesOrderUrl?: string;
-  projectDescription?: string;
 }): OutlookEventInput {
   const body = [
     `📋 Project: ${params.projectName}`,
-    params.projectDescription ? `\n${params.projectDescription}` : null,
     params.teamMembers.length > 0
-      ? `\n👥 Team: ${params.teamMembers.join(', ')}`
+      ? `👥 Team: ${params.teamMembers.join(', ')}`
       : null,
     params.pmContact ? `📞 PM: ${params.pmContact}` : null,
-    params.dashboardUrl
-      ? `🔗 Dashboard: ${params.dashboardUrl}/projects/${params.projectId}`
-      : null,
-    params.salesOrderUrl ? `📦 Sales Order: ${params.salesOrderUrl}` : null,
+    params.dashboardUrl ? `🔗 Details: ${params.dashboardUrl}` : null,
   ]
     .filter(Boolean)
     .join('\n');
 
-  const event: OutlookEventInput = {
+  return {
     subject: params.projectName,
     body: { contentType: 'text', content: body },
     start: {
       dateTime: `${params.date}T${params.startTime}:00`,
-      timeZone: 'Eastern Standard Time',
+      timeZone: 'UTC',
     },
     end: {
       dateTime: `${params.date}T${params.endTime}:00`,
-      timeZone: 'Eastern Standard Time',
+      timeZone: 'UTC',
     },
     isAllDay: false,
     showAs: 'busy',
     categories: ['Green category'],
     sensitivity: 'normal',
   };
-
-  if (params.location) {
-    event.location = { displayName: params.location };
-  }
-
-  return event;
 }
