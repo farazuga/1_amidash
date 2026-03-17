@@ -65,15 +65,15 @@ describe('GET /api/mobile/projects', () => {
     expect(body).toEqual({ error: 'Authentication required' });
   });
 
-  it('returns project list with correct shape (id, sales_order, client_name, status, phase)', async () => {
+  it('returns project list with correct shape (id, sales_order_number, client_name, status, phase)', async () => {
     mockGetUser.mockResolvedValue({
       data: { user: mockUser },
       error: null,
     });
 
     const mockProjects = [
-      { id: 'p-1', sales_order: 'S10001', client_name: 'Acme Corp', status: 'active', phase: 'active' },
-      { id: 'p-2', sales_order: 'S10002', client_name: 'Beta Inc', status: 'on_hold', phase: 'on_hold' },
+      { id: 'p-1', sales_order_number: 'S10001', client_name: 'Acme Corp', status: 'active', phase: 'active' },
+      { id: 'p-2', sales_order_number: 'S10002', client_name: 'Beta Inc', status: 'on_hold', phase: 'on_hold' },
     ];
 
     mockFrom.mockReturnValue({
@@ -104,7 +104,7 @@ describe('GET /api/mobile/projects', () => {
     // Contract: each project must have these fields
     for (const project of body.projects) {
       expect(project).toHaveProperty('id');
-      expect(project).toHaveProperty('sales_order');
+      expect(project).toHaveProperty('sales_order_number');
       expect(project).toHaveProperty('client_name');
       expect(project).toHaveProperty('status');
       expect(project).toHaveProperty('phase');

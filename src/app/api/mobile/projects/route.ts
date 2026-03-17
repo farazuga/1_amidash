@@ -36,7 +36,7 @@ export async function GET(request: Request) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: projects, error: projectsError } = await (serviceClient as any)
       .from('projects')
-      .select('id, sales_order, client_name, status, phase')
+      .select('id, sales_order_number, client_name, status, phase')
       .in('phase', ['sold', 'active', 'on_hold']) // Only show projects that are in progress
       .order('created_at', { ascending: false });
 

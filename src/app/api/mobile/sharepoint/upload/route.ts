@@ -305,10 +305,7 @@ export async function POST(request: Request) {
         captured_on_device: 'ios',
         captured_offline: false,
       })
-      .select(`
-        *,
-        uploaded_by_profile:profiles!project_files_uploaded_by_fkey(id, email, full_name)
-      `)
+      .select('*')
       .single();
 
     if (insertError) {
