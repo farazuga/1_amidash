@@ -209,13 +209,13 @@ export async function reorderMeasurables(input: unknown): Promise<ActionResult> 
 
     const { supabase } = await getL10Client();
 
-    for (const item of validation.data) {
-      const { error } = await supabase
-        .from('l10_scorecard_measurables')
-        .update({ display_order: item.display_order })
-        .eq('id', item.id);
-      if (error) throw error;
-    }
+    const results = await Promise.all(
+      validation.data.map(item =>
+        supabase.from('l10_scorecard_measurables').update({ display_order: item.display_order }).eq('id', item.id)
+      )
+    );
+    const failed = results.find(r => r.error);
+    if (failed) throw failed.error;
 
     revalidatePath('/l10');
     return { success: true };

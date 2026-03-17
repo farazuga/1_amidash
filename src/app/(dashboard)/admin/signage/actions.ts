@@ -231,16 +231,16 @@ export async function deleteBlock(id: string): Promise<boolean> {
 export async function reorderBlocks(blockIds: string[]): Promise<boolean> {
   const supabase: AnySupabase = await createClient();
 
-  for (let i = 0; i < blockIds.length; i++) {
-    const { error } = await supabase
-      .from('signage_blocks')
-      .update({ display_order: i })
-      .eq('id', blockIds[i]);
+  const results = await Promise.all(
+    blockIds.map((id, i) =>
+      supabase.from('signage_blocks').update({ display_order: i }).eq('id', id)
+    )
+  );
 
-    if (error) {
-      console.error('Failed to reorder block:', error);
-      return false;
-    }
+  const failed = results.find(r => r.error);
+  if (failed) {
+    console.error('Failed to reorder block:', failed.error);
+    return false;
   }
 
   revalidatePath('/admin/signage');
