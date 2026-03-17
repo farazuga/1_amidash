@@ -42,6 +42,10 @@ type MockChain = {
   eq: ReturnType<typeof vi.fn>;
   neq: ReturnType<typeof vi.fn>;
   in: ReturnType<typeof vi.fn>;
+  gte: ReturnType<typeof vi.fn>;
+  lte: ReturnType<typeof vi.fn>;
+  not: ReturnType<typeof vi.fn>;
+  or: ReturnType<typeof vi.fn>;
   order: ReturnType<typeof vi.fn>;
   limit: ReturnType<typeof vi.fn>;
   range: ReturnType<typeof vi.fn>;
@@ -84,6 +88,10 @@ export function createMockL10Chain(result: QueryResult): MockChain {
   chain.eq = chainable(vi.fn());
   chain.neq = chainable(vi.fn());
   chain.in = chainable(vi.fn());
+  chain.gte = chainable(vi.fn());
+  chain.lte = chainable(vi.fn());
+  chain.not = chainable(vi.fn());
+  chain.or = chainable(vi.fn());
   chain.order = chainable(vi.fn());
   chain.limit = chainable(vi.fn());
   chain.range = chainable(vi.fn());
