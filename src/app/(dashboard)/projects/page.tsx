@@ -140,13 +140,14 @@ async function getProjects(searchParams: SearchParams, invoicedStatusId: string 
     // view === 'all' - no filter, show everything
   }
 
-  // Apply search
+  // Apply search (escape PostgREST special characters to prevent filter injection)
   if (searchParams.search) {
+    const escaped = searchParams.search.replace(/[.,%()*\\]/g, (c) => `\\${c}`);
     query = query.or(
-      `client_name.ilike.%${searchParams.search}%,` +
-      `sales_order_number.ilike.%${searchParams.search}%,` +
-      `po_number.ilike.%${searchParams.search}%,` +
-      `poc_name.ilike.%${searchParams.search}%`
+      `client_name.ilike.%${escaped}%,` +
+      `sales_order_number.ilike.%${escaped}%,` +
+      `po_number.ilike.%${escaped}%,` +
+      `poc_name.ilike.%${escaped}%`
     );
   }
 

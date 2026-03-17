@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Plus } from 'lucide-react';
@@ -29,7 +30,7 @@ interface CalendarDayCellProps {
   outlookEvents?: OutlookEvent[];
 }
 
-export function CalendarDayCell({
+export const CalendarDayCell = memo(function CalendarDayCell({
   date,
   currentMonth,
   events,
@@ -137,4 +138,4 @@ export function CalendarDayCell({
       </div>
     </div>
   );
-}
+});

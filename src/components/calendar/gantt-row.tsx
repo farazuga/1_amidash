@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { format } from 'date-fns';
 import { GanttBar } from './gantt-bar';
 import { cn } from '@/lib/utils';
@@ -15,7 +15,7 @@ interface GanttRowProps {
   isUpdating?: boolean;
 }
 
-export function GanttRow({
+export const GanttRow = memo(function GanttRow({
   assignment,
   weekdayDates,
   totalDays,
@@ -104,4 +104,4 @@ export function GanttRow({
       ))}
     </div>
   );
-}
+});
