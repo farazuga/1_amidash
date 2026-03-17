@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js';
+import { getSupabaseEnv, getServiceRoleKey } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
   const { token, email } = await request.json();
@@ -8,11 +9,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
 
-  const supabase = await createServiceClient();
+  const { url } = getSupabaseEnv();
+  const supabase = createClient(url, getServiceRoleKey());
 
   // 1. Validate token -> get project
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: project } = await (supabase as any)
+  const { data: project } = await supabase
     .from('projects')
     .select('id, poc_email, delivery_street, delivery_city, delivery_state, delivery_zip, delivery_country')
     .eq('client_token', token)
@@ -29,8 +30,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 3. Check not already confirmed
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: existing } = await (supabase as any)
+  const { data: existing } = await supabase
     .from('delivery_address_confirmations')
     .select('id')
     .eq('project_id', project.id)
@@ -46,8 +46,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 5. Insert confirmation with address snapshot
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any)
+  const { error } = await supabase
     .from('delivery_address_confirmations')
     .insert({
       project_id: project.id,
@@ -61,7 +60,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
-  if (error) return NextResponse.json({ error: 'Failed to confirm' }, { status: 500 });
+  if (error) {
+    console.error('Delivery address confirmation insert failed:', error);
+    return NextResponse.json({ error: `Failed to confirm: ${error.message}` }, { status: 500 });
+  }
 
   return NextResponse.json({ success: true });
 }

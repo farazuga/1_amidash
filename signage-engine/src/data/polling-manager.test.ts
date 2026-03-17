@@ -15,26 +15,19 @@ vi.mock('../utils/logger', () => ({
 // Mock all fetchers
 vi.mock('./fetchers/projects', () => ({
   fetchActiveProjects: vi.fn(),
+  fetchInvoicedProjects: vi.fn(),
 }));
 
 vi.mock('./fetchers/pos', () => ({
-  fetchRecentPOs: vi.fn(),
+  fetchPOs: vi.fn(),
 }));
 
 vi.mock('./fetchers/revenue', () => ({
   fetchRevenueData: vi.fn(),
 }));
 
-vi.mock('./fetchers/schedule', () => ({
-  fetchScheduleData: vi.fn(),
-}));
-
-vi.mock('./fetchers/metrics', () => ({
-  fetchProjectMetrics: vi.fn(),
-}));
-
-vi.mock('./fetchers/slide-config', () => ({
-  fetchSlideConfig: vi.fn(),
+vi.mock('./fetchers/blocks-config', () => ({
+  fetchBlocksConfig: vi.fn(),
 }));
 
 vi.mock('./supabase-client', () => ({
@@ -43,20 +36,19 @@ vi.mock('./supabase-client', () => ({
 }));
 
 // Import mocked modules
-import { fetchActiveProjects } from './fetchers/projects';
-import { fetchRecentPOs } from './fetchers/pos';
+import { fetchActiveProjects, fetchInvoicedProjects } from './fetchers/projects';
+import { fetchPOs } from './fetchers/pos';
 import { fetchRevenueData } from './fetchers/revenue';
-import { fetchScheduleData } from './fetchers/schedule';
-import { fetchProjectMetrics } from './fetchers/metrics';
-import { fetchSlideConfig } from './fetchers/slide-config';
+import { fetchBlocksConfig } from './fetchers/blocks-config';
 import { logger } from '../utils/logger';
 
 describe('PollingManager', () => {
   const defaultConfig: PollingConfig = {
     projects: 30000,
-    purchaseOrders: 15000,
+    invoicedProjects: 60000,
+    purchaseOrders: 30000,
     revenue: 60000,
-    schedule: 30000,
+    blocksConfig: 30000,
   };
 
   const mockProjects = [
@@ -64,30 +56,30 @@ describe('PollingManager', () => {
     { id: '2', name: 'Project 2', client_name: 'Client B', status: 'Pending', status_color: '#ffff00' },
   ];
 
+  const mockInvoicedProjects = [
+    { id: 'inv-1', name: 'Done Project', client_name: 'Client C', total_value: 50000, completed_at: '2026-03-01' },
+  ];
+
   const mockPOs = [
-    { id: '1', vendor: 'Vendor A', amount: 1000, date: '2024-01-15' },
+    { id: '1', po_number: 'PO-001', project_name: 'Project 1', client_name: 'Client A', amount: 15000, created_at: '2024-01-15', highlight_reason: 'newest' },
   ];
 
   const mockRevenue = {
-    mtd: 50000,
-    ytd: 500000,
-    target: 600000,
+    currentMonthRevenue: 50000,
+    currentMonthGoal: 60000,
+    quarterRevenue: 150000,
+    quarterGoal: 180000,
+    yearToDateRevenue: 500000,
+    yearToDateGoal: 600000,
+    monthlyData: [],
   };
 
-  const mockSchedule = [
-    { id: '1', employee: 'John', project: 'Project 1', date: '2024-01-15' },
-  ];
-
-  const mockMetrics = {
-    total: 10,
-    active: 5,
-    completed: 3,
-    pending: 2,
+  const mockBlocksConfig = {
+    blocks: [
+      { id: '1', block_type: 'po-highlight', title: 'POs', content: {}, enabled: true, position: 'left', display_order: 0 },
+    ],
+    settings: { rotation_interval_ms: 15000 },
   };
-
-  const mockSlideConfig = [
-    { id: '1', slide_type: 'active-projects', enabled: true, duration_ms: 15000 },
-  ];
 
   let pollingManager: PollingManager;
 
@@ -97,11 +89,10 @@ describe('PollingManager', () => {
 
     // Set up default mock implementations
     vi.mocked(fetchActiveProjects).mockResolvedValue(mockProjects as never);
-    vi.mocked(fetchRecentPOs).mockResolvedValue(mockPOs as never);
+    vi.mocked(fetchInvoicedProjects).mockResolvedValue(mockInvoicedProjects as never);
+    vi.mocked(fetchPOs).mockResolvedValue(mockPOs as never);
     vi.mocked(fetchRevenueData).mockResolvedValue(mockRevenue as never);
-    vi.mocked(fetchScheduleData).mockResolvedValue(mockSchedule as never);
-    vi.mocked(fetchProjectMetrics).mockResolvedValue(mockMetrics as never);
-    vi.mocked(fetchSlideConfig).mockResolvedValue(mockSlideConfig as never);
+    vi.mocked(fetchBlocksConfig).mockResolvedValue(mockBlocksConfig as never);
 
     pollingManager = new PollingManager(defaultConfig);
   });
@@ -117,11 +108,10 @@ describe('PollingManager', () => {
 
       expect(cache.projects.data).toEqual([]);
       expect(cache.projects.lastUpdated).toBeNull();
+      expect(cache.invoicedProjects.data).toEqual([]);
       expect(cache.pos.data).toEqual([]);
       expect(cache.revenue.data).toBeNull();
-      expect(cache.schedule.data).toEqual([]);
-      expect(cache.metrics.data).toBeNull();
-      expect(cache.slideConfig.data).toEqual([]);
+      expect(cache.blocksConfig.data).toBeNull();
     });
   });
 
@@ -130,11 +120,10 @@ describe('PollingManager', () => {
       await pollingManager.start();
 
       expect(fetchActiveProjects).toHaveBeenCalledTimes(1);
-      expect(fetchRecentPOs).toHaveBeenCalledTimes(1);
+      expect(fetchInvoicedProjects).toHaveBeenCalledTimes(1);
+      expect(fetchPOs).toHaveBeenCalledTimes(1);
       expect(fetchRevenueData).toHaveBeenCalledTimes(1);
-      expect(fetchScheduleData).toHaveBeenCalledTimes(1);
-      expect(fetchProjectMetrics).toHaveBeenCalledTimes(1);
-      expect(fetchSlideConfig).toHaveBeenCalledTimes(1);
+      expect(fetchBlocksConfig).toHaveBeenCalledTimes(1);
     });
 
     it('should populate cache with fetched data', async () => {
@@ -144,11 +133,10 @@ describe('PollingManager', () => {
 
       expect(cache.projects.data).toEqual(mockProjects);
       expect(cache.projects.lastUpdated).toBeInstanceOf(Date);
+      expect(cache.invoicedProjects.data).toEqual(mockInvoicedProjects);
       expect(cache.pos.data).toEqual(mockPOs);
       expect(cache.revenue.data).toEqual(mockRevenue);
-      expect(cache.schedule.data).toEqual(mockSchedule);
-      expect(cache.metrics.data).toEqual(mockMetrics);
-      expect(cache.slideConfig.data).toEqual(mockSlideConfig);
+      expect(cache.blocksConfig.data).toEqual(mockBlocksConfig);
     });
 
     it('should log start message', async () => {
@@ -168,45 +156,32 @@ describe('PollingManager', () => {
 
     it('should set up polling intervals', async () => {
       await pollingManager.start();
-
-      // Clear initial fetch counts
       vi.clearAllMocks();
 
-      // Advance time by projects interval
+      // Advance time by projects interval (30s)
       await vi.advanceTimersByTimeAsync(30000);
 
       expect(fetchActiveProjects).toHaveBeenCalledTimes(1);
-      expect(fetchProjectMetrics).toHaveBeenCalledTimes(1);
-      expect(fetchScheduleData).toHaveBeenCalledTimes(1);
+      expect(fetchPOs).toHaveBeenCalledTimes(1);
+      expect(fetchBlocksConfig).toHaveBeenCalledTimes(1);
     });
 
-    it('should poll POs at purchaseOrders interval', async () => {
+    it('should poll invoiced projects at 60s interval', async () => {
       await pollingManager.start();
       vi.clearAllMocks();
 
-      // Advance time by PO interval (15000ms)
-      await vi.advanceTimersByTimeAsync(15000);
+      await vi.advanceTimersByTimeAsync(60000);
 
-      expect(fetchRecentPOs).toHaveBeenCalledTimes(1);
+      expect(fetchInvoicedProjects).toHaveBeenCalledTimes(1);
     });
 
     it('should poll revenue at revenue interval', async () => {
       await pollingManager.start();
       vi.clearAllMocks();
 
-      // Advance time by revenue interval (60000ms)
       await vi.advanceTimersByTimeAsync(60000);
 
       expect(fetchRevenueData).toHaveBeenCalledTimes(1);
-    });
-
-    it('should poll slide config every 60 seconds', async () => {
-      await pollingManager.start();
-      vi.clearAllMocks();
-
-      await vi.advanceTimersByTimeAsync(60000);
-
-      expect(fetchSlideConfig).toHaveBeenCalledTimes(1);
     });
 
     it('should poll multiple times over extended period', async () => {
@@ -218,10 +193,14 @@ describe('PollingManager', () => {
 
       // Projects: 30s interval, so 4 calls in 120s
       expect(fetchActiveProjects).toHaveBeenCalledTimes(4);
-      // POs: 15s interval, so 8 calls in 120s
-      expect(fetchRecentPOs).toHaveBeenCalledTimes(8);
+      // POs: 30s interval, so 4 calls in 120s
+      expect(fetchPOs).toHaveBeenCalledTimes(4);
       // Revenue: 60s interval, so 2 calls in 120s
       expect(fetchRevenueData).toHaveBeenCalledTimes(2);
+      // Invoiced: 60s interval, so 2 calls in 120s
+      expect(fetchInvoicedProjects).toHaveBeenCalledTimes(2);
+      // Blocks: 30s interval, so 4 calls in 120s
+      expect(fetchBlocksConfig).toHaveBeenCalledTimes(4);
     });
   });
 
@@ -236,7 +215,7 @@ describe('PollingManager', () => {
       await vi.advanceTimersByTimeAsync(120000);
 
       expect(fetchActiveProjects).not.toHaveBeenCalled();
-      expect(fetchRecentPOs).not.toHaveBeenCalled();
+      expect(fetchPOs).not.toHaveBeenCalled();
       expect(fetchRevenueData).not.toHaveBeenCalled();
     });
 
@@ -254,14 +233,12 @@ describe('PollingManager', () => {
       pollingManager.stop();
       pollingManager.stop();
 
-      // Should not throw
       expect(true).toBe(true);
     });
 
     it('should be safe to call stop before start', () => {
       pollingManager.stop();
 
-      // Should not throw
       expect(true).toBe(true);
     });
   });
@@ -273,11 +250,11 @@ describe('PollingManager', () => {
       const cache = pollingManager.getCache();
 
       expect(cache).toHaveProperty('projects');
+      expect(cache).toHaveProperty('invoicedProjects');
       expect(cache).toHaveProperty('pos');
       expect(cache).toHaveProperty('revenue');
-      expect(cache).toHaveProperty('schedule');
-      expect(cache).toHaveProperty('metrics');
-      expect(cache).toHaveProperty('slideConfig');
+      expect(cache).toHaveProperty('blocksConfig');
+      expect(cache).toHaveProperty('connectionStatus');
     });
 
     it('should return updated cache after new fetch', async () => {
@@ -320,23 +297,9 @@ describe('PollingManager', () => {
       expect(isStale).toBe(true);
     });
 
-    it('should check all data sources except slideConfig', async () => {
-      await pollingManager.start();
-
-      // All data is fresh
-      expect(pollingManager.isDataStale(60000)).toBe(false);
-
-      // Advance time slightly
-      await vi.advanceTimersByTimeAsync(5000);
-
-      // Still fresh with 60s threshold
-      expect(pollingManager.isDataStale(60000)).toBe(false);
-    });
-
     it('should return true with very short threshold', async () => {
       await pollingManager.start();
 
-      // Even 1ms later, with 0ms threshold, should be stale
       await vi.advanceTimersByTimeAsync(1);
 
       const isStale = pollingManager.isDataStale(0);
@@ -356,19 +319,18 @@ describe('PollingManager', () => {
         'Failed to fetch projects'
       );
 
-      // Cache should remain empty
       const cache = pollingManager.getCache();
       expect(cache.projects.data).toEqual([]);
     });
 
     it('should handle PO fetch errors gracefully', async () => {
-      vi.mocked(fetchRecentPOs).mockRejectedValue(new Error('Database error'));
+      vi.mocked(fetchPOs).mockRejectedValue(new Error('Database error'));
 
       await pollingManager.start();
 
       expect(logger.error).toHaveBeenCalledWith(
         { error: expect.any(Error) },
-        'Failed to fetch POs'
+        'Failed to fetch highlight POs'
       );
     });
 
@@ -383,36 +345,25 @@ describe('PollingManager', () => {
       );
     });
 
-    it('should handle schedule fetch errors gracefully', async () => {
-      vi.mocked(fetchScheduleData).mockRejectedValue(new Error('Timeout'));
+    it('should handle invoiced projects fetch errors gracefully', async () => {
+      vi.mocked(fetchInvoicedProjects).mockRejectedValue(new Error('Timeout'));
 
       await pollingManager.start();
 
       expect(logger.error).toHaveBeenCalledWith(
         { error: expect.any(Error) },
-        'Failed to fetch schedule'
+        'Failed to fetch invoiced projects'
       );
     });
 
-    it('should handle metrics fetch errors gracefully', async () => {
-      vi.mocked(fetchProjectMetrics).mockRejectedValue(new Error('Server error'));
+    it('should handle blocks config fetch errors gracefully', async () => {
+      vi.mocked(fetchBlocksConfig).mockRejectedValue(new Error('Config error'));
 
       await pollingManager.start();
 
       expect(logger.error).toHaveBeenCalledWith(
         { error: expect.any(Error) },
-        'Failed to fetch metrics'
-      );
-    });
-
-    it('should handle slide config fetch errors gracefully', async () => {
-      vi.mocked(fetchSlideConfig).mockRejectedValue(new Error('Config error'));
-
-      await pollingManager.start();
-
-      expect(logger.error).toHaveBeenCalledWith(
-        { error: expect.any(Error) },
-        'Failed to fetch slide config'
+        'Failed to fetch blocks config'
       );
     });
 
@@ -476,20 +427,16 @@ describe('PollingManager', () => {
       );
       expect(logger.debug).toHaveBeenCalledWith(
         { count: mockPOs.length },
-        'Fetched POs'
+        'Fetched highlight POs'
       );
       expect(logger.debug).toHaveBeenCalledWith('Fetched revenue data');
       expect(logger.debug).toHaveBeenCalledWith(
-        { count: mockSchedule.length },
-        'Fetched schedule'
+        { count: mockInvoicedProjects.length },
+        'Fetched invoiced projects'
       );
       expect(logger.debug).toHaveBeenCalledWith(
-        { total: mockMetrics.total },
-        'Fetched metrics'
-      );
-      expect(logger.debug).toHaveBeenCalledWith(
-        { count: mockSlideConfig.length },
-        'Fetched slide config'
+        { blockCount: mockBlocksConfig.blocks.length },
+        'Fetched blocks config'
       );
     });
   });

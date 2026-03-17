@@ -18,6 +18,7 @@ import {
   Tv,
   ChevronLeft,
   ChevronRight,
+  Calendar,
   CalendarDays,
   CalendarRange,
   Presentation,
@@ -47,7 +48,8 @@ import { usePendingApprovalCount } from '@/hooks/queries/use-approval-tasks';
 const mainNavItems = [
   { title: 'Dashboard', href: '/', icon: LayoutDashboard },
   { title: 'Projects', href: '/projects', icon: FolderKanban },
-  { title: 'Project Calendar', href: '/project-calendar', icon: CalendarRange },
+  { title: 'Master Calendar', href: '/calendar', icon: Calendar },
+  { title: 'Project Timeline', href: '/project-calendar', icon: CalendarRange },
   { title: 'My Schedule', href: '/my-schedule', icon: CalendarDays },
   { title: 'Upcoming Deals', href: '/upcoming-deals', icon: Handshake },
   { title: 'L10 Meetings', href: '/l10', icon: Presentation },

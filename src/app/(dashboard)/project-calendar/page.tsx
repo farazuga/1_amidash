@@ -4,7 +4,7 @@ import { ProjectCalendarView } from './project-calendar-view';
 import { Loader2 } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Project Calendar',
+  title: 'Project Timeline | Amitrace',
   description: 'View all projects on a timeline',
 };
 
@@ -20,9 +20,9 @@ export default function ProjectCalendarPage() {
   return (
     <div className="container mx-auto py-6">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">Project Calendar</h1>
+        <h1 className="text-3xl font-bold">Project Timeline</h1>
         <p className="text-muted-foreground mt-1">
-          View all projects on a timeline, color-coded by schedule status
+          View all projects on a Gantt-style timeline, color-coded by schedule status
         </p>
       </div>
       <Suspense fallback={<LoadingFallback />}>

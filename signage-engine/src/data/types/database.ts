@@ -13,6 +13,7 @@ export interface DbProject {
   created_date?: string | null;
   goal_completion_date?: string | null;
   created_at?: string;
+  updated_at?: string;
   current_status_id?: string | null;
   project_type_id?: string | null;
   salesperson_id?: string | null;
@@ -46,17 +47,6 @@ export interface DbRevenueGoal {
   month: number;
   year: number;
   amount: number;
-}
-
-// Slide configuration from the 'signage_slides' table
-export interface DbSignageSlide {
-  id: string;
-  slide_type: string;
-  title: string | null;
-  enabled: boolean;
-  display_order: number;
-  duration_ms: number;
-  config: Record<string, unknown>;
 }
 
 // Helper type for Supabase query results (allows null/undefined arrays)

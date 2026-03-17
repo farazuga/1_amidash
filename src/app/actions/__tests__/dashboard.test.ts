@@ -102,9 +102,11 @@ describe('dashboard.ts - getDashboardData', () => {
         if (table === 'status_history') {
           return {
             select: vi.fn().mockReturnValue({
-              order: vi.fn().mockResolvedValue({
-                data: mockHistory,
-                error: null,
+              gte: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({
+                  data: mockHistory,
+                  error: null,
+                }),
               }),
             }),
           };
@@ -167,9 +169,11 @@ describe('dashboard.ts - getDashboardData', () => {
         if (table === 'status_history') {
           return {
             select: vi.fn().mockReturnValue({
-              order: vi.fn().mockResolvedValue({
-                data: [],
-                error: null,
+              gte: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({
+                  data: [],
+                  error: null,
+                }),
               }),
             }),
           };
@@ -227,9 +231,11 @@ describe('dashboard.ts - getDashboardData', () => {
         if (table === 'status_history') {
           return {
             select: vi.fn().mockReturnValue({
-              order: vi.fn().mockResolvedValue({
-                data: null,
-                error: null,
+              gte: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: null,
+                }),
               }),
             }),
           };
@@ -295,9 +301,11 @@ describe('dashboard.ts - getDashboardData', () => {
         if (table === 'status_history') {
           return {
             select: vi.fn().mockReturnValue({
-              order: vi.fn().mockResolvedValue({
-                data: [],
-                error: null,
+              gte: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({
+                  data: [],
+                  error: null,
+                }),
               }),
             }),
           };
@@ -361,7 +369,9 @@ describe('dashboard.ts - getDashboardData', () => {
         if (table === 'status_history') {
           return {
             select: vi.fn().mockReturnValue({
-              order: vi.fn().mockResolvedValue({ data: [], error: null }),
+              gte: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({ data: [], error: null }),
+              }),
             }),
           };
         }
@@ -381,7 +391,7 @@ describe('dashboard.ts - getDashboardData', () => {
     await getDashboardData();
 
     // Assert
-    expect(mockSelect).toHaveBeenCalledWith('*, current_status:statuses(*)');
+    expect(mockSelect).toHaveBeenCalledWith('id, client_name, sales_order_number, sales_amount, goal_completion_date, current_status_id, created_at, created_date, invoiced_date, number_of_vidpods, current_status:statuses(id, name)');
   });
 
   it('should fetch statuses ordered by display_order', async () => {
@@ -410,7 +420,9 @@ describe('dashboard.ts - getDashboardData', () => {
         if (table === 'status_history') {
           return {
             select: vi.fn().mockReturnValue({
-              order: vi.fn().mockResolvedValue({ data: [], error: null }),
+              gte: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({ data: [], error: null }),
+              }),
             }),
           };
         }
@@ -444,7 +456,8 @@ describe('dashboard.ts - getDashboardData', () => {
       error: null,
     });
 
-    const mockSelect = vi.fn().mockReturnValue({ order: mockOrder });
+    const mockGte = vi.fn().mockReturnValue({ order: mockOrder });
+    const mockSelect = vi.fn().mockReturnValue({ gte: mockGte });
 
     const mockSupabase = {
       from: vi.fn().mockImplementation((table: string) => {
@@ -532,11 +545,13 @@ describe('dashboard.ts - getDashboardData', () => {
         if (table === 'status_history') {
           return {
             select: vi.fn().mockReturnValue({
-              order: vi.fn().mockImplementation(async () => {
-                executionOrder.push('history-start');
-                await new Promise(resolve => setTimeout(resolve, 10));
-                executionOrder.push('history-end');
-                return { data: [], error: null };
+              gte: vi.fn().mockReturnValue({
+                order: vi.fn().mockImplementation(async () => {
+                  executionOrder.push('history-start');
+                  await new Promise(resolve => setTimeout(resolve, 10));
+                  executionOrder.push('history-end');
+                  return { data: [], error: null };
+                }),
               }),
             }),
           };
@@ -599,6 +614,9 @@ describe('dashboard.ts - getDashboardData', () => {
         }
         return {
           select: vi.fn().mockReturnValue({
+            gte: vi.fn().mockReturnValue({
+              order: vi.fn().mockResolvedValue({ data: [], error: null }),
+            }),
             order: vi.fn().mockResolvedValue({ data: [], error: null }),
             like: vi.fn().mockResolvedValue({ data: null, error: null }),
           }),

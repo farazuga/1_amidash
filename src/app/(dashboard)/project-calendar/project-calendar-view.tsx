@@ -43,6 +43,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -84,6 +86,7 @@ interface DraggableProjectBarProps {
   };
   hasConflict: boolean;
   totalWeekdays: number;
+  isPending?: boolean;
 }
 
 function DraggableProjectBar({
@@ -92,6 +95,7 @@ function DraggableProjectBar({
   config,
   hasConflict,
   totalWeekdays,
+  isPending,
 }: DraggableProjectBarProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `project-${project.id}`,
@@ -132,7 +136,8 @@ function DraggableProjectBar({
         position.isClippedStart && 'rounded-l-none before:rounded-l-none',
         position.isClippedEnd && 'rounded-r-none before:rounded-r-none',
         hasConflict && 'ring-2 ring-amber-500 ring-offset-1',
-        isDragging && 'shadow-lg opacity-90 z-50'
+        isDragging && 'shadow-lg opacity-90 z-50',
+        isPending && 'border-dashed opacity-50'
       )}
       style={style}
       title={`${project.client_name}: ${project.start_date} to ${project.end_date}${hasConflict ? ' (has scheduling conflicts)' : ''} - Drag to move`}
@@ -156,6 +161,7 @@ export function ProjectCalendarView() {
   const [tagFilter, setTagFilter] = useState<string | 'all'>('all');
   const [engineerFilter, setEngineerFilter] = useState<string | 'all'>('all');
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [showPending, setShowPending] = useState(true);
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set());
   const [bulkStatusDialogOpen, setBulkStatusDialogOpen] = useState(false);
   const [newBulkStatus, setNewBulkStatus] = useState<BookingStatus>('draft');
@@ -251,6 +257,11 @@ export function ProjectCalendarView() {
       result = result.filter(p => (p.schedule_status || 'draft') === statusFilter);
     }
 
+    // Hide pending items when toggle is off
+    if (!showPending) {
+      result = result.filter(p => (p.schedule_status || 'draft') !== 'pending');
+    }
+
     // Filter by tag
     if (tagFilter !== 'all') {
       result = result.filter(p =>
@@ -266,16 +277,17 @@ export function ProjectCalendarView() {
     }
 
     return result;
-  }, [projects, statusFilter, tagFilter, engineerFilter]);
+  }, [projects, statusFilter, showPending, tagFilter, engineerFilter]);
 
   // Count active filters
-  const activeFilterCount = [statusFilter, tagFilter, engineerFilter].filter(f => f !== 'all').length;
+  const activeFilterCount = [statusFilter, tagFilter, engineerFilter].filter(f => f !== 'all').length + (showPending ? 0 : 1);
 
   // Clear all filters
   const clearFilters = () => {
     setStatusFilter('all');
     setTagFilter('all');
     setEngineerFilter('all');
+    setShowPending(true);
   };
 
   // Detect engineer conflicts (same engineer on overlapping projects)
@@ -680,6 +692,12 @@ export function ProjectCalendarView() {
           </SelectContent>
         </Select>
 
+        {/* Pending Toggle */}
+        <div className="flex items-center gap-2">
+          <Switch id="show-pending-timeline" checked={showPending} onCheckedChange={setShowPending} />
+          <Label htmlFor="show-pending-timeline" className="text-sm text-muted-foreground">Show pending</Label>
+        </div>
+
         {/* Clear Filters */}
         {activeFilterCount > 0 && (
           <Button
@@ -990,6 +1008,7 @@ export function ProjectCalendarView() {
                       config={config}
                       hasConflict={hasConflict}
                       totalWeekdays={allWeekdays.length}
+                      isPending={status === 'pending'}
                     />
                   )}
                 </div>

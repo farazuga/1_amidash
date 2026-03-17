@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { format, eachDayOfInterval, parseISO, isWeekend } from 'date-fns';
-import { Users, Loader2, Save } from 'lucide-react';
+import { Users, Loader2, Save, Plus } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -17,11 +17,14 @@ import {
   useProjectAssignments,
   useAddAssignmentDays,
   useRemoveAssignmentDays,
+  useRemoveAssignment,
 } from '@/hooks/queries/use-assignments';
 import type { AssignmentDay } from '@/types/calendar';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { DEFAULT_WORK_TIMES } from '@/lib/calendar/constants';
+import { AssignmentDialog } from './assignment-dialog';
+import type { Project } from '@/types';
 
 interface MultiUserAssignmentDialogProps {
   open: boolean;
@@ -46,10 +49,20 @@ export function MultiUserAssignmentDialog({
   const { data: assignments = [], isLoading, refetch } = useProjectAssignments(projectId);
   const addDays = useAddAssignmentDays();
   const removeDays = useRemoveAssignmentDays();
+  const removeAssignment = useRemoveAssignment();
 
   // Track pending changes before saving
   const [pendingChanges, setPendingChanges] = useState<ChangeMap>(new Map());
   const [isSaving, setIsSaving] = useState(false);
+  const [addEngineerDialogOpen, setAddEngineerDialogOpen] = useState(false);
+
+  // Build a minimal Project object for the AssignmentDialog
+  const projectForDialog = useMemo(() => ({
+    id: projectId,
+    client_name: projectName,
+    start_date: projectStartDate,
+    end_date: projectEndDate,
+  } as Project), [projectId, projectName, projectStartDate, projectEndDate]);
 
   // Reset changes when dialog opens
   useEffect(() => {
@@ -244,6 +257,38 @@ export function MultiUserAssignmentDialog({
     });
   };
 
+  // Compute which assignments will have zero days after saving
+  const assignmentsWithZeroDays = useMemo(() => {
+    const result: { id: string; userName: string }[] = [];
+    for (const assignment of assignments) {
+      const existingDays = existingDaysMap.get(assignment.id) || new Set<string>();
+      const changes = pendingChanges.get(assignment.id);
+
+      // Start with existing day count
+      let remainingDays = existingDays.size;
+
+      if (changes) {
+        for (const [dateStr, action] of changes) {
+          if (action === 'add') {
+            // Only count if not already existing
+            if (!existingDays.has(dateStr)) remainingDays++;
+          } else if (action === 'remove') {
+            // Only count if currently existing
+            if (existingDays.has(dateStr)) remainingDays--;
+          }
+        }
+      }
+
+      if (remainingDays <= 0) {
+        result.push({
+          id: assignment.id,
+          userName: assignment.user?.full_name || 'Unknown',
+        });
+      }
+    }
+    return result;
+  }, [assignments, existingDaysMap, pendingChanges]);
+
   // Save all pending changes
   const handleSave = async () => {
     if (pendingChangeCount === 0) {
@@ -254,6 +299,7 @@ export function MultiUserAssignmentDialog({
     setIsSaving(true);
     let addCount = 0;
     let removeCount = 0;
+    let removedAssignments = 0;
 
     try {
       // Process all changes
@@ -270,6 +316,14 @@ export function MultiUserAssignmentDialog({
               toRemove.push(dayId);
             }
           }
+        }
+
+        // Check if this assignment will have zero days — remove the whole assignment
+        const willHaveZeroDays = assignmentsWithZeroDays.some(a => a.id === assignmentId);
+        if (willHaveZeroDays) {
+          await removeAssignment.mutateAsync(assignmentId);
+          removedAssignments++;
+          continue; // Skip day-level changes — assignment is gone
         }
 
         // Add days
@@ -295,6 +349,7 @@ export function MultiUserAssignmentDialog({
       const messages: string[] = [];
       if (addCount > 0) messages.push(`${addCount} day${addCount !== 1 ? 's' : ''} added`);
       if (removeCount > 0) messages.push(`${removeCount} day${removeCount !== 1 ? 's' : ''} removed`);
+      if (removedAssignments > 0) messages.push(`${removedAssignments} engineer${removedAssignments !== 1 ? 's' : ''} removed`);
 
       toast.success('Schedule updated', {
         description: messages.join(', '),
@@ -332,18 +387,44 @@ export function MultiUserAssignmentDialog({
           <div className="text-center py-12 text-muted-foreground">
             <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p>No team members assigned to this project yet.</p>
-            <p className="text-sm">Use drag-and-drop or the assignment dialog to add team members first.</p>
+            <Button
+              variant="default"
+              size="sm"
+              className="mt-4 gap-2"
+              onClick={() => setAddEngineerDialogOpen(true)}
+            >
+              <Plus className="h-4 w-4" />
+              Add Engineer
+            </Button>
           </div>
         ) : (
           <div className="space-y-4">
             {/* Info bar */}
             <div className="flex items-center justify-between text-sm text-muted-foreground">
-              <span>{assignments.length} team member{assignments.length !== 1 ? 's' : ''} assigned</span>
-              {pendingChangeCount > 0 && (
-                <span className="text-primary font-medium">
-                  {pendingChangeCount} pending change{pendingChangeCount !== 1 ? 's' : ''}
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                <span>{assignments.length} team member{assignments.length !== 1 ? 's' : ''} assigned</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1"
+                  onClick={() => setAddEngineerDialogOpen(true)}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add
+                </Button>
+              </div>
+              <div className="flex items-center gap-3">
+                {assignmentsWithZeroDays.length > 0 && (
+                  <span className="text-destructive font-medium">
+                    {assignmentsWithZeroDays.map(a => a.userName).join(', ')} will be removed
+                  </span>
+                )}
+                {pendingChangeCount > 0 && (
+                  <span className="text-primary font-medium">
+                    {pendingChangeCount} pending change{pendingChangeCount !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Schedule grid */}
@@ -354,20 +435,26 @@ export function MultiUserAssignmentDialog({
                     <th className="sticky left-0 bg-background p-2 border-b border-r text-left font-medium min-w-[140px]">
                       Date
                     </th>
-                    {assignments.map((assignment) => (
-                      <th
-                        key={assignment.id}
-                        className="p-2 border-b text-center font-medium min-w-[100px]"
-                      >
-                        <div
-                          className="truncate cursor-pointer hover:text-primary hover:underline transition-colors"
-                          onClick={() => handleToggleAllForAssignment(assignment.id)}
-                          title="Click to toggle all days for this person"
+                    {assignments.map((assignment) => {
+                      const willBeRemoved = assignmentsWithZeroDays.some(a => a.id === assignment.id);
+                      return (
+                        <th
+                          key={assignment.id}
+                          className="p-2 border-b text-center font-medium min-w-[100px]"
                         >
-                          {assignment.user?.full_name || 'Unknown'}
-                        </div>
-                      </th>
-                    ))}
+                          <div
+                            className={cn(
+                              'truncate cursor-pointer hover:text-primary hover:underline transition-colors',
+                              willBeRemoved && 'line-through text-destructive'
+                            )}
+                            onClick={() => handleToggleAllForAssignment(assignment.id)}
+                            title={willBeRemoved ? 'No days selected — will be removed on save' : 'Click to toggle all days for this person'}
+                          >
+                            {assignment.user?.full_name || 'Unknown'}
+                          </div>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -450,6 +537,16 @@ export function MultiUserAssignmentDialog({
           </div>
         )}
       </DialogContent>
+
+      {/* Add Engineer dialog */}
+      <AssignmentDialog
+        open={addEngineerDialogOpen}
+        onOpenChange={setAddEngineerDialogOpen}
+        project={projectForDialog}
+        onSuccess={() => {
+          refetch();
+        }}
+      />
     </Dialog>
   );
 }

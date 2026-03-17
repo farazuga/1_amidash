@@ -7,10 +7,13 @@ import {
   getProductDetails,
   getPartnerDetails,
   getPartnerContacts,
+  getShippingAddress,
   buildOdooUrl,
   odooFalseToNull,
   odooMany2oneName,
   formatOdooPhone,
+  parseStateCode,
+  parseCountryCode,
 } from '@/lib/odoo/queries';
 import type { OdooPullResult } from '@/types/odoo';
 
@@ -66,9 +69,10 @@ export async function POST(request: NextRequest) {
 
     // Fetch partner details and order lines in parallel
     const partnerId = order.partner_id[0];
-    const [partner, lines] = await Promise.all([
+    const [partner, lines, shippingPartner] = await Promise.all([
       getPartnerDetails(client, partnerId),
       getSalesOrderLines(client, order.order_line),
+      getShippingAddress(client, order.id),
     ]);
 
     // Filter out section headers and notes — only keep actual product lines
@@ -130,6 +134,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Build delivery address from shipping partner
+    let deliveryAddress: OdooPullResult['deliveryAddress'] = null;
+    if (shippingPartner) {
+      const street1 = odooFalseToNull(shippingPartner.street) || '';
+      const street2 = odooFalseToNull(shippingPartner.street2) || '';
+      const combinedStreet = [street1, street2].filter(Boolean).join(', ') || null;
+
+      deliveryAddress = {
+        street: combinedStreet,
+        city: odooFalseToNull(shippingPartner.city),
+        state: parseStateCode(shippingPartner.state_id),
+        zip: odooFalseToNull(shippingPartner.zip),
+        country: parseCountryCode(shippingPartner.country_id),
+      };
+    }
+
     // Build response
     const result: OdooPullResult = {
       salesOrder: {
@@ -169,6 +189,7 @@ export async function POST(request: NextRequest) {
           subtotal: line.price_subtotal,
         };
       }),
+      deliveryAddress,
     };
 
     return NextResponse.json(result);

@@ -4,6 +4,8 @@ import { logger } from '../../utils/logger.js';
 export interface RevenueData {
   currentMonthRevenue: number;
   currentMonthGoal: number;
+  quarterRevenue: number;
+  quarterGoal: number;
   yearToDateRevenue: number;
   yearToDateGoal: number;
   monthlyData: { month: string; revenue: number; goal: number }[];
@@ -47,24 +49,39 @@ export async function fetchRevenueData(): Promise<RevenueData> {
     const monthlyData = [];
     let ytdRevenue = 0;
     let ytdGoal = 0;
+    let quarterRevenue = 0;
+    let quarterGoal = 0;
+
+    // Current quarter: Q1=1-3, Q2=4-6, Q3=7-9, Q4=10-12
+    const quarterStart = Math.floor((currentMonth - 1) / 3) * 3 + 1;
+    const quarterEnd = quarterStart + 2;
 
     for (let m = 1; m <= 12; m++) {
       const goal = goals?.find((g: Record<string, unknown>) => g.month === m);
       const revenue = monthlyRevenue.get(m) || 0;
+      const goalAmount = goal?.amount || 0;
       if (m <= currentMonth) {
         ytdRevenue += revenue;
-        ytdGoal += goal?.amount || 0;
+        ytdGoal += goalAmount;
+      }
+      if (m >= quarterStart && m <= quarterEnd) {
+        if (m <= currentMonth) {
+          quarterRevenue += revenue;
+        }
+        quarterGoal += goalAmount;
       }
       monthlyData.push({
         month: new Date(currentYear, m - 1).toLocaleString('default', { month: 'short' }),
         revenue,
-        goal: goal?.amount || 0,
+        goal: goalAmount,
       });
     }
 
     return {
       currentMonthRevenue: monthlyRevenue.get(currentMonth) || 0,
       currentMonthGoal: goals?.find((g: Record<string, unknown>) => g.month === currentMonth)?.amount || 0,
+      quarterRevenue,
+      quarterGoal,
       yearToDateRevenue: ytdRevenue,
       yearToDateGoal: ytdGoal,
       monthlyData,
@@ -86,9 +103,12 @@ async function getInvoicedStatusId(): Promise<string | null> {
 }
 
 function getMockRevenue(): RevenueData {
+  // Mock quarterly data aggregated from Q1 months (Jan-Mar)
   return {
     currentMonthRevenue: 125000,
     currentMonthGoal: 150000,
+    quarterRevenue: 370000,
+    quarterGoal: 375000,
     yearToDateRevenue: 1250000,
     yearToDateGoal: 1500000,
     monthlyData: [

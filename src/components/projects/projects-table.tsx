@@ -50,7 +50,7 @@ import { format } from 'date-fns';
 import { StatusBadge } from './status-badge';
 import { ScheduleStatusBadge } from './schedule-status-badge';
 import { toast } from 'sonner';
-import { useUser } from '@/hooks/use-user';
+import { useUser } from '@/contexts/user-context';
 import { useUserPreferences } from '@/hooks/use-user-preferences';
 import { createClient } from '@/lib/supabase/client';
 import {

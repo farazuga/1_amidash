@@ -301,7 +301,7 @@ export function FileUploadBlock({
   if (!files || files.length === 0) return null;
 
   return (
-    <div className="mb-6">
+    <div className="mb-6 border border-gray-200 rounded-lg p-4 bg-white">
       <h3 className="text-lg font-semibold text-[#023A2D] mb-3">
         File Uploads
       </h3>

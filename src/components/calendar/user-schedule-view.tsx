@@ -26,13 +26,13 @@ interface UserScheduleViewProps {
   currentDate: Date;
 }
 
-const ALL_STATUSES: BookingStatus[] = ['draft', 'tentative', 'pending_confirm', 'confirmed'];
+const ALL_STATUSES: BookingStatus[] = ['draft', 'pending', 'confirmed'];
 
 export function UserScheduleView({ userId, userName, currentDate }: UserScheduleViewProps) {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
   const [selectedStatuses, setSelectedStatuses] = useState<Set<BookingStatus>>(
-    new Set(['tentative', 'pending_confirm', 'confirmed'])
+    new Set(['pending', 'confirmed'])
   );
 
   const { data: schedule, isLoading } = useUserSchedule(userId, monthStart, monthEnd);
@@ -163,7 +163,7 @@ export function UserScheduleView({ userId, userName, currentDate }: UserSchedule
                   {daySchedule.map((item, index) => (
                     <Link
                       key={`${item.assignment_id}-${index}`}
-                      href={item.sales_order_number ? `/projects/${item.sales_order_number}/calendar` : '#'}
+                      href={item.sales_order_number ? `/calendar?project=${item.sales_order_number}` : '#'}
                       className="flex items-center justify-between p-2 rounded-md hover:bg-muted transition-colors"
                     >
                       <div className="flex flex-col">

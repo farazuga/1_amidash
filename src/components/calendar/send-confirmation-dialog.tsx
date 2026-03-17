@@ -48,9 +48,9 @@ export function SendConfirmationDialog({
 
   const createConfirmation = useCreateConfirmationRequest();
 
-  // Filter to only tentative assignments (those that can be sent for confirmation)
+  // Filter to only pending assignments (those that can be sent for confirmation)
   const tentativeAssignments = assignments.filter(
-    (a) => a.bookingStatus === 'tentative'
+    (a) => a.bookingStatus === 'pending'
   );
 
   // Reset form when dialog opens

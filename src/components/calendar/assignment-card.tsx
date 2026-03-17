@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { BookingStatusDot } from './booking-status-badge';
 import { BOOKING_STATUS_CONFIG } from '@/lib/calendar/constants';
@@ -41,7 +42,7 @@ interface AssignmentCardProps {
   className?: string;
 }
 
-export function AssignmentCard({
+export const AssignmentCard = memo(function AssignmentCard({
   event,
   compact = false,
   onClick,
@@ -56,6 +57,7 @@ export function AssignmentCard({
   className,
 }: AssignmentCardProps) {
   const config = BOOKING_STATUS_CONFIG[event.bookingStatus];
+  const isPending = event.bookingStatus === 'pending';
 
   const handleStatusClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -72,8 +74,7 @@ export function AssignmentCard({
   // Left border color based on status
   const borderLeftColor = {
     draft: 'border-l-blue-500',
-    tentative: 'border-l-amber-500',
-    pending_confirm: 'border-l-purple-500',
+    pending: 'border-l-amber-500',
     confirmed: 'border-l-green-500',
   }[event.bookingStatus];
 
@@ -166,6 +167,7 @@ export function AssignmentCard({
         // Enhanced hover state
         'hover:shadow-sm hover:-translate-y-px',
         isUpdating && 'opacity-50 pointer-events-none',
+        isPending && 'opacity-60 border-dashed',
         className
       )}
       title={showHoverInfo ? undefined : `${event.projectName} - ${event.userName}${onStatusClick ? ' • Click dot to change status' : ''}`}
@@ -236,6 +238,7 @@ export function AssignmentCard({
         'before:opacity-0 hover:before:opacity-100 before:transition-opacity',
         'before:pointer-events-none',
         isUpdating && 'opacity-50',
+        isPending && 'opacity-60 border-dashed',
         className
       )}
     >
@@ -301,7 +304,7 @@ export function AssignmentCard({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-            {event.bookingStatus === 'tentative' && onSendConfirmation && (
+            {event.bookingStatus === 'pending' && onSendConfirmation && (
               <DropdownMenuItem onClick={() => onSendConfirmation(event)}>
                 <Mail className="mr-2 h-4 w-4" />
                 Send to Customer
@@ -318,4 +321,4 @@ export function AssignmentCard({
       )}
     </div>
   );
-}
+});

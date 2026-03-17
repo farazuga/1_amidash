@@ -104,9 +104,9 @@ export function BulkActionsToolbar({
                 <PencilLine className="mr-2 h-4 w-4 text-gray-500" />
                 Draft
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleStatusChange('tentative')}>
-                <PencilLine className="mr-2 h-4 w-4 text-amber-500" />
-                Tentative
+              <DropdownMenuItem onClick={() => handleStatusChange('pending')}>
+                <Clock className="mr-2 h-4 w-4 text-amber-500" />
+                Pending
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleStatusChange('confirmed')}>
                 <CheckCircle className="mr-2 h-4 w-4 text-green-500" />

@@ -13,6 +13,8 @@ export const BOOKING_STATUS_CONFIG: Record<
     ringColor: string;
     glowColor?: string;
     pulse?: boolean;
+    borderStyle?: string;
+    opacity?: string;
     description: string;
     visibleToEngineers: boolean;
   }
@@ -28,28 +30,17 @@ export const BOOKING_STATUS_CONFIG: Record<
     description: 'PM planning - not visible to engineers',
     visibleToEngineers: false,
   },
-  tentative: {
-    label: 'Tentative',
-    shortLabel: 'T',
-    bgColor: 'bg-amber-50',
-    textColor: 'text-amber-800',
-    borderColor: 'border-amber-200',
+  pending: {
+    label: 'Pending',
+    shortLabel: 'P',
+    bgColor: 'bg-amber-50/50',
+    textColor: 'text-amber-700/70',
+    borderColor: 'border-amber-200 border-dashed',
     dotColor: 'bg-amber-500',
     ringColor: 'ring-amber-200',
     glowColor: 'shadow-amber-200/50',
-    description: 'Planned but not yet sent to customer',
-    visibleToEngineers: true,
-  },
-  pending_confirm: {
-    label: 'Pending',
-    shortLabel: 'PC',
-    bgColor: 'bg-purple-50',
-    textColor: 'text-purple-800',
-    borderColor: 'border-purple-200',
-    dotColor: 'bg-purple-500',
-    ringColor: 'ring-purple-200',
-    glowColor: 'shadow-purple-200/50',
-    pulse: true,
+    borderStyle: 'border-dashed',
+    opacity: 'opacity-50',
     description: 'Awaiting customer confirmation',
     visibleToEngineers: true,
   },
@@ -120,14 +111,13 @@ export const MONTHS = [
 // Booking status order for sorting (most important first)
 export const BOOKING_STATUS_ORDER: BookingStatus[] = [
   'confirmed',
-  'pending_confirm',
-  'tentative',
+  'pending',
   'draft',
 ];
 
-// Status cycle for manual PM cycling (skips pending_confirm - requires confirmation flow)
+// Status cycle for manual PM cycling
 export const BOOKING_STATUS_CYCLE: BookingStatus[] = [
   'draft',
-  'tentative',
+  'pending',
   'confirmed',
 ];

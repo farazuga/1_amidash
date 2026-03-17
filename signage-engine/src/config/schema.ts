@@ -63,9 +63,10 @@ export type DisplayConfig = z.infer<typeof DisplayConfigSchema>;
 
 export const PollingConfigSchema = z.object({
   projects: z.number().default(30000),
+  invoicedProjects: z.number().default(60000),
+  purchaseOrders: z.number().default(30000),
   revenue: z.number().default(60000),
-  schedule: z.number().default(30000),
-  purchaseOrders: z.number().default(15000),
+  blocksConfig: z.number().default(30000),
 });
 export type PollingConfig = z.infer<typeof PollingConfigSchema>;
 
@@ -96,14 +97,34 @@ export type DebugConfig = z.infer<typeof DebugConfigSchema>;
 export type StaleDataConfig = z.infer<typeof StaleDataConfigSchema>;
 
 export const SignageConfigSchema = z.object({
-  ndi: NDIConfigSchema.default({}),
-  display: DisplayConfigSchema.default({}),
-  polling: PollingConfigSchema.default({}),
+  ndi: NDIConfigSchema.default({ name: 'Amidash Signage', frameRate: 30 }),
+  display: DisplayConfigSchema.default({
+    width: 3840,
+    height: 2160,
+    backgroundColor: '#053B2C',
+    accentColor: '#C2E0AD',
+    fontFamily: 'Inter',
+  }),
+  polling: PollingConfigSchema.default({
+    projects: 30000,
+    invoicedProjects: 60000,
+    purchaseOrders: 30000,
+    revenue: 60000,
+    blocksConfig: 30000,
+  }),
   slides: z.array(SlideConfigSchema).min(1),
-  transitions: TransitionConfigSchema.default({}),
-  api: APIConfigSchema.default({}),
-  staleData: StaleDataConfigSchema.default({}),
-  debug: DebugConfigSchema.default({}),
+  transitions: TransitionConfigSchema.default({ type: 'fade', duration: 500 }),
+  api: APIConfigSchema.default({ port: 3001, host: '127.0.0.1' }),
+  staleData: StaleDataConfigSchema.default({
+    warningThresholdMs: 60000,
+    indicatorPosition: 'bottom-right',
+  }),
+  debug: DebugConfigSchema.default({
+    enabled: false,
+    showSafeArea: true,
+    showFrameRate: true,
+    showDataTimestamps: true,
+  }),
 });
 export type SignageConfig = z.infer<typeof SignageConfigSchema>;
 

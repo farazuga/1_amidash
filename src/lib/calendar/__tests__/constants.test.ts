@@ -12,13 +12,13 @@ import type { BookingStatus } from '@/types/calendar';
 
 describe('Calendar Constants', () => {
   describe('BOOKING_STATUS_CONFIG', () => {
-    it('has exactly 4 status entries', () => {
+    it('has exactly 3 status entries', () => {
       const statuses = Object.keys(BOOKING_STATUS_CONFIG);
-      expect(statuses).toHaveLength(4);
+      expect(statuses).toHaveLength(3);
     });
 
     it('contains all expected statuses', () => {
-      const expectedStatuses: BookingStatus[] = ['draft', 'tentative', 'pending_confirm', 'confirmed'];
+      const expectedStatuses: BookingStatus[] = ['draft', 'pending', 'confirmed'];
       expectedStatuses.forEach((status) => {
         expect(BOOKING_STATUS_CONFIG).toHaveProperty(status);
       });
@@ -26,6 +26,11 @@ describe('Calendar Constants', () => {
 
     it('does not contain complete status', () => {
       expect(BOOKING_STATUS_CONFIG).not.toHaveProperty('complete');
+    });
+
+    it('does not contain tentative or pending_confirm statuses', () => {
+      expect(BOOKING_STATUS_CONFIG).not.toHaveProperty('tentative');
+      expect(BOOKING_STATUS_CONFIG).not.toHaveProperty('pending_confirm');
     });
 
     it('each status has required properties', () => {
@@ -52,22 +57,20 @@ describe('Calendar Constants', () => {
     });
 
     it('other statuses are visible to engineers', () => {
-      expect(BOOKING_STATUS_CONFIG.tentative.visibleToEngineers).toBe(true);
-      expect(BOOKING_STATUS_CONFIG.pending_confirm.visibleToEngineers).toBe(true);
+      expect(BOOKING_STATUS_CONFIG.pending.visibleToEngineers).toBe(true);
       expect(BOOKING_STATUS_CONFIG.confirmed.visibleToEngineers).toBe(true);
     });
 
     it('has correct short labels', () => {
       expect(BOOKING_STATUS_CONFIG.draft.shortLabel).toBe('D');
-      expect(BOOKING_STATUS_CONFIG.tentative.shortLabel).toBe('T');
-      expect(BOOKING_STATUS_CONFIG.pending_confirm.shortLabel).toBe('PC');
+      expect(BOOKING_STATUS_CONFIG.pending.shortLabel).toBe('P');
       expect(BOOKING_STATUS_CONFIG.confirmed.shortLabel).toBe('C');
     });
   });
 
   describe('BOOKING_STATUS_ORDER', () => {
-    it('has 4 entries', () => {
-      expect(BOOKING_STATUS_ORDER).toHaveLength(4);
+    it('has 3 entries', () => {
+      expect(BOOKING_STATUS_ORDER).toHaveLength(3);
     });
 
     it('confirmed is first (highest priority)', () => {
@@ -84,7 +87,7 @@ describe('Calendar Constants', () => {
   });
 
   describe('BOOKING_STATUS_CYCLE', () => {
-    it('has 3 entries (skips pending_confirm)', () => {
+    it('has 3 entries', () => {
       expect(BOOKING_STATUS_CYCLE).toHaveLength(3);
     });
 
@@ -96,21 +99,17 @@ describe('Calendar Constants', () => {
       expect(BOOKING_STATUS_CYCLE[BOOKING_STATUS_CYCLE.length - 1]).toBe('confirmed');
     });
 
-    it('does not contain pending_confirm (requires confirmation flow)', () => {
-      expect(BOOKING_STATUS_CYCLE).not.toContain('pending_confirm');
-    });
-
     it('does not contain complete', () => {
       expect(BOOKING_STATUS_CYCLE).not.toContain('complete');
     });
 
-    it('has correct order: draft -> tentative -> confirmed', () => {
-      expect(BOOKING_STATUS_CYCLE).toEqual(['draft', 'tentative', 'confirmed']);
+    it('has correct order: draft -> pending -> confirmed', () => {
+      expect(BOOKING_STATUS_CYCLE).toEqual(['draft', 'pending', 'confirmed']);
     });
   });
 
   describe('DEFAULT_WORKING_HOURS', () => {
-    it('has start time of 07:00', () => {
+    it('has start time of 08:30', () => {
       expect(DEFAULT_WORKING_HOURS.start).toBe('08:30');
     });
 

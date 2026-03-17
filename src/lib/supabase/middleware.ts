@@ -60,34 +60,38 @@ export async function updateSession(request: NextRequest) {
 
   // Handle authenticated users
   if (user) {
-    // Fetch profile to get role
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
+    // Only fetch profile when we need role-based redirection
+    const needsRoleCheck = isLoginRoute || isStaffRoute || isCustomerRoute;
 
-    const isCustomer = profile?.role === 'customer';
+    if (needsRoleCheck) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
 
-    // Redirect logged-in users away from login page based on role
-    if (isLoginRoute) {
-      const url = request.nextUrl.clone();
-      url.pathname = isCustomer ? '/customer' : '/';
-      return NextResponse.redirect(url);
-    }
+      const isCustomer = profile?.role === 'customer';
 
-    // Customer trying to access staff routes -> redirect to customer portal
-    if (isCustomer && isStaffRoute) {
-      const url = request.nextUrl.clone();
-      url.pathname = '/customer';
-      return NextResponse.redirect(url);
-    }
+      // Redirect logged-in users away from login page based on role
+      if (isLoginRoute) {
+        const url = request.nextUrl.clone();
+        url.pathname = isCustomer ? '/customer' : '/';
+        return NextResponse.redirect(url);
+      }
 
-    // Staff trying to access customer portal -> redirect to dashboard
-    if (!isCustomer && isCustomerRoute) {
-      const url = request.nextUrl.clone();
-      url.pathname = '/';
-      return NextResponse.redirect(url);
+      // Customer trying to access staff routes -> redirect to customer portal
+      if (isCustomer && isStaffRoute) {
+        const url = request.nextUrl.clone();
+        url.pathname = '/customer';
+        return NextResponse.redirect(url);
+      }
+
+      // Staff trying to access customer portal -> redirect to dashboard
+      if (!isCustomer && isCustomerRoute) {
+        const url = request.nextUrl.clone();
+        url.pathname = '/';
+        return NextResponse.redirect(url);
+      }
     }
   }
 
