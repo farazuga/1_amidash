@@ -315,15 +315,15 @@ export async function createAssignment(data: {
 
   // Create conflict records if any
   if (conflictCheck.hasConflicts) {
-    for (const conflict of conflictCheck.conflicts) {
-      await supabase.from('booking_conflicts').insert({
+    await supabase.from('booking_conflicts').insert(
+      conflictCheck.conflicts.map(conflict => ({
         user_id: data.userId,
         assignment_id_1: assignment.id,
         assignment_id_2: conflict.assignmentId,
         conflict_date: conflict.conflictDate,
         is_resolved: false,
-      });
-    }
+      }))
+    );
   }
 
   // Send assignment notification email (fire and forget)

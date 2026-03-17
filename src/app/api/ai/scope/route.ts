@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { internalError } from '@/lib/api/error-response';
+import { validateOrigin } from '@/lib/api/csrf';
 
 // Claude API proxy for iOS app SOW builder
 // Keeps API key server-side for security
@@ -13,7 +15,6 @@ interface ClaudeMessage {
 interface ScopeRequest {
   messages: ClaudeMessage[];
   scope_id?: string;
-  system_prompt_override?: string;
 }
 
 // Default system prompt for Amitrace SOW builder
@@ -58,6 +59,9 @@ control room specs, studio specs, optional sections, and any missing information
 
 export async function POST(request: NextRequest) {
   try {
+    const csrfError = validateOrigin(request);
+    if (csrfError) return csrfError;
+
     // Verify authentication
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -71,7 +75,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body: ScopeRequest = await request.json();
-    const { messages, scope_id, system_prompt_override } = body;
+    const { messages, scope_id } = body;
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json(
@@ -87,19 +91,15 @@ export async function POST(request: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any;
 
-    if (!system_prompt_override) {
-      const { data: promptData } = await db
-        .from('ai_prompts')
-        .select('content')
-        .eq('prompt_key', 'scope_builder_system')
-        .eq('is_active', true)
-        .single();
+    const { data: promptData } = await db
+      .from('ai_prompts')
+      .select('content')
+      .eq('prompt_key', 'scope_builder_system')
+      .eq('is_active', true)
+      .single();
 
-      if (promptData?.content) {
-        systemPrompt = promptData.content;
-      }
-    } else {
-      systemPrompt = system_prompt_override;
+    if (promptData?.content) {
+      systemPrompt = promptData.content;
     }
 
     // Initialize Anthropic client
@@ -181,15 +181,13 @@ export async function POST(request: NextRequest) {
     console.error('Claude API error:', error);
 
     if (error instanceof Anthropic.APIError) {
+      console.error('[AI Scope] Anthropic API error:', error);
       return NextResponse.json(
-        { error: `Claude API error: ${error.message}` },
+        { error: 'AI service error' },
         { status: error.status || 500 }
       );
     }
 
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return internalError('AI Scope', error);
   }
 }

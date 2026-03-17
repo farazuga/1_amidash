@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import * as sharepoint from '@/lib/sharepoint/client';
+import { internalError } from '@/lib/api/error-response';
 
 export async function GET() {
   try {
@@ -17,10 +18,6 @@ export async function GET() {
 
     return NextResponse.json({ sites });
   } catch (error) {
-    console.error('Error listing SharePoint sites:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to list sites' },
-      { status: 500 }
-    );
+    return internalError('SP Sites', error);
   }
 }

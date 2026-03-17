@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient, createClient } from '@/lib/supabase/server';
 import { emailSchema, roleSchema } from '@/lib/validation';
+import { validateOrigin } from '@/lib/api/csrf';
 
 // POST - Create a new user
 export async function POST(request: NextRequest) {
   try {
+    const csrfError = validateOrigin(request);
+    if (csrfError) return csrfError;
+
     // Verify the requesting user is an admin
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -93,6 +97,14 @@ export async function POST(request: NextRequest) {
       console.error('Error updating profile:', updateError);
       // User was created but profile update failed - not critical
     }
+
+    // Audit log the user creation
+    await supabase.from('audit_logs').insert({
+      user_id: user.id,
+      action: 'create',
+      field_name: 'user',
+      new_value: email,
+    });
 
     return NextResponse.json({
       success: true,

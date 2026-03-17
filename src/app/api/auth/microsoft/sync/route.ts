@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { fullSyncForUser } from '@/lib/microsoft-graph/sync';
 import { clearTokenCache } from '@/lib/microsoft-graph/auth';
+import { internalError } from '@/lib/api/error-response';
 
 export async function POST() {
   const supabase = await createClient();
@@ -24,6 +25,7 @@ export async function POST() {
     // Clear cached token to pick up any permission changes in Azure AD
     clearTokenCache();
 
+    // Sync personal calendar
     const result = await fullSyncForUser(user.id);
 
     return NextResponse.json({
@@ -33,10 +35,6 @@ export async function POST() {
       errors: result.errors.slice(0, 10),
     });
   } catch (err) {
-    console.error('Sync error:', err);
-    return NextResponse.json(
-      { error: 'Sync failed', details: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 }
-    );
+    return internalError('MS Sync', err);
   }
 }

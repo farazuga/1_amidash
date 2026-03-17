@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getAppAccessToken } from '@/lib/microsoft-graph/auth';
+import { internalError } from '@/lib/api/error-response';
 
 export async function GET() {
   const supabase = await createClient();
@@ -18,7 +19,8 @@ export async function GET() {
     await getAppAccessToken();
     appTokenStatus = 'valid';
   } catch (error) {
-    appTokenStatus = `error: ${error instanceof Error ? error.message : 'unknown'}`;
+    console.error('[Token Status]', error);
+    appTokenStatus = 'error: token validation failed';
   }
 
   // Get all engineer calendars

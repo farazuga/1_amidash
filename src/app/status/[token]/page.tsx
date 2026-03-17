@@ -52,11 +52,14 @@ function checkRateLimit(ip: string): boolean {
 async function getProjectByToken(token: string) {
   const supabase = await createClient();
 
-  const { data: project } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: project } = await (supabase as any)
     .from('projects')
     .select(`
-      *,
-      current_status:statuses(*)
+      id, client_name, sales_order_number, phase,
+      poc_name, poc_email, delivery_address, delivery_city, delivery_state, delivery_zip,
+      schedule_status, project_description, project_type_id,
+      current_status_id, current_status:statuses(*)
     `)
     .eq('client_token', token)
     .single();
