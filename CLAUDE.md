@@ -6,6 +6,10 @@ This file provides context for Claude Code when working on this project.
 
 AmiDash - A project management dashboard built with Next.js, TypeScript, and Supabase.
 
+### iOS Companion App
+
+**AmiDash Field** is a native iOS companion app for field technicians. Full reference: [docs/AMIDASH_FIELD_IOS_REFERENCE.md](docs/AMIDASH_FIELD_IOS_REFERENCE.md). Repo at `/Users/faraz/Desktop/AmiDashField-iOS/`.
+
 ## Tech Stack
 
 - **Framework:** Next.js 16 (App Router)

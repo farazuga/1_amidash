@@ -31,8 +31,8 @@ export async function GET(request: Request) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: projects, error: projectsError } = await (supabase as any)
       .from('projects')
-      .select('id, sales_order_number, client_name, status, phase')
-      .in('phase', ['sold', 'active', 'on_hold'])
+      .select('id, sales_order_number, client_name, current_status_id, is_draft')
+      .eq('is_draft', false)
       .order('created_at', { ascending: false });
 
     if (projectsError) {
