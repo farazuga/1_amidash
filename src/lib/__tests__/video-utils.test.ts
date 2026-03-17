@@ -30,7 +30,7 @@ describe('video-utils', () => {
   describe('getSupportedMimeType', () => {
     it('returns a supported MIME type', () => {
       const result = getSupportedMimeType();
-      expect(result).toBeTruthy();
+      expect(result).toMatch(/^video\//);
       expect(typeof result).toBe('string');
     });
 
