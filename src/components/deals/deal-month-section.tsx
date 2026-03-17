@@ -2,8 +2,9 @@
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronRight, ExternalLink } from 'lucide-react';
+import { ChevronRight, ExternalLink, Camera } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
+import Link from 'next/link';
 import type { ACDealDisplay } from '@/types/activecampaign';
 
 interface DealMonthSectionProps {
@@ -12,9 +13,10 @@ interface DealMonthSectionProps {
   totalValue: number;
   isOpen: boolean;
   onToggle: () => void;
+  fileCounts: Record<string, number>;
 }
 
-export function DealMonthSection({ label, deals, totalValue, isOpen, onToggle }: DealMonthSectionProps) {
+export function DealMonthSection({ label, deals, totalValue, isOpen, onToggle, fileCounts }: DealMonthSectionProps) {
   const formatValue = (cents: string) => {
     const dollars = parseInt(cents, 10) / 100;
     if (dollars >= 1_000_000) return `$${(dollars / 1_000_000).toFixed(1)}M`;
@@ -49,6 +51,7 @@ export function DealMonthSection({ label, deals, totalValue, isOpen, onToggle }:
                 <tr className="border-t border-b text-left text-xs text-muted-foreground">
                   <th className="px-4 py-2 font-medium">Title</th>
                   <th className="px-4 py-2 font-medium">Account</th>
+                  <th className="px-4 py-2 font-medium text-center">Photos</th>
                   <th className="px-4 py-2 font-medium text-right">Value</th>
                   <th className="px-4 py-2 font-medium text-right">Close Date</th>
                 </tr>
@@ -68,6 +71,19 @@ export function DealMonthSection({ label, deals, totalValue, isOpen, onToggle }:
                       </a>
                     </td>
                     <td className="px-4 py-2.5 text-sm">{deal.accountName || '\u2014'}</td>
+                    <td className="px-4 py-2.5 text-center">
+                      {fileCounts[deal.id] > 0 ? (
+                        <Link
+                          href={`/presales-files/${deal.id}`}
+                          className="inline-flex items-center gap-1 text-primary hover:underline text-sm"
+                        >
+                          <Camera className="h-3.5 w-3.5 shrink-0" />
+                          <span>{fileCounts[deal.id]}</span>
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">&mdash;</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2.5 text-sm text-right">{formatValue(deal.value)}</td>
                     <td className="px-4 py-2.5 text-sm text-right text-muted-foreground">
                       {deal.forecastCloseDate

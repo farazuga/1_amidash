@@ -8,12 +8,14 @@ import { MonthHeroCard } from './month-hero-card';
 import { PipelineOutlook } from './pipeline-outlook';
 import type { MonthSummary } from './pipeline-outlook';
 import { DealMonthSection } from './deal-month-section';
+import { getPresalesFileCounts } from '@/app/(dashboard)/presales-files/actions';
 
 export function UpcomingDealsContent() {
   const [deals, setDeals] = useState<ACDealDisplay[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [goals, setGoals] = useState<Map<string, number>>(new Map());
+  const [fileCounts, setFileCounts] = useState<Record<string, number>>({});
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
   const [allExpanded, setAllExpanded] = useState(false);
 
@@ -30,7 +32,17 @@ export function UpcomingDealsContent() {
         if (data.error && !data.deals?.length) {
           setError(data.error);
         }
-        setDeals(data.deals || []);
+        const fetchedDeals: ACDealDisplay[] = data.deals || [];
+        setDeals(fetchedDeals);
+
+        // Fetch file counts for all deals
+        const dealIds = fetchedDeals.map((d) => d.id);
+        if (dealIds.length > 0) {
+          const countsResult = await getPresalesFileCounts(dealIds);
+          if (countsResult.success) {
+            setFileCounts(countsResult.data);
+          }
+        }
       } catch {
         setError('Failed to load deals');
       }
@@ -251,6 +263,7 @@ export function UpcomingDealsContent() {
               totalValue={groupValue(monthDeals)}
               isOpen={expandedMonths.has(key)}
               onToggle={() => handleToggleMonth(key)}
+              fileCounts={fileCounts}
             />
           </div>
         );
@@ -265,6 +278,7 @@ export function UpcomingDealsContent() {
             totalValue={groupValue(unscheduledDeals)}
             isOpen={expandedMonths.has('unscheduled')}
             onToggle={() => handleToggleMonth('unscheduled')}
+            fileCounts={fileCounts}
           />
         </div>
       )}
