@@ -13,7 +13,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('@/lib/supabase/server');
 vi.mock('@/lib/microsoft-graph/sync', () => ({
   fullSyncForUser: vi.fn(),
-  fullProjectsSyncForUser: vi.fn(),
   retrySyncForAssignment: vi.fn(),
   getSyncErrors: vi.fn(),
 }));
@@ -22,7 +21,6 @@ vi.mock('@/lib/microsoft-graph/auth');
 import { createClient } from '@/lib/supabase/server';
 import {
   fullSyncForUser,
-  fullProjectsSyncForUser,
   retrySyncForAssignment,
   getSyncErrors,
 } from '@/lib/microsoft-graph/sync';
@@ -82,17 +80,12 @@ describe('POST /api/auth/microsoft/sync', () => {
     expect(json.error).toBe('Unauthorized');
   });
 
-  it('clears token cache and returns combined sync results', async () => {
+  it('clears token cache and returns sync results', async () => {
     vi.mocked(createClient).mockResolvedValue(createAuthenticatedSupabase());
     vi.mocked(fullSyncForUser).mockResolvedValue({
       synced: 3,
       failed: 1,
-      errors: ['personal-err'],
-    });
-    vi.mocked(fullProjectsSyncForUser).mockResolvedValue({
-      synced: 5,
-      failed: 2,
-      errors: ['project-err'],
+      errors: ['sync-err'],
     });
 
     const res = await syncPOST();
@@ -101,16 +94,13 @@ describe('POST /api/auth/microsoft/sync', () => {
     const json = await res.json();
     expect(json).toEqual({
       success: true,
-      personal: { synced: 3, failed: 1 },
-      projects: { synced: 5, failed: 2 },
-      synced: 8,
-      failed: 3,
-      errors: ['personal-err', 'project-err'],
+      synced: 3,
+      failed: 1,
+      errors: ['sync-err'],
     });
 
     expect(clearTokenCache).toHaveBeenCalledOnce();
     expect(fullSyncForUser).toHaveBeenCalledWith('test-user-id');
-    expect(fullProjectsSyncForUser).toHaveBeenCalledWith('test-user-id');
   });
 
   it('returns 500 when sync throws', async () => {
