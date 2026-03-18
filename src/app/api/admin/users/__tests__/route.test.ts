@@ -18,6 +18,27 @@ function createMockRequest(body: Record<string, unknown>): NextRequest {
   });
 }
 
+function createAdminClientMock() {
+  return {
+    auth: {
+      getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'admin-123' } } }),
+    },
+    from: vi.fn().mockImplementation((table: string) => {
+      if (table === 'audit_logs') {
+        return { insert: vi.fn().mockResolvedValue({ error: null }) };
+      }
+      // profiles table
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { role: 'admin' } }),
+          }),
+        }),
+      };
+    }),
+  } as unknown as Awaited<ReturnType<typeof createClient>>;
+}
+
 describe('POST /api/admin/users', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -139,18 +160,7 @@ describe('POST /api/admin/users', () => {
       }),
     };
 
-    vi.mocked(createClient).mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'admin-123' } } }),
-      },
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: { role: 'admin' } }),
-          }),
-        }),
-      }),
-    } as unknown as Awaited<ReturnType<typeof createClient>>);
+    vi.mocked(createClient).mockResolvedValue(createAdminClientMock());
 
     vi.mocked(createServiceClient).mockResolvedValue(
       mockServiceClient as unknown as Awaited<ReturnType<typeof createServiceClient>>
@@ -187,18 +197,7 @@ describe('POST /api/admin/users', () => {
       }),
     };
 
-    vi.mocked(createClient).mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'admin-123' } } }),
-      },
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: { role: 'admin' } }),
-          }),
-        }),
-      }),
-    } as unknown as Awaited<ReturnType<typeof createClient>>);
+    vi.mocked(createClient).mockResolvedValue(createAdminClientMock());
 
     vi.mocked(createServiceClient).mockResolvedValue(
       mockServiceClient as unknown as Awaited<ReturnType<typeof createServiceClient>>
@@ -235,18 +234,7 @@ describe('POST /api/admin/users', () => {
       }),
     };
 
-    vi.mocked(createClient).mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'admin-123' } } }),
-      },
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: { role: 'admin' } }),
-          }),
-        }),
-      }),
-    } as unknown as Awaited<ReturnType<typeof createClient>>);
+    vi.mocked(createClient).mockResolvedValue(createAdminClientMock());
 
     vi.mocked(createServiceClient).mockResolvedValue(
       mockServiceClient as unknown as Awaited<ReturnType<typeof createServiceClient>>
@@ -282,18 +270,7 @@ describe('POST /api/admin/users', () => {
       }),
     };
 
-    vi.mocked(createClient).mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'admin-123' } } }),
-      },
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: { role: 'admin' } }),
-          }),
-        }),
-      }),
-    } as unknown as Awaited<ReturnType<typeof createClient>>);
+    vi.mocked(createClient).mockResolvedValue(createAdminClientMock());
 
     vi.mocked(createServiceClient).mockResolvedValue(
       mockServiceClient as unknown as Awaited<ReturnType<typeof createServiceClient>>
@@ -448,18 +425,7 @@ describe('POST /api/admin/users - error handling', () => {
       }),
     };
 
-    vi.mocked(createClient).mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'admin-123' } } }),
-      },
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: { role: 'admin' } }),
-          }),
-        }),
-      }),
-    } as unknown as Awaited<ReturnType<typeof createClient>>);
+    vi.mocked(createClient).mockResolvedValue(createAdminClientMock());
 
     vi.mocked(createServiceClient).mockResolvedValue(
       mockServiceClient as unknown as Awaited<ReturnType<typeof createServiceClient>>
