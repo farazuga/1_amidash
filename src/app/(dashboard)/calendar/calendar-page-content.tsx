@@ -39,7 +39,7 @@ export function CalendarPageContent({ isAdmin, initialProject }: CalendarPageCon
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
 
   const handleEventClick = (event: CalendarEvent) => {
-    router.push(`/projects/${event.salesOrderNumber || event.projectId}`);
+    router.push(`/projects/${event.projectId}`);
   };
 
   const handleEventsLoaded = useCallback((events: CalendarEvent[]) => {
