@@ -3,6 +3,7 @@
 **Bundle ID:** `com.amitrace.amidashfield`
 **iOS Target:** 17.0+ | **Language:** Swift 5.0 / SwiftUI | **Local DB:** SwiftData
 **Repo:** `/Users/faraz/Desktop/AmiDashField-iOS/`
+**Xcode Project:** `AmiDashField.xcodeproj` (the only active project — old duplicates archived to `_archived_projects/`)
 **Project Generation:** XcodeGen (`project.yml`)
 **CI/CD:** GitHub Actions (build, test, SwiftLint, Codecov)
 
