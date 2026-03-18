@@ -152,11 +152,11 @@ export function buildCalendarEvent(params: {
     body: { contentType: 'text', content: body },
     start: {
       dateTime: `${params.date}T${params.startTime}:00`,
-      timeZone: 'UTC',
+      timeZone: 'America/New_York',
     },
     end: {
       dateTime: `${params.date}T${params.endTime}:00`,
-      timeZone: 'UTC',
+      timeZone: 'America/New_York',
     },
     isAllDay: false,
     showAs: 'busy',

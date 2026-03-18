@@ -186,7 +186,7 @@ export const AssignmentCard = memo(function AssignmentCard({
           <BookingStatusDot status={event.bookingStatus} size="sm" />
         </button>
       )}
-      <span className="truncate flex-1">{event.userName}</span>
+      <span className="truncate flex-1">{event.projectName} - {event.userName.split(' ')[0]}</span>
       {showEditButton && onEditClick && (
         <button
           onClick={handleEditClick}
