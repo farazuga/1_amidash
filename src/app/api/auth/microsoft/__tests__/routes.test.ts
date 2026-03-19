@@ -17,6 +17,9 @@ vi.mock('@/lib/microsoft-graph/sync', () => ({
   getSyncErrors: vi.fn(),
 }));
 vi.mock('@/lib/microsoft-graph/auth');
+vi.mock('@/lib/api/csrf', () => ({
+  validateOrigin: vi.fn().mockReturnValue(null),
+}));
 
 import { createClient } from '@/lib/supabase/server';
 import {
@@ -73,7 +76,7 @@ describe('POST /api/auth/microsoft/sync', () => {
   it('returns 401 when unauthenticated', async () => {
     vi.mocked(createClient).mockResolvedValue(createUnauthenticatedSupabase());
 
-    const res = await syncPOST();
+    const res = await syncPOST(new Request('http://localhost:3000/api/auth/microsoft/sync', { method: 'POST' }));
     expect(res.status).toBe(401);
 
     const json = await res.json();
@@ -88,7 +91,7 @@ describe('POST /api/auth/microsoft/sync', () => {
       errors: ['sync-err'],
     });
 
-    const res = await syncPOST();
+    const res = await syncPOST(new Request('http://localhost:3000/api/auth/microsoft/sync', { method: 'POST' }));
     expect(res.status).toBe(200);
 
     const json = await res.json();
@@ -107,7 +110,7 @@ describe('POST /api/auth/microsoft/sync', () => {
     vi.mocked(createClient).mockResolvedValue(createAuthenticatedSupabase());
     vi.mocked(fullSyncForUser).mockRejectedValue(new Error('Graph API down'));
 
-    const res = await syncPOST();
+    const res = await syncPOST(new Request('http://localhost:3000/api/auth/microsoft/sync', { method: 'POST' }));
     expect(res.status).toBe(500);
 
     const json = await res.json();
@@ -119,7 +122,7 @@ describe('POST /api/auth/microsoft/sync', () => {
     vi.mocked(createClient).mockResolvedValue(createAuthenticatedSupabase());
     vi.mocked(fullSyncForUser).mockRejectedValue('string error');
 
-    const res = await syncPOST();
+    const res = await syncPOST(new Request('http://localhost:3000/api/auth/microsoft/sync', { method: 'POST' }));
     expect(res.status).toBe(500);
 
     const json = await res.json();

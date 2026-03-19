@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/server';
 import { retrySyncForAssignment } from '@/lib/microsoft-graph/sync';
 import { clearTokenCache } from '@/lib/microsoft-graph/auth';
 import { z } from 'zod';
+import { validateOrigin } from '@/lib/api/csrf';
 
 const retrySchema = z.object({
   assignmentId: z.string().uuid('Invalid assignment ID format'),
@@ -28,6 +29,9 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 export async function POST(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return csrfError;
+
   const supabase = await createClient();
 
   // Check if user is authenticated
