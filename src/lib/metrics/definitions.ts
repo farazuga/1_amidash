@@ -5,7 +5,22 @@
  * Used for tooltips, labels, and documentation.
  */
 
-import type { MetricKey } from './types';
+/**
+ * All canonical metric keys used across the application.
+ */
+export type MetricKey =
+  | 'posReceivedRevenue'
+  | 'posReceivedCount'
+  | 'invoicedRevenue'
+  | 'invoicedCount'
+  | 'activeProjectCount'
+  | 'pipelineRevenue'
+  | 'avgDaysToInvoice'
+  | 'revenueGoal'
+  | 'invoicedRevenueGoal'
+  | 'projectsGoal'
+  | 'openQuotesTotal'
+  | 'odooAccountBalance';
 
 export interface MetricDefinition {
   key: MetricKey;
