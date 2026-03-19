@@ -10,6 +10,10 @@ vi.mock('@/app/(dashboard)/projects/[salesOrder]/files/actions', () => ({
   uploadFile: vi.fn(),
 }));
 
+vi.mock('@/lib/api/csrf', () => ({
+  validateOrigin: vi.fn().mockReturnValue(null),
+}));
+
 import { createClient } from '@/lib/supabase/server';
 import { uploadFile } from '@/app/(dashboard)/projects/[salesOrder]/files/actions';
 
@@ -322,7 +326,7 @@ describe('POST /api/files/upload', () => {
     const data = await response.json();
 
     expect(response.status).toBe(500);
-    expect(data.error).toBe('Network timeout');
+    expect(data.error).toBe('An internal error occurred. Please try again.');
   });
 
   it('returns 500 with generic message when non-Error is thrown', async () => {
@@ -340,6 +344,6 @@ describe('POST /api/files/upload', () => {
     const data = await response.json();
 
     expect(response.status).toBe(500);
-    expect(data.error).toBe('Upload failed');
+    expect(data.error).toBe('An internal error occurred. Please try again.');
   });
 });

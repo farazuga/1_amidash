@@ -2,7 +2,6 @@
  * Tests for Microsoft auth API routes:
  *   - sync (POST)
  *   - retry (POST)
- *   - debug (GET)
  *   - errors (GET)
  *   - deprecated routes (GET 410)
  */
@@ -38,7 +37,6 @@ import {
 // Route handlers
 import { POST as syncPOST } from '../sync/route';
 import { POST as retryPOST } from '../retry/route';
-import { GET as debugGET } from '../debug/route';
 import { GET as errorsGET } from '../errors/route';
 import { GET as deprecatedMainGET } from '../route';
 import { GET as deprecatedCallbackGET } from '../callback/route';
@@ -114,8 +112,7 @@ describe('POST /api/auth/microsoft/sync', () => {
     expect(res.status).toBe(500);
 
     const json = await res.json();
-    expect(json.error).toBe('Sync failed');
-    expect(json.details).toBe('Graph API down');
+    expect(json.error).toBe('An internal error occurred. Please try again.');
   });
 
   it('handles non-Error throws', async () => {
@@ -126,7 +123,7 @@ describe('POST /api/auth/microsoft/sync', () => {
     expect(res.status).toBe(500);
 
     const json = await res.json();
-    expect(json.details).toBe('Unknown error');
+    expect(json.error).toBe('An internal error occurred. Please try again.');
   });
 });
 
@@ -258,76 +255,7 @@ describe('POST /api/auth/microsoft/retry', () => {
 // ---------------------------------------------------------------------------
 // 3. Debug Route
 // ---------------------------------------------------------------------------
-
-describe('GET /api/auth/microsoft/debug', () => {
-  it('returns decoded JWT token details', async () => {
-    const now = Math.floor(Date.now() / 1000);
-    const payload = {
-      roles: ['Calendars.ReadWrite'],
-      scp: 'Calendars.Read',
-      aud: 'https://graph.microsoft.com',
-      appid: 'app-123',
-      tid: 'tenant-456',
-      exp: now + 3600,
-      iat: now,
-    };
-
-    vi.mocked(getAppAccessToken).mockResolvedValue(buildJwt(payload));
-
-    const res = await debugGET();
-    expect(res.status).toBe(200);
-
-    const json = await res.json();
-    expect(json.tokenValid).toBe(true);
-    expect(json.roles).toEqual(['Calendars.ReadWrite']);
-    expect(json.scopes).toBe('Calendars.Read');
-    expect(json.audience).toBe('https://graph.microsoft.com');
-    expect(json.appId).toBe('app-123');
-    expect(json.tenantId).toBe('tenant-456');
-    expect(clearTokenCache).toHaveBeenCalledOnce();
-  });
-
-  it('handles token with no scp (client_credentials)', async () => {
-    const payload = {
-      roles: ['Calendars.ReadWrite.All'],
-      aud: 'https://graph.microsoft.com',
-      azp: 'azp-app-id',
-      tid: 'tenant-789',
-      exp: Math.floor(Date.now() / 1000) + 3600,
-      iat: Math.floor(Date.now() / 1000),
-    };
-
-    vi.mocked(getAppAccessToken).mockResolvedValue(buildJwt(payload));
-
-    const res = await debugGET();
-    const json = await res.json();
-
-    expect(json.scopes).toBe('none (client_credentials)');
-    expect(json.appId).toBe('azp-app-id');
-  });
-
-  it('returns 500 when token fetch fails', async () => {
-    vi.mocked(getAppAccessToken).mockRejectedValue(new Error('Azure down'));
-
-    const res = await debugGET();
-    expect(res.status).toBe(500);
-
-    const json = await res.json();
-    expect(json.error).toBe('Failed to get token');
-    expect(json.details).toBe('Azure down');
-  });
-
-  it('returns error for invalid token format (not 3 parts)', async () => {
-    vi.mocked(getAppAccessToken).mockResolvedValue('not-a-jwt');
-
-    const res = await debugGET();
-    const json = await res.json();
-    expect(json.error).toBe('Invalid token format');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 4. Errors Route
+// 3. Errors Route
 // ---------------------------------------------------------------------------
 
 describe('GET /api/auth/microsoft/errors', () => {

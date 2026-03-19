@@ -7,6 +7,10 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
 }));
 
+vi.mock('@/lib/api/csrf', () => ({
+  validateOrigin: vi.fn().mockReturnValue(null),
+}));
+
 import { createClient } from '@/lib/supabase/server';
 
 function createMockRequest(body: Record<string, unknown>): NextRequest {

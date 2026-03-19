@@ -8,6 +8,10 @@ vi.mock('@/lib/supabase/server', () => ({
   createServiceClient: vi.fn(),
 }));
 
+vi.mock('@/lib/api/csrf', () => ({
+  validateOrigin: vi.fn().mockReturnValue(null),
+}));
+
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 
 function createMockRequest(body: Record<string, unknown>): NextRequest {
@@ -351,7 +355,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
     const data = await response.json();
 
     expect(response.status).toBe(400);
-    expect(data.error).toBe('User not found');
+    expect(data.error).toBe('Password reset failed');
     expect(consoleSpy).toHaveBeenCalledWith(
       'Error resetting password:',
       expect.objectContaining({ message: 'User not found' })

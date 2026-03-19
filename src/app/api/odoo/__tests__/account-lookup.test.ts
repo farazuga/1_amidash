@@ -16,6 +16,10 @@ vi.mock('@/lib/odoo/queries', () => ({
   findAccountByCode: vi.fn(),
 }));
 
+vi.mock('@/lib/api/csrf', () => ({
+  validateOrigin: vi.fn().mockReturnValue(null),
+}));
+
 import { createClient } from '@/lib/supabase/server';
 import { getOdooClient, isOdooConfigured } from '@/lib/odoo';
 import { findAccountByCode } from '@/lib/odoo/queries';
@@ -165,6 +169,6 @@ describe('POST /api/odoo/account-lookup', () => {
     const data = await response.json();
 
     expect(response.status).toBe(500);
-    expect(data.error).toBe('Connection failed');
+    expect(data.error).toBe('An internal error occurred. Please try again.');
   });
 });
