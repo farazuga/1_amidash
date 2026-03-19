@@ -11,6 +11,15 @@ export interface RevenueData {
   monthlyData: { month: string; revenue: number; goal: number }[];
 }
 
+/**
+ * Fetch revenue data for the signage display.
+ *
+ * CANONICAL DEFINITIONS (see src/lib/metrics/compute.ts):
+ * - Invoiced revenue: SUM(sales_amount) WHERE invoiced_date in period
+ *   Uses `invoiced_date` on projects table (NOT updated_at, NOT status_history)
+ * - Revenue goals: from revenue_goals.revenue_goal column (NOT "amount")
+ * - Money field: projects.sales_amount (NOT total_value)
+ */
 export async function fetchRevenueData(): Promise<RevenueData> {
   if (!isSupabaseConfigured() || !supabase) {
     logger.debug('Supabase not configured, returning mock revenue');
@@ -22,27 +31,26 @@ export async function fetchRevenueData(): Promise<RevenueData> {
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
 
-    // Fetch revenue goals (only needed fields)
+    // Fetch revenue goals — uses `revenue_goal` column (NOT `amount` which doesn't exist)
     const { data: goals } = await supabase
       .from('revenue_goals')
-      .select('month, amount')
+      .select('month, revenue_goal')
       .eq('year', currentYear);
 
-    // Fetch invoiced projects this year
-    const { data: invoiced } = await supabase
-      .from('status_history')
-      .select(`
-        changed_at,
-        projects(total_value)
-      `)
-      .eq('new_status_id', (await getInvoicedStatusId()))
-      .gte('changed_at', `${currentYear}-01-01`);
+    // Fetch invoiced projects this year — uses `invoiced_date` on projects table
+    // NOT status_history + changed_at (which was the previous incorrect approach)
+    const { data: invoicedProjects } = await supabase
+      .from('projects')
+      .select('invoiced_date, sales_amount')
+      .gte('invoiced_date', `${currentYear}-01-01`)
+      .lte('invoiced_date', `${currentYear}-12-31`);
 
+    // Group invoiced revenue by month using invoiced_date
     const monthlyRevenue = new Map<number, number>();
-    (invoiced || []).forEach((item: Record<string, unknown>) => {
-      const date = new Date(item.changed_at as string);
+    (invoicedProjects || []).forEach((p: { invoiced_date: string; sales_amount: number }) => {
+      const date = new Date(p.invoiced_date + 'T00:00:00');
       const month = date.getMonth() + 1;
-      const value = (item.projects as { total_value: number } | null)?.total_value || 0;
+      const value = p.sales_amount || 0;
       monthlyRevenue.set(month, (monthlyRevenue.get(month) || 0) + value);
     });
 
@@ -57,9 +65,9 @@ export async function fetchRevenueData(): Promise<RevenueData> {
     const quarterEnd = quarterStart + 2;
 
     for (let m = 1; m <= 12; m++) {
-      const goal = goals?.find((g: Record<string, unknown>) => g.month === m);
+      const goal = goals?.find((g: { month: number; revenue_goal: number }) => g.month === m);
       const revenue = monthlyRevenue.get(m) || 0;
-      const goalAmount = goal?.amount || 0;
+      const goalAmount = goal?.revenue_goal || 0;
       if (m <= currentMonth) {
         ytdRevenue += revenue;
         ytdGoal += goalAmount;
@@ -79,7 +87,7 @@ export async function fetchRevenueData(): Promise<RevenueData> {
 
     return {
       currentMonthRevenue: monthlyRevenue.get(currentMonth) || 0,
-      currentMonthGoal: goals?.find((g: Record<string, unknown>) => g.month === currentMonth)?.amount || 0,
+      currentMonthGoal: goals?.find((g: { month: number; revenue_goal: number }) => g.month === currentMonth)?.revenue_goal || 0,
       quarterRevenue,
       quarterGoal,
       yearToDateRevenue: ytdRevenue,
@@ -90,16 +98,6 @@ export async function fetchRevenueData(): Promise<RevenueData> {
     logger.error({ error }, 'Failed to fetch revenue data, returning mock data');
     return getMockRevenue();
   }
-}
-
-async function getInvoicedStatusId(): Promise<string | null> {
-  if (!supabase) return null;
-  const { data } = await supabase
-    .from('statuses')
-    .select('id')
-    .ilike('name', '%invoiced%')
-    .single();
-  return data?.id || null;
 }
 
 function getMockRevenue(): RevenueData {

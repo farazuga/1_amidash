@@ -34,7 +34,9 @@ export async function fetchPOs(): Promise<HighlightPO[]> {
 
   try {
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    // Use created_date (user-editable PO received date), NOT created_at (system timestamp)
+    // See src/lib/metrics/compute.ts for canonical definition
+    const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
 
     const { data, error } = await supabase
       .from('projects')
@@ -43,11 +45,11 @@ export async function fetchPOs(): Promise<HighlightPO[]> {
         po_number,
         client_name,
         sales_amount,
-        created_at
+        created_date
       `)
       .not('po_number', 'is', null)
-      .gte('created_at', startOfMonth)
-      .order('created_at', { ascending: false });
+      .gte('created_date', startOfMonth)
+      .order('created_date', { ascending: false });
 
     if (error) throw error;
 
@@ -59,7 +61,7 @@ export async function fetchPOs(): Promise<HighlightPO[]> {
         project_name: project.client_name || 'Unknown Project',
         client_name: project.client_name || 'Unknown',
         amount: Math.max(0, project.sales_amount || 0),
-        created_at: project.created_at || new Date().toISOString(),
+        created_at: project.created_date || new Date().toISOString(),
       };
     });
 
