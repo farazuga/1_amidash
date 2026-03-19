@@ -27,9 +27,21 @@ import {
   HelpCircle,
   Tv,
 } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from 'date-fns';
+import { format } from 'date-fns';
 import type { DashboardData } from '@/app/actions/dashboard';
 import { useUser } from '@/contexts/user-context';
+import {
+  getDateRange as getDateRangeFromLib,
+  getPreviousPeriod as getPreviousPeriodFromLib,
+  filterProjectsByInvoicedDate,
+  filterProjectsByCreatedDate,
+  filterActiveProjects,
+  sumRevenue,
+  computeGoalsForPeriod,
+  computeAvgDaysToInvoice,
+  type PeriodParams,
+  type ExcludedStatusIds,
+} from '@/lib/metrics';
 import { useMyTodos, useToggleTodo } from '@/hooks/queries/use-l10-todos';
 import type { MyTodoWithTeam } from '@/app/(dashboard)/l10/todos-actions';
 import { ExternalLink, ListChecks } from 'lucide-react';
@@ -167,25 +179,13 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
     }
   };
 
-  // Get date range for selected period
-  const getDateRange = () => {
-    const now = new Date();
-
-    if (periodType === 'month') {
-      const date = new Date(selectedYear, selectedMonth - 1, 1);
-      return { start: startOfMonth(date), end: endOfMonth(date) };
-    } else if (periodType === 'quarter') {
-      const quarterMonth = (selectedQuarter - 1) * 3;
-      const date = new Date(selectedYear, quarterMonth, 1);
-      return { start: startOfQuarter(date), end: endOfQuarter(date) };
-    } else if (periodType === 'ytd') {
-      return { start: startOfYear(new Date(selectedYear, 0, 1)), end: now };
-    } else {
-      // Last 12 months
-      const start = new Date(now.getFullYear(), now.getMonth() - 11, 1);
-      return { start: startOfMonth(start), end: now };
-    }
-  };
+  // Build shared PeriodParams for the metrics library
+  const periodParams: PeriodParams = useMemo(() => ({
+    periodType,
+    selectedYear,
+    selectedMonth,
+    selectedQuarter,
+  }), [periodType, selectedYear, selectedMonth, selectedQuarter]);
 
   // Get months for the calendar grid
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -227,164 +227,71 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
   };
 
   // Calculate stats for selected period - memoize expensive calculations
-  const dateRange = useMemo(() => getDateRange(), [periodType, selectedYear, selectedMonth, selectedQuarter]);
+  const dateRange = useMemo(() => getDateRangeFromLib(periodParams), [periodParams]);
   const invoicedStatus = useMemo(() => statuses.find(s => s.name === 'Invoiced'), [statuses]);
+  const cancelledStatus = useMemo(() => statuses.find(s => s.name === 'Cancelled'), [statuses]);
+  const excludedStatusIds: ExcludedStatusIds = useMemo(() => ({
+    invoicedStatusId: invoicedStatus?.id,
+    cancelledStatusId: cancelledStatus?.id,
+  }), [invoicedStatus, cancelledStatus]);
 
   // Get invoiced projects in period - use invoiced_date field for accuracy
-  const invoicedInPeriod = useMemo(() => projects.filter(p => {
-    if (!p.invoiced_date) return false;
-    const invoicedDate = new Date(p.invoiced_date + 'T00:00:00'); // Parse as local date
-    return invoicedDate >= dateRange.start && invoicedDate <= dateRange.end;
-  }), [projects, dateRange]);
+  const invoicedInPeriod = useMemo(
+    () => filterProjectsByInvoicedDate(projects, dateRange),
+    [projects, dateRange],
+  );
 
   // Revenue invoiced in period
-  const invoicedRevenue = useMemo(() => invoicedInPeriod.reduce((sum, p) => {
-    return sum + (p.sales_amount || 0);
-  }, 0), [invoicedInPeriod]);
+  const invoicedRevenue = useMemo(() => sumRevenue(invoicedInPeriod), [invoicedInPeriod]);
 
   // Projects created (POs received) in period - uses created_date (user-editable PO date), not created_at (system timestamp)
-  const projectsCreatedInPeriod = useMemo(() => projects.filter(p => {
-    if (!p.created_date) return false;
-    const createdDate = new Date(p.created_date + 'T00:00:00'); // Parse as local date
-    return createdDate >= dateRange.start && createdDate <= dateRange.end;
-  }), [projects, dateRange]);
+  const projectsCreatedInPeriod = useMemo(
+    () => filterProjectsByCreatedDate(projects, dateRange),
+    [projects, dateRange],
+  );
 
   // Revenue from POs received in period
-  const posReceivedRevenue = useMemo(() => projectsCreatedInPeriod.reduce((sum, p) => {
-    return sum + (p.sales_amount || 0);
-  }, 0), [projectsCreatedInPeriod]);
+  const posReceivedRevenue = useMemo(() => sumRevenue(projectsCreatedInPeriod), [projectsCreatedInPeriod]);
 
   // Get goal for period - memoized (now includes invoiced_revenue_goal)
-  const periodGoal = useMemo(() => {
-    if (periodType === 'month') {
-      const goal = goals.find(g => g.year === selectedYear && g.month === selectedMonth);
-      return {
-        revenue: goal?.revenue_goal || 0,
-        invoicedRevenue: goal?.invoiced_revenue_goal || 0
-      };
-    } else if (periodType === 'quarter') {
-      const startMonth = (selectedQuarter - 1) * 3 + 1;
-      let revenue = 0;
-      let invoicedRevenueGoal = 0;
-      for (let m = startMonth; m < startMonth + 3; m++) {
-        const goal = goals.find(g => g.year === selectedYear && g.month === m);
-        revenue += goal?.revenue_goal || 0;
-        invoicedRevenueGoal += goal?.invoiced_revenue_goal || 0;
-      }
-      return { revenue, invoicedRevenue: invoicedRevenueGoal };
-    } else if (periodType === 'ytd') {
-      const now = new Date();
-      const endMonth = selectedYear === now.getFullYear() ? now.getMonth() + 1 : 12;
-      let revenue = 0;
-      let invoicedRevenueGoal = 0;
-      for (let m = 1; m <= endMonth; m++) {
-        const goal = goals.find(g => g.year === selectedYear && g.month === m);
-        revenue += goal?.revenue_goal || 0;
-        invoicedRevenueGoal += goal?.invoiced_revenue_goal || 0;
-      }
-      return { revenue, invoicedRevenue: invoicedRevenueGoal };
-    } else {
-      // Last 12 months
-      const now = new Date();
-      let revenue = 0;
-      let invoicedRevenueGoal = 0;
-      for (let i = 0; i < 12; i++) {
-        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const goal = goals.find(g => g.year === date.getFullYear() && g.month === date.getMonth() + 1);
-        revenue += goal?.revenue_goal || 0;
-        invoicedRevenueGoal += goal?.invoiced_revenue_goal || 0;
-      }
-      return { revenue, invoicedRevenue: invoicedRevenueGoal };
-    }
-  }, [periodType, selectedYear, selectedMonth, selectedQuarter, goals]);
+  const periodGoal = useMemo(
+    () => computeGoalsForPeriod(goals, periodParams),
+    [goals, periodParams],
+  );
   const posReceivedProgress = periodGoal.revenue > 0 ? Math.min((posReceivedRevenue / periodGoal.revenue) * 100, 100) : 0;
   const invoicedRevenueProgress = periodGoal.invoicedRevenue > 0 ? Math.min((invoicedRevenue / periodGoal.invoicedRevenue) * 100, 100) : 0;
 
-  // Overall stats - memoized calculations (only non-invoiced projects)
-  const projectsInProgress = useMemo(() =>
-    projects.filter(p => p.current_status_id !== invoicedStatus?.id),
-    [projects, invoicedStatus]
+  // Overall stats - memoized calculations (only active projects)
+  const projectsInProgress = useMemo(
+    () => filterActiveProjects(projects, excludedStatusIds),
+    [projects, excludedStatusIds],
   );
 
-  const pipelineRevenue = useMemo(() =>
-    projectsInProgress.reduce((sum, p) => sum + (p.sales_amount || 0), 0),
-    [projectsInProgress]
-  );
+  const pipelineRevenue = useMemo(() => sumRevenue(projectsInProgress), [projectsInProgress]);
 
 
   // Average days to invoice - memoized (uses created_date as PO received date)
-  const avgDaysToInvoice = useMemo(() => {
-    const invoiceTimesMs: number[] = [];
-    projects.forEach(project => {
-      const createdDate = project.created_date ? new Date(project.created_date) : null;
-      const invoicedEntry = statusHistory.find(
-        h => h.project_id === project.id && h.status?.name === 'Invoiced'
-      );
-
-      if (createdDate && invoicedEntry) {
-        const invoicedAt = new Date(invoicedEntry.changed_at);
-        invoiceTimesMs.push(invoicedAt.getTime() - createdDate.getTime());
-      }
-    });
-
-    return invoiceTimesMs.length > 0
-      ? Math.round(invoiceTimesMs.reduce((a, b) => a + b, 0) / invoiceTimesMs.length / (1000 * 60 * 60 * 24))
-      : 0;
-  }, [projects, statusHistory]);
-
-  // Helper function to get previous period
-  const getPreviousPeriod = (): { start: Date; end: Date } => {
-    if (periodType === 'month') {
-      const prevDate = new Date(selectedYear, selectedMonth - 2, 1);
-      return { start: startOfMonth(prevDate), end: endOfMonth(prevDate) };
-    } else if (periodType === 'quarter') {
-      const prevQuarter = selectedQuarter === 1 ? 4 : selectedQuarter - 1;
-      const prevYear = selectedQuarter === 1 ? selectedYear - 1 : selectedYear;
-      const prevMonth = (prevQuarter - 1) * 3;
-      const prevDate = new Date(prevYear, prevMonth, 1);
-      return { start: startOfQuarter(prevDate), end: endOfQuarter(prevDate) };
-    } else if (periodType === 'ytd') {
-      // Previous year YTD
-      const now = new Date();
-      const endMonth = selectedYear === now.getFullYear() ? now.getMonth() + 1 : 12;
-      const prevYearStart = startOfYear(new Date(selectedYear - 1, 0, 1));
-      const prevYearEnd = new Date(selectedYear - 1, endMonth - 1, new Date(selectedYear - 1, endMonth, 0).getDate());
-      return { start: prevYearStart, end: prevYearEnd };
-    } else {
-      // Previous 12 months (12-24 months ago)
-      const now = new Date();
-      const start = new Date(now.getFullYear(), now.getMonth() - 23, 1);
-      const end = new Date(now.getFullYear(), now.getMonth() - 12, 0);
-      return { start: startOfMonth(start), end };
-    }
-  };
+  const avgDaysToInvoice = useMemo(
+    () => computeAvgDaysToInvoice(projects, statusHistory),
+    [projects, statusHistory],
+  );
 
   // Previous period calculations for comparison
   const previousPeriodData = useMemo(() => {
-    const prevRange = getPreviousPeriod();
+    const prevRange = getPreviousPeriodFromLib(periodParams);
 
-    // POs received in previous period (uses created_date, not created_at)
-    const prevPosProjects = projects.filter(p => {
-      if (!p.created_date) return false;
-      const createdDate = new Date(p.created_date + 'T00:00:00'); // Parse as local date
-      return createdDate >= prevRange.start && createdDate <= prevRange.end;
-    });
-    const prevPosReceived = prevPosProjects.reduce((sum, p) => sum + (p.sales_amount || 0), 0);
+    const prevPosProjects = filterProjectsByCreatedDate(projects, prevRange);
+    const prevPosReceived = sumRevenue(prevPosProjects);
 
-    // Invoiced in previous period - use invoiced_date for consistency
-    const prevInvoicedProjects = projects.filter(p => {
-      if (!p.invoiced_date) return false;
-      const invoicedDate = new Date(p.invoiced_date + 'T00:00:00');
-      return invoicedDate >= prevRange.start && invoicedDate <= prevRange.end;
-    });
-    const prevInvoicedRevenue = prevInvoicedProjects.reduce((sum, p) => sum + (p.sales_amount || 0), 0);
+    const prevInvoicedProjects = filterProjectsByInvoicedDate(projects, prevRange);
+    const prevInvoicedRevenue = sumRevenue(prevInvoicedProjects);
 
     return {
       posReceived: prevPosReceived,
       invoiced: prevInvoicedRevenue,
-      projectsCompleted: prevInvoicedProjects.length
+      projectsCompleted: prevInvoicedProjects.length,
     };
-  }, [periodType, selectedYear, selectedMonth, selectedQuarter, projects]);
+  }, [periodParams, projects]);
 
   // Projects completed count (invoiced this period)
   const projectsCompletedCount = invoicedInPeriod.length;

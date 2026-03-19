@@ -306,6 +306,8 @@ export async function autoPopulateScorecardWeek(
 
       try {
         if (measurable.auto_source === 'po_revenue') {
+          // Canonical definition: see src/lib/metrics/compute.ts
+          // Uses created_date (NOT created_at) and sales_amount (NOT total_value)
           // SUM sales_amount WHERE created_date in week range (Mon-Fri)
           const { data: projects } = await supabase
             .from('projects')
@@ -315,6 +317,8 @@ export async function autoPopulateScorecardWeek(
 
           value = (projects || []).reduce((sum, p) => sum + (p.sales_amount || 0), 0);
         } else if (measurable.auto_source === 'invoiced_revenue') {
+          // Canonical definition: see src/lib/metrics/compute.ts
+          // Uses invoiced_date (NOT created_at) and sales_amount (NOT total_value)
           // SUM sales_amount WHERE invoiced_date in week range (Mon-Fri)
           const { data: projects } = await supabase
             .from('projects')
