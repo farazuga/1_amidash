@@ -8,21 +8,10 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock @supabase/supabase-js
-const mockGetUser = vi.fn();
-const mockFrom = vi.fn();
-
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: vi.fn(() => ({
-    auth: { getUser: mockGetUser },
-  })),
-}));
-
-// Mock service client
-vi.mock('@/lib/supabase/server', () => ({
-  createServiceClient: vi.fn(() => ({
-    from: mockFrom,
-  })),
+// Mock mobile auth
+const mockAuthenticateMobileRequest = vi.fn();
+vi.mock('@/lib/mobile/auth', () => ({
+  authenticateMobileRequest: (...args: unknown[]) => mockAuthenticateMobileRequest(...args),
 }));
 
 // Import the handler after mocks are set up
@@ -36,6 +25,10 @@ describe('GET /api/mobile/microsoft/status', () => {
   });
 
   it('returns 401 without Authorization header', async () => {
+    mockAuthenticateMobileRequest.mockResolvedValue(
+      Response.json({ error: 'Authentication required' }, { status: 401 })
+    );
+
     const request = new Request('http://localhost/api/mobile/microsoft/status', {
       method: 'GET',
     });
@@ -48,10 +41,9 @@ describe('GET /api/mobile/microsoft/status', () => {
   });
 
   it('returns 401 with invalid/expired token', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: null },
-      error: { message: 'Invalid token' },
-    });
+    mockAuthenticateMobileRequest.mockResolvedValue(
+      Response.json({ error: 'Authentication required' }, { status: 401 })
+    );
 
     const request = new Request('http://localhost/api/mobile/microsoft/status', {
       method: 'GET',
@@ -66,28 +58,12 @@ describe('GET /api/mobile/microsoft/status', () => {
   });
 
   it('returns correct shape when Microsoft is connected', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: mockUser },
-      error: null,
-    });
+    mockAuthenticateMobileRequest.mockResolvedValue({ user: mockUser, profile: { role: 'admin' } });
 
-    const mockConnection = {
-      outlook_email: 'user@microsoft.com',
-      token_expires_at: '2026-04-01T00:00:00Z',
-    };
-
-    mockFrom.mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: mockConnection,
-              error: null,
-            }),
-          }),
-        }),
-      }),
-    });
+    // Set Microsoft env vars
+    process.env.MICROSOFT_CLIENT_ID = 'test-client-id';
+    process.env.MICROSOFT_CLIENT_SECRET = 'test-client-secret';
+    process.env.MICROSOFT_TENANT_ID = 'test-tenant-id';
 
     const request = new Request('http://localhost/api/mobile/microsoft/status', {
       method: 'GET',
@@ -99,32 +75,21 @@ describe('GET /api/mobile/microsoft/status', () => {
 
     expect(response.status).toBe(200);
 
-    // Contract: connected response shape
+    // Contract: connected response shape (app-level auth: email/expires_at always null)
     expect(body).toEqual({
       connected: true,
-      email: 'user@microsoft.com',
-      expires_at: '2026-04-01T00:00:00Z',
+      email: null,
+      expires_at: null,
     });
   });
 
   it('returns correct shape when Microsoft is not connected', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: mockUser },
-      error: null,
-    });
+    mockAuthenticateMobileRequest.mockResolvedValue({ user: mockUser, profile: { role: 'admin' } });
 
-    mockFrom.mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: null,
-              error: null,
-            }),
-          }),
-        }),
-      }),
-    });
+    // Clear Microsoft env vars
+    delete process.env.MICROSOFT_CLIENT_ID;
+    delete process.env.MICROSOFT_CLIENT_SECRET;
+    delete process.env.MICROSOFT_TENANT_ID;
 
     const request = new Request('http://localhost/api/mobile/microsoft/status', {
       method: 'GET',

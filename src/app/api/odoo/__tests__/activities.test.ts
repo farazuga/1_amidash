@@ -229,6 +229,6 @@ describe('GET /api/odoo/activities', () => {
     const data = await response.json();
 
     expect(response.status).toBe(500);
-    expect(data.error).toBe('Odoo timeout');
+    expect(data.error).toBe('An internal error occurred. Please try again.');
   });
 });

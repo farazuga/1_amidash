@@ -3,11 +3,15 @@ import { createClient } from '@/lib/supabase/server';
 import { uploadPresalesFile } from '@/app/(dashboard)/projects/[salesOrder]/files/actions';
 import type { FileCategory } from '@/types';
 import { internalError } from '@/lib/api/error-response';
+import { validateOrigin } from '@/lib/api/csrf';
 
 /**
  * API route for presales file uploads (before project exists)
  */
 export async function POST(request: Request) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return csrfError;
+
   try {
     const supabase = await createClient();
 

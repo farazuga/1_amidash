@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { notFound } from 'next/navigation';
 import { headers } from 'next/headers';
 import Image from 'next/image';
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { Card, CardContent } from '@/components/ui/card';
 import { LOGO_URL, APP_NAME } from '@/lib/constants';
 import { BlockRenderer } from '@/components/portal/blocks/block-renderer';
@@ -50,7 +50,7 @@ function checkRateLimit(ip: string): boolean {
 
 
 async function getProjectByToken(token: string) {
-  const supabase = await createClient();
+  const supabase = await createServiceClient();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: project } = await (supabase as any)
@@ -67,16 +67,16 @@ async function getProjectByToken(token: string) {
   return project;
 }
 
-async function incrementPortalViews(projectId: string) {
-  const supabase = await createClient();
+async function incrementPortalViews(projectId: string, token: string) {
+  const supabase = await createServiceClient();
 
   // Increment view count - using type assertion since migration may not be applied yet
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase.rpc as any)('increment_portal_views', { project_id: projectId });
+  await (supabase.rpc as any)('increment_portal_views', { p_project_id: projectId, p_token: token });
 }
 
 async function getStatuses() {
-  const supabase = await createClient();
+  const supabase = await createServiceClient();
   const { data } = await supabase
     .from('statuses')
     .select('*')
@@ -86,7 +86,7 @@ async function getStatuses() {
 }
 
 async function getStatusHistory(projectId: string) {
-  const supabase = await createClient();
+  const supabase = await createServiceClient();
   const { data } = await supabase
     .from('status_history')
     .select(`
@@ -99,7 +99,7 @@ async function getStatusHistory(projectId: string) {
 }
 
 async function getProjectTypeStatuses() {
-  const supabase = await createClient();
+  const supabase = await createServiceClient();
   const { data } = await supabase
     .from('project_type_statuses')
     .select('*');
@@ -109,7 +109,7 @@ async function getProjectTypeStatuses() {
 async function getFileUploads(projectId: string): Promise<PortalFileUpload[]> {
   // Using `as any` since portal_file_uploads table types not yet regenerated
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = (await createClient()) as any;
+  const supabase = (await createServiceClient()) as any;
   const { data } = await supabase
     .from('portal_file_uploads')
     .select('*')
@@ -120,7 +120,7 @@ async function getFileUploads(projectId: string): Promise<PortalFileUpload[]> {
 
 async function getAddressConfirmation(projectId: string): Promise<DeliveryAddressConfirmation | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = (await createClient()) as any;
+  const supabase = (await createServiceClient()) as any;
   const { data } = await supabase
     .from('delivery_address_confirmations')
     .select('*')
@@ -135,7 +135,7 @@ interface PortalTemplateResult {
 }
 
 async function getPortalTemplate(projectTypeId: string | null): Promise<PortalTemplateResult> {
-  const supabase = await createClient();
+  const supabase = await createServiceClient();
 
   const DEFAULT_BLOCKS: PortalBlock[] = [
     { id: 'blk_status_default', type: 'current_status' },
@@ -225,7 +225,7 @@ export default async function ClientPortalPage({
   const { blocks: templateBlocks, backgroundImageUrl } = portalTemplate;
 
   // Increment view count (fire and forget - don't block render)
-  incrementPortalViews(project.id);
+  incrementPortalViews(project.id, token);
 
   // Filter statuses by project type (with fallback to all statuses)
   const allowedStatusIds = project.project_type_id

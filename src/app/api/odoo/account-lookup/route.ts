@@ -3,8 +3,12 @@ import { createClient } from '@/lib/supabase/server';
 import { getOdooClient, isOdooConfigured } from '@/lib/odoo';
 import { findAccountByCode } from '@/lib/odoo/queries';
 import { internalError } from '@/lib/api/error-response';
+import { validateOrigin } from '@/lib/api/csrf';
 
 export async function POST(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return csrfError;
+
   try {
     // Auth check
     const supabase = await createClient();

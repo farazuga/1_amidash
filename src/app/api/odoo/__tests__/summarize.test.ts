@@ -10,6 +10,10 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
 }));
 
+vi.mock('@/lib/api/csrf', () => ({
+  validateOrigin: vi.fn().mockReturnValue(null),
+}));
+
 vi.mock('@anthropic-ai/sdk', () => {
   class APIError extends Error {
     status: number;

@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { validateOrigin } from '@/lib/api/csrf';
 
 /**
  * Upload a thumbnail to Supabase storage
  * Returns the public URL
  */
 export async function POST(request: Request) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return csrfError;
+
   try {
     const supabase = await createClient();
 

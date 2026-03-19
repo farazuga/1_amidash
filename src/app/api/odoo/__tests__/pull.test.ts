@@ -27,6 +27,10 @@ vi.mock('@/lib/odoo/queries', () => ({
   parseCountryCode: vi.fn((v: unknown) => (v === false ? null : (v as [number, string])?.[1] ?? null)),
 }));
 
+vi.mock('@/lib/api/csrf', () => ({
+  validateOrigin: vi.fn().mockReturnValue(null),
+}));
+
 import { createClient } from '@/lib/supabase/server';
 import { isOdooConfigured } from '@/lib/odoo';
 import {
@@ -210,6 +214,6 @@ describe('POST /api/odoo/pull', () => {
     const data = await response.json();
 
     expect(response.status).toBe(500);
-    expect(data.error).toContain('Odoo connection refused');
+    expect(data.error).toBe('An internal error occurred. Please try again.');
   });
 });

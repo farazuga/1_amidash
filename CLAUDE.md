@@ -35,9 +35,10 @@ npm test -- src/lib/calendar src/app/\(dashboard\)/calendar
 ```
 
 This runs:
-- `src/lib/calendar/__tests__/utils.test.ts` - Calendar utility functions (93 tests)
+- `src/lib/calendar/__tests__/utils.test.ts` - Calendar utility functions (89 tests)
 - `src/lib/calendar/__tests__/constants.test.ts` - Calendar constants (32 tests)
 - `src/app/(dashboard)/calendar/__tests__/actions.test.ts` - Server actions (16 tests)
+- `src/app/(dashboard)/calendar/__tests__/confirmation-actions.test.ts` - Confirmation actions (44 tests)
 
 ### Run E2E Tests
 
@@ -210,7 +211,8 @@ No background jobs currently. Microsoft Graph tokens are managed via client cred
 
 ## Security Review
 
-A comprehensive security audit was performed on 2026-03-17. Full findings, STRIDE analysis, OWASP Top 10 assessment, attack trees, threat-mitigation mapping, and a phased implementation plan are documented in:
+A comprehensive security audit was performed on 2026-03-17.
+Security remediations applied on 2026-03-19 via branch `fix/security-audit-remediations`. Full findings, STRIDE analysis, OWASP Top 10 assessment, attack trees, threat-mitigation mapping, and a phased implementation plan are documented in:
 
 - **[`security_review.md`](security_review.md)** — Complete security review document
 
