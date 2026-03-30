@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import type { UserPreferences } from '@/types';
+import { validateOrigin } from '@/lib/api/csrf';
 
 export async function GET() {
   try {
@@ -38,6 +39,9 @@ export async function GET() {
 }
 
 export async function PATCH(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return csrfError;
+
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();

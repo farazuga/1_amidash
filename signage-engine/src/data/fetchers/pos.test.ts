@@ -108,7 +108,7 @@ describe('fetchRecentPOs', () => {
             po_number: 'PO-2024-100',
             client_name: 'Test Client',
             sales_amount: 25000,
-            created_at: '2024-01-15T10:00:00Z',
+            created_date: '2024-01-15',
           },
         ],
         error: null,
@@ -129,7 +129,7 @@ describe('fetchRecentPOs', () => {
             po_number: 'PO-2024-456',
             client_name: 'Acme Corp',
             sales_amount: 50000,
-            created_at: '2024-02-01T14:30:00Z',
+            created_date: '2024-02-01',
           },
         ],
         error: null,
@@ -143,7 +143,7 @@ describe('fetchRecentPOs', () => {
         project_name: 'Acme Corp',
         client_name: 'Acme Corp',
         amount: 50000,
-        created_at: '2024-02-01T14:30:00Z',
+        created_at: '2024-02-01',
       });
     });
 
@@ -155,7 +155,7 @@ describe('fetchRecentPOs', () => {
             po_number: 'PO-2024-001',
             client_name: 'Test Client',
             sales_amount: null,
-            created_at: '2024-01-15T10:00:00Z',
+            created_date: '2024-01-15',
           },
         ],
         error: null,
@@ -190,12 +190,12 @@ describe('fetchRecentPOs', () => {
       expect(mockQuery.not).toHaveBeenCalledWith('po_number', 'is', null);
     });
 
-    it('should order by created_at descending', async () => {
+    it('should order by created_date descending', async () => {
       mockQuery.order.mockResolvedValueOnce({ data: [], error: null });
 
       await fetchRecentPOs();
 
-      expect(mockQuery.order).toHaveBeenCalledWith('created_at', { ascending: false });
+      expect(mockQuery.order).toHaveBeenCalledWith('created_date', { ascending: false });
     });
 
     it('should filter by start of current month', async () => {
@@ -203,7 +203,7 @@ describe('fetchRecentPOs', () => {
 
       await fetchRecentPOs();
 
-      expect(mockQuery.gte).toHaveBeenCalledWith('created_at', expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/));
+      expect(mockQuery.gte).toHaveBeenCalledWith('created_date', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
     });
 
     it('should handle empty result set', async () => {

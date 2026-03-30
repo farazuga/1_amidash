@@ -3,11 +3,37 @@ import { createClient } from '@supabase/supabase-js';
 import { getSupabaseEnv, getServiceRoleKey } from '@/lib/supabase/server';
 import { internalError } from '@/lib/api/error-response';
 
+// Rate limiting: max 5 attempts per token per 15 minutes
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const RATE_LIMIT_MAX = 5;
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(key: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(key);
+
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return false;
+  }
+
+  entry.count++;
+  return true;
+}
+
 export async function POST(request: NextRequest) {
   const { token, email } = await request.json();
 
   if (!token || !email) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+  }
+
+  if (!checkRateLimit(token)) {
+    return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 });
   }
 
   const { url } = getSupabaseEnv();

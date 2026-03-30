@@ -8,21 +8,10 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock @supabase/supabase-js
-const mockGetUser = vi.fn();
-const mockFrom = vi.fn();
-
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: vi.fn(() => ({
-    auth: { getUser: mockGetUser },
-  })),
-}));
-
-// Mock service client
-vi.mock('@/lib/supabase/server', () => ({
-  createServiceClient: vi.fn(() => ({
-    from: mockFrom,
-  })),
+// Mock mobile auth
+const mockAuthenticateMobileRequest = vi.fn();
+vi.mock('@/lib/mobile/auth', () => ({
+  authenticateMobileRequest: (...args: unknown[]) => mockAuthenticateMobileRequest(...args),
 }));
 
 // Import the handler after mocks are set up
@@ -36,6 +25,10 @@ describe('GET /api/mobile/microsoft/status', () => {
   });
 
   it('returns 401 without Authorization header', async () => {
+    mockAuthenticateMobileRequest.mockResolvedValue(
+      Response.json({ error: 'Authentication required' }, { status: 401 })
+    );
+
     const request = new Request('http://localhost/api/mobile/microsoft/status', {
       method: 'GET',
     });
@@ -48,10 +41,9 @@ describe('GET /api/mobile/microsoft/status', () => {
   });
 
   it('returns 401 with invalid/expired token', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: null },
-      error: { message: 'Invalid token' },
-    });
+    mockAuthenticateMobileRequest.mockResolvedValue(
+      Response.json({ error: 'Authentication required' }, { status: 401 })
+    );
 
     const request = new Request('http://localhost/api/mobile/microsoft/status', {
       method: 'GET',
@@ -65,16 +57,10 @@ describe('GET /api/mobile/microsoft/status', () => {
     expect(body).toEqual({ error: 'Authentication required' });
   });
 
-  it('returns correct shape when Microsoft env vars are configured', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: mockUser },
-      error: null,
-    });
+  it('returns correct shape when Microsoft is connected', async () => {
+    mockAuthenticateMobileRequest.mockResolvedValue({ user: mockUser, profile: { role: 'admin' } });
 
-    // Route checks env vars, not DB - set them for this test
-    const originalClientId = process.env.MICROSOFT_CLIENT_ID;
-    const originalClientSecret = process.env.MICROSOFT_CLIENT_SECRET;
-    const originalTenantId = process.env.MICROSOFT_TENANT_ID;
+    // Set Microsoft env vars
     process.env.MICROSOFT_CLIENT_ID = 'test-client-id';
     process.env.MICROSOFT_CLIENT_SECRET = 'test-client-secret';
     process.env.MICROSOFT_TENANT_ID = 'test-tenant-id';
@@ -89,29 +75,18 @@ describe('GET /api/mobile/microsoft/status', () => {
 
     expect(response.status).toBe(200);
 
-    // Contract: connected response shape (app-level auth, no per-user email)
+    // Contract: connected response shape (app-level auth: email/expires_at always null)
     expect(body).toEqual({
       connected: true,
       email: null,
       expires_at: null,
     });
-
-    // Restore env vars
-    process.env.MICROSOFT_CLIENT_ID = originalClientId;
-    process.env.MICROSOFT_CLIENT_SECRET = originalClientSecret;
-    process.env.MICROSOFT_TENANT_ID = originalTenantId;
   });
 
-  it('returns correct shape when Microsoft env vars are missing', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: mockUser },
-      error: null,
-    });
+  it('returns correct shape when Microsoft is not connected', async () => {
+    mockAuthenticateMobileRequest.mockResolvedValue({ user: mockUser, profile: { role: 'admin' } });
 
-    // Clear env vars to simulate unconfigured state
-    const originalClientId = process.env.MICROSOFT_CLIENT_ID;
-    const originalClientSecret = process.env.MICROSOFT_CLIENT_SECRET;
-    const originalTenantId = process.env.MICROSOFT_TENANT_ID;
+    // Clear Microsoft env vars
     delete process.env.MICROSOFT_CLIENT_ID;
     delete process.env.MICROSOFT_CLIENT_SECRET;
     delete process.env.MICROSOFT_TENANT_ID;
@@ -132,10 +107,5 @@ describe('GET /api/mobile/microsoft/status', () => {
       email: null,
       expires_at: null,
     });
-
-    // Restore env vars
-    if (originalClientId) process.env.MICROSOFT_CLIENT_ID = originalClientId;
-    if (originalClientSecret) process.env.MICROSOFT_CLIENT_SECRET = originalClientSecret;
-    if (originalTenantId) process.env.MICROSOFT_TENANT_ID = originalTenantId;
   });
 });

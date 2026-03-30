@@ -3,8 +3,7 @@ import * as sharepoint from '@/lib/sharepoint/client';
 import type { FileCategory, FileCategoryWithLegacy, SharePointGlobalConfig } from '@/types';
 import { authenticateMobileRequest } from '@/lib/mobile/auth';
 import { internalError } from '@/lib/api/error-response';
-import { sanitizeFilename, stripExifData } from '@/lib/mobile/file-security';
-import { validateMobileFileSize } from '@/lib/mobile/file-security';
+import { sanitizeFilename, stripExifData, validateMobileFileSize, validateMobileFileType } from '@/lib/mobile/file-security';
 
 // Helper: Get global SharePoint config (uses service client)
 async function getGlobalSharePointConfig(): Promise<SharePointGlobalConfig | null> {
@@ -58,7 +57,16 @@ export async function POST(request: Request) {
       return Response.json({ error: 'File too large. Maximum size is 50MB.' }, { status: 400 });
     }
 
-    // 5. Sanitize filename
+    // 5a. Read file buffer (needed for MIME validation and EXIF stripping)
+    let fileBuffer = Buffer.from(await file.arrayBuffer()) as Buffer;
+
+    // 5b. Validate file type (magic bytes)
+    const typeCheck = await validateMobileFileType(fileBuffer, file.name);
+    if (!typeCheck.valid) {
+      return Response.json({ error: typeCheck.error }, { status: 400 });
+    }
+
+    // 5c. Sanitize filename
     const safeName = sanitizeFilename(file.name);
 
     // 6. Map legacy category values to current values
@@ -75,7 +83,6 @@ export async function POST(request: Request) {
     }
 
     // 7. Strip EXIF data from images
-    let fileBuffer: Buffer = Buffer.from(await file.arrayBuffer()) as Buffer;
     if (file.type.startsWith('image/')) {
       fileBuffer = await stripExifData(fileBuffer, file.type) as Buffer;
     }

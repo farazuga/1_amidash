@@ -8,8 +8,12 @@ import { createClient } from '@/lib/supabase/server';
 import { fullSyncForUser } from '@/lib/microsoft-graph/sync';
 import { clearTokenCache } from '@/lib/microsoft-graph/auth';
 import { internalError } from '@/lib/api/error-response';
+import { validateOrigin } from '@/lib/api/csrf';
 
-export async function POST() {
+export async function POST(request: Request) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return csrfError;
+
   const supabase = await createClient();
 
   // Check if user is authenticated

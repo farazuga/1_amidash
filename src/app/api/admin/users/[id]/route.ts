@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient, createClient } from '@/lib/supabase/server';
+import { validateOrigin } from '@/lib/api/csrf';
 
 // DELETE - Delete a user
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return csrfError;
+
   try {
     const { id: userIdToDelete } = await params;
 

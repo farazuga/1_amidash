@@ -449,6 +449,24 @@ ROOT: Attacker uploads harmful content
 
 ---
 
+### Remediation Status (2026-03-19)
+
+| Finding | Status | Branch |
+|---------|--------|--------|
+| S1 - Debug endpoint exposed | FIXED (endpoint deleted) | Prior to audit |
+| T1 - Mobile uploads skip file validation | FIXED (size + filename + EXIF) | Prior to audit |
+| T1 - Mobile MIME type validation | FIXED | fix/security-audit-remediations |
+| E1 - Mobile API no role checks | FIXED (customer role rejected) | Prior to audit |
+| Anon RLS policy leak (all projects visible to anon) | FIXED | fix/security-audit-remediations |
+| CSRF bypass (missing Origin header accepted) | FIXED | fix/security-audit-remediations |
+| increment_portal_views no authorization | FIXED | fix/security-audit-remediations |
+| Missing CSRF on 9 state-changing routes | FIXED | fix/security-audit-remediations |
+| Password reset leaks Supabase error | FIXED | fix/security-audit-remediations |
+| Portal confirm-address no rate limiting | FIXED | fix/security-audit-remediations |
+| SECURITY DEFINER functions lack search_path | FIXED | fix/security-audit-remediations |
+
+---
+
 ## Implementation Plan
 
 ### Phase 1: Quick Wins (Day 1 — 30 minutes)

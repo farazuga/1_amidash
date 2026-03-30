@@ -7,13 +7,19 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock @supabase/supabase-js
+// Mock @supabase/supabase-js (still needed since route imports it transitively)
 const mockGetUser = vi.fn();
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => ({
     auth: { getUser: mockGetUser },
   })),
+}));
+
+// Mock mobile auth
+const mockAuthenticateMobileRequest = vi.fn();
+vi.mock('@/lib/mobile/auth', () => ({
+  authenticateMobileRequest: (...args: unknown[]) => mockAuthenticateMobileRequest(...args),
 }));
 
 // Mock service client
@@ -33,6 +39,14 @@ vi.mock('@/lib/sharepoint/client', () => ({
   getThumbnails: vi.fn(),
 }));
 
+// Mock file-security module
+vi.mock('@/lib/mobile/file-security', () => ({
+  validateMobileFileSize: vi.fn().mockReturnValue(true),
+  validateMobileFileType: vi.fn().mockResolvedValue({ valid: true }),
+  sanitizeFilename: vi.fn((name: string) => name),
+  stripExifData: vi.fn((buf: Buffer) => buf),
+}));
+
 // Import the handler after mocks are set up
 import { POST } from '../sharepoint/upload/route';
 
@@ -45,10 +59,33 @@ function buildMockFormDataRequest(
   fields: Record<string, string | File>,
   headers?: Record<string, string>
 ): Request {
-  const formData = new FormData();
+  // Build a map for formData.get() that returns File objects with working arrayBuffer()
+  const fieldMap = new Map<string, string | File>();
   for (const [k, v] of Object.entries(fields)) {
-    formData.append(k, v);
+    if (v instanceof File) {
+      // Create a File-like object with working arrayBuffer() for Node test environments
+      const mockFile = {
+        name: v.name,
+        type: v.type,
+        size: v.size,
+        arrayBuffer: async () => new ArrayBuffer(v.size),
+        stream: () => new ReadableStream(),
+        text: async () => '',
+        slice: () => new Blob(),
+        lastModified: Date.now(),
+        [Symbol.toStringTag]: 'File',
+      } as unknown as File;
+      fieldMap.set(k, mockFile);
+    } else {
+      fieldMap.set(k, v);
+    }
   }
+
+  const mockFormData = {
+    get: (key: string) => fieldMap.get(key) ?? null,
+    has: (key: string) => fieldMap.has(key),
+    getAll: (key: string) => { const v = fieldMap.get(key); return v ? [v] : []; },
+  } as unknown as FormData;
 
   const request = new Request('http://localhost/api/mobile/sharepoint/upload', {
     method: 'POST',
@@ -57,7 +94,7 @@ function buildMockFormDataRequest(
   });
 
   // Override formData() to return our prepared FormData
-  request.formData = async () => formData;
+  request.formData = async () => mockFormData;
   return request;
 }
 
@@ -70,6 +107,10 @@ describe('POST /api/mobile/sharepoint/upload', () => {
   });
 
   it('returns 401 without Authorization header', async () => {
+    mockAuthenticateMobileRequest.mockResolvedValue(
+      Response.json({ error: 'Authentication required' }, { status: 401 })
+    );
+
     const request = buildMockFormDataRequest({});
 
     const response = await POST(request);
@@ -80,10 +121,9 @@ describe('POST /api/mobile/sharepoint/upload', () => {
   });
 
   it('returns 401 with invalid/expired token', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: null },
-      error: { message: 'Token expired' },
-    });
+    mockAuthenticateMobileRequest.mockResolvedValue(
+      Response.json({ error: 'Authentication required' }, { status: 401 })
+    );
 
     const request = buildMockFormDataRequest(
       {},
@@ -98,10 +138,7 @@ describe('POST /api/mobile/sharepoint/upload', () => {
   });
 
   it('returns 400 when file is missing', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: mockUser },
-      error: null,
-    });
+    mockAuthenticateMobileRequest.mockResolvedValue({ user: mockUser, profile: { role: 'admin' } });
 
     const request = buildMockFormDataRequest(
       { projectId: 'project-123', category: 'schematics' },
@@ -116,10 +153,7 @@ describe('POST /api/mobile/sharepoint/upload', () => {
   });
 
   it('returns 400 when projectId is missing', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: mockUser },
-      error: null,
-    });
+    mockAuthenticateMobileRequest.mockResolvedValue({ user: mockUser, profile: { role: 'admin' } });
 
     const request = buildMockFormDataRequest(
       { file: testFile, category: 'schematics' },
@@ -134,10 +168,7 @@ describe('POST /api/mobile/sharepoint/upload', () => {
   });
 
   it('returns 400 when category is missing', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: mockUser },
-      error: null,
-    });
+    mockAuthenticateMobileRequest.mockResolvedValue({ user: mockUser, profile: { role: 'admin' } });
 
     const request = buildMockFormDataRequest(
       { file: testFile, projectId: 'project-123' },
@@ -152,10 +183,7 @@ describe('POST /api/mobile/sharepoint/upload', () => {
   });
 
   it('returns 400 when category is invalid', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: mockUser },
-      error: null,
-    });
+    mockAuthenticateMobileRequest.mockResolvedValue({ user: mockUser, profile: { role: 'admin' } });
 
     const request = buildMockFormDataRequest(
       { file: testFile, projectId: 'project-123', category: 'invalid_category' },
@@ -170,10 +198,7 @@ describe('POST /api/mobile/sharepoint/upload', () => {
   });
 
   it('maps legacy category "photos" to "media" (does not return 400)', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: mockUser },
-      error: null,
-    });
+    mockAuthenticateMobileRequest.mockResolvedValue({ user: mockUser, profile: { role: 'admin' } });
 
     const { createServiceClient } = await import('@/lib/supabase/server');
     vi.mocked(createServiceClient).mockResolvedValue({

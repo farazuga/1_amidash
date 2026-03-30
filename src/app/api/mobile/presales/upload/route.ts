@@ -3,8 +3,7 @@ import * as sharepoint from '@/lib/sharepoint/client';
 import type { FileCategory, FileCategoryWithLegacy, SharePointGlobalConfig } from '@/types';
 import { authenticateMobileRequest } from '@/lib/mobile/auth';
 import { internalError } from '@/lib/api/error-response';
-import { sanitizeFilename, stripExifData } from '@/lib/mobile/file-security';
-import { validateMobileFileSize } from '@/lib/mobile/file-security';
+import { sanitizeFilename, stripExifData, validateMobileFileSize, validateMobileFileType } from '@/lib/mobile/file-security';
 
 // Helper: Get global SharePoint config
 async function getGlobalSharePointConfig(): Promise<SharePointGlobalConfig | null> {
@@ -76,10 +75,18 @@ export async function POST(request: Request) {
       );
     }
 
+    // 6a. Read file buffer (needed for MIME validation and EXIF stripping)
+    let fileBuffer = Buffer.from(await file.arrayBuffer()) as Buffer;
+
+    // 6b. Validate file type (magic bytes)
+    const typeCheck = await validateMobileFileType(fileBuffer, file.name);
+    if (!typeCheck.valid) {
+      return Response.json({ error: typeCheck.error }, { status: 400 });
+    }
+
     const sanitizedReference = referenceName.trim();
 
     // 7. Strip EXIF data from images
-    let fileBuffer: Buffer = Buffer.from(await file.arrayBuffer()) as Buffer;
     if (file.type.startsWith('image/')) {
       fileBuffer = await stripExifData(fileBuffer, file.type) as Buffer;
     }

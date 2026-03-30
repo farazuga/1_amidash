@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { validateOrigin } from '@/lib/api/csrf';
 
 // GET - Get current user's email preference
 export async function GET() {
@@ -36,6 +37,9 @@ export async function GET() {
 
 // PUT - Update email preference
 export async function PUT(request: NextRequest) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return csrfError;
+
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();

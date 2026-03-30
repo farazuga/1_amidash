@@ -15,14 +15,14 @@ const mockFrom = vi.fn();
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => ({
     auth: { getUser: mockGetUser },
+    from: mockFrom,
   })),
 }));
 
-// Mock service client
-vi.mock('@/lib/supabase/server', () => ({
-  createServiceClient: vi.fn(() => ({
-    from: mockFrom,
-  })),
+// Mock mobile auth
+const mockAuthenticateMobileRequest = vi.fn();
+vi.mock('@/lib/mobile/auth', () => ({
+  authenticateMobileRequest: (...args: unknown[]) => mockAuthenticateMobileRequest(...args),
 }));
 
 // Import the handler after mocks are set up
@@ -36,6 +36,10 @@ describe('GET /api/mobile/projects', () => {
   });
 
   it('returns 401 without Authorization header', async () => {
+    mockAuthenticateMobileRequest.mockResolvedValue(
+      Response.json({ error: 'Authentication required' }, { status: 401 })
+    );
+
     const request = new Request('http://localhost/api/mobile/projects', {
       method: 'GET',
     });
@@ -48,10 +52,9 @@ describe('GET /api/mobile/projects', () => {
   });
 
   it('returns 401 with invalid/expired token', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: null },
-      error: { message: 'Token expired' },
-    });
+    mockAuthenticateMobileRequest.mockResolvedValue(
+      Response.json({ error: 'Authentication required' }, { status: 401 })
+    );
 
     const request = new Request('http://localhost/api/mobile/projects', {
       method: 'GET',
@@ -65,20 +68,18 @@ describe('GET /api/mobile/projects', () => {
     expect(body).toEqual({ error: 'Authentication required' });
   });
 
-  it('returns project list with correct shape (id, sales_order_number, client_name)', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: mockUser },
-      error: null,
-    });
+  it('returns project list with correct shape (id, sales_order, client_name, status, phase)', async () => {
+    mockAuthenticateMobileRequest.mockResolvedValue({ user: mockUser, profile: { role: 'admin' } });
+    mockGetUser.mockResolvedValue({ data: { user: mockUser }, error: null });
 
     const mockProjects = [
-      { id: 'p-1', sales_order_number: 'S10001', client_name: 'Acme Corp', current_status_id: 's-1', is_draft: false },
-      { id: 'p-2', sales_order_number: 'S10002', client_name: 'Beta Inc', current_status_id: 's-2', is_draft: false },
+      { id: 'p-1', sales_order: 'S10001', client_name: 'Acme Corp', status: 'active', phase: 'active' },
+      { id: 'p-2', sales_order: 'S10002', client_name: 'Beta Inc', status: 'on_hold', phase: 'on_hold' },
     ];
 
     mockFrom.mockReturnValue({
       select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
+        in: vi.fn().mockReturnValue({
           order: vi.fn().mockResolvedValue({
             data: mockProjects,
             error: null,
@@ -104,20 +105,20 @@ describe('GET /api/mobile/projects', () => {
     // Contract: each project must have these fields
     for (const project of body.projects) {
       expect(project).toHaveProperty('id');
-      expect(project).toHaveProperty('sales_order_number');
+      expect(project).toHaveProperty('sales_order');
       expect(project).toHaveProperty('client_name');
+      expect(project).toHaveProperty('status');
+      expect(project).toHaveProperty('phase');
     }
   });
 
   it('returns empty array when no projects exist', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: mockUser },
-      error: null,
-    });
+    mockAuthenticateMobileRequest.mockResolvedValue({ user: mockUser, profile: { role: 'admin' } });
+    mockGetUser.mockResolvedValue({ data: { user: mockUser }, error: null });
 
     mockFrom.mockReturnValue({
       select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
+        in: vi.fn().mockReturnValue({
           order: vi.fn().mockResolvedValue({
             data: [],
             error: null,
@@ -139,14 +140,12 @@ describe('GET /api/mobile/projects', () => {
   });
 
   it('returns 500 when database query fails', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: mockUser },
-      error: null,
-    });
+    mockAuthenticateMobileRequest.mockResolvedValue({ user: mockUser, profile: { role: 'admin' } });
+    mockGetUser.mockResolvedValue({ data: { user: mockUser }, error: null });
 
     mockFrom.mockReturnValue({
       select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
+        in: vi.fn().mockReturnValue({
           order: vi.fn().mockResolvedValue({
             data: null,
             error: { message: 'Database error' },
