@@ -56,8 +56,8 @@ async function getProjectByToken(token: string) {
   const { data: project } = await (supabase as any)
     .from('projects')
     .select(`
-      id, client_name, sales_order_number, phase,
-      poc_name, poc_email, delivery_address, delivery_city, delivery_state, delivery_zip,
+      id, client_name, sales_order_number,
+      poc_name, poc_email, delivery_city, delivery_state, delivery_zip,
       schedule_status, project_description, project_type_id,
       current_status_id, current_status:statuses(*)
     `)
