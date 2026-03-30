@@ -99,16 +99,10 @@ describe('fetchRevenueData', () => {
       eq: vi.fn(),
     };
 
-    const mockStatusQuery = {
+    const mockProjectsQuery = {
       select: vi.fn().mockReturnThis(),
-      ilike: vi.fn().mockReturnThis(),
-      single: vi.fn(),
-    };
-
-    const mockHistoryQuery = {
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      gte: vi.fn(),
+      gte: vi.fn().mockReturnThis(),
+      lte: vi.fn(),
     };
 
     beforeEach(() => {
@@ -119,33 +113,26 @@ describe('fetchRevenueData', () => {
       // Set up chainable mocks
       mockSupabase.from.mockImplementation((table: string) => {
         if (table === 'revenue_goals') return mockGoalsQuery;
-        if (table === 'statuses') return mockStatusQuery;
-        if (table === 'status_history') return mockHistoryQuery;
+        if (table === 'projects') return mockProjectsQuery;
         return mockGoalsQuery;
       });
     });
 
     it('should fetch revenue data from database', async () => {
-      // Mock status lookup
-      mockStatusQuery.single.mockResolvedValueOnce({
-        data: { id: 'invoiced-status-id' },
-        error: null,
-      });
-
       // Mock goals
       mockGoalsQuery.eq.mockResolvedValueOnce({
         data: [
-          { month: 1, amount: 100000 },
-          { month: 2, amount: 100000 },
+          { month: 1, revenue_goal: 100000 },
+          { month: 2, revenue_goal: 100000 },
         ],
         error: null,
       });
 
-      // Mock invoiced history
-      mockHistoryQuery.gte.mockResolvedValueOnce({
+      // Mock invoiced projects
+      mockProjectsQuery.lte.mockResolvedValueOnce({
         data: [
-          { changed_at: '2024-01-15', projects: { total_value: 50000 } },
-          { changed_at: '2024-01-20', projects: { total_value: 30000 } },
+          { invoiced_date: '2024-01-15', sales_amount: 50000 },
+          { invoiced_date: '2024-01-20', sales_amount: 30000 },
         ],
         error: null,
       });
@@ -153,29 +140,23 @@ describe('fetchRevenueData', () => {
       const revenue = await fetchRevenueData();
 
       expect(mockSupabase.from).toHaveBeenCalledWith('revenue_goals');
-      expect(mockSupabase.from).toHaveBeenCalledWith('statuses');
-      expect(mockSupabase.from).toHaveBeenCalledWith('status_history');
+      expect(mockSupabase.from).toHaveBeenCalledWith('projects');
       expect(revenue.monthlyData).toHaveLength(12);
     });
 
     it('should calculate YTD revenue correctly', async () => {
-      mockStatusQuery.single.mockResolvedValueOnce({
-        data: { id: 'inv-id' },
-        error: null,
-      });
-
       mockGoalsQuery.eq.mockResolvedValueOnce({
         data: [
-          { month: 1, amount: 50000 },
-          { month: 2, amount: 60000 },
+          { month: 1, revenue_goal: 50000 },
+          { month: 2, revenue_goal: 60000 },
         ],
         error: null,
       });
 
-      mockHistoryQuery.gte.mockResolvedValueOnce({
+      mockProjectsQuery.lte.mockResolvedValueOnce({
         data: [
-          { changed_at: '2024-01-10', projects: { total_value: 40000 } },
-          { changed_at: '2024-02-15', projects: { total_value: 55000 } },
+          { invoiced_date: '2024-01-10', sales_amount: 40000 },
+          { invoiced_date: '2024-02-15', sales_amount: 55000 },
         ],
         error: null,
       });
@@ -188,17 +169,12 @@ describe('fetchRevenueData', () => {
     });
 
     it('should handle null project values', async () => {
-      mockStatusQuery.single.mockResolvedValueOnce({
-        data: { id: 'inv-id' },
-        error: null,
-      });
-
       mockGoalsQuery.eq.mockResolvedValueOnce({ data: [], error: null });
 
-      mockHistoryQuery.gte.mockResolvedValueOnce({
+      mockProjectsQuery.lte.mockResolvedValueOnce({
         data: [
-          { changed_at: '2024-01-10', projects: null },
-          { changed_at: '2024-01-15', projects: { total_value: null } },
+          { invoiced_date: '2024-01-10', sales_amount: null },
+          { invoiced_date: '2024-01-15', sales_amount: 0 },
         ],
         error: null,
       });
@@ -210,15 +186,12 @@ describe('fetchRevenueData', () => {
     });
 
     it('should return mock data on error', async () => {
-      mockStatusQuery.single.mockResolvedValueOnce({
-        data: null,
-        error: { message: 'Database error' },
-      });
+      mockGoalsQuery.eq.mockRejectedValueOnce(new Error('Database error'));
 
       const revenue = await fetchRevenueData();
 
       expect(logger.error).toHaveBeenCalledWith(
-        { error: expect.any(Object) },
+        { error: expect.any(Error) },
         'Failed to fetch revenue data, returning mock data'
       );
       // Should return mock data on error
@@ -226,14 +199,9 @@ describe('fetchRevenueData', () => {
     });
 
     it('should handle missing goals gracefully', async () => {
-      mockStatusQuery.single.mockResolvedValueOnce({
-        data: { id: 'inv-id' },
-        error: null,
-      });
-
       mockGoalsQuery.eq.mockResolvedValueOnce({ data: null, error: null });
 
-      mockHistoryQuery.gte.mockResolvedValueOnce({ data: [], error: null });
+      mockProjectsQuery.lte.mockResolvedValueOnce({ data: [], error: null });
 
       const revenue = await fetchRevenueData();
 
@@ -244,40 +212,23 @@ describe('fetchRevenueData', () => {
       });
     });
 
-    it('should handle missing invoiced status', async () => {
-      mockStatusQuery.single.mockResolvedValueOnce({
-        data: null,
-        error: null,
-      });
-
-      mockGoalsQuery.eq.mockResolvedValueOnce({ data: [], error: null });
-
-      mockHistoryQuery.gte.mockResolvedValueOnce({ data: [], error: null });
-
-      const revenue = await fetchRevenueData();
-
-      // Should still return valid data
-      expect(revenue.monthlyData).toHaveLength(12);
-    });
-
     it('should filter by current year', async () => {
       const currentYear = new Date().getFullYear();
 
-      mockStatusQuery.single.mockResolvedValueOnce({
-        data: { id: 'inv-id' },
-        error: null,
-      });
-
       mockGoalsQuery.eq.mockResolvedValueOnce({ data: [], error: null });
 
-      mockHistoryQuery.gte.mockResolvedValueOnce({ data: [], error: null });
+      mockProjectsQuery.lte.mockResolvedValueOnce({ data: [], error: null });
 
       await fetchRevenueData();
 
       expect(mockGoalsQuery.eq).toHaveBeenCalledWith('year', currentYear);
-      expect(mockHistoryQuery.gte).toHaveBeenCalledWith(
-        'changed_at',
+      expect(mockProjectsQuery.gte).toHaveBeenCalledWith(
+        'invoiced_date',
         `${currentYear}-01-01`
+      );
+      expect(mockProjectsQuery.lte).toHaveBeenCalledWith(
+        'invoiced_date',
+        `${currentYear}-12-31`
       );
     });
   });

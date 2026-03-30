@@ -35,11 +35,12 @@ export async function fetchActiveProjects(): Promise<ActiveProject[]> {
   }
 
   try {
-    // First get completed/cancelled/invoiced status IDs to filter them out
+    // Canonical definition: Active = NOT Invoiced, NOT Cancelled (see src/lib/metrics/compute.ts)
+    // "Completed" = Invoiced (same status). Uses exact name match, NOT ilike patterns.
     const { data: excludeStatuses } = await supabase
       .from('statuses')
       .select('id')
-      .or('name.ilike.%complete%,name.ilike.%cancelled%,name.ilike.%invoiced%');
+      .in('name', ['Invoiced', 'Cancelled']);
 
     const excludeIds = (excludeStatuses || []).map(s => s.id);
 
@@ -118,28 +119,18 @@ export async function fetchInvoicedProjects(): Promise<InvoicedProject[]> {
   }
 
   try {
-    // Get invoiced/complete status IDs
-    const { data: statuses } = await supabase
-      .from('statuses')
-      .select('id')
-      .or('name.ilike.%invoiced%,name.ilike.%complete%');
-
-    const statusIds = (statuses || []).map(s => s.id);
-
-    if (statusIds.length === 0) {
-      return getMockInvoicedProjects();
-    }
-
+    // Canonical: "Invoiced" = exact status name, no separate "Completed" (see src/lib/metrics/compute.ts)
+    // Uses invoiced_date (NOT updated_at) and sales_amount (NOT total_value)
     const { data, error } = await supabase
       .from('projects')
       .select(`
         id,
         client_name,
         sales_amount,
-        updated_at
+        invoiced_date
       `)
-      .in('current_status_id', statusIds)
-      .order('updated_at', { ascending: false })
+      .not('invoiced_date', 'is', null)
+      .order('invoiced_date', { ascending: false })
       .limit(4);
 
     if (error) throw error;
@@ -151,7 +142,7 @@ export async function fetchInvoicedProjects(): Promise<InvoicedProject[]> {
         name: project.client_name || 'Unknown Project',
         client_name: project.client_name || 'Unknown',
         total_value: project.sales_amount || 0,
-        completed_at: project.updated_at || new Date().toISOString(),
+        completed_at: project.invoiced_date || new Date().toISOString(),
       };
     });
   } catch (error) {

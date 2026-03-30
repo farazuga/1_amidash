@@ -1,0 +1,12 @@
+.claude/
+node_modules/
+.git/
+.next/
+coverage/
+e2e/
+playwright-report/
+test-results/
+*.test.ts
+*.spec.ts
+vitest.config.*
+playwright.config.*

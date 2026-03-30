@@ -76,7 +76,7 @@ export async function getPreviewData(): Promise<PreviewData> {
   const { data: excludeStatuses } = await supabase
     .from('statuses')
     .select('id')
-    .or('name.ilike.%complete%,name.ilike.%cancelled%,name.ilike.%invoiced%');
+    .in('name', ['Invoiced', 'Cancelled']);
 
   const excludeIds = (excludeStatuses || []).map((s: { id: string }) => s.id);
 
@@ -102,11 +102,11 @@ export async function getPreviewData(): Promise<PreviewData> {
     })
   );
 
-  // Fetch invoiced/completed projects
+  // Fetch invoiced projects
   const { data: invoicedStatuses } = await supabase
     .from('statuses')
     .select('id')
-    .or('name.ilike.%invoiced%,name.ilike.%complete%');
+    .eq('name', 'Invoiced');
 
   const invoicedStatusIds = (invoicedStatuses || []).map((s: { id: string }) => s.id);
 
@@ -114,18 +114,18 @@ export async function getPreviewData(): Promise<PreviewData> {
   if (invoicedStatusIds.length > 0) {
     const { data: invoicedRaw } = await supabase
       .from('projects')
-      .select('id, client_name, sales_amount, updated_at')
+      .select('id, client_name, sales_amount, invoiced_date')
       .in('current_status_id', invoicedStatusIds)
-      .order('updated_at', { ascending: false })
+      .order('invoiced_date', { ascending: false })
       .limit(4);
 
     invoicedProjects = (invoicedRaw || []).map(
-      (p: { id: string; client_name: string; sales_amount: number; updated_at: string }) => ({
+      (p: { id: string; client_name: string; sales_amount: number; invoiced_date: string }) => ({
         id: p.id,
         name: p.client_name,
         client_name: p.client_name,
         total_value: p.sales_amount || 0,
-        completed_at: p.updated_at || new Date().toISOString(),
+        completed_at: p.invoiced_date || new Date().toISOString(),
       })
     );
   }
@@ -136,19 +136,19 @@ export async function getPreviewData(): Promise<PreviewData> {
 
   const { data: posRaw } = await supabase
     .from('projects')
-    .select('id, po_number, client_name, sales_amount, created_at')
+    .select('id, po_number, client_name, sales_amount, created_date')
     .not('po_number', 'is', null)
-    .gte('created_at', startOfMonth)
-    .order('created_at', { ascending: false });
+    .gte('created_date', startOfMonth)
+    .order('created_date', { ascending: false });
 
   const allPOsFlat = (posRaw || []).map(
-    (p: { id: string; po_number: string; client_name: string; sales_amount: number; created_at: string }) => ({
+    (p: { id: string; po_number: string; client_name: string; sales_amount: number; created_date: string }) => ({
       id: p.id,
       po_number: p.po_number || '',
       project_name: p.client_name || 'Unknown',
       client_name: p.client_name || 'Unknown',
       amount: Math.max(0, p.sales_amount || 0),
-      created_at: p.created_at || new Date().toISOString(),
+      created_at: p.created_date || new Date().toISOString(),
     })
   );
 
@@ -166,12 +166,12 @@ export async function getPreviewData(): Promise<PreviewData> {
   // Revenue goals
   const { data: goals } = await supabase
     .from('revenue_goals')
-    .select('month, amount')
+    .select('month, revenue_goal')
     .eq('year', currentYear);
 
   const monthlyGoals = new Map<number, number>();
-  (goals || []).forEach((g: { month: number; amount: number }) => {
-    monthlyGoals.set(g.month, g.amount);
+  (goals || []).forEach((g: { month: number; revenue_goal: number }) => {
+    monthlyGoals.set(g.month, g.revenue_goal);
   });
 
   // Invoiced this month: count from invoiced projects updated this month
@@ -185,8 +185,8 @@ export async function getPreviewData(): Promise<PreviewData> {
       .from('projects')
       .select('id, sales_amount')
       .in('current_status_id', invoicedStatusIds)
-      .gte('updated_at', startOfMonthDate)
-      .lte('updated_at', endOfMonthDate);
+      .gte('invoiced_date', startOfMonthDate)
+      .lte('invoiced_date', endOfMonthDate);
 
     invoicedThisMonthCount = (thisMonthInvoiced || []).length;
     salesThisMonth = (thisMonthInvoiced || []).reduce(
@@ -205,8 +205,8 @@ export async function getPreviewData(): Promise<PreviewData> {
       .from('projects')
       .select('sales_amount')
       .in('current_status_id', invoicedStatusIds)
-      .gte('updated_at', startOfQuarterDate)
-      .lte('updated_at', endOfQuarterDate);
+      .gte('invoiced_date', startOfQuarterDate)
+      .lte('invoiced_date', endOfQuarterDate);
 
     quarterRevenue = (quarterInvoiced || []).reduce(
       (sum: number, p: { sales_amount: number }) => sum + (p.sales_amount || 0),

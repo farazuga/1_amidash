@@ -1033,9 +1033,9 @@ function GoalChart({
           width={60}
         />
         <RechartsTooltip
-          formatter={(value: number, name: string) => [
-            `$${value.toLocaleString()}`,
-            name === 'invoiced' ? 'Invoiced' : name === 'projected' ? 'Projected' : name === 'goal' ? 'Goal' : name
+          formatter={(value, name) => [
+            `$${Number(value ?? 0).toLocaleString()}`,
+            name === 'invoiced' ? 'Invoiced' : name === 'projected' ? 'Projected' : name === 'goal' ? 'Goal' : String(name)
           ]}
           contentStyle={{
             backgroundColor: 'hsl(var(--background))',
