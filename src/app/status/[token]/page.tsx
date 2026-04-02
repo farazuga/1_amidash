@@ -222,6 +222,15 @@ export default async function ClientPortalPage({
     getAddressConfirmation(project.id),
   ]);
 
+  // Fetch sub-projects if this is a parent project
+  const supabase = await createServiceClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: subProjects } = await (supabase as any)
+    .from('projects')
+    .select('id, sales_order_number, po_number, sales_amount, odoo_invoice_status, schedule_status')
+    .eq('parent_project_id', project.id)
+    .order('created_date', { ascending: true });
+
   const { blocks: templateBlocks, backgroundImageUrl } = portalTemplate;
 
   // Increment view count (fire and forget - don't block render)
@@ -316,6 +325,58 @@ export default async function ClientPortalPage({
             ))}
           </div>
         </div>
+
+        {/* Sub-Projects / Related Sales Orders */}
+        {subProjects && subProjects.length > 0 && (
+          <Card className="mt-6">
+            <CardContent className="pt-6">
+              <h2 className="text-lg font-semibold text-[#023A2D] mb-4">Related Sales Orders</h2>
+              <div className="divide-y">
+                {subProjects.map((sub: { id: string; sales_order_number: string | null; po_number: string | null; sales_amount: number | null; odoo_invoice_status: string | null }) => (
+                  <div key={sub.id} className="py-3 first:pt-0 last:pb-0">
+                    <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+                      {sub.sales_order_number && (
+                        <span>
+                          <span className="text-muted-foreground">SO#:</span>{' '}
+                          <span className="font-medium">{sub.sales_order_number}</span>
+                        </span>
+                      )}
+                      {sub.po_number && (
+                        <span>
+                          <span className="text-muted-foreground">PO#:</span>{' '}
+                          <span className="font-medium">{sub.po_number}</span>
+                        </span>
+                      )}
+                      {sub.sales_amount != null && (
+                        <span>
+                          <span className="text-muted-foreground">Amount:</span>{' '}
+                          <span className="font-medium">
+                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(sub.sales_amount)}
+                          </span>
+                        </span>
+                      )}
+                      {sub.odoo_invoice_status && (
+                        <span>
+                          <span className="text-muted-foreground">Invoice:</span>{' '}
+                          <span className={`font-medium ${
+                            sub.odoo_invoice_status === 'invoiced' ? 'text-green-700' :
+                            sub.odoo_invoice_status === 'to invoice' ? 'text-amber-600' :
+                            'text-muted-foreground'
+                          }`}>
+                            {sub.odoo_invoice_status === 'invoiced' ? 'Invoiced' :
+                             sub.odoo_invoice_status === 'to invoice' ? 'To Invoice' :
+                             sub.odoo_invoice_status === 'no' ? 'Not Invoiced' :
+                             sub.odoo_invoice_status}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Footer */}
         <footer className="mt-6 text-center text-xs text-muted-foreground">

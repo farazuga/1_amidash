@@ -96,6 +96,30 @@ async function getTypedServiceClient(): Promise<AnySupabaseClient> {
 }
 
 /**
+ * Resolve the effective project ID for file operations.
+ * If the project has a parent_project_id, file operations use the parent's SharePoint folder.
+ * Returns the project row and the effective project ID to use for SharePoint lookups.
+ */
+async function resolveEffectiveProject(
+  db: AnySupabaseClient,
+  projectId: string
+): Promise<{
+  project: { id: string; parent_project_id: string | null; client_name: string; sales_order_number: string };
+  effectiveProjectId: string;
+} | null> {
+  const { data: project } = await db
+    .from('projects')
+    .select('id, parent_project_id, client_name, sales_order_number')
+    .eq('id', projectId)
+    .single();
+
+  if (!project) return null;
+
+  const effectiveProjectId = project.parent_project_id || projectId;
+  return { project, effectiveProjectId };
+}
+
+/**
  * Get the global SharePoint configuration
  */
 export async function getGlobalSharePointConfig(): Promise<SharePointGlobalConfig | null> {
@@ -134,11 +158,20 @@ async function ensureProjectFolder(
 ): Promise<{ success: boolean; connection?: ProjectSharePointConnection; error?: string }> {
   const db = await getTypedClient();
 
-  // Check if project already has a connection
+  // If this project has a parent, use the parent's SharePoint folder
+  const resolved = await resolveEffectiveProject(db, projectId);
+  const effectiveProjectId = resolved?.effectiveProjectId || projectId;
+  const effectiveSalesOrder = resolved?.project.parent_project_id
+    ? (await db.from('projects').select('sales_order_number, client_name').eq('id', effectiveProjectId).single()).data
+    : null;
+  const folderSalesOrder = effectiveSalesOrder?.sales_order_number || salesOrderNumber;
+  const folderClientName = effectiveSalesOrder?.client_name || clientName;
+
+  // Check if the effective project already has a connection
   const { data: existingConnection } = await db
     .from('project_sharepoint_connections')
     .select('*')
-    .eq('project_id', projectId)
+    .eq('project_id', effectiveProjectId)
     .maybeSingle();
 
   if (existingConnection) {
@@ -153,8 +186,8 @@ async function ensureProjectFolder(
 
   try {
     // Generate folder name: "S12345 ClientName"
-    const sanitizedClientName = clientName.replace(/[<>:"/\\|?*]/g, '-').trim();
-    const folderName = `${salesOrderNumber} ${sanitizedClientName}`;
+    const sanitizedClientName = folderClientName.replace(/[<>:"/\\|?*]/g, '-').trim();
+    const folderName = `${folderSalesOrder} ${sanitizedClientName}`;
 
     // Create project folder under the base folder
     const projectFolder = await sharepoint.createFolder(
@@ -183,7 +216,7 @@ async function ensureProjectFolder(
     const { data: connection, error: insertError } = await db
       .from('project_sharepoint_connections')
       .insert({
-        project_id: projectId,
+        project_id: effectiveProjectId,
         site_id: globalConfig.site_id,
         drive_id: globalConfig.drive_id,
         folder_id: projectFolder.id,
@@ -230,6 +263,12 @@ export async function connectSharePointFolder(
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
     return { success: false, error: 'Authentication required' };
+  }
+
+  // Block child projects from managing SharePoint connections
+  const resolved = await resolveEffectiveProject(db, data.projectId);
+  if (resolved?.project.parent_project_id) {
+    return { success: false, error: 'SharePoint folder is managed by the parent project' };
   }
 
   try {
@@ -321,6 +360,12 @@ export async function disconnectSharePoint(projectId: string): Promise<{ success
     return { success: false, error: 'Authentication required' };
   }
 
+  // Block child projects from managing SharePoint connections
+  const resolved = await resolveEffectiveProject(db, projectId);
+  if (resolved?.project.parent_project_id) {
+    return { success: false, error: 'SharePoint folder is managed by the parent project' };
+  }
+
   const { error } = await db
     .from('project_sharepoint_connections')
     .delete()
@@ -354,24 +399,28 @@ export async function getProjectFiles(projectId: string): Promise<GetFilesResult
     return { success: false, error: 'Authentication required' };
   }
 
-  // Get connection
+  // Resolve effective project for file operations (parent if child project)
+  const resolved = await resolveEffectiveProject(db, projectId);
+  const effectiveProjectId = resolved?.effectiveProjectId || projectId;
+
+  // Get connection (from effective/parent project)
   const { data: connection } = await db
     .from('project_sharepoint_connections')
     .select('*')
-    .eq('project_id', projectId)
+    .eq('project_id', effectiveProjectId)
     .maybeSingle();
 
   // Check if global SharePoint is configured
   const globalConfig = await getGlobalSharePointConfig();
 
-  // Get files
+  // Get files (from effective/parent project to show shared folder contents)
   const { data: files, error: filesError } = await db
     .from('project_files')
     .select(`
       *,
       uploaded_by_profile:profiles!project_files_uploaded_by_fkey(id, email, full_name)
     `)
-    .eq('project_id', projectId)
+    .eq('project_id', effectiveProjectId)
     .order('created_at', { ascending: false });
 
   if (filesError) {
@@ -379,9 +428,9 @@ export async function getProjectFiles(projectId: string): Promise<GetFilesResult
     return { success: false, error: 'Failed to load files' };
   }
 
-  // Get counts by category
+  // Get counts by category (using effective project)
   const { data: countsData } = await db.rpc('get_project_file_counts', {
-    p_project_id: projectId,
+    p_project_id: effectiveProjectId,
   });
 
   const counts: FileCategoryCount[] = countsData || [];
@@ -435,33 +484,50 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
     return { success: false, error: `Authentication failed: ${authError instanceof Error ? authError.message : 'Unknown error'}` };
   }
 
-  // Get project details for folder creation
+  // Get project details for folder creation (resolve parent if child project)
   let project: { client_name: string; sales_order_number: string };
+  let effectiveProjectId: string;
   try {
     console.log('[uploadFile] === STEP 5: Getting project ===');
-    const { data: projectData, error: projectError } = await db
-      .from('projects')
-      .select('client_name, sales_order_number')
-      .eq('id', data.projectId)
-      .single();
+    const resolved = await resolveEffectiveProject(db, data.projectId);
 
-    if (projectError || !projectData) {
-      console.error('[uploadFile] Project not found:', projectError);
+    if (!resolved) {
+      console.error('[uploadFile] Project not found');
       return { success: false, error: 'Project not found' };
     }
-    project = projectData;
-    console.log('[uploadFile] Project found:', project.sales_order_number, project.client_name);
+
+    effectiveProjectId = resolved.effectiveProjectId;
+
+    // If child project, fetch parent's details for folder naming
+    if (resolved.project.parent_project_id) {
+      const { data: parentData, error: parentError } = await db
+        .from('projects')
+        .select('client_name, sales_order_number')
+        .eq('id', effectiveProjectId)
+        .single();
+
+      if (parentError || !parentData) {
+        console.error('[uploadFile] Parent project not found:', parentError);
+        return { success: false, error: 'Parent project not found' };
+      }
+      project = parentData;
+      console.log('[uploadFile] Using parent project folder:', project.sales_order_number, project.client_name);
+    } else {
+      project = { client_name: resolved.project.client_name, sales_order_number: resolved.project.sales_order_number };
+      console.log('[uploadFile] Project found:', project.sales_order_number, project.client_name);
+    }
   } catch (projectFetchError) {
     console.error('[uploadFile] Project fetch exception:', projectFetchError);
     return { success: false, error: `Failed to fetch project: ${projectFetchError instanceof Error ? projectFetchError.message : 'Unknown error'}` };
   }
 
   // Ensure project has a SharePoint folder (auto-create if needed)
+  // Uses effectiveProjectId so child projects use parent's folder
   let connection;
   try {
     console.log('[uploadFile] === STEP 6: Ensuring project folder ===');
     const folderResult = await ensureProjectFolder(
-      data.projectId,
+      effectiveProjectId,
       project.sales_order_number,
       project.client_name,
       user.id
@@ -626,11 +692,15 @@ export async function syncFilesFromSharePoint(projectId: string): Promise<SyncFi
     return { success: false, error: 'Authentication required' };
   }
 
-  // Get SharePoint connection
+  // Resolve effective project for file operations (parent if child project)
+  const resolved = await resolveEffectiveProject(db, projectId);
+  const effectiveProjectId = resolved?.effectiveProjectId || projectId;
+
+  // Get SharePoint connection (from effective/parent project)
   const { data: connection } = await db
     .from('project_sharepoint_connections')
     .select('*')
-    .eq('project_id', projectId)
+    .eq('project_id', effectiveProjectId)
     .single();
 
   if (!connection) {
@@ -690,11 +760,11 @@ export async function syncFilesFromSharePoint(projectId: string): Promise<SyncFi
               syncedCount++;
             }
           } else {
-            // Insert new file
+            // Insert new file (use effective project ID for shared folder files)
             await db
               .from('project_files')
               .insert({
-                project_id: projectId,
+                project_id: effectiveProjectId,
                 connection_id: connection.id,
                 file_name: item.name,
                 sharepoint_item_id: item.id,
@@ -1131,4 +1201,153 @@ export async function migratePresalesFilesToProject(
       error: error instanceof Error ? error.message : 'Failed to migrate files',
     };
   }
+}
+
+// ============================================================================
+// Sub-project file migration
+// ============================================================================
+
+/**
+ * Migrate files from a child project to the parent project's SharePoint folder.
+ * Called when an existing project with files is linked as a sub-project.
+ *
+ * Steps:
+ * 1. Get child's SharePoint connection and files
+ * 2. Get/ensure parent's SharePoint connection
+ * 3. Move each file in SharePoint to the parent's category subfolder
+ * 4. Update project_files records to use parent's connection_id
+ * 5. Delete child's SharePoint connection
+ */
+export async function migrateChildFilesToParent(
+  childProjectId: string,
+  parentProjectId: string
+): Promise<{ success: boolean; movedCount: number; error?: string }> {
+  const db = await getTypedClient();
+
+  // Get child's SharePoint connection
+  const { data: childConnection } = await db
+    .from('project_sharepoint_connections')
+    .select('*')
+    .eq('project_id', childProjectId)
+    .maybeSingle();
+
+  // Get child's files
+  const { data: childFiles } = await db
+    .from('project_files')
+    .select('*')
+    .eq('project_id', childProjectId);
+
+  if (!childFiles || childFiles.length === 0) {
+    // No files to move — just clean up the connection if it exists
+    if (childConnection) {
+      await db
+        .from('project_sharepoint_connections')
+        .delete()
+        .eq('project_id', childProjectId);
+    }
+    return { success: true, movedCount: 0 };
+  }
+
+  // Get parent project details for folder naming
+  const { data: parentProject } = await db
+    .from('projects')
+    .select('id, client_name, sales_order_number')
+    .eq('id', parentProjectId)
+    .single();
+
+  if (!parentProject) {
+    return { success: false, movedCount: 0, error: 'Parent project not found' };
+  }
+
+  // Get current user for folder creation
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Ensure parent has a SharePoint folder
+  const parentFolderResult = await ensureProjectFolder(
+    parentProjectId,
+    parentProject.sales_order_number,
+    parentProject.client_name,
+    user?.id || ''
+  );
+
+  if (!parentFolderResult.success || !parentFolderResult.connection) {
+    return {
+      success: false,
+      movedCount: 0,
+      error: 'Could not ensure parent SharePoint folder: ' + (parentFolderResult.error || 'unknown'),
+    };
+  }
+
+  const parentConnection = parentFolderResult.connection;
+  let movedCount = 0;
+
+  // Move each file in SharePoint (if it has a sharepoint_item_id)
+  for (const file of childFiles) {
+    try {
+      if (file.sharepoint_item_id && childConnection) {
+        // Determine the target category folder in the parent
+        const categoryFolderName = sharepoint.getCategoryFolderName(file.category || 'other');
+
+        // Get or create the category subfolder in parent's folder
+        let targetFolderId: string | undefined;
+        try {
+          const categoryFolder = await sharepoint.getItemByPath(
+            parentConnection.drive_id,
+            `${parentConnection.folder_path}/${categoryFolderName}`
+          );
+          targetFolderId = categoryFolder?.id;
+        } catch {
+          // Category folder doesn't exist — create it
+          const folder = await sharepoint.createFolder(
+            parentConnection.drive_id,
+            parentConnection.folder_id,
+            categoryFolderName
+          );
+          targetFolderId = folder.id;
+        }
+
+        if (targetFolderId) {
+          // Move the file in SharePoint
+          await sharepoint.moveItem(
+            childConnection.drive_id,
+            file.sharepoint_item_id,
+            targetFolderId
+          );
+        }
+      }
+
+      // Update the DB record to point to parent's connection
+      await db
+        .from('project_files')
+        .update({ connection_id: parentConnection.id })
+        .eq('id', file.id);
+
+      movedCount++;
+    } catch (error) {
+      console.error(`[migrateChildFilesToParent] Failed to move file ${file.file_name}:`, error);
+      // Continue with other files — don't fail the whole migration
+    }
+  }
+
+  // Clean up child's SharePoint connection
+  if (childConnection) {
+    await db
+      .from('project_sharepoint_connections')
+      .delete()
+      .eq('project_id', childProjectId);
+  }
+
+  const failedCount = childFiles.length - movedCount;
+  console.log(`[migrateChildFilesToParent] Moved ${movedCount}/${childFiles.length} files from ${childProjectId} to ${parentProjectId}`);
+
+  if (failedCount > 0) {
+    return {
+      success: false,
+      movedCount,
+      error: `${failedCount} of ${childFiles.length} file(s) could not be moved. They may need to be moved manually in SharePoint.`,
+    };
+  }
+
+  return { success: true, movedCount };
 }

@@ -230,12 +230,16 @@ export interface Project {
   delivery_state: string | null;
   delivery_zip: string | null;
   delivery_country: string | null;
+  // Parent-child relationships
+  parent_project_id: string | null;
   // Joined relations
   current_status?: Status | null;
   project_type?: ProjectType | null;
   tags?: Tag[] | { tag: Tag }[];
   created_by_profile?: Profile | null;
   salesperson?: Profile | null;
+  parent_project?: { id: string; client_name: string; sales_order_number: string | null } | null;
+  children_count?: number;
 }
 
 export interface ProjectTag {
