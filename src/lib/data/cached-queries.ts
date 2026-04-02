@@ -103,7 +103,31 @@ export const getProjectBySalesOrder = cache(async (salesOrder: string) => {
     .eq('sales_order_number', salesOrder)
     .single();
 
-  return project;
+  if (!project) return null;
+
+  // parent_project_id is not in generated types yet (needs type regeneration after migration)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const parentProjectId = (project as any).parent_project_id as string | null;
+
+  // If this is a child project, fetch parent info
+  let parent_project = null;
+  if (parentProjectId) {
+    const { data: parent } = await supabase
+      .from('projects')
+      .select('id, client_name, sales_order_number')
+      .eq('id', parentProjectId)
+      .single();
+    parent_project = parent;
+  }
+
+  // Count children
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { count } = await (supabase as any)
+    .from('projects')
+    .select('id', { count: 'exact', head: true })
+    .eq('parent_project_id', project.id);
+
+  return { ...project, parent_project, children_count: count || 0 };
 });
 
 /**

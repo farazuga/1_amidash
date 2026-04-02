@@ -1,9 +1,13 @@
 import { notFound } from 'next/navigation';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProjectHeader } from '@/components/projects/project-header';
 import { ProjectForm } from '@/components/projects/project-form';
 import { StatusHistory } from '@/components/projects/status-history';
 import { QuickInfo } from '@/components/projects/quick-info';
+import { SubProjectsPanel } from '@/components/projects/sub-projects-panel';
+import { ChildProjectBanner } from '@/components/projects/child-project-banner';
 import type { Project } from '@/types';
 import type { BookingStatus } from '@/types/calendar';
 import {
@@ -16,6 +20,7 @@ import {
   getStatusHistory,
   getCurrentUser,
 } from '@/lib/data/cached-queries';
+import { getSubProjects } from '@/app/(dashboard)/projects/actions';
 
 export default async function ProjectDetailPage({
   params,
@@ -32,7 +37,7 @@ export default async function ProjectDetailPage({
   }
 
   // Use cached queries for static data, non-cached for dynamic data
-  const [statuses, tags, statusHistory, salespeople, projectTypes, projectTypeStatuses, currentUser] = await Promise.all([
+  const [statuses, tags, statusHistory, salespeople, projectTypes, projectTypeStatuses, currentUser, subProjects] = await Promise.all([
     getCachedStatuses(),         // Cached: rarely changes
     getCachedTags(),             // Cached: rarely changes
     getStatusHistory(project.id), // Non-cached: project-specific
@@ -40,6 +45,7 @@ export default async function ProjectDetailPage({
     getCachedProjectTypes(),     // Cached: rarely changes
     getCachedProjectTypeStatuses(), // Cached: rarely changes
     getCurrentUser(),            // Non-cached: session-specific
+    getSubProjects(project.id),  // Fetch sub-projects
   ]);
 
   const isAdmin = currentUser?.role === 'admin';
@@ -51,10 +57,23 @@ export default async function ProjectDetailPage({
     new Date(project.goal_completion_date) < new Date() &&
     project.current_status?.name !== 'Invoiced';
 
+  const isChildProject = !!(project as { parent_project_id?: string | null }).parent_project_id;
+  const isParentProject = (project.children_count ?? 0) > 0;
+  const showSubProjectsTab = !isChildProject; // Don't show sub-projects tab on child projects
+
   return (
     <div className="grid gap-4 md:gap-6 lg:grid-cols-5">
       {/* Left Column - 60% (3/5) */}
       <div className="lg:col-span-3 space-y-4 md:space-y-6">
+        {/* Child project banner */}
+        {isChildProject && project.parent_project && (
+          <ChildProjectBanner
+            parentProject={project.parent_project}
+            childProjectId={project.id}
+            isAdmin={isAdmin}
+          />
+        )}
+
         {/* Hero Header */}
         <ProjectHeader
           project={{
@@ -68,35 +87,91 @@ export default async function ProjectDetailPage({
           isOverdue={!!isOverdue}
         />
 
-        {/* Project Details Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Project Information</CardTitle>
-            <CardDescription>Edit project details below</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ProjectForm
-              project={{ ...project, email_notifications_enabled: (project as { email_notifications_enabled?: boolean | null }).email_notifications_enabled ?? true } as Project}
-              statuses={statuses}
-              tags={tags}
-              projectTags={project.tags?.map((t: { tag: { id: string } }) => t.tag.id) || []}
-              salespeople={salespeople}
-              projectTypes={projectTypes}
-              projectTypeStatuses={projectTypeStatuses}
-            />
-          </CardContent>
-        </Card>
+        {showSubProjectsTab ? (
+          <Tabs defaultValue="info">
+            <TabsList>
+              <TabsTrigger value="info">Project Info</TabsTrigger>
+              <TabsTrigger value="sub-projects">
+                Sub-Projects{subProjects.length > 0 ? ` (${subProjects.length})` : ''}
+              </TabsTrigger>
+            </TabsList>
 
-        {/* Status History */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Status History</CardTitle>
-            <CardDescription>Timeline of status changes</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <StatusHistory history={statusHistory} />
-          </CardContent>
-        </Card>
+            <TabsContent value="info" className="space-y-4 md:space-y-6 mt-4">
+              {/* Project Details Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Project Information</CardTitle>
+                  <CardDescription>Edit project details below</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ProjectForm
+                    project={{ ...project, email_notifications_enabled: (project as { email_notifications_enabled?: boolean | null }).email_notifications_enabled ?? true } as Project}
+                    statuses={statuses}
+                    tags={tags}
+                    projectTags={project.tags?.map((t: { tag: { id: string } }) => t.tag.id) || []}
+                    salespeople={salespeople}
+                    projectTypes={projectTypes}
+                    projectTypeStatuses={projectTypeStatuses}
+                  />
+                </CardContent>
+              </Card>
+
+              {/* Status History */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Status History</CardTitle>
+                  <CardDescription>Timeline of status changes</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <StatusHistory history={statusHistory} />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="sub-projects" className="mt-4">
+              <SubProjectsPanel
+                parentId={project.id}
+                parentSalesOrder={project.sales_order_number}
+                parentClientName={project.client_name}
+                subProjects={subProjects}
+                isAdmin={isAdmin}
+              />
+            </TabsContent>
+          </Tabs>
+        ) : (
+          /* Child projects or projects without tabs: show info directly */
+          <>
+            {/* Project Details Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Project Information</CardTitle>
+                <CardDescription>Edit project details below</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ProjectForm
+                  project={{ ...project, email_notifications_enabled: (project as { email_notifications_enabled?: boolean | null }).email_notifications_enabled ?? true } as Project}
+                  statuses={statuses}
+                  tags={tags}
+                  projectTags={project.tags?.map((t: { tag: { id: string } }) => t.tag.id) || []}
+                  salespeople={salespeople}
+                  projectTypes={projectTypes}
+                  projectTypeStatuses={projectTypeStatuses}
+                />
+              </CardContent>
+            </Card>
+
+            {/* Status History */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Status History</CardTitle>
+                <CardDescription>Timeline of status changes</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <StatusHistory history={statusHistory} />
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
 
       {/* Right Column - 40% (2/5) - Quick Info */}

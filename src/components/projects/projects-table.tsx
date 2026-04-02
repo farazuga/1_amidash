@@ -156,6 +156,7 @@ interface ProjectWithTags {
   schedule_status?: string | null;
   invoiced_date?: string | null;
   project_description?: string | null;
+  parent_project_id?: string | null;
   is_draft?: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   current_status?: any;
@@ -415,6 +416,11 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
         const clientContent = (
           <div className="space-y-1">
             <p className="font-medium">
+              {project.parent_project_id && (
+                <Badge variant="outline" className="mr-1.5 px-1 py-0 text-[10px] font-normal text-muted-foreground">
+                  Sub
+                </Badge>
+              )}
               {project.client_name}
               {project.is_draft && (
                 <span className="ml-2 rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">
