@@ -117,6 +117,8 @@ export function createProject(overrides: Partial<Project> = {}): Project {
     delivery_state: null,
     delivery_zip: null,
     delivery_country: null,
+    // Parent-child
+    parent_project_id: null,
     ...overrides,
   };
 }
