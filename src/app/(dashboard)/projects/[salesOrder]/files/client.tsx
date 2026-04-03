@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useTransition } from 'react';
+import { useState, useCallback, useEffect, useRef, useTransition } from 'react';
 import { toast } from 'sonner';
 import { FileBrowser } from '@/components/files/file-browser';
 import { FileUploadDialog, FileUploadData } from '@/components/files/file-upload-dialog';
@@ -35,6 +35,28 @@ export function ProjectFilesClient({
   const [counts, setCounts] = useState<FileCategoryCount[]>(initialCounts);
   const [connection, setConnection] = useState<ProjectSharePointConnection | null>(initialConnection);
   const [isPending, startTransition] = useTransition();
+
+  // Auto-sync from SharePoint on mount if connected
+  const hasSynced = useRef(false);
+  useEffect(() => {
+    if (hasSynced.current) return;
+    if (!connection) return;
+    hasSynced.current = true;
+
+    // Run sync in background, then refresh state
+    syncFilesFromSharePoint(projectId).then(async (result) => {
+      if (result.success) {
+        const refreshed = await getProjectFiles(projectId);
+        if (refreshed.success) {
+          setFiles(refreshed.files || []);
+          setCounts(refreshed.counts || []);
+          setConnection(refreshed.connection || null);
+        }
+      }
+    }).catch(() => {
+      // Silent fail - user can still manually sync
+    });
+  }, [connection, projectId]);
 
   // Refresh files from server
   const refreshFiles = useCallback(async () => {
