@@ -344,6 +344,16 @@ export async function endMeeting(meetingId: string): Promise<ActionResult<Meetin
       .single();
 
     if (error) throw error;
+
+    // Reset any issues stuck in 'solving' back to 'open'
+    if (data?.team_id) {
+      await supabase
+        .from('l10_issues')
+        .update({ status: 'open' })
+        .eq('team_id', data.team_id)
+        .eq('status', 'solving');
+    }
+
     revalidatePath('/l10');
     return { success: true, data: data as Meeting };
   } catch (error) {
