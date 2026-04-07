@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   DollarSign,
   FolderKanban,
@@ -158,6 +159,7 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
 
   // Expanded sections state
   const [expandedStuck, setExpandedStuck] = useState(false);
+  const [vidpodDialogOpen, setVidpodDialogOpen] = useState(false);
 
   // Use data from server
   const { projects, statuses, statusHistory, goals, thresholds } = initialData;
@@ -348,6 +350,12 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
   // 2. Total VidPODs Sold
   const totalVidpodsSold = useMemo(() => {
     return projects.reduce((sum, p) => sum + (p.number_of_vidpods || 0), 0);
+  }, [projects]);
+
+  const vidpodProjects = useMemo(() => {
+    return projects
+      .filter(p => p.number_of_vidpods && p.number_of_vidpods > 0)
+      .sort((a, b) => (b.number_of_vidpods || 0) - (a.number_of_vidpods || 0));
   }, [projects]);
 
   // 3. On-Time Completion % - Projects invoiced by goal date
@@ -762,7 +770,7 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
             </Card>
           </MetricTooltip>
           <MetricTooltip metric="vidpodSales">
-            <Card className="p-2">
+            <Card className="p-2 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => setVidpodDialogOpen(true)}>
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-muted-foreground uppercase">VidPOD Sales</span>
                 <Tv className="h-3 w-3 text-muted-foreground" />
@@ -770,6 +778,45 @@ export function DashboardContent({ initialData }: DashboardContentProps) {
               <p className="text-lg font-bold">{totalVidpodsSold}</p>
             </Card>
           </MetricTooltip>
+          <Dialog open={vidpodDialogOpen} onOpenChange={setVidpodDialogOpen}>
+            <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Tv className="h-4 w-4" />
+                  VidPOD Projects ({vidpodProjects.length})
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-1">
+                {vidpodProjects.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No VidPOD projects found.</p>
+                ) : (
+                  vidpodProjects.map(p => (
+                    <Link
+                      key={p.id}
+                      href={`/projects/${p.sales_order_number || p.id}`}
+                      className="flex items-center justify-between text-sm hover:bg-muted/50 rounded p-2 -mx-1"
+                      onClick={() => setVidpodDialogOpen(false)}
+                    >
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-medium truncate">{p.client_name}</span>
+                        {p.sales_order_number && (
+                          <span className="text-xs text-muted-foreground">{p.sales_order_number}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge variant="secondary" className="text-xs">
+                          {p.number_of_vidpods} unit{p.number_of_vidpods !== 1 ? 's' : ''}
+                        </Badge>
+                        {p.current_status && (
+                          <span className="text-xs text-muted-foreground">{p.current_status.name}</span>
+                        )}
+                      </div>
+                    </Link>
+                  ))
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
           <MetricTooltip metric="onTime">
             <Card className="p-2">
               <div className="flex items-center justify-between">
