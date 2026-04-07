@@ -272,7 +272,7 @@ export function IssuesTab({ teamId }: IssuesTabProps) {
 // Issue Detail Sheet (Side Panel)
 // ============================================
 
-function IssueDetailSheet({
+export function IssueDetailSheet({
   issue,
   onClose,
   teamId,
@@ -282,8 +282,8 @@ function IssueDetailSheet({
   issue: IssueWithCreator | null;
   onClose: () => void;
   teamId: string;
-  onSolve: (issue: IssueWithCreator) => void;
-  onDelete: (id: string) => void;
+  onSolve?: (issue: IssueWithCreator) => void;
+  onDelete?: (id: string) => void;
 }) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState('');
@@ -322,14 +322,14 @@ function IssueDetailSheet({
   };
 
   const handleSolve = () => {
-    if (issue) {
+    if (issue && onSolve) {
       onClose();
       onSolve(issue);
     }
   };
 
   const handleDelete = () => {
-    if (issue) {
+    if (issue && onDelete) {
       setDeleteConfirmOpen(false);
       onClose();
       onDelete(issue.id);
@@ -496,16 +496,18 @@ function IssueDetailSheet({
               </div>
 
               <SheetFooter className="border-t gap-2">
-                {issue.status !== 'solved' && (
+                {issue.status !== 'solved' && onSolve && (
                   <Button onClick={handleSolve} className="flex-1">
                     <CheckCircle className="mr-2 h-4 w-4" />
                     Solve
                   </Button>
                 )}
-                <Button variant="destructive" onClick={() => setDeleteConfirmOpen(true)}>
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
-                </Button>
+                {onDelete && (
+                  <Button variant="destructive" onClick={() => setDeleteConfirmOpen(true)}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </Button>
+                )}
               </SheetFooter>
             </>
           )}

@@ -26,9 +26,10 @@ describe('API Server', () => {
     },
     polling: {
       projects: 30000,
+      invoicedProjects: 60000,
+      purchaseOrders: 30000,
       revenue: 60000,
-      schedule: 30000,
-      purchaseOrders: 15000,
+      blocksConfig: 30000,
     },
     slides: [{ type: 'active-projects', enabled: true, duration: 15000 }],
     transitions: { type: 'fade', duration: 500 },
@@ -50,7 +51,7 @@ describe('API Server', () => {
       startTime: null,
       config: mockConfig,
       canvasManager: null,
-      slideManager: null,
+      layoutManager: null,
       pollingManager: null,
       ndiOutput: null,
     };
@@ -95,8 +96,10 @@ describe('API Server', () => {
       expect(response.status).toBe(200);
       expect(response.body.isRunning).toBe(false);
       expect(response.body.uptime).toBe(0);
-      expect(response.body.currentSlide).toBe(0);
-      expect(response.body.totalSlides).toBe(0);
+      expect(response.body.renderer).toBeNull();
+      expect(response.body.fps).toBe(0);
+      expect(response.body.frameCount).toBe(0);
+      expect(response.body.dataStale).toBe(false);
     });
 
     it('should return uptime when running', async () => {

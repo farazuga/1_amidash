@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import type { ACAccount, ACContact } from '@/types/activecampaign';
+import type { ACAccount, ACContact, ACDeal, ACDealStage, ACPipeline } from '@/types/activecampaign';
 
 export const mockAccounts: ACAccount[] = [
   {
@@ -42,12 +42,58 @@ export const mockContacts: ACContact[] = [
   },
 ];
 
+export const mockPipelines: ACPipeline[] = [
+  { id: '1', title: 'Solution' },
+  { id: '2', title: 'VidPod' },
+];
+
+export const mockDealStages: ACDealStage[] = [
+  { id: '10', title: 'Verbal Commit', group: '1', order: '3' },
+  { id: '11', title: 'Proposal Sent', group: '1', order: '2' },
+];
+
+export const mockDeals: ACDeal[] = [
+  {
+    id: '201',
+    title: 'Acme Corp - Video Wall',
+    value: '5000000',
+    currency: 'usd',
+    contact: '101',
+    account: '1',
+    stage: '10',
+    group: '1',
+    owner: '1',
+    status: '0',
+    cdate: '2026-02-15T10:00:00-06:00',
+    mdate: '2026-03-01T14:00:00-06:00',
+  },
+  {
+    id: '202',
+    title: 'Beta Industries - Display',
+    value: '12000000',
+    currency: 'usd',
+    contact: '102',
+    account: '2',
+    stage: '10',
+    group: '1',
+    owner: '1',
+    status: '0',
+    cdate: '2026-03-05T09:00:00-06:00',
+    mdate: '2026-03-10T11:00:00-06:00',
+  },
+];
+
 export function createMockActiveCampaignClient() {
   return {
     searchAccounts: vi.fn().mockResolvedValue(mockAccounts),
     getContactsForAccount: vi.fn().mockResolvedValue(mockContacts),
     getAccount: vi.fn().mockResolvedValue(mockAccounts[0]),
     getAccountUrl: vi.fn().mockReturnValue('https://test.activehosted.com/app/accounts/1'),
+    getContact: vi.fn().mockResolvedValue(mockContacts[0]),
+    getPipelines: vi.fn().mockResolvedValue(mockPipelines),
+    getDealStages: vi.fn().mockResolvedValue(mockDealStages),
+    getDeals: vi.fn().mockResolvedValue(mockDeals),
+    getDealUrl: vi.fn().mockReturnValue('https://test.activehosted.com/app/deals/201'),
   };
 }
 

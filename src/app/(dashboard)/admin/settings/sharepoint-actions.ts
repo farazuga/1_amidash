@@ -3,7 +3,6 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import type { SharePointGlobalConfig } from '@/types';
-import type { CalendarConnection } from '@/lib/microsoft-graph/types';
 
 // Note: app_settings may not be in generated types yet
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -205,66 +204,20 @@ export async function removeSharePointConfig(): Promise<RemoveSharePointConfigRe
 }
 
 /**
- * Check if the current admin user has a Microsoft account connected
+ * Check if Microsoft Graph API is configured (app-level credentials)
  */
 export async function checkAdminMicrosoftConnection(): Promise<CheckMicrosoftConnectionResult> {
-  try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return { connected: false, error: 'Authentication required' };
-    }
+  const configured = !!(
+    process.env.MICROSOFT_CLIENT_ID &&
+    process.env.MICROSOFT_CLIENT_SECRET &&
+    process.env.MICROSOFT_TENANT_ID
+  );
 
-    const supabase = await createServiceClient() as AnySupabaseClient;
-
-    const { data, error } = await supabase
-      .from('calendar_connections')
-      .select('outlook_email')
-      .eq('user_id', user.id)
-      .eq('provider', 'microsoft')
-      .maybeSingle();
-
-    if (error) {
-      console.error('[SharePoint Config] Error checking MS connection:', error);
-      return { connected: false, error: error.message };
-    }
-
-    if (!data) {
-      return { connected: false };
-    }
-
-    return { connected: true, email: data.outlook_email };
-  } catch (error) {
-    console.error('[SharePoint Config] Error:', error);
-    return {
-      connected: false,
-      error: error instanceof Error ? error.message : 'Failed to check Microsoft connection',
-    };
-  }
-}
-
-/**
- * Get Microsoft connection for SharePoint API calls
- */
-export async function getAdminMicrosoftConnection(): Promise<CalendarConnection | null> {
-  const user = await getCurrentUser();
-  if (!user) {
-    return null;
+  if (!configured) {
+    return { connected: false, error: 'Microsoft Graph API credentials not configured' };
   }
 
-  const supabase = await createServiceClient() as AnySupabaseClient;
-
-  const { data, error } = await supabase
-    .from('calendar_connections')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('provider', 'microsoft')
-    .maybeSingle();
-
-  if (error || !data) {
-    return null;
-  }
-
-  return data as CalendarConnection;
+  return { connected: true };
 }
 
 // ============================================================================
@@ -289,7 +242,6 @@ export async function createMissingSharePointFolders(): Promise<CreateMissingFol
   // Import dynamically to avoid circular dependencies
   const { generateProjectFolderName } = await import('@/lib/sharepoint/folder-operations');
   const sharepoint = await import('@/lib/sharepoint/client');
-  const { decryptToken, isEncryptionConfigured } = await import('@/lib/crypto');
 
   try {
     const user = await getCurrentUser();
@@ -316,29 +268,6 @@ export async function createMissingSharePointFolders(): Promise<CreateMissingFol
     }
 
     const globalConfig = configData.value as SharePointGlobalConfig;
-
-    // Get admin's Microsoft connection
-    const { data: msConnectionData } = await supabase
-      .from('calendar_connections')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('provider', 'microsoft')
-      .maybeSingle();
-
-    if (!msConnectionData) {
-      return { success: false, processed: 0, created: 0, skipped: 0, errors: 0, error: 'Microsoft account not connected' };
-    }
-
-    // Decrypt tokens if needed
-    const msConnection = { ...msConnectionData };
-    if (isEncryptionConfigured()) {
-      try {
-        msConnection.access_token = decryptToken(msConnectionData.access_token);
-        msConnection.refresh_token = decryptToken(msConnectionData.refresh_token);
-      } catch {
-        // Use raw tokens if decryption fails
-      }
-    }
 
     // Get all projects with sales_order_number
     const { data: allProjects } = await supabase
@@ -372,7 +301,6 @@ export async function createMissingSharePointFolders(): Promise<CreateMissingFol
 
         // Create project folder
         const projectFolder = await sharepoint.createFolder(
-          msConnection as CalendarConnection,
           globalConfig.drive_id,
           globalConfig.base_folder_id,
           folderName
@@ -384,7 +312,6 @@ export async function createMissingSharePointFolders(): Promise<CreateMissingFol
           const categoryFolderName = sharepoint.getCategoryFolderName(category);
           try {
             await sharepoint.createFolder(
-              msConnection as CalendarConnection,
               globalConfig.drive_id,
               projectFolder.id,
               categoryFolderName
@@ -536,7 +463,6 @@ export async function getInvoicedProjectsWithFoldersCount(): Promise<{ count: nu
  */
 export async function archiveInvoicedProjects(): Promise<ArchiveInvoicedProjectsResult> {
   const sharepoint = await import('@/lib/sharepoint/client');
-  const { decryptToken, isEncryptionConfigured } = await import('@/lib/crypto');
 
   try {
     const user = await getCurrentUser();
@@ -563,29 +489,6 @@ export async function archiveInvoicedProjects(): Promise<ArchiveInvoicedProjects
     }
 
     const globalConfig = configData.value as SharePointGlobalConfig;
-
-    // Get admin's Microsoft connection
-    const { data: msConnectionData } = await supabase
-      .from('calendar_connections')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('provider', 'microsoft')
-      .maybeSingle();
-
-    if (!msConnectionData) {
-      return { success: false, processed: 0, archived: 0, skipped: 0, errors: 0, error: 'Microsoft account not connected' };
-    }
-
-    // Decrypt tokens if needed
-    const msConnection = { ...msConnectionData };
-    if (isEncryptionConfigured()) {
-      try {
-        msConnection.access_token = decryptToken(msConnectionData.access_token);
-        msConnection.refresh_token = decryptToken(msConnectionData.refresh_token);
-      } catch {
-        // Use raw tokens if decryption fails
-      }
-    }
 
     // Get the Invoiced status ID
     const { data: invoicedStatus } = await supabase
@@ -661,7 +564,6 @@ export async function archiveInvoicedProjects(): Promise<ArchiveInvoicedProjects
         let yearFolderInfo = yearFolderCache.get(year);
         if (!yearFolderInfo) {
           const result = await sharepoint.getOrCreateArchiveFolder(
-            msConnection as CalendarConnection,
             globalConfig.drive_id,
             globalConfig.base_folder_id,
             globalConfig.base_folder_path,
@@ -673,7 +575,6 @@ export async function archiveInvoicedProjects(): Promise<ArchiveInvoicedProjects
 
         // Move the project folder to the archive year folder
         const movedItem = await sharepoint.moveItem(
-          msConnection as CalendarConnection,
           connection.drive_id,
           connection.folder_id,
           yearFolderInfo.yearFolderId

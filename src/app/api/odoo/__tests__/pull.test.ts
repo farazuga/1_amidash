@@ -17,10 +17,18 @@ vi.mock('@/lib/odoo/queries', () => ({
   getSalesOrderLines: vi.fn(),
   getPartnerDetails: vi.fn(),
   getPartnerContacts: vi.fn(),
+  getProductDetails: vi.fn(),
+  getShippingAddress: vi.fn(),
   buildOdooUrl: vi.fn(),
   odooFalseToNull: vi.fn((v: unknown) => (v === false ? null : v)),
   odooMany2oneName: vi.fn((v: unknown) => (v === false ? null : (v as [number, string])[1])),
   formatOdooPhone: vi.fn((v: unknown) => (v === false || !v ? null : v)),
+  parseStateCode: vi.fn((v: unknown) => (v === false ? null : (v as [number, string])?.[1] ?? null)),
+  parseCountryCode: vi.fn((v: unknown) => (v === false ? null : (v as [number, string])?.[1] ?? null)),
+}));
+
+vi.mock('@/lib/api/csrf', () => ({
+  validateOrigin: vi.fn().mockReturnValue(null),
 }));
 
 import { createClient } from '@/lib/supabase/server';
@@ -30,6 +38,8 @@ import {
   getSalesOrderLines,
   getPartnerDetails,
   getPartnerContacts,
+  getProductDetails,
+  getShippingAddress,
   buildOdooUrl,
 } from '@/lib/odoo/queries';
 
@@ -39,6 +49,8 @@ const mockFindSalesOrderByNumber = findSalesOrderByNumber as ReturnType<typeof v
 const mockGetSalesOrderLines = getSalesOrderLines as ReturnType<typeof vi.fn>;
 const mockGetPartnerDetails = getPartnerDetails as ReturnType<typeof vi.fn>;
 const mockGetPartnerContacts = getPartnerContacts as ReturnType<typeof vi.fn>;
+const mockGetProductDetails = getProductDetails as ReturnType<typeof vi.fn>;
+const mockGetShippingAddress = getShippingAddress as ReturnType<typeof vi.fn>;
 const mockBuildOdooUrl = buildOdooUrl as ReturnType<typeof vi.fn>;
 
 function makeRequest(body: Record<string, unknown>) {
@@ -173,6 +185,8 @@ describe('POST /api/odoo/pull', () => {
       { id: 2, product_id: [101, 'Widget B'], name: 'Widget B', product_uom_qty: 2, price_subtotal: 200 },
     ]);
 
+    mockGetProductDetails.mockResolvedValue([]);
+    mockGetShippingAddress.mockResolvedValue(null);
     mockBuildOdooUrl.mockReturnValue('https://test.odoo.com/odoo/sales/42');
 
     const response = await POST(makeRequest({ salesOrderNumber: 'S12345' }));
@@ -188,6 +202,7 @@ describe('POST /api/odoo/pull', () => {
     expect(data.salesperson.odooName).toBe('Jane Doe');
     expect(data.salesperson.matchedProfileId).toBe('profile-1');
     expect(data.lineItems).toHaveLength(2);
+    expect(data.deliveryAddress).toBeNull();
   });
 
   it('handles Odoo API errors gracefully', async () => {
@@ -199,6 +214,6 @@ describe('POST /api/odoo/pull', () => {
     const data = await response.json();
 
     expect(response.status).toBe(500);
-    expect(data.error).toContain('Odoo connection refused');
+    expect(data.error).toBe('An internal error occurred. Please try again.');
   });
 });

@@ -3,7 +3,7 @@ import cors from 'cors';
 import { SignageConfig, APIConfig } from '../config/schema.js';
 import { logger, getRecentLogs } from '../utils/logger.js';
 import { CanvasManager } from '../renderer/canvas-manager.js';
-import { SlideManager } from '../renderer/slide-manager.js';
+import { LayoutManager } from '../renderer/layout-manager.js';
 import { PollingManager } from '../data/polling-manager.js';
 import { NDIOutput } from '../ndi/output.js';
 
@@ -12,7 +12,7 @@ export interface EngineState {
   startTime: Date | null;
   config: SignageConfig;
   canvasManager: CanvasManager | null;
-  slideManager: SlideManager | null;
+  layoutManager: LayoutManager | null;
   pollingManager: PollingManager | null;
   ndiOutput: NDIOutput | null;
 }
@@ -40,19 +40,10 @@ export function createAPIServer(
   // Get engine status
   app.get('/status', (_req: Request, res: Response) => {
     const state = getState();
-    const currentSlideIndex = state.slideManager?.getCurrentSlideIndex() ?? 0;
     res.json({
       isRunning: state.isRunning,
       uptime: state.startTime ? Date.now() - state.startTime.getTime() : 0,
-      currentSlide: currentSlideIndex,
-      currentSlideType: state.config.slides[currentSlideIndex]?.type ?? null,
-      totalSlides: state.slideManager?.getSlideCount() ?? 0,
-      slides: state.config.slides.map((s, i) => ({
-        index: i,
-        type: s.type,
-        enabled: s.enabled,
-        title: s.title,
-      })),
+      renderer: state.layoutManager ? 'layout-manager' : null,
       fps: state.ndiOutput?.getFPS() ?? 0,
       frameCount: state.ndiOutput?.getFrameCount() ?? 0,
       dataStale: state.pollingManager?.isDataStale(state.config.staleData.warningThresholdMs) ?? false,
@@ -144,27 +135,6 @@ export function createAPIServer(
     const count = parseInt(req.query.count as string) || 50;
     const logs = getRecentLogs(count);
     res.json(logs);
-  });
-
-  // Jump to specific slide
-  app.post('/control/slide/:index', (req: Request, res: Response) => {
-    try {
-      const state = getState();
-      if (!state.slideManager) {
-        res.status(503).json({ error: 'Engine is not running' });
-        return;
-      }
-      const index = parseInt(req.params.index);
-      const total = state.slideManager.getSlideCount();
-      if (isNaN(index) || index < 0 || index >= total) {
-        res.status(400).json({ error: `Invalid slide index. Must be 0-${total - 1}` });
-        return;
-      }
-      state.slideManager.jumpToSlide(index);
-      res.json({ success: true, currentSlide: index, totalSlides: total });
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to change slide', details: String(error) });
-    }
   });
 
   return app;

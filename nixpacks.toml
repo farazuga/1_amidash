@@ -1,0 +1,12 @@
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+aptPkgs = []
+
+[phases.install]
+cmds = ["PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci --omit=dev"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "npm start"

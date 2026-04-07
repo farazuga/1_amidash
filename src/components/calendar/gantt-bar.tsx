@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import {
   BOOKING_STATUS_COLORS,
@@ -10,7 +11,6 @@ import {
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Pencil } from 'lucide-react';
@@ -27,7 +27,7 @@ interface GanttBarProps {
   isLoading?: boolean;
 }
 
-export function GanttBar({
+export const GanttBar = memo(function GanttBar({
   assignmentId,
   userName,
   bookingStatus,
@@ -57,7 +57,6 @@ export function GanttBar({
   };
 
   return (
-    <TooltipProvider delayDuration={300}>
       <Tooltip>
         <TooltipTrigger asChild>
           <div
@@ -136,6 +135,5 @@ export function GanttBar({
           </div>
         </TooltipContent>
       </Tooltip>
-    </TooltipProvider>
   );
-}
+});

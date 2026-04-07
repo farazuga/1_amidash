@@ -3,11 +3,11 @@ export const dynamic = 'force-dynamic';
 import { notFound } from 'next/navigation';
 import { headers } from 'next/headers';
 import Image from 'next/image';
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { Card, CardContent } from '@/components/ui/card';
 import { LOGO_URL, APP_NAME } from '@/lib/constants';
 import { BlockRenderer } from '@/components/portal/blocks/block-renderer';
-import type { Status, PortalBlock } from '@/types';
+import type { DeliveryAddressConfirmation, Status, PortalBlock, PortalFileUpload } from '@/types';
 
 // ============================================
 // Rate Limiting (simple in-memory implementation)
@@ -50,13 +50,16 @@ function checkRateLimit(ip: string): boolean {
 
 
 async function getProjectByToken(token: string) {
-  const supabase = await createClient();
+  const supabase = await createServiceClient();
 
-  const { data: project } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: project } = await (supabase as any)
     .from('projects')
     .select(`
-      *,
-      current_status:statuses(*)
+      id, client_name, sales_order_number,
+      poc_name, poc_email, delivery_city, delivery_state, delivery_zip,
+      schedule_status, project_description, project_type_id,
+      current_status_id, current_status:statuses(*)
     `)
     .eq('client_token', token)
     .single();
@@ -64,16 +67,16 @@ async function getProjectByToken(token: string) {
   return project;
 }
 
-async function incrementPortalViews(projectId: string) {
-  const supabase = await createClient();
+async function incrementPortalViews(projectId: string, token: string) {
+  const supabase = await createServiceClient();
 
   // Increment view count - using type assertion since migration may not be applied yet
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase.rpc as any)('increment_portal_views', { project_id: projectId });
+  await (supabase.rpc as any)('increment_portal_views', { p_project_id: projectId, p_token: token });
 }
 
 async function getStatuses() {
-  const supabase = await createClient();
+  const supabase = await createServiceClient();
   const { data } = await supabase
     .from('statuses')
     .select('*')
@@ -83,7 +86,7 @@ async function getStatuses() {
 }
 
 async function getStatusHistory(projectId: string) {
-  const supabase = await createClient();
+  const supabase = await createServiceClient();
   const { data } = await supabase
     .from('status_history')
     .select(`
@@ -96,11 +99,34 @@ async function getStatusHistory(projectId: string) {
 }
 
 async function getProjectTypeStatuses() {
-  const supabase = await createClient();
+  const supabase = await createServiceClient();
   const { data } = await supabase
     .from('project_type_statuses')
     .select('*');
   return data || [];
+}
+
+async function getFileUploads(projectId: string): Promise<PortalFileUpload[]> {
+  // Using `as any` since portal_file_uploads table types not yet regenerated
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = (await createServiceClient()) as any;
+  const { data } = await supabase
+    .from('portal_file_uploads')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('slot_index', { ascending: true });
+  return (data || []) as PortalFileUpload[];
+}
+
+async function getAddressConfirmation(projectId: string): Promise<DeliveryAddressConfirmation | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = (await createServiceClient()) as any;
+  const { data } = await supabase
+    .from('delivery_address_confirmations')
+    .select('*')
+    .eq('project_id', projectId)
+    .maybeSingle();
+  return data as DeliveryAddressConfirmation | null;
 }
 
 interface PortalTemplateResult {
@@ -109,7 +135,7 @@ interface PortalTemplateResult {
 }
 
 async function getPortalTemplate(projectTypeId: string | null): Promise<PortalTemplateResult> {
-  const supabase = await createClient();
+  const supabase = await createServiceClient();
 
   const DEFAULT_BLOCKS: PortalBlock[] = [
     { id: 'blk_status_default', type: 'current_status' },
@@ -187,17 +213,28 @@ export default async function ClientPortalPage({
     notFound();
   }
 
-  const [statuses, statusHistory, projectTypeStatuses, portalTemplate] = await Promise.all([
+  const [statuses, statusHistory, projectTypeStatuses, portalTemplate, fileUploads, addressConfirmation] = await Promise.all([
     getStatuses(),
     getStatusHistory(project.id),
     getProjectTypeStatuses(),
     getPortalTemplate(project.project_type_id),
+    getFileUploads(project.id),
+    getAddressConfirmation(project.id),
   ]);
+
+  // Fetch sub-projects if this is a parent project
+  const supabase = await createServiceClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: subProjects } = await (supabase as any)
+    .from('projects')
+    .select('id, sales_order_number, po_number, sales_amount, odoo_invoice_status, schedule_status')
+    .eq('parent_project_id', project.id)
+    .order('created_date', { ascending: true });
 
   const { blocks: templateBlocks, backgroundImageUrl } = portalTemplate;
 
   // Increment view count (fire and forget - don't block render)
-  incrementPortalViews(project.id);
+  incrementPortalViews(project.id, token);
 
   // Filter statuses by project type (with fallback to all statuses)
   const allowedStatusIds = project.project_type_id
@@ -229,6 +266,23 @@ export default async function ClientPortalPage({
     (entry: any) => entry.status && !entry.status.is_internal_only
   );
 
+  // Block types that belong in the left (sticky) column
+  const LEFT_TYPES = new Set(['current_status']);
+
+  const leftBlocks = templateBlocks.filter((b) => LEFT_TYPES.has(b.type));
+  const rightBlocks = templateBlocks.filter((b) => !LEFT_TYPES.has(b.type));
+
+  const blockData = {
+    project: project as any,
+    currentStatus,
+    filteredStatuses,
+    isOnHold,
+    clientVisibleHistory,
+    projectToken: token,
+    fileUploads,
+    addressConfirmation,
+  };
+
   return (
     <div
       className="min-h-screen bg-[#f8faf9]"
@@ -255,20 +309,74 @@ export default async function ClientPortalPage({
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6 max-w-3xl">
-        {templateBlocks.map((block) => (
-          <BlockRenderer
-            key={block.id}
-            block={block}
-            data={{
-              project,
-              currentStatus,
-              filteredStatuses,
-              isOnHold,
-              clientVisibleHistory,
-            }}
-          />
-        ))}
+      <main className="container mx-auto px-4 py-6 max-w-5xl">
+        <div className="md:grid md:grid-cols-[1fr_1.5fr] md:gap-6 md:items-start">
+          {/* Left column — sticky, contains current_status only */}
+          <div className="space-y-4 md:sticky md:top-6">
+            {leftBlocks.map((block) => (
+              <BlockRenderer key={block.id} block={block} data={blockData} />
+            ))}
+          </div>
+
+          {/* Right column — always rendered for layout consistency */}
+          <div className="space-y-4 mt-4 md:mt-0">
+            {rightBlocks.map((block) => (
+              <BlockRenderer key={block.id} block={block} data={blockData} />
+            ))}
+          </div>
+        </div>
+
+        {/* Sub-Projects / Related Sales Orders */}
+        {subProjects && subProjects.length > 0 && (
+          <Card className="mt-6">
+            <CardContent className="pt-6">
+              <h2 className="text-lg font-semibold text-[#023A2D] mb-4">Related Sales Orders</h2>
+              <div className="divide-y">
+                {subProjects.map((sub: { id: string; sales_order_number: string | null; po_number: string | null; sales_amount: number | null; odoo_invoice_status: string | null }) => (
+                  <div key={sub.id} className="py-3 first:pt-0 last:pb-0">
+                    <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+                      {sub.sales_order_number && (
+                        <span>
+                          <span className="text-muted-foreground">SO#:</span>{' '}
+                          <span className="font-medium">{sub.sales_order_number}</span>
+                        </span>
+                      )}
+                      {sub.po_number && (
+                        <span>
+                          <span className="text-muted-foreground">PO#:</span>{' '}
+                          <span className="font-medium">{sub.po_number}</span>
+                        </span>
+                      )}
+                      {sub.sales_amount != null && (
+                        <span>
+                          <span className="text-muted-foreground">Amount:</span>{' '}
+                          <span className="font-medium">
+                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(sub.sales_amount)}
+                          </span>
+                        </span>
+                      )}
+                      {sub.odoo_invoice_status && (
+                        <span>
+                          <span className="text-muted-foreground">Invoice:</span>{' '}
+                          <span className={`font-medium ${
+                            sub.odoo_invoice_status === 'invoiced' ? 'text-green-700' :
+                            sub.odoo_invoice_status === 'to invoice' ? 'text-amber-600' :
+                            'text-muted-foreground'
+                          }`}>
+                            {sub.odoo_invoice_status === 'invoiced' ? 'Invoiced' :
+                             sub.odoo_invoice_status === 'to invoice' ? 'To Invoice' :
+                             sub.odoo_invoice_status === 'no' ? 'Not Invoiced' :
+                             sub.odoo_invoice_status}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Footer */}
         <footer className="mt-6 text-center text-xs text-muted-foreground">

@@ -50,7 +50,7 @@ import { format } from 'date-fns';
 import { StatusBadge } from './status-badge';
 import { ScheduleStatusBadge } from './schedule-status-badge';
 import { toast } from 'sonner';
-import { useUser } from '@/hooks/use-user';
+import { useUser } from '@/contexts/user-context';
 import { useUserPreferences } from '@/hooks/use-user-preferences';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -64,6 +64,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
+import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import type { BookingStatus } from '@/types/calendar';
 
 // Column configuration
@@ -155,6 +156,8 @@ interface ProjectWithTags {
   schedule_status?: string | null;
   invoiced_date?: string | null;
   project_description?: string | null;
+  parent_project_id?: string | null;
+  is_draft?: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   current_status?: any;
   tags?: { tag: { id: string; name: string; color: string | null } }[];
@@ -176,6 +179,47 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
   const [projectToDelete, setProjectToDelete] = useState<ProjectWithTags | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
+
+  // J/K keyboard navigation state
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Reset selection when projects change
+  useEffect(() => {
+    setSelectedIndex(-1);
+  }, [projects]);
+
+  // Scroll selected row into view
+  useEffect(() => {
+    if (selectedIndex >= 0) {
+      const row = document.querySelector(`[data-project-index="${selectedIndex}"]`);
+      row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [selectedIndex]);
+
+  // J/K navigation, Enter to open, / to focus search
+  useKeyboardShortcuts([
+    { keys: 'j', handler: () => setSelectedIndex((prev) => Math.min(prev + 1, projects.length - 1)) },
+    { keys: 'k', handler: () => setSelectedIndex((prev) => Math.max(prev - 1, 0)) },
+    {
+      keys: 'enter',
+      handler: () => {
+        if (selectedIndex >= 0 && selectedIndex < projects.length) {
+          const p = projects[selectedIndex];
+          router.push(`/projects/${p.sales_order_number || p.id}`);
+        }
+      },
+    },
+    {
+      keys: '/',
+      handler: () => {
+        // Focus the search input in the filter bar
+        const input = document.querySelector<HTMLInputElement>('input[placeholder*="Search"]') ||
+          document.querySelector<HTMLInputElement>('input[type="search"]');
+        input?.focus();
+      },
+    },
+  ]);
 
   // Column preferences state (local working copy)
   const [preferences, setPreferences] = useState<ColumnPreferences>(getDefaultPreferences);
@@ -371,7 +415,19 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
       case 'client':
         const clientContent = (
           <div className="space-y-1">
-            <p className="font-medium">{project.client_name}</p>
+            <p className="font-medium">
+              {project.parent_project_id && (
+                <Badge variant="outline" className="mr-1.5 px-1 py-0 text-[10px] font-normal text-muted-foreground">
+                  Sub
+                </Badge>
+              )}
+              {project.client_name}
+              {project.is_draft && (
+                <span className="ml-2 rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">
+                  Draft
+                </span>
+              )}
+            </p>
             {project.tags && project.tags.length > 0 && (
               <div className="flex gap-1">
                 {project.tags.slice(0, 2).map(({ tag }) => (
@@ -561,16 +617,28 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
     <>
       {/* Mobile Card View */}
       <div className="md:hidden space-y-4">
-        {projects.map((project) => (
+        {projects.map((project, index) => (
           <div
             key={project.id}
-            className="rounded-lg border bg-card p-4 space-y-3 cursor-pointer hover:bg-muted/50 transition-colors"
+            data-project-index={index}
+            className={cn(
+              "rounded-lg border bg-card p-4 space-y-3 cursor-pointer hover:bg-muted/50 transition-colors",
+              project.is_draft && "opacity-50",
+              selectedIndex === index && "ring-2 ring-primary"
+            )}
             onClick={() => router.push(`/projects/${project.sales_order_number || project.id}`)}
           >
             {/* Header with Client and Actions */}
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-base truncate">{project.client_name}</h3>
+                <h3 className="font-semibold text-base truncate">
+                  {project.client_name}
+                  {project.is_draft && (
+                    <span className="ml-2 rounded-full bg-gray-200 px-2 py-0.5 text-xs font-normal text-gray-600">
+                      Draft
+                    </span>
+                  )}
+                </h3>
                 {project.tags && project.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2">
                     {project.tags.slice(0, 3).map(({ tag }) => (
@@ -710,14 +778,14 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
                   Sales Order
                 </Button>
               )}
-              {project.client_portal_url && (
+              {project.client_token && (
                 <Button
                   variant="outline"
                   size="sm"
                   className="h-8 text-xs flex-1"
                   onClick={(e) => {
                     e.stopPropagation();
-                    window.open(project.client_portal_url!, '_blank');
+                    window.open(`/status/${project.client_token}`, '_blank');
                   }}
                 >
                   <Globe className="mr-1 h-3 w-3" />
@@ -853,10 +921,15 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {projects.map((project) => (
+              {projects.map((project, index) => (
                 <TableRow
                   key={project.id}
-                  className="cursor-pointer hover:bg-muted/50"
+                  data-project-index={index}
+                  className={cn(
+                    "cursor-pointer hover:bg-muted/50",
+                    project.is_draft && "opacity-50",
+                    selectedIndex === index && "ring-2 ring-primary"
+                  )}
                   onClick={() => router.push(`/projects/${project.sales_order_number || project.id}`)}
                 >
                   {visibleColumns.map((column) => (

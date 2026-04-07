@@ -8,7 +8,6 @@ import {
   isCurrentMonth,
   isToday,
   isDateInRange,
-  isDateExcluded,
   convertToCalendarEvents,
   getEventsForDay,
   sortEventsByStatus,
@@ -219,27 +218,6 @@ describe('Calendar Utils', () => {
     });
   });
 
-  describe('isDateExcluded', () => {
-    it('returns true for excluded date', () => {
-      const date = new Date(2024, 0, 15);
-      const excluded = ['2024-01-15', '2024-01-16'];
-
-      expect(isDateExcluded(date, excluded)).toBe(true);
-    });
-
-    it('returns false for non-excluded date', () => {
-      const date = new Date(2024, 0, 17);
-      const excluded = ['2024-01-15', '2024-01-16'];
-
-      expect(isDateExcluded(date, excluded)).toBe(false);
-    });
-
-    it('returns false for empty excluded list', () => {
-      const date = new Date(2024, 0, 15);
-      expect(isDateExcluded(date, [])).toBe(false);
-    });
-  });
-
   describe('convertToCalendarEvents', () => {
     it('converts assignment results to calendar events', () => {
       const assignments: CalendarAssignmentResult[] = [
@@ -252,37 +230,16 @@ describe('Calendar Utils', () => {
           user_id: 'u1',
           user_name: 'John Doe',
           booking_status: 'confirmed',
+          sales_order_number: null,
         },
       ];
-      const excludedDatesMap = new Map<string, string[]>();
-
-      const events = convertToCalendarEvents(assignments, excludedDatesMap);
+      const events = convertToCalendarEvents(assignments);
 
       expect(events).toHaveLength(1);
       expect(events[0].id).toBe('a1');
       expect(events[0].projectName).toBe('Test Project');
       expect(events[0].userName).toBe('John Doe');
       expect(events[0].bookingStatus).toBe('confirmed');
-    });
-
-    it('includes excluded dates from map', () => {
-      const assignments: CalendarAssignmentResult[] = [
-        {
-          assignment_id: 'a1',
-          project_id: 'p1',
-          project_name: 'Test Project',
-          project_start_date: '2024-01-10',
-          project_end_date: '2024-01-20',
-          user_id: 'u1',
-          user_name: 'John Doe',
-          booking_status: 'confirmed',
-        },
-      ];
-      const excludedDatesMap = new Map([['a1', ['2024-01-15', '2024-01-16']]]);
-
-      const events = convertToCalendarEvents(assignments, excludedDatesMap);
-
-      expect(events[0].excludedDates).toEqual(['2024-01-15', '2024-01-16']);
     });
 
     it('handles null user name', () => {
@@ -294,13 +251,12 @@ describe('Calendar Utils', () => {
           project_start_date: '2024-01-10',
           project_end_date: '2024-01-20',
           user_id: 'u1',
-          user_name: null,
+          user_name: null as unknown as string,
           booking_status: 'draft',
+          sales_order_number: null,
         },
       ];
-      const excludedDatesMap = new Map<string, string[]>();
-
-      const events = convertToCalendarEvents(assignments, excludedDatesMap);
+      const events = convertToCalendarEvents(assignments);
 
       expect(events[0].userName).toBe('Unknown');
     });
@@ -319,11 +275,12 @@ describe('Calendar Utils', () => {
       end: new Date(endDate),
       projectId: 'p1',
       projectName: 'Test',
+      salesOrderNumber: null,
       userId: 'u1',
       userName: 'User',
       bookingStatus: 'confirmed',
       assignmentId: id,
-      excludedDates: [],
+
       scheduledDays,
     });
 
@@ -371,11 +328,12 @@ describe('Calendar Utils', () => {
           end: new Date('2024-01-20'),
           projectId: 'p1',
           projectName: 'Test',
+          salesOrderNumber: null,
           userId: 'u1',
           userName: 'User',
           bookingStatus: 'confirmed',
           assignmentId: 'e1',
-          excludedDates: [],
+    
           scheduledDays: undefined as unknown as string[],
         },
       ];
@@ -401,7 +359,7 @@ describe('Calendar Utils', () => {
   });
 
   describe('sortEventsByStatus', () => {
-    it('sorts confirmed first, then pending, then tentative, then draft', () => {
+    it('sorts confirmed first, then pending, then draft', () => {
       const events: CalendarEvent[] = [
         {
           id: '1',
@@ -410,11 +368,12 @@ describe('Calendar Utils', () => {
           end: new Date(),
           projectId: 'p1',
           projectName: 'Test',
+          salesOrderNumber: null,
           userId: 'u1',
           userName: 'User',
           bookingStatus: 'draft',
           assignmentId: '1',
-          excludedDates: [],
+    
           scheduledDays: [],
         },
         {
@@ -424,11 +383,12 @@ describe('Calendar Utils', () => {
           end: new Date(),
           projectId: 'p1',
           projectName: 'Test',
+          salesOrderNumber: null,
           userId: 'u1',
           userName: 'User',
           bookingStatus: 'confirmed',
           assignmentId: '2',
-          excludedDates: [],
+    
           scheduledDays: [],
         },
         {
@@ -438,25 +398,12 @@ describe('Calendar Utils', () => {
           end: new Date(),
           projectId: 'p1',
           projectName: 'Test',
+          salesOrderNumber: null,
           userId: 'u1',
           userName: 'User',
-          bookingStatus: 'pending_confirm',
+          bookingStatus: 'pending',
           assignmentId: '3',
-          excludedDates: [],
-          scheduledDays: [],
-        },
-        {
-          id: '4',
-          title: 'Test',
-          start: new Date(),
-          end: new Date(),
-          projectId: 'p1',
-          projectName: 'Test',
-          userId: 'u1',
-          userName: 'User',
-          bookingStatus: 'tentative',
-          assignmentId: '4',
-          excludedDates: [],
+    
           scheduledDays: [],
         },
       ];
@@ -464,9 +411,8 @@ describe('Calendar Utils', () => {
       const sorted = sortEventsByStatus(events);
 
       expect(sorted[0].bookingStatus).toBe('confirmed');
-      expect(sorted[1].bookingStatus).toBe('pending_confirm');
-      expect(sorted[2].bookingStatus).toBe('tentative');
-      expect(sorted[3].bookingStatus).toBe('draft');
+      expect(sorted[1].bookingStatus).toBe('pending');
+      expect(sorted[2].bookingStatus).toBe('draft');
     });
 
     it('does not mutate original array', () => {
@@ -478,11 +424,12 @@ describe('Calendar Utils', () => {
           end: new Date(),
           projectId: 'p1',
           projectName: 'Test',
+          salesOrderNumber: null,
           userId: 'u1',
           userName: 'User',
           bookingStatus: 'draft',
           assignmentId: '1',
-          excludedDates: [],
+    
           scheduledDays: [],
         },
       ];
@@ -503,11 +450,13 @@ describe('Calendar Utils', () => {
           end: new Date(),
           projectId: 'p1',
           projectName: 'Test',
+          salesOrderNumber: null,
           userId: 'u1',
           userName: 'User 1',
           bookingStatus: 'confirmed',
           assignmentId: '1',
-          excludedDates: [],
+    
+          scheduledDays: [],
         },
         {
           id: '2',
@@ -516,11 +465,13 @@ describe('Calendar Utils', () => {
           end: new Date(),
           projectId: 'p2',
           projectName: 'Test 2',
+          salesOrderNumber: null,
           userId: 'u1',
           userName: 'User 1',
           bookingStatus: 'confirmed',
           assignmentId: '2',
-          excludedDates: [],
+    
+          scheduledDays: [],
         },
         {
           id: '3',
@@ -529,11 +480,13 @@ describe('Calendar Utils', () => {
           end: new Date(),
           projectId: 'p3',
           projectName: 'Test 3',
+          salesOrderNumber: null,
           userId: 'u2',
           userName: 'User 2',
           bookingStatus: 'confirmed',
           assignmentId: '3',
-          excludedDates: [],
+    
+          scheduledDays: [],
         },
       ];
 
@@ -555,11 +508,13 @@ describe('Calendar Utils', () => {
           end: new Date(),
           projectId: 'p1',
           projectName: 'Project 1',
+          salesOrderNumber: null,
           userId: 'u1',
           userName: 'User',
           bookingStatus: 'confirmed',
           assignmentId: '1',
-          excludedDates: [],
+    
+          scheduledDays: [],
         },
         {
           id: '2',
@@ -568,11 +523,13 @@ describe('Calendar Utils', () => {
           end: new Date(),
           projectId: 'p1',
           projectName: 'Project 1',
+          salesOrderNumber: null,
           userId: 'u2',
           userName: 'User 2',
           bookingStatus: 'confirmed',
           assignmentId: '2',
-          excludedDates: [],
+    
+          scheduledDays: [],
         },
       ];
 

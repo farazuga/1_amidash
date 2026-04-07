@@ -9,7 +9,6 @@ import { triggerAssignmentSync, triggerAssignmentDelete } from '@/lib/microsoft-
 import type {
   BookingStatus,
   ProjectAssignment,
-  AssignmentExcludedDate,
   AssignmentDay,
   AssignmentBlock,
   GanttAssignment,
@@ -240,9 +239,9 @@ export async function createAssignment(data: {
     endDate: project.end_date,
   });
 
-  // If conflict check failed, abort assignment creation
+  // If conflict check failed, log but continue — don't block assignment creation
   if (conflictCheck.error) {
-    return { success: false, error: conflictCheck.error, conflicts: conflictCheck };
+    console.warn('Conflict check failed, proceeding with assignment:', conflictCheck.error);
   }
 
   // Determine booking status: use provided status, or match lowest existing status on project
@@ -256,26 +255,25 @@ export async function createAssignment(data: {
       .eq('project_id', data.projectId);
 
     if (existingAssignments && existingAssignments.length > 0) {
-      // Status hierarchy: draft (lowest) -> tentative -> pending_confirm -> confirmed (highest)
+      // Status hierarchy: draft (lowest) -> pending -> confirmed (highest)
       const statusPriority: Record<BookingStatus, number> = {
         draft: 0,
-        tentative: 1,
-        pending_confirm: 2,
-        confirmed: 3,
+        pending: 1,
+        confirmed: 2,
       };
 
       // Find the lowest status among existing assignments
-      let lowestPriority = 4; // Higher than any valid status
+      let lowestPriority = 3; // Higher than any valid status
       for (const assignment of existingAssignments) {
-        const priority = statusPriority[assignment.booking_status as BookingStatus] ?? 4;
+        const priority = statusPriority[assignment.booking_status as BookingStatus] ?? 3;
         if (priority < lowestPriority) {
           lowestPriority = priority;
         }
       }
 
       // Map priority back to status
-      const priorityToStatus: BookingStatus[] = ['draft', 'tentative', 'pending_confirm', 'confirmed'];
-      if (lowestPriority < 4) {
+      const priorityToStatus: BookingStatus[] = ['draft', 'pending', 'confirmed'];
+      if (lowestPriority < 3) {
         bookingStatus = priorityToStatus[lowestPriority];
       }
     }
@@ -317,15 +315,15 @@ export async function createAssignment(data: {
 
   // Create conflict records if any
   if (conflictCheck.hasConflicts) {
-    for (const conflict of conflictCheck.conflicts) {
-      await supabase.from('booking_conflicts').insert({
+    await supabase.from('booking_conflicts').insert(
+      conflictCheck.conflicts.map(conflict => ({
         user_id: data.userId,
         assignment_id_1: assignment.id,
         assignment_id_2: conflict.assignmentId,
         conflict_date: conflict.conflictDate,
         is_resolved: false,
-      });
-    }
+      }))
+    );
   }
 
   // Send assignment notification email (fire and forget)
@@ -348,15 +346,9 @@ export async function createAssignment(data: {
     triggerAssignmentSync({
       id: assignment.id,
       user_id: data.userId,
-      project_id: data.projectId,
       booking_status: data.bookingStatus || 'draft',
-      notes: data.notes || null,
-      project: {
-        id: assignedProject.id,
-        client_name: assignedProject.client_name,
-        start_date: assignedProject.start_date,
-        end_date: assignedProject.end_date,
-      },
+      project_id: data.projectId,
+      project_name: assignedProject.client_name,
     }).catch((err) => console.error('Outlook sync error:', err));
   }
 
@@ -438,21 +430,13 @@ export async function updateAssignmentStatus(data: {
   }
 
   // Sync to Outlook calendar (fire and forget)
-  if (assignedProject?.start_date && assignedProject?.end_date) {
-    triggerAssignmentSync({
-      id: currentAssignment.id,
-      user_id: currentAssignment.user_id,
-      project_id: currentAssignment.project_id,
-      booking_status: data.newStatus,
-      notes: currentAssignment.notes,
-      project: {
-        id: assignedProject.id,
-        client_name: assignedProject.client_name,
-        start_date: assignedProject.start_date,
-        end_date: assignedProject.end_date,
-      },
-    }).catch((err) => console.error('Outlook sync error:', err));
-  }
+  triggerAssignmentSync({
+    id: currentAssignment.id,
+    user_id: currentAssignment.user_id,
+    booking_status: data.newStatus,
+    project_id: currentAssignment.project_id,
+    project_name: assignedProject?.client_name || 'Unknown',
+  }).catch((err) => console.error('Outlook sync error:', err));
 
   revalidatePath('/calendar');
   revalidatePath(`/projects/${currentAssignment.project_id}`);
@@ -557,21 +541,13 @@ export async function bulkUpdateAssignmentStatus(data: {
       }
 
       // Sync to Outlook calendar
-      if (assignedProject?.start_date && assignedProject?.end_date) {
-        triggerAssignmentSync({
-          id: assignment.id,
-          user_id: assignment.user_id,
-          project_id: assignment.project_id,
-          booking_status: data.newStatus,
-          notes: assignment.notes,
-          project: {
-            id: assignedProject.id,
-            client_name: assignedProject.client_name,
-            start_date: assignedProject.start_date,
-            end_date: assignedProject.end_date,
-          },
-        }).catch((err) => console.error('Outlook sync error:', err));
-      }
+      triggerAssignmentSync({
+        id: assignment.id,
+        user_id: assignment.user_id,
+        booking_status: data.newStatus,
+        project_id: assignment.project_id,
+        project_name: assignedProject?.client_name || 'Unknown',
+      }).catch((err) => console.error('Outlook sync error:', err));
     });
   }
 
@@ -625,101 +601,6 @@ export async function removeAssignment(assignmentId: string): Promise<ActionResu
 
   revalidatePath('/calendar');
   revalidatePath(`/projects/${assignment.project_id}`);
-  revalidatePath('/my-schedule');
-
-  return { success: true };
-}
-
-// ============================================
-// Excluded dates operations (DEPRECATED - use assignment_days instead)
-// These functions are kept for backward compatibility but new code should
-// use addAssignmentDays/removeAssignmentDays instead.
-// ============================================
-
-/**
- * @deprecated Use addAssignmentDays instead. The excluded_dates model is being phased out.
- */
-export async function addExcludedDates(data: {
-  assignmentId: string;
-  dates: string[];
-  reason?: string;
-}): Promise<ActionResult<AssignmentExcludedDate[]>> {
-  const { error: authError, supabase, user } = await requireAdmin();
-  if (authError || !supabase || !user) {
-    return { success: false, error: authError || 'Authentication failed' };
-  }
-
-  const excludedDates = data.dates.map(date => ({
-    assignment_id: data.assignmentId,
-    excluded_date: date,
-    reason: data.reason || null,
-    created_by: user.id,
-  }));
-
-  const { data: inserted, error: insertError } = await supabase
-    .from('assignment_excluded_dates')
-    .insert(excludedDates)
-    .select();
-
-  if (insertError) {
-    if (insertError.code === '23505') {
-      return { success: false, error: 'Some dates are already excluded' };
-    }
-    console.error('Excluded dates insert error:', insertError);
-    return { success: false, error: 'Failed to add excluded dates' };
-  }
-
-  revalidatePath('/calendar');
-  revalidatePath('/my-schedule');
-
-  return { success: true, data: inserted as AssignmentExcludedDate[] };
-}
-
-/**
- * @deprecated Use removeAssignmentDays instead. The excluded_dates model is being phased out.
- */
-export async function removeExcludedDate(excludedDateId: string): Promise<ActionResult> {
-  const { error: authError, supabase } = await requireAdmin();
-  if (authError || !supabase) {
-    return { success: false, error: authError || 'Authentication failed' };
-  }
-
-  const { error: deleteError } = await supabase
-    .from('assignment_excluded_dates')
-    .delete()
-    .eq('id', excludedDateId);
-
-  if (deleteError) {
-    console.error('Excluded date delete error:', deleteError);
-    return { success: false, error: 'Failed to remove excluded date' };
-  }
-
-  revalidatePath('/calendar');
-  revalidatePath('/my-schedule');
-
-  return { success: true };
-}
-
-/**
- * @deprecated Use removeAssignmentDays instead. The excluded_dates model is being phased out.
- */
-export async function bulkRemoveExcludedDates(excludedDateIds: string[]): Promise<ActionResult> {
-  const { error: authError, supabase } = await requireAdmin();
-  if (authError || !supabase) {
-    return { success: false, error: authError || 'Authentication failed' };
-  }
-
-  const { error: deleteError } = await supabase
-    .from('assignment_excluded_dates')
-    .delete()
-    .in('id', excludedDateIds);
-
-  if (deleteError) {
-    console.error('Bulk excluded dates delete error:', deleteError);
-    return { success: false, error: 'Failed to remove excluded dates' };
-  }
-
-  revalidatePath('/calendar');
   revalidatePath('/my-schedule');
 
   return { success: true };
@@ -1064,7 +945,6 @@ export async function getProjectAssignments(projectId: string): Promise<ActionRe
     .select(`
       *,
       user:profiles!user_id(id, email, full_name),
-      excluded_dates:assignment_excluded_dates(*),
       days:assignment_days(*)
     `)
     .eq('project_id', projectId)
@@ -1090,7 +970,6 @@ export async function getAssignment(assignmentId: string): Promise<ActionResult<
       *,
       project:projects(id, client_name, start_date, end_date),
       user:profiles!user_id(id, email, full_name),
-      excluded_dates:assignment_excluded_dates(*)
     `)
     .eq('id', assignmentId)
     .single();
@@ -1132,7 +1011,7 @@ export async function getAdminUsersForAssignment(): Promise<ActionResult<{ id: s
 // ============================================
 
 /**
- * Helper to get assignment data for Outlook sync
+ * Helper to get assignment data for Outlook sync (new simplified shape)
  */
 async function getAssignmentForSync(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -1140,21 +1019,15 @@ async function getAssignmentForSync(
 ): Promise<{
   id: string;
   user_id: string;
-  project_id: string;
   booking_status: string;
-  notes: string | null;
-  project: {
-    id: string;
-    client_name: string;
-    start_date: string;
-    end_date: string;
-  };
+  project_id: string;
+  project_name: string;
 } | null> {
   const { data, error } = await supabase
     .from('project_assignments')
     .select(`
-      id, user_id, project_id, booking_status, notes,
-      project:projects(id, client_name, start_date, end_date)
+      id, user_id, project_id, booking_status,
+      project:projects(client_name)
     `)
     .eq('id', assignmentId)
     .single();
@@ -1163,23 +1036,14 @@ async function getAssignmentForSync(
     return null;
   }
 
-  const project = data.project as { id: string; client_name: string; start_date: string | null; end_date: string | null } | null;
-  if (!project?.start_date || !project?.end_date) {
-    return null;
-  }
+  const project = data.project as { client_name: string } | null;
 
   return {
     id: data.id,
     user_id: data.user_id,
-    project_id: data.project_id,
     booking_status: data.booking_status,
-    notes: data.notes,
-    project: {
-      id: project.id,
-      client_name: project.client_name,
-      start_date: project.start_date,
-      end_date: project.end_date,
-    },
+    project_id: data.project_id,
+    project_name: project?.client_name || 'Unknown',
   };
 }
 
@@ -1426,24 +1290,16 @@ export async function removeAssignmentDays(dayIds: string[]): Promise<ActionResu
   // Using batch-fetched data instead of N individual queries
   if (assignmentsData) {
     for (const assignment of assignmentsData) {
-      const project = assignment.project as { id: string; client_name: string; start_date: string | null; end_date: string | null } | null;
-      if (project?.start_date && project?.end_date) {
-        triggerAssignmentSync({
-          id: assignment.id,
-          user_id: assignment.user_id,
-          project_id: assignment.project_id,
-          booking_status: assignment.booking_status,
-          notes: assignment.notes,
-          project: {
-            id: project.id,
-            client_name: project.client_name,
-            start_date: project.start_date,
-            end_date: project.end_date,
-          },
-        }).catch((err) =>
-          console.error('Outlook sync error after removing days:', err)
-        );
-      }
+      const project = assignment.project as { client_name: string } | null;
+      triggerAssignmentSync({
+        id: assignment.id,
+        user_id: assignment.user_id,
+        booking_status: assignment.booking_status,
+        project_id: assignment.project_id,
+        project_name: project?.client_name || 'Unknown',
+      }).catch((err) =>
+        console.error('Outlook sync error after removing days:', err)
+      );
     }
   }
 
@@ -1481,13 +1337,12 @@ export async function getAssignmentDays(assignmentId: string): Promise<ActionRes
 // Status cycling (click-to-toggle)
 // ============================================
 
-// Status cycle for PM manual cycling - skips pending_confirm (requires confirmation flow)
-// Workflow: draft → tentative → confirmed → draft
-const STATUS_CYCLE: BookingStatus[] = ['draft', 'tentative', 'confirmed'];
+// Status cycle for PM manual cycling
+// Workflow: draft → pending → confirmed → draft
+const STATUS_CYCLE: BookingStatus[] = ['draft', 'pending', 'confirmed'];
 
 /**
- * Cycle assignment status: draft → tentative → confirmed → draft
- * Note: pending_confirm is NOT in the cycle - it's only reached via the customer confirmation flow
+ * Cycle assignment status: draft → pending → confirmed → draft
  */
 export async function cycleAssignmentStatus(assignmentId: string): Promise<ActionResult<{ newStatus: BookingStatus }>> {
   const { error: authError, supabase, user } = await requireAdmin();
@@ -1511,16 +1366,10 @@ export async function cycleAssignmentStatus(assignmentId: string): Promise<Actio
   }
 
   // Calculate next status
-  // Special case: if current status is pending_confirm (from confirmation flow), cycle to confirmed
-  let newStatus: BookingStatus;
-  if (currentAssignment.booking_status === 'pending_confirm') {
-    newStatus = 'confirmed';
-  } else {
-    const currentIndex = STATUS_CYCLE.indexOf(currentAssignment.booking_status as BookingStatus);
-    // If status not in cycle (shouldn't happen), default to draft
-    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % STATUS_CYCLE.length;
-    newStatus = STATUS_CYCLE[nextIndex];
-  }
+  const currentIndex = STATUS_CYCLE.indexOf(currentAssignment.booking_status as BookingStatus);
+  // If status not in cycle (shouldn't happen), default to draft
+  const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % STATUS_CYCLE.length;
+  const newStatus: BookingStatus = STATUS_CYCLE[nextIndex];
 
   // Update the assignment
   const { error: updateError } = await supabase
@@ -1558,21 +1407,13 @@ export async function cycleAssignmentStatus(assignmentId: string): Promise<Actio
   }
 
   // Sync to Outlook calendar (fire and forget)
-  if (assignedProject?.start_date && assignedProject?.end_date) {
-    triggerAssignmentSync({
-      id: currentAssignment.id,
-      user_id: currentAssignment.user_id,
-      project_id: currentAssignment.project_id,
-      booking_status: newStatus,
-      notes: currentAssignment.notes,
-      project: {
-        id: assignedProject.id,
-        client_name: assignedProject.client_name,
-        start_date: assignedProject.start_date,
-        end_date: assignedProject.end_date,
-      },
-    }).catch((err) => console.error('Outlook sync error:', err));
-  }
+  triggerAssignmentSync({
+    id: currentAssignment.id,
+    user_id: currentAssignment.user_id,
+    booking_status: newStatus,
+    project_id: currentAssignment.project_id,
+    project_name: assignedProject?.client_name || 'Unknown',
+  }).catch((err) => console.error('Outlook sync error:', err));
 
   revalidatePath('/calendar');
   revalidatePath(`/projects/${currentAssignment.project_id}`);
@@ -2277,22 +2118,14 @@ export async function cascadeStatusToAssignments(params: {
   // Sync to Outlook calendar for each assignment (fire and forget)
   if (assignments) {
     assignments.forEach((assignment) => {
-      const project = assignment.project as { id: string; client_name: string; start_date: string | null; end_date: string | null } | null;
-      if (project?.start_date && project?.end_date) {
-        triggerAssignmentSync({
-          id: assignment.id,
-          user_id: assignment.user_id,
-          project_id: assignment.project_id,
-          booking_status: params.newStatus,
-          notes: assignment.notes,
-          project: {
-            id: project.id,
-            client_name: project.client_name,
-            start_date: project.start_date,
-            end_date: project.end_date,
-          },
-        }).catch((err) => console.error('Outlook sync error:', err));
-      }
+      const project = assignment.project as { client_name: string } | null;
+      triggerAssignmentSync({
+        id: assignment.id,
+        user_id: assignment.user_id,
+        booking_status: params.newStatus,
+        project_id: assignment.project_id,
+        project_name: project?.client_name || 'Unknown',
+      }).catch((err) => console.error('Outlook sync error:', err));
     });
   }
 

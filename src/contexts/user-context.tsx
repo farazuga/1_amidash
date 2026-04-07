@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useTransition } from 'react';
+import { createContext, useContext, useTransition, useMemo, useCallback } from 'react';
 import type { Profile } from '@/types';
 import type { User } from '@supabase/supabase-js';
 import { signOut as serverSignOut } from '@/app/actions/auth';
@@ -27,30 +27,32 @@ interface UserProviderProps {
 export function UserProvider({ children, user, profile }: UserProviderProps) {
   const [isSigningOut, startTransition] = useTransition();
 
-  const isCustomer = profile?.role === 'customer';
-  const isAdmin = profile?.role === 'admin';
-  const isEditor = profile?.role === 'editor' || isAdmin;
-  const isViewer = profile?.role === 'viewer' || isEditor;
-
-  const signOut = () => {
+  const signOut = useCallback(() => {
     startTransition(async () => {
       await serverSignOut();
     });
-  };
+  }, []);
+
+  const value = useMemo(() => {
+    const isCustomer = profile?.role === 'customer';
+    const isAdmin = profile?.role === 'admin';
+    const isEditor = profile?.role === 'editor' || isAdmin;
+    const isViewer = profile?.role === 'viewer' || isEditor;
+
+    return {
+      user,
+      profile,
+      isAdmin,
+      isEditor,
+      isViewer,
+      isCustomer,
+      signOut,
+      isSigningOut,
+    };
+  }, [user, profile, signOut, isSigningOut]);
 
   return (
-    <UserContext.Provider
-      value={{
-        user,
-        profile,
-        isAdmin,
-        isEditor,
-        isViewer,
-        isCustomer,
-        signOut,
-        isSigningOut,
-      }}
-    >
+    <UserContext.Provider value={value}>
       {children}
     </UserContext.Provider>
   );

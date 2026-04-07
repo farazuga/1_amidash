@@ -1,5 +1,6 @@
 // Calendar Components
 export { ProjectCalendar } from './project-calendar';
+export type { ExternalCalendarFilters } from './project-calendar';
 export { CalendarHeader } from './calendar-header';
 export { CalendarHeaderWithDates } from './calendar-header-with-dates';
 export { CalendarDayCell } from './calendar-day-cell';
@@ -23,7 +24,6 @@ export { DayTimeEditor } from './day-time-editor';
 export { BookingStatusBadge, BookingStatusDot } from './booking-status-badge';
 
 // Dialog Components
-export { DateExclusionDialog } from './date-exclusion-dialog';
 export { ConflictWarningDialog } from './conflict-warning-dialog';
 
 // Picker Components
@@ -43,6 +43,9 @@ export { AssignmentSidebar } from './assignment-sidebar';
 // Bulk Operations Components
 export { BulkActionsToolbar } from './bulk-actions-toolbar';
 export { BulkAssignDialog } from './bulk-assign-dialog';
+
+// Outlook Calendar Components
+export { OutlookEventBlock } from './outlook-event-block';
 
 // Availability Components
 export { AvailabilityDialog } from './availability-dialog';

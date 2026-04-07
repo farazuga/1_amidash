@@ -18,7 +18,7 @@ test.describe('Calendar Interactions', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Find a draggable assignment card
@@ -44,7 +44,7 @@ test.describe('Calendar Interactions', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Count initial assignments
@@ -87,7 +87,7 @@ test.describe('Calendar Interactions', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       const assignmentCard = page.getByTestId('draggable-assignment-card').first();
@@ -126,7 +126,7 @@ test.describe('Calendar Interactions', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Count initial assignments
@@ -152,7 +152,7 @@ test.describe('Calendar Interactions', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       const assignmentCard = page.getByTestId('draggable-assignment-card').first();
@@ -174,7 +174,7 @@ test.describe('Calendar Interactions', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Press ? to show help
@@ -188,7 +188,7 @@ test.describe('Calendar Interactions', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Open shortcuts help
@@ -206,7 +206,7 @@ test.describe('Calendar Interactions', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Get initial state
@@ -233,7 +233,7 @@ test.describe('Calendar Interactions', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Count initial
@@ -264,7 +264,7 @@ test.describe('Calendar Interactions', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       // Implementation would involve performing 15+ actions
       // then verifying only 10 can be undone
     });
@@ -275,7 +275,7 @@ test.describe('Calendar Interactions', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Check column headers - should be Mon, Tue, Wed, Thu, Fri
@@ -302,7 +302,7 @@ test.describe('Calendar Interactions', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Check that each row has exactly 5 day cells
@@ -320,7 +320,7 @@ test.describe('Calendar Interactions', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Check for today indicator
@@ -332,7 +332,7 @@ test.describe('Calendar Interactions', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       const todayIndicator = page.getByTestId('today-indicator');

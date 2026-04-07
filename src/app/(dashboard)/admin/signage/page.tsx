@@ -6,19 +6,19 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Play, Square, RefreshCw, AlertTriangle, Clock, Tv, Activity, Monitor, Globe } from 'lucide-react';
-import { SlideEditor } from '@/components/signage/slide-editor';
+import { BlockEditor } from '@/components/signage/block-editor';
 import {
   getSignageStatus,
   getSignageConfig,
   startSignageEngine,
   stopSignageEngine,
   restartSignageEngine,
-  getSignageLogs,
-  getSlides,
+  getBlocks,
+  getSignageSettings,
   type SignageStatus,
   type SignageConfig,
-  type LogEntry,
-  type SignageSlide,
+  type SignageBlock,
+  type SignageSettings,
 } from './actions';
 
 const SIGNAGE_PREVIEW_URL = 'http://127.0.0.1:3001/preview';
@@ -35,15 +35,11 @@ function formatUptime(ms: number): string {
   return `${seconds}s`;
 }
 
-function formatTime(timestamp: number): string {
-  return new Date(timestamp).toLocaleTimeString();
-}
-
 export default function SignageAdminPage() {
   const [status, setStatus] = useState<SignageStatus | null>(null);
   const [config, setConfig] = useState<SignageConfig | null>(null);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [slides, setSlides] = useState<SignageSlide[]>([]);
+  const [blocks, setBlocks] = useState<SignageBlock[]>([]);
+  const [settings, setSettings] = useState<SignageSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [previewKey, setPreviewKey] = useState(0);
@@ -57,18 +53,13 @@ export default function SignageAdminPage() {
     setIsRemoteAccess(!isLocal);
   }, []);
 
-  const refreshSlides = useCallback(async () => {
-    const slidesData = await getSlides();
-    setSlides(slidesData);
-  }, []);
-
   const refreshData = useCallback(async () => {
     try {
-      const [statusData, configData, logsData, slidesData] = await Promise.all([
+      const [statusData, configData, blocksData, settingsData] = await Promise.all([
         getSignageStatus(),
         getSignageConfig(),
-        getSignageLogs(),
-        getSlides(),
+        getBlocks(),
+        getSignageSettings(),
       ]);
 
       if (statusData) {
@@ -79,8 +70,8 @@ export default function SignageAdminPage() {
       }
 
       if (configData) setConfig(configData);
-      setLogs(logsData);
-      setSlides(slidesData);
+      setBlocks(blocksData);
+      if (settingsData) setSettings(settingsData);
     } catch (error) {
       console.error('Failed to refresh data:', error);
       setConnectionError(true);
@@ -91,7 +82,7 @@ export default function SignageAdminPage() {
 
   useEffect(() => {
     refreshData();
-    const interval = setInterval(refreshData, 2000);
+    const interval = setInterval(refreshData, 5000);
     return () => clearInterval(interval);
   }, [refreshData]);
 
@@ -184,7 +175,7 @@ export default function SignageAdminPage() {
                 {' '}to control the engine.
               </p>
               <p className="text-sm text-muted-foreground mt-2">
-                You can still manage slide configuration below - changes are saved to the database.
+                You can still manage block configuration below - changes are saved to the database.
               </p>
             </div>
           </CardContent>
@@ -296,12 +287,18 @@ export default function SignageAdminPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="preview" className="space-y-4">
+      <Tabs defaultValue="blocks" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="blocks">Blocks</TabsTrigger>
           <TabsTrigger value="preview">Preview</TabsTrigger>
-          <TabsTrigger value="slides">Slides</TabsTrigger>
-          <TabsTrigger value="logs">Logs</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="blocks" className="space-y-4">
+          <BlockEditor
+            blocks={blocks}
+            settings={{ rotation_interval_ms: settings?.rotation_interval_ms ?? 15000 }}
+          />
+        </TabsContent>
 
         <TabsContent value="preview" className="space-y-4">
           <Card>
@@ -320,6 +317,7 @@ export default function SignageAdminPage() {
             <CardContent>
               {status?.isRunning ? (
                 <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     key={previewKey}
                     src={`${SIGNAGE_PREVIEW_URL}?t=${previewKey}`}
@@ -337,39 +335,6 @@ export default function SignageAdminPage() {
                   <p className="text-muted-foreground">Engine not running</p>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="slides" className="space-y-4">
-          <SlideEditor slides={slides} onSlidesChange={refreshSlides} />
-        </TabsContent>
-
-        <TabsContent value="logs" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Logs</CardTitle>
-              <CardDescription>Latest log entries from the signage engine</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-96 overflow-y-auto font-mono text-sm bg-muted rounded-lg p-4 space-y-1">
-                {logs.length === 0 ? (
-                  <p className="text-muted-foreground">No logs available</p>
-                ) : (
-                  logs.map((log, index) => (
-                    <div key={index} className="flex gap-2">
-                      <span className="text-muted-foreground">{formatTime(log.time)}</span>
-                      <Badge
-                        variant={log.level === 'error' ? 'destructive' : log.level === 'warn' ? 'secondary' : 'outline'}
-                        className="text-xs"
-                      >
-                        {log.level}
-                      </Badge>
-                      <span>{log.msg}</span>
-                    </div>
-                  ))
-                )}
-              </div>
             </CardContent>
           </Card>
         </TabsContent>

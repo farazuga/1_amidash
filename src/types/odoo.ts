@@ -75,6 +75,18 @@ export interface OdooPartner {
   child_ids: number[]; // Contact person IDs under a company
 }
 
+/** res.partner model - shipping/delivery address fields */
+export interface OdooShippingPartner {
+  id: number;
+  name: string;
+  street: string | false;
+  street2: string | false;
+  city: string | false;
+  state_id: [number, string] | false;
+  zip: string | false;
+  country_id: [number, string] | false;
+}
+
 /** mail.activity model (chatter tasks/activities) */
 export interface OdooActivity {
   id: number;
@@ -137,6 +149,32 @@ export interface OdooPullResult {
     description: string;
     subtotal: number;
   }>;
+  deliveryAddress: {
+    street: string | null;
+    city: string | null;
+    state: string | null;
+    zip: string | null;
+    country: string | null;
+  } | null;
+}
+
+// ============================================================
+// Accounting Types (for L10 scorecard integration)
+// ============================================================
+
+/** account.account model (chart of accounts) */
+export interface OdooAccount {
+  id: number;
+  code: string; // e.g. "1200"
+  name: string; // e.g. "Account Receivable"
+}
+
+/** account.move.line model (journal items) */
+export interface OdooMoveLine {
+  id: number;
+  date: string; // e.g. "2026-03-07"
+  account_id: [number, string]; // Many2one
+  balance: number; // debit - credit
 }
 
 // ============================================================

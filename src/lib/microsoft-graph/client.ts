@@ -1,432 +1,166 @@
 /**
  * Microsoft Graph API client for Outlook Calendar operations
+ * Uses app-level client credentials — targets users by email
  */
 
-import { Client } from '@microsoft/microsoft-graph-client';
-import type { Calendar, Event } from '@microsoft/microsoft-graph-types';
-import { refreshAccessToken, isTokenExpired, calculateExpiresAt } from './auth';
-import { createServiceClient } from '@/lib/supabase/server';
-import { decryptToken, encryptToken, isEncryptionConfigured } from '@/lib/crypto';
-import type {
-  CalendarConnection,
-  MicrosoftUserInfo,
-  OutlookCalendarEvent,
-  OutlookEventCreateResponse,
-} from './types';
+import { getAppAccessToken } from './auth';
+import type { OutlookEvent, OutlookEventInput } from './types';
 
-// Re-export Graph types for use elsewhere
-export type { Calendar, Event };
+const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
 
-/**
- * Custom error for token decryption failures requiring reconnection
- */
-export class TokenDecryptionError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'TokenDecryptionError';
-  }
-}
-
-/**
- * Custom error for CAE claims challenges
- * When Microsoft returns a claims challenge, the token needs to be refreshed
- * with the challenge included
- */
-export class ClaimsChallengeError extends Error {
-  constructor(public readonly claims: string) {
-    super('CAE claims challenge received - user must reauthenticate');
-    this.name = 'ClaimsChallengeError';
-  }
-}
-
-/**
- * Parse claims challenge from WWW-Authenticate header
- * CAE-enabled APIs return this when a token is revoked by policy
- */
-function parseClaimsChallenge(wwwAuthHeader: string): string | null {
-  const match = wwwAuthHeader.match(/claims="([^"]+)"/);
-  if (match && match[1]) {
-    try {
-      return Buffer.from(match[1], 'base64').toString('utf-8');
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
-
-/**
- * Decrypt access token from storage if encryption is configured
- * Throws TokenDecryptionError if decryption fails - user must reconnect
- */
-function getDecryptedAccessToken(encryptedToken: string): string {
-  if (!isEncryptionConfigured()) {
-    // In development without encryption, tokens are stored as-is
-    return encryptedToken;
-  }
-  try {
-    return decryptToken(encryptedToken);
-  } catch (error) {
-    // Decryption failed - token is corrupted or encryption key changed
-    // User must reconnect to get fresh tokens
-    console.error('Access token decryption failed - user must reconnect:', error);
-    throw new TokenDecryptionError(
-      'Calendar connection invalid - please disconnect and reconnect your Outlook calendar'
-    );
-  }
-}
-
-/**
- * Decrypt refresh token from storage if encryption is configured
- * Throws TokenDecryptionError if decryption fails - user must reconnect
- */
-function getDecryptedRefreshToken(encryptedToken: string): string {
-  if (!isEncryptionConfigured()) {
-    // In development without encryption, tokens are stored as-is
-    return encryptedToken;
-  }
-  try {
-    return decryptToken(encryptedToken);
-  } catch (error) {
-    // Decryption failed - token is corrupted or encryption key changed
-    // User must reconnect to get fresh tokens
-    console.error('Refresh token decryption failed - user must reconnect:', error);
-    throw new TokenDecryptionError(
-      'Calendar connection invalid - please disconnect and reconnect your Outlook calendar'
-    );
-  }
-}
-
-/**
- * Get a Microsoft Graph client with valid access token
- * Automatically refreshes token if expired
- */
-export async function getGraphClient(
-  connection: CalendarConnection
-): Promise<{ client: Client; connection: CalendarConnection }> {
-  let currentConnection = connection;
-
-  // Decrypt tokens from storage
-  const decryptedAccessToken = getDecryptedAccessToken(connection.access_token);
-  const decryptedRefreshToken = getDecryptedRefreshToken(connection.refresh_token);
-
-  // Check if token needs refresh
-  if (isTokenExpired(connection.token_expires_at)) {
-    console.log('Access token expired, refreshing...');
-
-    try {
-      const newTokens = await refreshAccessToken(decryptedRefreshToken);
-
-      // Encrypt new tokens before storing
-      let accessTokenToStore = newTokens.access_token;
-      let refreshTokenToStore = newTokens.refresh_token;
-
-      if (isEncryptionConfigured()) {
-        accessTokenToStore = encryptToken(newTokens.access_token);
-        refreshTokenToStore = encryptToken(newTokens.refresh_token);
-      }
-
-      // Update tokens in database
-      const supabase = await createServiceClient();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any)
-        .from('calendar_connections')
-        .update({
-          access_token: accessTokenToStore,
-          refresh_token: refreshTokenToStore,
-          token_expires_at: calculateExpiresAt(newTokens.expires_in).toISOString(),
-        })
-        .eq('id', connection.id);
-
-      if (error) {
-        console.error('Failed to update tokens in database:', error);
-        throw new Error('Failed to update refreshed tokens');
-      }
-
-      // Update local connection object with encrypted tokens (for storage consistency)
-      // but use decrypted tokens for the Graph client
-      currentConnection = {
-        ...connection,
-        access_token: accessTokenToStore,
-        refresh_token: refreshTokenToStore,
-        token_expires_at: calculateExpiresAt(newTokens.expires_in).toISOString(),
-      };
-
-      // Use the fresh unencrypted access token for the client
-      const client = Client.init({
-        authProvider: (done) => {
-          done(null, newTokens.access_token);
-        },
-      });
-
-      return { client, connection: currentConnection };
-    } catch (error) {
-      console.error('Token refresh failed:', error);
-
-      const errorMessage = error instanceof Error ? error.message : '';
-
-      // Detect specific Microsoft Conditional Access / policy errors
-      if (errorMessage.includes('AADSTS50173')) {
-        // Fresh auth required due to policy
-        throw new TokenDecryptionError(
-          'Your session has expired due to organization policy. Please reconnect your Microsoft account.'
-        );
-      }
-      if (errorMessage.includes('AADSTS700082')) {
-        // Refresh token expired
-        throw new TokenDecryptionError(
-          'Your refresh token has expired. Please reconnect your Microsoft account.'
-        );
-      }
-      if (errorMessage.includes('AADSTS50078') || errorMessage.includes('AADSTS50076')) {
-        // MFA required
-        throw new TokenDecryptionError(
-          'Your organization requires additional verification. Please reconnect your Microsoft account.'
-        );
-      }
-      if (errorMessage.includes('AADSTS65001')) {
-        // Consent required
-        throw new TokenDecryptionError(
-          'Additional permissions are required. Please reconnect your Microsoft account.'
-        );
-      }
-      if (errorMessage.includes('AADSTS50058')) {
-        // Silent sign-in failed
-        throw new TokenDecryptionError(
-          'Your session has ended. Please reconnect your Microsoft account.'
-        );
-      }
-
-      throw new Error('Failed to refresh access token. User may need to reconnect.');
-    }
-  }
-
-  // Create Graph client with decrypted access token
-  const client = Client.init({
-    authProvider: (done) => {
-      done(null, decryptedAccessToken);
+// Base fetch wrapper
+async function graphFetch(path: string, options: RequestInit = {}) {
+  const token = await getAppAccessToken();
+  const response = await fetch(`${GRAPH_BASE}${path}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      ...options.headers,
     },
   });
-
-  return { client, connection: currentConnection };
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(
+      `Graph API error ${response.status}: ${(error as { error?: { message?: string } }).error?.message || response.statusText}`
+    );
+  }
+  if (response.status === 204) return null;
+  return response.json();
 }
 
-/**
- * Get user info from Microsoft Graph
- */
-export async function getUserInfo(accessToken: string): Promise<MicrosoftUserInfo> {
-  const client = Client.init({
-    authProvider: (done) => {
-      done(null, accessToken);
-    },
+// Create a dedicated "AmiDash" calendar on a user's account
+export async function createCalendarForUser(
+  email: string
+): Promise<{ id: string; name: string }> {
+  return graphFetch(`/users/${email}/calendars`, {
+    method: 'POST',
+    body: JSON.stringify({ name: 'AmiDash' }),
   });
-
-  const user = await client.api('/me').select('id,displayName,mail,userPrincipalName').get();
-
-  return {
-    id: user.id,
-    displayName: user.displayName,
-    mail: user.mail,
-    userPrincipalName: user.userPrincipalName,
-  };
 }
 
-/**
- * Create a calendar event in Outlook
- */
+// Verify a calendar exists
+export async function getCalendarForUser(
+  email: string,
+  calendarId: string
+): Promise<{ id: string; name: string } | null> {
+  try {
+    return await graphFetch(`/users/${email}/calendars/${calendarId}`);
+  } catch {
+    return null;
+  }
+}
+
+// Create an event on a specific user's calendar
 export async function createCalendarEvent(
-  connection: CalendarConnection,
-  event: OutlookCalendarEvent
-): Promise<OutlookEventCreateResponse> {
-  const { client } = await getGraphClient(connection);
-
-  const calendarPath = connection.calendar_id === 'primary'
-    ? '/me/calendar/events'
-    : `/me/calendars/${connection.calendar_id}/events`;
-
-  const response = await client.api(calendarPath).post(event);
-
-  return {
-    id: response.id,
-    subject: response.subject,
-    webLink: response.webLink,
-  };
+  email: string,
+  calendarId: string,
+  event: OutlookEventInput
+): Promise<{ id: string }> {
+  return graphFetch(`/users/${email}/calendars/${calendarId}/events`, {
+    method: 'POST',
+    body: JSON.stringify(event),
+  });
 }
 
-/**
- * Update an existing calendar event in Outlook
- */
+// Update an existing event
 export async function updateCalendarEvent(
-  connection: CalendarConnection,
+  email: string,
+  calendarId: string,
   eventId: string,
-  event: Partial<OutlookCalendarEvent>
-): Promise<void> {
-  const { client } = await getGraphClient(connection);
-
-  await client.api(`/me/events/${eventId}`).patch(event);
+  event: Partial<OutlookEventInput>
+): Promise<{ id: string }> {
+  return graphFetch(
+    `/users/${email}/calendars/${calendarId}/events/${eventId}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(event),
+    }
+  );
 }
 
-/**
- * Delete a calendar event from Outlook
- */
+// Delete an event
 export async function deleteCalendarEvent(
-  connection: CalendarConnection,
+  email: string,
+  calendarId: string,
   eventId: string
 ): Promise<void> {
-  const { client } = await getGraphClient(connection);
-
-  try {
-    await client.api(`/me/events/${eventId}`).delete();
-  } catch (error: unknown) {
-    // Ignore 404 errors (event already deleted)
-    if (error && typeof error === 'object' && 'statusCode' in error && error.statusCode === 404) {
-      console.log('Event already deleted from Outlook');
-      return;
+  await graphFetch(
+    `/users/${email}/calendars/${calendarId}/events/${eventId}`,
+    {
+      method: 'DELETE',
     }
-    throw error;
-  }
+  );
 }
 
-/**
- * Get list of user's calendars
- */
-export async function getCalendars(
-  connection: CalendarConnection
-): Promise<Array<{ id: string; name: string; isDefault: boolean }>> {
-  const { client } = await getGraphClient(connection);
+// Read events from a user's DEFAULT calendar (read-only, for conflict display)
+// Masks private/confidential events
+export async function getCalendarEvents(
+  email: string,
+  startDate: string,
+  endDate: string
+): Promise<OutlookEvent[]> {
+  const params = new URLSearchParams({
+    startDateTime: `${startDate}T00:00:00Z`,
+    endDateTime: `${endDate}T23:59:59Z`,
+    $select: 'id,subject,start,end,isAllDay,showAs,sensitivity',
+    $top: '100',
+  });
 
-  const response = await client.api('/me/calendars').select('id,name,isDefaultCalendar').get();
+  const data = await graphFetch(`/users/${email}/calendarView?${params}`);
 
-  return (response.value as Calendar[]).map((cal) => ({
-    id: cal.id || '',
-    name: cal.name || '',
-    isDefault: cal.isDefaultCalendar || false,
-  }));
+  return ((data as { value?: Array<Record<string, unknown>> }).value || []).map(
+    (event: Record<string, unknown>) => ({
+      id: event.id as string,
+      subject:
+        event.sensitivity === 'private' || event.sensitivity === 'confidential'
+          ? 'Private'
+          : (event.subject as string),
+      start: event.start as { dateTime: string; timeZone: string },
+      end: event.end as { dateTime: string; timeZone: string },
+      isAllDay: event.isAllDay as boolean,
+      showAs: event.showAs as OutlookEvent['showAs'],
+      sensitivity: event.sensitivity as OutlookEvent['sensitivity'],
+      isFromOutlook: true as const,
+    })
+  );
 }
 
-// Status-specific configuration for Outlook events
-const STATUS_CONFIG: Record<string, { emoji: string; category: string; showAs: 'tentative' | 'busy' }> = {
-  pending_confirm: { emoji: '⏳', category: 'Grey category', showAs: 'tentative' },
-  confirmed: { emoji: '✅', category: 'Green category', showAs: 'busy' },
-};
-
-/**
- * Build an Outlook event object from assignment data
- * Only pending_confirm and confirmed statuses should reach this function
- */
-export function buildEventFromAssignment(
-  assignment: {
-    id: string;
-    booking_status: string;
-    notes: string | null;
-    project: {
-      client_name: string;
-      start_date: string;
-      end_date: string;
-      sales_order?: string | null;
-      poc_name?: string | null;
-      poc_email?: string | null;
-      poc_phone?: string | null;
-      scope_link?: string | null;
-      sales_order_url?: string | null;
-    };
-    team_members?: Array<{ full_name: string; booking_status: string }>;
-  },
-  baseUrl: string
-): OutlookCalendarEvent {
-  const statusLabel = getStatusLabel(assignment.booking_status);
-  const config = STATUS_CONFIG[assignment.booking_status] || STATUS_CONFIG.pending_confirm;
-
-  // Build enriched description
-  let description = `📋 Project: ${assignment.project.client_name}\n`;
-  description += `Status: ${statusLabel}\n`;
-
-  // Team members section
-  if (assignment.team_members && assignment.team_members.length > 0) {
-    description += `\n👥 Team:\n`;
-    for (const member of assignment.team_members) {
-      const memberStatus = getStatusLabel(member.booking_status).toLowerCase();
-      description += `• ${member.full_name} (${memberStatus})\n`;
-    }
-  }
-
-  // Client POC section
-  if (assignment.project.poc_name || assignment.project.poc_email || assignment.project.poc_phone) {
-    description += `\n📞 Client POC:\n`;
-    const pocParts: string[] = [];
-    if (assignment.project.poc_name) pocParts.push(assignment.project.poc_name);
-    if (assignment.project.poc_email) pocParts.push(assignment.project.poc_email);
-    if (assignment.project.poc_phone) pocParts.push(assignment.project.poc_phone);
-    description += pocParts.join(' | ') + '\n';
-  }
-
-  // Links section
-  const links: string[] = [];
-  const projectPath = assignment.project.sales_order
-    ? `/projects/${assignment.project.sales_order}`
-    : `/projects`;
-  links.push(`Dashboard: ${baseUrl}${projectPath}`);
-
-  if (assignment.project.scope_link) {
-    links.push(`SOW: ${assignment.project.scope_link}`);
-  }
-  if (assignment.project.sales_order_url) {
-    links.push(`Odoo: ${assignment.project.sales_order_url}`);
-  }
-
-  if (links.length > 0) {
-    description += `\n🔗 Links:\n`;
-    for (const link of links) {
-      description += `• ${link}\n`;
-    }
-  }
-
-  // Notes section
-  if (assignment.notes) {
-    description += `\nNotes: ${assignment.notes}`;
-  }
-
-  // Parse dates - add one day to end date because Outlook end dates are exclusive
-  const startDate = new Date(assignment.project.start_date);
-  const endDate = new Date(assignment.project.end_date);
-  endDate.setDate(endDate.getDate() + 1); // Make end date exclusive
+// Build a calendar event from assignment data
+export function buildCalendarEvent(params: {
+  projectName: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  teamMembers: string[];
+  pmContact?: string;
+  dashboardUrl?: string;
+}): OutlookEventInput {
+  const body = [
+    `📋 Project: ${params.projectName}`,
+    params.teamMembers.length > 0
+      ? `👥 Team: ${params.teamMembers.join(', ')}`
+      : null,
+    params.pmContact ? `📞 PM: ${params.pmContact}` : null,
+    params.dashboardUrl ? `🔗 Details: ${params.dashboardUrl}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   return {
-    subject: `${config.emoji} ${assignment.project.client_name}`,
-    body: {
-      contentType: 'text',
-      content: description,
-    },
+    subject: params.projectName,
+    body: { contentType: 'text', content: body },
     start: {
-      dateTime: startDate.toISOString().split('T')[0],
-      timeZone: 'UTC',
+      dateTime: `${params.date}T${params.startTime}:00`,
+      timeZone: 'America/New_York',
     },
     end: {
-      dateTime: endDate.toISOString().split('T')[0],
-      timeZone: 'UTC',
+      dateTime: `${params.date}T${params.endTime}:00`,
+      timeZone: 'America/New_York',
     },
-    isAllDay: true,
-    showAs: config.showAs,
-    categories: [config.category],
+    isAllDay: false,
+    showAs: 'busy',
+    categories: ['Green category'],
     sensitivity: 'normal',
   };
 }
-
-/**
- * Get human-readable status label
- */
-function getStatusLabel(status: string): string {
-  switch (status) {
-    case 'draft':
-      return 'Draft';
-    case 'tentative':
-      return 'Tentative';
-    case 'pending_confirm':
-      return 'Pending Confirmation';
-    case 'confirmed':
-      return 'Confirmed';
-    default:
-      return status;
-  }
-}
-

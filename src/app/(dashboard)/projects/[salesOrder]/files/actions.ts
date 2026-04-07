@@ -3,9 +3,6 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import * as sharepoint from '@/lib/sharepoint/client';
-import { MicrosoftAuthError } from '@/lib/sharepoint/client';
-import { decryptToken, isEncryptionConfigured } from '@/lib/crypto';
-import type { CalendarConnection } from '@/lib/microsoft-graph/types';
 import type {
   ProjectFile,
   PresalesFile,
@@ -84,39 +81,6 @@ export interface DeleteFileResult {
 // Helper Functions
 // ============================================================================
 
-export async function getMicrosoftConnection(userId: string): Promise<CalendarConnection | null> {
-  const supabase = await createServiceClient();
-
-  // Use type assertion since calendar_connections may not be in generated types yet
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
-    .from('calendar_connections')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('provider', 'microsoft')
-    .maybeSingle();
-
-  if (error || !data) {
-    return null;
-  }
-
-  // Decrypt tokens if encryption is configured
-  // Tokens are encrypted at rest for security
-  if (isEncryptionConfigured() && data.access_token) {
-    try {
-      data.access_token = decryptToken(data.access_token);
-      if (data.refresh_token) {
-        data.refresh_token = decryptToken(data.refresh_token);
-      }
-    } catch (err) {
-      console.error('[getMicrosoftConnection] Token decryption failed:', err);
-      return null;
-    }
-  }
-
-  return data as CalendarConnection;
-}
-
 function getFileExtension(fileName: string): string {
   const parts = fileName.split('.');
   return parts.length > 1 ? parts.pop()?.toLowerCase() || '' : '';
@@ -129,6 +93,30 @@ async function getTypedClient(): Promise<AnySupabaseClient> {
 
 async function getTypedServiceClient(): Promise<AnySupabaseClient> {
   return await createServiceClient() as AnySupabaseClient;
+}
+
+/**
+ * Resolve the effective project ID for file operations.
+ * If the project has a parent_project_id, file operations use the parent's SharePoint folder.
+ * Returns the project row and the effective project ID to use for SharePoint lookups.
+ */
+async function resolveEffectiveProject(
+  db: AnySupabaseClient,
+  projectId: string
+): Promise<{
+  project: { id: string; parent_project_id: string | null; client_name: string; sales_order_number: string };
+  effectiveProjectId: string;
+} | null> {
+  const { data: project } = await db
+    .from('projects')
+    .select('id, parent_project_id, client_name, sales_order_number')
+    .eq('id', projectId)
+    .single();
+
+  if (!project) return null;
+
+  const effectiveProjectId = project.parent_project_id || projectId;
+  return { project, effectiveProjectId };
 }
 
 /**
@@ -166,16 +154,24 @@ async function ensureProjectFolder(
   projectId: string,
   salesOrderNumber: string,
   clientName: string,
-  userId: string,
-  msConnection: CalendarConnection
+  userId: string
 ): Promise<{ success: boolean; connection?: ProjectSharePointConnection; error?: string }> {
   const db = await getTypedClient();
 
-  // Check if project already has a connection
+  // If this project has a parent, use the parent's SharePoint folder
+  const resolved = await resolveEffectiveProject(db, projectId);
+  const effectiveProjectId = resolved?.effectiveProjectId || projectId;
+  const effectiveSalesOrder = resolved?.project.parent_project_id
+    ? (await db.from('projects').select('sales_order_number, client_name').eq('id', effectiveProjectId).single()).data
+    : null;
+  const folderSalesOrder = effectiveSalesOrder?.sales_order_number || salesOrderNumber;
+  const folderClientName = effectiveSalesOrder?.client_name || clientName;
+
+  // Check if the effective project already has a connection
   const { data: existingConnection } = await db
     .from('project_sharepoint_connections')
     .select('*')
-    .eq('project_id', projectId)
+    .eq('project_id', effectiveProjectId)
     .maybeSingle();
 
   if (existingConnection) {
@@ -190,12 +186,11 @@ async function ensureProjectFolder(
 
   try {
     // Generate folder name: "S12345 ClientName"
-    const sanitizedClientName = clientName.replace(/[<>:"/\\|?*]/g, '-').trim();
-    const folderName = `${salesOrderNumber} ${sanitizedClientName}`;
+    const sanitizedClientName = folderClientName.replace(/[<>:"/\\|?*]/g, '-').trim();
+    const folderName = `${folderSalesOrder} ${sanitizedClientName}`;
 
     // Create project folder under the base folder
     const projectFolder = await sharepoint.createFolder(
-      msConnection,
       globalConfig.drive_id,
       globalConfig.base_folder_id,
       folderName
@@ -206,7 +201,7 @@ async function ensureProjectFolder(
     for (const category of categories) {
       const categoryFolderName = sharepoint.getCategoryFolderName(category);
       try {
-        await sharepoint.createFolder(msConnection, globalConfig.drive_id, projectFolder.id, categoryFolderName);
+        await sharepoint.createFolder(globalConfig.drive_id, projectFolder.id, categoryFolderName);
       } catch {
         // Folder may already exist
         console.log(`Category folder ${categoryFolderName} may already exist`);
@@ -221,7 +216,7 @@ async function ensureProjectFolder(
     const { data: connection, error: insertError } = await db
       .from('project_sharepoint_connections')
       .insert({
-        project_id: projectId,
+        project_id: effectiveProjectId,
         site_id: globalConfig.site_id,
         drive_id: globalConfig.drive_id,
         folder_id: projectFolder.id,
@@ -270,10 +265,10 @@ export async function connectSharePointFolder(
     return { success: false, error: 'Authentication required' };
   }
 
-  // Get Microsoft connection for SharePoint API calls
-  const msConnection = await getMicrosoftConnection(user.id);
-  if (!msConnection) {
-    return { success: false, error: 'Please connect your Microsoft account first' };
+  // Block child projects from managing SharePoint connections
+  const resolved = await resolveEffectiveProject(db, data.projectId);
+  if (resolved?.project.parent_project_id) {
+    return { success: false, error: 'SharePoint folder is managed by the parent project' };
   }
 
   try {
@@ -287,14 +282,13 @@ export async function connectSharePointFolder(
       const parentPath = data.folderPath.substring(0, data.folderPath.lastIndexOf('/'));
 
       // Get parent folder
-      const parentFolder = await sharepoint.getItemByPath(msConnection, data.driveId, parentPath);
+      const parentFolder = await sharepoint.getItemByPath(data.driveId, parentPath);
       if (!parentFolder) {
         return { success: false, error: 'Parent folder not found' };
       }
 
       // Create new folder
       const newFolder = await sharepoint.createFolder(
-        msConnection,
         data.driveId,
         parentFolder.id,
         folderName
@@ -310,7 +304,7 @@ export async function connectSharePointFolder(
       for (const category of categories) {
         const folderName = sharepoint.getCategoryFolderName(category);
         try {
-          await sharepoint.createFolder(msConnection, data.driveId, finalFolderId, folderName);
+          await sharepoint.createFolder(data.driveId, finalFolderId, folderName);
         } catch (err) {
           // Folder may already exist, that's OK
           console.log(`Category folder ${folderName} may already exist`);
@@ -366,6 +360,12 @@ export async function disconnectSharePoint(projectId: string): Promise<{ success
     return { success: false, error: 'Authentication required' };
   }
 
+  // Block child projects from managing SharePoint connections
+  const resolved = await resolveEffectiveProject(db, projectId);
+  if (resolved?.project.parent_project_id) {
+    return { success: false, error: 'SharePoint folder is managed by the parent project' };
+  }
+
   const { error } = await db
     .from('project_sharepoint_connections')
     .delete()
@@ -399,24 +399,28 @@ export async function getProjectFiles(projectId: string): Promise<GetFilesResult
     return { success: false, error: 'Authentication required' };
   }
 
-  // Get connection
+  // Resolve effective project for file operations (parent if child project)
+  const resolved = await resolveEffectiveProject(db, projectId);
+  const effectiveProjectId = resolved?.effectiveProjectId || projectId;
+
+  // Get connection (from effective/parent project)
   const { data: connection } = await db
     .from('project_sharepoint_connections')
     .select('*')
-    .eq('project_id', projectId)
+    .eq('project_id', effectiveProjectId)
     .maybeSingle();
 
   // Check if global SharePoint is configured
   const globalConfig = await getGlobalSharePointConfig();
 
-  // Get files
+  // Get files (from effective/parent project to show shared folder contents)
   const { data: files, error: filesError } = await db
     .from('project_files')
     .select(`
       *,
       uploaded_by_profile:profiles!project_files_uploaded_by_fkey(id, email, full_name)
     `)
-    .eq('project_id', projectId)
+    .eq('project_id', effectiveProjectId)
     .order('created_at', { ascending: false });
 
   if (filesError) {
@@ -424,9 +428,9 @@ export async function getProjectFiles(projectId: string): Promise<GetFilesResult
     return { success: false, error: 'Failed to load files' };
   }
 
-  // Get counts by category
+  // Get counts by category (using effective project)
   const { data: countsData } = await db.rpc('get_project_file_counts', {
-    p_project_id: projectId,
+    p_project_id: effectiveProjectId,
   });
 
   const counts: FileCategoryCount[] = countsData || [];
@@ -480,52 +484,53 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
     return { success: false, error: `Authentication failed: ${authError instanceof Error ? authError.message : 'Unknown error'}` };
   }
 
-  // Get Microsoft connection first
-  let msConnection;
-  try {
-    console.log('[uploadFile] === STEP 4: Getting Microsoft connection ===');
-    msConnection = await getMicrosoftConnection(user.id);
-    if (!msConnection) {
-      console.error('[uploadFile] No Microsoft connection for user:', user.id);
-      return { success: false, error: 'Please connect your Microsoft account' };
-    }
-    console.log('[uploadFile] Microsoft connection found');
-  } catch (msError) {
-    console.error('[uploadFile] Microsoft connection error:', msError);
-    return { success: false, error: `Microsoft connection failed: ${msError instanceof Error ? msError.message : 'Unknown error'}` };
-  }
-
-  // Get project details for folder creation
+  // Get project details for folder creation (resolve parent if child project)
   let project: { client_name: string; sales_order_number: string };
+  let effectiveProjectId: string;
   try {
     console.log('[uploadFile] === STEP 5: Getting project ===');
-    const { data: projectData, error: projectError } = await db
-      .from('projects')
-      .select('client_name, sales_order_number')
-      .eq('id', data.projectId)
-      .single();
+    const resolved = await resolveEffectiveProject(db, data.projectId);
 
-    if (projectError || !projectData) {
-      console.error('[uploadFile] Project not found:', projectError);
+    if (!resolved) {
+      console.error('[uploadFile] Project not found');
       return { success: false, error: 'Project not found' };
     }
-    project = projectData;
-    console.log('[uploadFile] Project found:', project.sales_order_number, project.client_name);
+
+    effectiveProjectId = resolved.effectiveProjectId;
+
+    // If child project, fetch parent's details for folder naming
+    if (resolved.project.parent_project_id) {
+      const { data: parentData, error: parentError } = await db
+        .from('projects')
+        .select('client_name, sales_order_number')
+        .eq('id', effectiveProjectId)
+        .single();
+
+      if (parentError || !parentData) {
+        console.error('[uploadFile] Parent project not found:', parentError);
+        return { success: false, error: 'Parent project not found' };
+      }
+      project = parentData;
+      console.log('[uploadFile] Using parent project folder:', project.sales_order_number, project.client_name);
+    } else {
+      project = { client_name: resolved.project.client_name, sales_order_number: resolved.project.sales_order_number };
+      console.log('[uploadFile] Project found:', project.sales_order_number, project.client_name);
+    }
   } catch (projectFetchError) {
     console.error('[uploadFile] Project fetch exception:', projectFetchError);
     return { success: false, error: `Failed to fetch project: ${projectFetchError instanceof Error ? projectFetchError.message : 'Unknown error'}` };
   }
 
   // Ensure project has a SharePoint folder (auto-create if needed)
+  // Uses effectiveProjectId so child projects use parent's folder
   let connection;
   try {
     console.log('[uploadFile] === STEP 6: Ensuring project folder ===');
     const folderResult = await ensureProjectFolder(
-      data.projectId,
+      effectiveProjectId,
       project.sales_order_number,
       project.client_name,
-      user.id,
-      msConnection
+      user.id
     );
 
     if (!folderResult.success || !folderResult.connection) {
@@ -548,7 +553,6 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
     let categoryFolder;
     try {
       categoryFolder = await sharepoint.getItemByPath(
-        msConnection,
         connection.drive_id,
         `${connection.folder_path}/${categoryFolderName}`
       );
@@ -560,8 +564,8 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
     if (!categoryFolder) {
       // Create category folder if it doesn't exist
       console.log('[uploadFile] Creating category folder...');
-      const rootFolder = await sharepoint.getItem(msConnection, connection.drive_id, connection.folder_id);
-      await sharepoint.createFolder(msConnection, connection.drive_id, rootFolder.id, categoryFolderName);
+      const rootFolder = await sharepoint.getItem(connection.drive_id, connection.folder_id);
+      await sharepoint.createFolder(connection.drive_id, rootFolder.id, categoryFolderName);
       console.log('[uploadFile] Category folder created');
     }
 
@@ -578,7 +582,6 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
 
     const blob = new Blob([data.fileContent], { type: data.contentType });
     const uploadResult = await sharepoint.uploadFile(
-      msConnection,
       connection.drive_id,
       targetFolderId,
       data.fileName,
@@ -605,7 +608,7 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
     let thumbnailUrl: string | null = null;
     if (spItem.file?.mimeType?.startsWith('image/') || spItem.file?.mimeType?.startsWith('video/')) {
       try {
-        const thumbnails = await sharepoint.getThumbnails(msConnection, connection.drive_id, spItem.id);
+        const thumbnails = await sharepoint.getThumbnails(connection.drive_id, spItem.id);
         thumbnailUrl = thumbnails?.[0]?.medium?.url || thumbnails?.[0]?.small?.url || null;
         console.log('[uploadFile] Thumbnail URL:', thumbnailUrl ? 'obtained' : 'not available');
       } catch (thumbError) {
@@ -669,15 +672,6 @@ export async function uploadFile(data: UploadFileData): Promise<UploadFileResult
     console.error('[uploadFile] Unexpected error:', error);
     console.error('[uploadFile] Error stack:', error instanceof Error ? error.stack : 'No stack');
 
-    // Check if this is a Microsoft authentication error requiring reconnection
-    if (error instanceof MicrosoftAuthError) {
-      return {
-        success: false,
-        error: error.message,
-        requiresReconnect: error.requiresReconnect,
-      };
-    }
-
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Upload failed',
@@ -698,20 +692,19 @@ export async function syncFilesFromSharePoint(projectId: string): Promise<SyncFi
     return { success: false, error: 'Authentication required' };
   }
 
-  // Get SharePoint connection
+  // Resolve effective project for file operations (parent if child project)
+  const resolved = await resolveEffectiveProject(db, projectId);
+  const effectiveProjectId = resolved?.effectiveProjectId || projectId;
+
+  // Get SharePoint connection (from effective/parent project)
   const { data: connection } = await db
     .from('project_sharepoint_connections')
     .select('*')
-    .eq('project_id', projectId)
+    .eq('project_id', effectiveProjectId)
     .single();
 
   if (!connection) {
     return { success: false, error: 'Project is not connected to SharePoint' };
-  }
-
-  const msConnection = await getMicrosoftConnection(user.id);
-  if (!msConnection) {
-    return { success: false, error: 'Please connect your Microsoft account' };
   }
 
   try {
@@ -723,7 +716,6 @@ export async function syncFilesFromSharePoint(projectId: string): Promise<SyncFi
 
       try {
         const items = await sharepoint.listFolderContentsByPath(
-          msConnection,
           connection.drive_id,
           `${connection.folder_path}/${folderName}`
         );
@@ -743,7 +735,7 @@ export async function syncFilesFromSharePoint(projectId: string): Promise<SyncFi
           let thumbnailUrl: string | null = null;
           if (item.file?.mimeType?.startsWith('image/') || item.file?.mimeType?.startsWith('video/')) {
             try {
-              const thumbnails = await sharepoint.getThumbnails(msConnection, connection.drive_id, item.id);
+              const thumbnails = await sharepoint.getThumbnails(connection.drive_id, item.id);
               thumbnailUrl = thumbnails?.[0]?.medium?.url || thumbnails?.[0]?.small?.url || null;
             } catch {
               // Thumbnails not available
@@ -768,11 +760,11 @@ export async function syncFilesFromSharePoint(projectId: string): Promise<SyncFi
               syncedCount++;
             }
           } else {
-            // Insert new file
+            // Insert new file (use effective project ID for shared folder files)
             await db
               .from('project_files')
               .insert({
-                project_id: projectId,
+                project_id: effectiveProjectId,
                 connection_id: connection.id,
                 file_name: item.name,
                 sharepoint_item_id: item.id,
@@ -866,18 +858,14 @@ export async function deleteFile(fileId: string): Promise<DeleteFileResult> {
   try {
     // Delete from SharePoint if connected and has SharePoint ID
     if (file.sharepoint_item_id && file.connection) {
-      const msConnection = await getMicrosoftConnection(user.id);
-      if (msConnection) {
-        try {
-          await sharepoint.deleteItem(
-            msConnection,
-            file.connection.drive_id,
-            file.sharepoint_item_id
-          );
-        } catch (err) {
-          // File may already be deleted from SharePoint, continue with DB deletion
-          console.log('SharePoint delete error (may already be deleted):', err);
-        }
+      try {
+        await sharepoint.deleteItem(
+          file.connection.drive_id,
+          file.sharepoint_item_id
+        );
+      } catch (err) {
+        // File may already be deleted from SharePoint, continue with DB deletion
+        console.log('SharePoint delete error (may already be deleted):', err);
       }
     }
 
@@ -932,14 +920,8 @@ export async function getDownloadUrl(fileId: string): Promise<{ success: boolean
     return { success: false, error: 'File not found or not connected to SharePoint' };
   }
 
-  const msConnection = await getMicrosoftConnection(user.id);
-  if (!msConnection) {
-    return { success: false, error: 'Please connect your Microsoft account' };
-  }
-
   try {
     const url = await sharepoint.getDownloadUrl(
-      msConnection,
       file.connection.drive_id,
       file.sharepoint_item_id
     );
@@ -994,16 +976,9 @@ export async function createShareLink(
     return { success: false, error: 'File not found or not connected to SharePoint' };
   }
 
-  const msConnection = await getMicrosoftConnection(user.id);
-  console.log('[createShareLink] MS Connection:', msConnection ? 'found' : 'not found');
-  if (!msConnection) {
-    return { success: false, error: 'Please connect your Microsoft account' };
-  }
-
   try {
     console.log('[createShareLink] Calling sharepoint.createShareLink...');
     const result = await sharepoint.createShareLink(
-      msConnection,
       file.connection.drive_id,
       file.sharepoint_item_id,
       { type, scope: 'organization' }
@@ -1053,26 +1028,11 @@ export async function uploadPresalesFile(data: {
     return { success: false, error: 'Authentication required' };
   }
 
-  // For presales, we'll just store metadata now and upload to SharePoint when project is created
-  // Or we could upload to a PreSales folder in SharePoint
-
-  const msConnection = await getMicrosoftConnection(user.id);
-
-  let sharepointItemId: string | null = null;
-  let webUrl: string | null = null;
-  let downloadUrl: string | null = null;
-  let thumbnailUrl: string | null = null;
-
-  // If we have SharePoint connection, upload to PreSales folder
-  if (msConnection) {
-    try {
-      // This would require a configured PreSales site/drive
-      // For now, we'll store locally and sync later
-      // TODO: Implement presales SharePoint folder configuration
-    } catch (error) {
-      console.log('Presales SharePoint upload not configured, storing locally');
-    }
-  }
+  // TODO: Implement presales SharePoint folder upload
+  const sharepointItemId: string | null = null;
+  const webUrl: string | null = null;
+  const downloadUrl: string | null = null;
+  const thumbnailUrl: string | null = null;
 
   const { data: file, error: insertError } = await db
     .from('presales_files')
@@ -1241,4 +1201,153 @@ export async function migratePresalesFilesToProject(
       error: error instanceof Error ? error.message : 'Failed to migrate files',
     };
   }
+}
+
+// ============================================================================
+// Sub-project file migration
+// ============================================================================
+
+/**
+ * Migrate files from a child project to the parent project's SharePoint folder.
+ * Called when an existing project with files is linked as a sub-project.
+ *
+ * Steps:
+ * 1. Get child's SharePoint connection and files
+ * 2. Get/ensure parent's SharePoint connection
+ * 3. Move each file in SharePoint to the parent's category subfolder
+ * 4. Update project_files records to use parent's connection_id
+ * 5. Delete child's SharePoint connection
+ */
+export async function migrateChildFilesToParent(
+  childProjectId: string,
+  parentProjectId: string
+): Promise<{ success: boolean; movedCount: number; error?: string }> {
+  const db = await getTypedClient();
+
+  // Get child's SharePoint connection
+  const { data: childConnection } = await db
+    .from('project_sharepoint_connections')
+    .select('*')
+    .eq('project_id', childProjectId)
+    .maybeSingle();
+
+  // Get child's files
+  const { data: childFiles } = await db
+    .from('project_files')
+    .select('*')
+    .eq('project_id', childProjectId);
+
+  if (!childFiles || childFiles.length === 0) {
+    // No files to move — just clean up the connection if it exists
+    if (childConnection) {
+      await db
+        .from('project_sharepoint_connections')
+        .delete()
+        .eq('project_id', childProjectId);
+    }
+    return { success: true, movedCount: 0 };
+  }
+
+  // Get parent project details for folder naming
+  const { data: parentProject } = await db
+    .from('projects')
+    .select('id, client_name, sales_order_number')
+    .eq('id', parentProjectId)
+    .single();
+
+  if (!parentProject) {
+    return { success: false, movedCount: 0, error: 'Parent project not found' };
+  }
+
+  // Get current user for folder creation
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Ensure parent has a SharePoint folder
+  const parentFolderResult = await ensureProjectFolder(
+    parentProjectId,
+    parentProject.sales_order_number,
+    parentProject.client_name,
+    user?.id || ''
+  );
+
+  if (!parentFolderResult.success || !parentFolderResult.connection) {
+    return {
+      success: false,
+      movedCount: 0,
+      error: 'Could not ensure parent SharePoint folder: ' + (parentFolderResult.error || 'unknown'),
+    };
+  }
+
+  const parentConnection = parentFolderResult.connection;
+  let movedCount = 0;
+
+  // Move each file in SharePoint (if it has a sharepoint_item_id)
+  for (const file of childFiles) {
+    try {
+      if (file.sharepoint_item_id && childConnection) {
+        // Determine the target category folder in the parent
+        const categoryFolderName = sharepoint.getCategoryFolderName(file.category || 'other');
+
+        // Get or create the category subfolder in parent's folder
+        let targetFolderId: string | undefined;
+        try {
+          const categoryFolder = await sharepoint.getItemByPath(
+            parentConnection.drive_id,
+            `${parentConnection.folder_path}/${categoryFolderName}`
+          );
+          targetFolderId = categoryFolder?.id;
+        } catch {
+          // Category folder doesn't exist — create it
+          const folder = await sharepoint.createFolder(
+            parentConnection.drive_id,
+            parentConnection.folder_id,
+            categoryFolderName
+          );
+          targetFolderId = folder.id;
+        }
+
+        if (targetFolderId) {
+          // Move the file in SharePoint
+          await sharepoint.moveItem(
+            childConnection.drive_id,
+            file.sharepoint_item_id,
+            targetFolderId
+          );
+        }
+      }
+
+      // Update the DB record to point to parent's connection
+      await db
+        .from('project_files')
+        .update({ connection_id: parentConnection.id })
+        .eq('id', file.id);
+
+      movedCount++;
+    } catch (error) {
+      console.error(`[migrateChildFilesToParent] Failed to move file ${file.file_name}:`, error);
+      // Continue with other files — don't fail the whole migration
+    }
+  }
+
+  // Clean up child's SharePoint connection
+  if (childConnection) {
+    await db
+      .from('project_sharepoint_connections')
+      .delete()
+      .eq('project_id', childProjectId);
+  }
+
+  const failedCount = childFiles.length - movedCount;
+  console.log(`[migrateChildFilesToParent] Moved ${movedCount}/${childFiles.length} files from ${childProjectId} to ${parentProjectId}`);
+
+  if (failedCount > 0) {
+    return {
+      success: false,
+      movedCount,
+      error: `${failedCount} of ${childFiles.length} file(s) could not be moved. They may need to be moved manually in SharePoint.`,
+    };
+  }
+
+  return { success: true, movedCount };
 }

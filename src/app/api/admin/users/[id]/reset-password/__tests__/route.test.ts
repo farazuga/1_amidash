@@ -8,6 +8,10 @@ vi.mock('@/lib/supabase/server', () => ({
   createServiceClient: vi.fn(),
 }));
 
+vi.mock('@/lib/api/csrf', () => ({
+  validateOrigin: vi.fn().mockReturnValue(null),
+}));
+
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 
 function createMockRequest(body: Record<string, unknown>): NextRequest {
@@ -32,7 +36,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
       },
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({ password: 'newpassword123' });
     const params = createMockParams('user-123');
@@ -56,7 +60,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({ password: 'newpassword123' });
     const params = createMockParams('user-123');
@@ -80,7 +84,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({ password: 'newpassword123' });
     const params = createMockParams('user-123');
@@ -104,7 +108,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({});
     const params = createMockParams('user-123');
@@ -128,7 +132,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({ password: null });
     const params = createMockParams('user-123');
@@ -152,7 +156,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({ password: '' });
     const params = createMockParams('user-123');
@@ -176,7 +180,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({ password: 'short' });
     const params = createMockParams('user-123');
@@ -200,7 +204,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({ password: '1234567' });
     const params = createMockParams('user-123');
@@ -226,7 +230,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     vi.mocked(createServiceClient).mockResolvedValue({
       auth: {
@@ -234,7 +238,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
           updateUserById: mockUpdateUserById,
         },
       },
-    } as unknown as ReturnType<typeof createServiceClient>);
+    } as unknown as Awaited<ReturnType<typeof createServiceClient>>);
 
     const request = createMockRequest({ password: '12345678' });
     const params = createMockParams('user-123');
@@ -262,7 +266,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     vi.mocked(createServiceClient).mockResolvedValue({
       auth: {
@@ -270,7 +274,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
           updateUserById: mockUpdateUserById,
         },
       },
-    } as unknown as ReturnType<typeof createServiceClient>);
+    } as unknown as Awaited<ReturnType<typeof createServiceClient>>);
 
     const longPassword = 'very-secure-password-with-special-chars-123!@#';
     const request = createMockRequest({ password: longPassword });
@@ -298,7 +302,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     vi.mocked(createServiceClient).mockResolvedValue({
       auth: {
@@ -306,7 +310,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
           updateUserById: mockUpdateUserById,
         },
       },
-    } as unknown as ReturnType<typeof createServiceClient>);
+    } as unknown as Awaited<ReturnType<typeof createServiceClient>>);
 
     const request = createMockRequest({ password: 'newpassword123' });
     const params = createMockParams('target-user-789');
@@ -332,7 +336,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     vi.mocked(createServiceClient).mockResolvedValue({
       auth: {
@@ -340,7 +344,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
           updateUserById: mockUpdateUserById,
         },
       },
-    } as unknown as ReturnType<typeof createServiceClient>);
+    } as unknown as Awaited<ReturnType<typeof createServiceClient>>);
 
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -351,7 +355,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
     const data = await response.json();
 
     expect(response.status).toBe(400);
-    expect(data.error).toBe('User not found');
+    expect(data.error).toBe('Password reset failed');
     expect(consoleSpy).toHaveBeenCalledWith(
       'Error resetting password:',
       expect.objectContaining({ message: 'User not found' })
@@ -393,7 +397,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -429,7 +433,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
       from: vi.fn().mockReturnValue({
         select: mockSelect,
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     vi.mocked(createServiceClient).mockResolvedValue({
       auth: {
@@ -437,7 +441,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
           updateUserById: mockUpdateUserById,
         },
       },
-    } as unknown as ReturnType<typeof createServiceClient>);
+    } as unknown as Awaited<ReturnType<typeof createServiceClient>>);
 
     const request = createMockRequest({ password: 'newpassword123' });
     const params = createMockParams('user-123');
@@ -464,7 +468,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     vi.mocked(createServiceClient).mockResolvedValue({
       auth: {
@@ -472,7 +476,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
           updateUserById: mockUpdateUserById,
         },
       },
-    } as unknown as ReturnType<typeof createServiceClient>);
+    } as unknown as Awaited<ReturnType<typeof createServiceClient>>);
 
     // Test with special characters
     const passwordsToTest = [
@@ -515,7 +519,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     vi.mocked(createServiceClient).mockResolvedValue({
       auth: {
@@ -523,7 +527,7 @@ describe('POST /api/admin/users/[id]/reset-password', () => {
           updateUserById: mockUpdateUserById,
         },
       },
-    } as unknown as ReturnType<typeof createServiceClient>);
+    } as unknown as Awaited<ReturnType<typeof createServiceClient>>);
 
     const request = createMockRequest({ password: 'newpassword123' });
     const params = createMockParams('admin-123'); // Same as the requesting admin

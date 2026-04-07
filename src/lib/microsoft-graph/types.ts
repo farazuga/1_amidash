@@ -60,6 +60,39 @@ export interface OutlookCalendarEvent {
   sensitivity?: 'normal' | 'personal' | 'private' | 'confidential';
 }
 
+// Input type for creating/updating events via Graph API
+export interface OutlookEventInput {
+  subject: string;
+  body?: {
+    contentType: 'text' | 'html';
+    content: string;
+  };
+  start: {
+    dateTime: string;
+    timeZone: string;
+  };
+  end: {
+    dateTime: string;
+    timeZone: string;
+  };
+  isAllDay?: boolean;
+  showAs?: 'free' | 'tentative' | 'busy' | 'oof' | 'workingElsewhere' | 'unknown';
+  categories?: string[];
+  sensitivity?: 'normal' | 'personal' | 'private' | 'confidential';
+}
+
+// Read-only event representation (from calendarView)
+export interface OutlookEvent {
+  id: string;
+  subject: string;
+  start: { dateTime: string; timeZone: string };
+  end: { dateTime: string; timeZone: string };
+  isAllDay: boolean;
+  showAs: 'free' | 'tentative' | 'busy' | 'oof' | 'workingElsewhere' | 'unknown';
+  sensitivity: 'normal' | 'personal' | 'private' | 'confidential';
+  isFromOutlook: true;
+}
+
 export interface OutlookEventCreateResponse {
   id: string;
   subject: string;

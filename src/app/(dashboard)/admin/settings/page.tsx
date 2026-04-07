@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Loader2, Mail, MailX, AlertTriangle, Settings, FolderSync, ExternalLink, Unlink, BarChart3, HelpCircle, FolderPlus, CheckCircle2, KeyRound, Archive } from 'lucide-react';
+import { Loader2, Mail, MailX, AlertTriangle, Settings, FolderSync, ExternalLink, Unlink, BarChart3, HelpCircle, FolderPlus, CheckCircle2, KeyRound, Archive, UserCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
@@ -26,7 +26,15 @@ import {
   getInvoicedProjectsWithFoldersCount,
   archiveInvoicedProjects,
 } from './sharepoint-actions';
-import type { SharePointGlobalConfig } from '@/types';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { getApprovalUserId, setApprovalUserId, getApprovalCandidates } from './approval-actions';
+import type { SharePointGlobalConfig, Profile } from '@/types';
 
 interface AppSetting {
   key: string;
@@ -166,6 +174,12 @@ export default function AdminSettingsPage() {
   const [tokenStatusLoading, setTokenStatusLoading] = useState(true);
   const [tokenStatusError, setTokenStatusError] = useState<string | null>(null);
 
+  // Customer approval state
+  const [approvalUserId, setApprovalUserIdState] = useState<string | null>(null);
+  const [approvalCandidates, setApprovalCandidates] = useState<Profile[]>([]);
+  const [approvalLoading, setApprovalLoading] = useState(true);
+  const [isSavingApproval, setIsSavingApproval] = useState(false);
+
   useEffect(() => {
     const fetchSettings = async () => {
       // Fetch all settings at once
@@ -279,6 +293,45 @@ export default function AdminSettingsPage() {
 
     fetchTokenStatus();
   }, []);
+
+  // Fetch customer approval settings
+  useEffect(() => {
+    const fetchApprovalSettings = async () => {
+      setApprovalLoading(true);
+      try {
+        const [userId, candidates] = await Promise.all([
+          getApprovalUserId(),
+          getApprovalCandidates(),
+        ]);
+        setApprovalUserIdState(userId);
+        setApprovalCandidates(candidates);
+      } catch (error) {
+        console.error('Error fetching approval settings:', error);
+      } finally {
+        setApprovalLoading(false);
+      }
+    };
+
+    fetchApprovalSettings();
+  }, []);
+
+  const handleApprovalUserChange = async (value: string) => {
+    const newUserId = value === 'none' ? null : value;
+    setIsSavingApproval(true);
+    try {
+      const result = await setApprovalUserId(newUserId);
+      if (result.success) {
+        setApprovalUserIdState(newUserId);
+        toast.success(newUserId ? 'Approval user updated' : 'Approval user cleared');
+      } else {
+        toast.error(result.error || 'Failed to update approval user');
+      }
+    } catch {
+      toast.error('Failed to update approval user');
+    } finally {
+      setIsSavingApproval(false);
+    }
+  };
 
   const handleCreateMissingFolders = async () => {
     setIsCreatingFolders(true);
@@ -1208,6 +1261,54 @@ WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND pr
           </CardContent>
         </Card>
       </TooltipProvider>
+
+      {/* Customer Approvals */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UserCheck className="h-5 w-5" />
+            Customer Approvals
+          </CardTitle>
+          <CardDescription>
+            Select the user responsible for reviewing customer-uploaded files
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {approvalLoading ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading...
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="approval-user">Approval User</Label>
+              <Select
+                value={approvalUserId || 'none'}
+                onValueChange={handleApprovalUserChange}
+                disabled={isSavingApproval}
+              >
+                <SelectTrigger id="approval-user" className="w-full max-w-sm">
+                  <SelectValue placeholder="Select a user" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {approvalCandidates.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.full_name || user.email} ({user.role})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {isSavingApproval && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Saving...
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* SharePoint Config Dialog */}
       <SharePointConfigDialog

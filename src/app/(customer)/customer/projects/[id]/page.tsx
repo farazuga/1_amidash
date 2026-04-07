@@ -130,158 +130,166 @@ export default async function CustomerProjectDetailPage({
         </Button>
       </Link>
 
-      {/* Main Status Card */}
-      <Card className="border-[#023A2D]/20 overflow-hidden">
-        {/* Colorful header based on status */}
-        <div
-          className="h-1.5"
-          style={{
-            backgroundColor: currentStatus?.name
-              ? statusColors[currentStatus.name]?.accent || '#023A2D'
-              : '#023A2D'
-          }}
-        />
-        <CardContent className="pt-4 pb-4">
-          {/* Project Name Left, Animation Right */}
-          <div className="flex items-center justify-between gap-4 mb-4">
-            {/* Project Info - Left */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl md:text-2xl font-bold text-[#023A2D] truncate">
-                  {project.client_name}
-                </h1>
-                {project.sales_order_number && (
-                  <span className="text-sm text-muted-foreground font-medium">
-                    #{project.sales_order_number}
-                  </span>
-                )}
-              </div>
-              {project.poc_name && (
-                <p className="text-sm text-muted-foreground">
-                  Hi {project.poc_name.split(' ')[0]}! Here&apos;s your project status.
-                </p>
-              )}
-            </div>
-            {/* Animation - Right */}
-            <div className="w-20 h-20 flex-shrink-0">
-              <StatusAnimation statusName={currentStatus?.name || 'PO Received'} />
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="border-t mb-4" />
-
-          {/* Current Status Badge + Message */}
-          <div className="text-center mb-4">
-            <Badge
-              className="text-base px-5 py-1.5 shadow-md border-2 mb-2"
+      {/* Two-column layout */}
+      <div className="md:grid md:grid-cols-2 md:gap-6 items-start space-y-4 md:space-y-0">
+        {/* Left column: Status + Contact */}
+        <div className="space-y-4">
+          {/* Main Status Card */}
+          <Card className="border-[#023A2D]/20 overflow-hidden">
+            {/* Colorful header based on status */}
+            <div
+              className="h-1.5"
               style={{
-                backgroundColor: isOnHold
-                  ? '#FED7AA'
-                  : statusColors[currentStatus?.name || '']?.accent || '#023A2D',
-                color: 'white',
-                borderColor: isOnHold
-                  ? '#F97316'
-                  : statusColors[currentStatus?.name || '']?.accent || '#023A2D',
+                backgroundColor: currentStatus?.name
+                  ? statusColors[currentStatus.name]?.accent || '#023A2D'
+                  : '#023A2D'
               }}
-            >
-              {currentStatus?.name || 'Pending'}
-            </Badge>
-            <p className="text-sm text-muted-foreground italic">
-              {isOnHold
-                ? statusMessages['Hold']
-                : statusMessages[currentStatus?.name || ''] || "We're working on your project!"}
-            </p>
-          </div>
-
-          {/* Progress Bar */}
-          <AnimatedProgressBar
-            currentStatus={currentStatus}
-            statuses={filteredStatuses}
-            isOnHold={isOnHold}
-          />
-        </CardContent>
-      </Card>
-
-      {/* Project Schedule */}
-      {(project.start_date || project.end_date) && (
-        <Card className="border-[#023A2D]/20">
-          <CardHeader className="py-3">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-[#023A2D]" />
-              <h2 className="text-sm font-semibold text-[#023A2D]">
-                Project Schedule
-              </h2>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-0 pb-4">
-            <CustomerSchedule
-              startDate={project.start_date}
-              endDate={project.end_date}
-              projectName={project.client_name}
             />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Contact Information */}
-      <Card className="border-[#023A2D]/20">
-        <CardContent className="py-4">
-          <div className="grid md:grid-cols-2 gap-4">
-            {/* Your Contact Info */}
-            {project.poc_name && (
-              <div>
-                <h3 className="text-xs font-medium text-muted-foreground mb-2">Your Contact Info</h3>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-sm">
-                    <User className="h-3.5 w-3.5 text-[#023A2D]" />
-                    <span className="font-medium">{project.poc_name}</span>
+            <CardContent className="pt-4 pb-4">
+              {/* Project Name Left, Animation Right */}
+              <div className="flex items-center justify-between gap-4 mb-4">
+                {/* Project Info - Left */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-xl md:text-2xl font-bold text-[#023A2D] truncate">
+                      {project.client_name}
+                    </h1>
+                    {project.sales_order_number && (
+                      <span className="text-sm text-muted-foreground font-medium">
+                        #{project.sales_order_number}
+                      </span>
+                    )}
                   </div>
-                  {project.poc_email && (
-                    <div className="flex items-center gap-2 text-sm text-[#023A2D]">
+                  {project.poc_name && (
+                    <p className="text-sm text-muted-foreground">
+                      Hi {project.poc_name.split(' ')[0]}! Here&apos;s your project status.
+                    </p>
+                  )}
+                </div>
+                {/* Animation - Right */}
+                <div className="w-20 h-20 flex-shrink-0">
+                  <StatusAnimation statusName={currentStatus?.name || 'PO Received'} />
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t mb-4" />
+
+              {/* Current Status Badge + Message */}
+              <div className="text-center mb-4">
+                <Badge
+                  className="text-base px-5 py-1.5 shadow-md border-2 mb-2"
+                  style={{
+                    backgroundColor: isOnHold
+                      ? '#FED7AA'
+                      : statusColors[currentStatus?.name || '']?.accent || '#023A2D',
+                    color: 'white',
+                    borderColor: isOnHold
+                      ? '#F97316'
+                      : statusColors[currentStatus?.name || '']?.accent || '#023A2D',
+                  }}
+                >
+                  {currentStatus?.name || 'Pending'}
+                </Badge>
+                <p className="text-sm text-muted-foreground italic">
+                  {isOnHold
+                    ? statusMessages['Hold']
+                    : statusMessages[currentStatus?.name || ''] || "We're working on your project!"}
+                </p>
+              </div>
+
+              {/* Progress Bar */}
+              <AnimatedProgressBar
+                currentStatus={currentStatus}
+                statuses={filteredStatuses}
+                isOnHold={isOnHold}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Contact Information */}
+          <Card className="border-[#023A2D]/20">
+            <CardContent className="py-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                {/* Your Contact Info */}
+                {project.poc_name && (
+                  <div>
+                    <h3 className="text-xs font-medium text-muted-foreground mb-2">Your Contact Info</h3>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-sm">
+                        <User className="h-3.5 w-3.5 text-[#023A2D]" />
+                        <span className="font-medium">{project.poc_name}</span>
+                      </div>
+                      {project.poc_email && (
+                        <div className="flex items-center gap-2 text-sm text-[#023A2D]">
+                          <Mail className="h-3.5 w-3.5" />
+                          <span>{project.poc_email}</span>
+                        </div>
+                      )}
+                      {project.poc_phone && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Phone className="h-3.5 w-3.5" />
+                          <span>{project.poc_phone}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Project Manager */}
+                <div>
+                  <h3 className="text-xs font-medium text-muted-foreground mb-2">Project Manager</h3>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-sm">
+                      <User className="h-3.5 w-3.5 text-[#023A2D]" />
+                      <span className="font-medium">Jason Watson</span>
+                    </div>
+                    <a
+                      href="mailto:jason@amitrace.com"
+                      className="flex items-center gap-2 text-sm text-[#023A2D] hover:underline"
+                    >
                       <Mail className="h-3.5 w-3.5" />
-                      <span>{project.poc_email}</span>
-                    </div>
-                  )}
-                  {project.poc_phone && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      jason@amitrace.com
+                    </a>
+                    <a
+                      href="tel:770-263-9190"
+                      className="flex items-center gap-2 text-sm text-muted-foreground hover:text-[#023A2D]"
+                    >
                       <Phone className="h-3.5 w-3.5" />
-                      <span>{project.poc_phone}</span>
-                    </div>
-                  )}
+                      770-263-9190
+                    </a>
+                  </div>
                 </div>
               </div>
-            )}
+            </CardContent>
+          </Card>
+        </div>
 
-            {/* Project Manager */}
-            <div>
-              <h3 className="text-xs font-medium text-muted-foreground mb-2">Project Manager</h3>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-sm">
-                  <User className="h-3.5 w-3.5 text-[#023A2D]" />
-                  <span className="font-medium">Jason Watson</span>
+        {/* Right column: Schedule */}
+        {(project.start_date || project.end_date) && (
+          <div className="space-y-4">
+            <Card className="border-[#023A2D]/20">
+              <CardHeader className="py-3">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-[#023A2D]" />
+                  <h2 className="text-sm font-semibold text-[#023A2D]">
+                    Project Schedule
+                  </h2>
                 </div>
-                <a
-                  href="mailto:jason@amitrace.com"
-                  className="flex items-center gap-2 text-sm text-[#023A2D] hover:underline"
-                >
-                  <Mail className="h-3.5 w-3.5" />
-                  jason@amitrace.com
-                </a>
-                <a
-                  href="tel:770-263-9190"
-                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-[#023A2D]"
-                >
-                  <Phone className="h-3.5 w-3.5" />
-                  770-263-9190
-                </a>
-              </div>
-            </div>
+              </CardHeader>
+              <CardContent className="pt-0 pb-4">
+                <CustomerSchedule
+                  startDate={project.start_date}
+                  endDate={project.end_date}
+                  projectName={project.client_name}
+                />
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
 
-      {/* Status History */}
+      {/* Status History - full width bottom */}
       <Card className="border-[#023A2D]/20">
         <CardHeader className="py-3">
           <h2 className="text-sm font-semibold text-[#023A2D]">

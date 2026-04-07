@@ -1,5 +1,3 @@
-export const dynamic = 'force-dynamic';
-
 import { LOGO_URL, APP_NAME } from '@/lib/constants';
 import Image from 'next/image';
 

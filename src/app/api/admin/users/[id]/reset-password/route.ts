@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient, createClient } from '@/lib/supabase/server';
+import { validateOrigin } from '@/lib/api/csrf';
 
 // POST - Reset user password (admin only)
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return csrfError;
+
   try {
     const { id: userId } = await params;
 
@@ -47,7 +51,7 @@ export async function POST(
 
     if (resetError) {
       console.error('Error resetting password:', resetError);
-      return NextResponse.json({ error: resetError.message }, { status: 400 });
+      return NextResponse.json({ error: 'Password reset failed' }, { status: 400 });
     }
 
     return NextResponse.json({

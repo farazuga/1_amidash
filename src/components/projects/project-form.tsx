@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Mail, AlertTriangle } from 'lucide-react';
+import { Loader2, Mail, AlertTriangle, MapPin } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { CONTRACT_TYPES } from '@/lib/constants';
@@ -28,20 +28,21 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import type { Project, Tag, Profile, ProjectType } from '@/types';
-import type { ACAccount, ACContact } from '@/types/activecampaign';
+import type { Project, Tag, Profile, ProjectType, DeliveryAddress } from '@/types';
+import type { OdooPartnerResult } from '@/hooks/use-odoo-partners';
 import type { OdooPullResult } from '@/types/odoo';
 import { createProject } from '@/app/(dashboard)/projects/actions';
 import { ClientNameAutocomplete } from './client-name-autocomplete';
 import { OdooPullButton } from './odoo-pull-button';
 import { ContactSelector } from './contact-selector';
 import { SecondaryContactSelector } from './secondary-contact-selector';
-import { useActiveCampaignContacts } from '@/hooks/use-activecampaign';
+import { DeliveryAddressDialog } from './delivery-address-dialog';
 import { ProjectDatePicker } from '@/components/calendar/project-date-picker';
 import {
   calculateGoalDate,
   cleanSalesAmount,
   formatPhoneNumber,
+  validateDraftProjectForm,
   validateProjectForm,
   validateSalesOrderNumber,
 } from '@/lib/projects/utils';
@@ -113,11 +114,9 @@ export function ProjectForm({
     project?.secondary_poc_email || ''
   );
 
-  // Active Campaign integration state
+  // Odoo partner autocomplete state
   const [clientName, setClientName] = useState<string>(project?.client_name || '');
-  const [selectedAccount, setSelectedAccount] = useState<ACAccount | null>(null);
-  const [selectedPrimaryContact, setSelectedPrimaryContact] = useState<ACContact | null>(null);
-  const [selectedSecondaryContact, setSelectedSecondaryContact] = useState<ACContact | null>(null);
+  const [selectedPartner, setSelectedPartner] = useState<OdooPartnerResult | null>(null);
   const [pocName, setPocName] = useState<string>(project?.poc_name || '');
   const [pocEmail, setPocEmail] = useState<string>(project?.poc_email || '');
 
@@ -126,10 +125,9 @@ export function ProjectForm({
   const [odooInvoiceStatus, setOdooInvoiceStatus] = useState<string | null>(null);
   const [projectDescription, setProjectDescription] = useState<string>(project?.project_description || '');
 
-  // Get contacts for selected AC account
-  const { contacts: acContacts, isLoading: acContactsLoading } = useActiveCampaignContacts(
-    selectedAccount?.id || null
-  );
+  // Delivery address state
+  const [deliveryAddress, setDeliveryAddress] = useState<DeliveryAddress | null>(null);
+  const [showDeliveryDialog, setShowDeliveryDialog] = useState(false);
 
   const isEditing = !!project;
 
@@ -272,6 +270,17 @@ export function ProjectForm({
         setNumberOfVidpods(totalVidpods.toString());
       }
     }
+
+    // Delivery address from shipping partner
+    if (data.deliveryAddress) {
+      setDeliveryAddress({
+        street: data.deliveryAddress.street || '',
+        city: data.deliveryAddress.city || '',
+        state: data.deliveryAddress.state || '',
+        zip: data.deliveryAddress.zip || '',
+        country: data.deliveryAddress.country || 'US',
+      });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -328,9 +337,9 @@ export function ProjectForm({
       scope_link: formData.get('scope_link') as string || null,
       number_of_vidpods: numberOfVidpods ? parseInt(numberOfVidpods, 10) : null,
       email_notifications_enabled: emailNotificationsEnabled,
-      activecampaign_account_id: selectedAccount?.id || null,
-      activecampaign_contact_id: selectedPrimaryContact?.id || null,
-      secondary_activecampaign_contact_id: selectedSecondaryContact?.id || null,
+      activecampaign_account_id: null,
+      activecampaign_contact_id: null,
+      secondary_activecampaign_contact_id: null,
       start_date: startDate || null,
       end_date: endDate || null,
       ...(isEditing && { created_date: createdDate }),
@@ -428,6 +437,12 @@ export function ProjectForm({
         toast.success('Project updated successfully');
         router.refresh();
       } else {
+        // Validate delivery address for non-draft creation
+        if (!deliveryAddress) {
+          toast.error('Delivery address is required. Click "Add Address" to enter it.');
+          return;
+        }
+
         // Use server action for creating project (avoids browser Supabase client issues)
         const result = await createProject({
           client_name: data.client_name,
@@ -456,6 +471,12 @@ export function ProjectForm({
           odoo_order_id: odooOrderId,
           odoo_invoice_status: odooInvoiceStatus,
           project_description: projectDescription || null,
+          // Delivery address
+          delivery_street: deliveryAddress?.street || null,
+          delivery_city: deliveryAddress?.city || null,
+          delivery_state: deliveryAddress?.state || null,
+          delivery_zip: deliveryAddress?.zip || null,
+          delivery_country: deliveryAddress?.country || null,
         });
 
         if (!result.success) {
@@ -517,23 +538,33 @@ export function ProjectForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2">
-        {/* Client Name with Active Campaign Autocomplete */}
+        {/* Client Name with Odoo Autocomplete */}
         <ClientNameAutocomplete
           value={clientName}
           onChange={setClientName}
-          onAccountSelect={setSelectedAccount}
-          onContactFromEmail={(contact) => {
-            // Auto-fill POC fields from email contact search
-            const fullName = `${contact.firstName || ''} ${contact.lastName || ''}`.trim();
-            if (fullName) setPocName(fullName);
-            if (contact.email) setPocEmail(contact.email);
-            if (contact.phone) {
-              // Strip +1 and format phone
-              const cleanPhone = contact.phone.replace(/^\+1\s*/, '').replace(/^1(?=\d{10})/, '');
-              setPocPhone(formatPhoneNumber(cleanPhone));
+          onPartnerSelect={(partner) => {
+            setSelectedPartner(partner);
+            // Auto-fill delivery address from selected partner's address
+            if (partner?.address) {
+              setDeliveryAddress({
+                street: partner.address.street || '',
+                city: partner.address.city || '',
+                state: partner.address.state || '',
+                zip: partner.address.zip || '',
+                country: partner.address.country || 'US',
+              });
+            }
+            // Auto-fill POC fields from selected contact
+            if (partner && !partner.isCompany) {
+              if (partner.name) setPocName(partner.name);
+              if (partner.email) setPocEmail(partner.email);
+              if (partner.phone) {
+                const cleanPhone = partner.phone.replace(/^\+1\s*/, '').replace(/^1(?=\d{10})/, '');
+                setPocPhone(formatPhoneNumber(cleanPhone));
+              }
             }
           }}
-          selectedAccount={selectedAccount}
+          selectedPartner={selectedPartner}
           defaultValue={project?.client_name}
         />
 
@@ -804,29 +835,45 @@ export function ProjectForm({
         </div>
       )}
 
-      {/* Primary Point of Contact with AC Integration */}
+      {/* Delivery Address - only for new projects */}
+      {!isEditing && (
+        <div className="border-t pt-4">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="text-sm font-medium">Delivery Address</h3>
+              <p className="text-xs text-muted-foreground">Required for project creation. Not needed for drafts.</p>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={() => setShowDeliveryDialog(true)}>
+              <MapPin className="mr-2 h-4 w-4" />
+              {deliveryAddress ? 'Edit Address' : 'Add Address'}
+            </Button>
+          </div>
+          {deliveryAddress && (
+            <div className="rounded-md border p-3 text-sm text-muted-foreground">
+              {deliveryAddress.street}, {deliveryAddress.city}, {deliveryAddress.state} {deliveryAddress.zip}
+              {deliveryAddress.country !== 'US' && `, ${deliveryAddress.country}`}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Primary Point of Contact */}
       <ContactSelector
-        accountId={selectedAccount?.id || null}
-        accountName={selectedAccount?.name || clientName}
         pocName={pocName}
         pocEmail={pocEmail}
         pocPhone={pocPhone}
         onPocNameChange={setPocName}
         onPocEmailChange={setPocEmail}
         onPocPhoneChange={setPocPhone}
-        onContactSelect={setSelectedPrimaryContact}
         defaultPocName={project?.poc_name || ''}
         defaultPocEmail={project?.poc_email || ''}
         defaultPocPhone={project?.poc_phone || ''}
       />
 
-      {/* Secondary Contact with AC Integration */}
+      {/* Secondary Contact */}
       <SecondaryContactSelector
-        contacts={acContacts}
-        isLoading={acContactsLoading}
         email={secondaryPocEmail}
         onEmailChange={setSecondaryPocEmail}
-        onContactSelect={setSelectedSecondaryContact}
         defaultEmail={project?.secondary_poc_email || ''}
       />
 
@@ -879,11 +926,83 @@ export function ProjectForm({
         <Button type="button" variant="outline" onClick={() => router.back()}>
           Cancel
         </Button>
+        {!isEditing && (
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={isPending}
+            onClick={async () => {
+              // Minimal validation for drafts
+              const draftValidation = validateDraftProjectForm({ clientName });
+              if (!draftValidation.valid) {
+                toast.error(draftValidation.error);
+                return;
+              }
+              setIsPending(true);
+              try {
+                const result = await createProject({
+                  client_name: clientName,
+                  sales_order_number: salesOrderNumber?.trim() || null,
+                  sales_order_url: null,
+                  po_number: null,
+                  sales_amount: salesAmount ? parseFloat(cleanSalesAmount(salesAmount) || '0') : null,
+                  contract_type: 'None',
+                  goal_completion_date: goalCompletionDate || null,
+                  salesperson_id: selectedSalesperson || '',
+                  poc_name: pocName || null,
+                  poc_email: pocEmail || null,
+                  poc_phone: pocPhone || null,
+                  secondary_poc_email: secondaryPocEmail?.trim() || null,
+                  scope_link: null,
+                  number_of_vidpods: numberOfVidpods ? parseInt(numberOfVidpods, 10) : null,
+                  project_type_id: selectedProjectType || '',
+                  tags: selectedTags,
+                  email_notifications_enabled: false,
+                  activecampaign_account_id: null,
+                  activecampaign_contact_id: null,
+                  secondary_activecampaign_contact_id: null,
+                  start_date: null,
+                  end_date: null,
+                  is_draft: true,
+                  delivery_street: deliveryAddress?.street || null,
+                  delivery_city: deliveryAddress?.city || null,
+                  delivery_state: deliveryAddress?.state || null,
+                  delivery_zip: deliveryAddress?.zip || null,
+                  delivery_country: deliveryAddress?.country || null,
+                });
+                if (!result.success) {
+                  toast.error(result.error || 'Failed to save draft');
+                  return;
+                }
+                toast.success('Draft saved successfully');
+                router.push(`/projects/${result.salesOrderNumber}`);
+              } catch (err) {
+                console.error('Draft save error:', err);
+                toast.error('Failed to save draft');
+              } finally {
+                setIsPending(false);
+              }
+            }}
+          >
+            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Save as Draft
+          </Button>
+        )}
         <Button type="submit" disabled={isPending}>
           {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {isEditing ? 'Save Changes' : 'Create Project'}
         </Button>
       </div>
+
+      <DeliveryAddressDialog
+        address={deliveryAddress}
+        onSave={(addr) => {
+          setDeliveryAddress(addr);
+          setShowDeliveryDialog(false);
+        }}
+        open={showDeliveryDialog}
+        onOpenChange={setShowDeliveryDialog}
+      />
 
       {/* Project Type Change Warning Dialog */}
       <AlertDialog open={showTypeChangeWarning} onOpenChange={setShowTypeChangeWarning}>

@@ -10,6 +10,10 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
 }));
 
+vi.mock('@/lib/api/csrf', () => ({
+  validateOrigin: vi.fn().mockReturnValue(null),
+}));
+
 vi.mock('@anthropic-ai/sdk', () => {
   class APIError extends Error {
     status: number;
@@ -60,6 +64,7 @@ describe('POST /api/odoo/summarize', () => {
   beforeEach(() => {
     mockMessagesCreate.mockClear();
     (createClient as ReturnType<typeof vi.fn>).mockReset();
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
   });
 
   it('returns 401 when user is not authenticated', async () => {

@@ -51,11 +51,12 @@ export interface Status {
   created_at: string | null;
 }
 
-export type PortalBlockType = 'current_status' | 'poc_info' | 'status_history' | 'customer_schedule' | 'custom_html';
+export type PortalBlockType = 'current_status' | 'poc_info' | 'status_history' | 'customer_schedule' | 'custom_html' | 'file_upload' | 'delivery_address_confirmation';
 
 export interface PortalBlockConfig {
   content?: string;
   title?: string;
+  files?: Array<{ label: string; description: string }>;
 }
 
 export interface PortalBlock {
@@ -72,6 +73,92 @@ export interface PortalTemplate {
   is_default: boolean;
   created_at: string | null;
   updated_at: string | null;
+}
+
+// Email template overrides per portal template
+export interface PortalEmailTemplate {
+  id: string;
+  portal_template_id: string;
+  primary_color: string;
+  logo_url: string;
+  footer_text: string;
+  button_color: string;
+  button_text_color: string;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface EmailStyleOverrides {
+  primaryColor: string;
+  logoUrl: string;
+  footerText: string;
+  buttonColor: string;
+  buttonTextColor: string;
+}
+
+// File upload tracking
+export type FileUploadStatus = 'pending' | 'uploaded' | 'approved' | 'rejected';
+
+export interface PortalFileUpload {
+  id: string;
+  project_id: string;
+  block_id: string;
+  file_label: string;
+  file_description: string | null;
+  slot_index: number;
+  original_filename: string | null;
+  stored_filename: string | null;
+  file_size_bytes: number | null;
+  mime_type: string | null;
+  sharepoint_item_id: string | null;
+  sharepoint_web_url: string | null;
+  upload_status: FileUploadStatus;
+  rejection_note: string | null;
+  uploaded_at: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
+// Customer approval tasks
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
+
+export interface CustomerApprovalTask {
+  id: string;
+  file_upload_id: string;
+  assigned_to: string;
+  status: ApprovalStatus;
+  note: string | null;
+  created_at: string;
+  completed_at: string | null;
+  // Joined relations
+  file_upload?: PortalFileUpload;
+  assigned_to_profile?: Profile;
+  project?: Project;
+}
+
+// Delivery address confirmation
+export interface DeliveryAddressConfirmation {
+  id: string;
+  project_id: string;
+  confirmed_by_email: string;
+  confirmed_at: string;
+  address_snapshot: {
+    street: string;
+    city: string;
+    state: string;
+    zip: string;
+    country: string;
+  };
+}
+
+// Delivery address on project
+export interface DeliveryAddress {
+  street: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
 }
 
 export interface ProjectType {
@@ -136,12 +223,23 @@ export interface Project {
   odoo_invoice_status: string | null;
   odoo_last_synced_at: string | null;
   project_description: string | null;
+  // Draft & Delivery
+  is_draft: boolean;
+  delivery_street: string | null;
+  delivery_city: string | null;
+  delivery_state: string | null;
+  delivery_zip: string | null;
+  delivery_country: string | null;
+  // Parent-child relationships
+  parent_project_id: string | null;
   // Joined relations
   current_status?: Status | null;
   project_type?: ProjectType | null;
   tags?: Tag[] | { tag: Tag }[];
   created_by_profile?: Profile | null;
   salesperson?: Profile | null;
+  parent_project?: { id: string; client_name: string; sales_order_number: string | null } | null;
+  children_count?: number;
 }
 
 export interface ProjectTag {

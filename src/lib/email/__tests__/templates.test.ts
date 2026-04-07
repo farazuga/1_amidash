@@ -88,7 +88,7 @@ describe('statusChangeEmail', () => {
       portalUrl: 'https://app.example.com/status/token123',
     });
 
-    expect(html).toContain('https://www.amitrace.com/Logo_TwoTone.png');
+    expect(html).toContain('https://dash.amitrace.com/new_logo.png');
   });
 
   it('includes support contact info', () => {
@@ -98,7 +98,7 @@ describe('statusChangeEmail', () => {
       portalUrl: 'https://app.example.com/status/token123',
     });
 
-    expect(html).toContain('support@amitrace.com');
+    expect(html).toContain('jason@amitrace.com');
   });
 });
 

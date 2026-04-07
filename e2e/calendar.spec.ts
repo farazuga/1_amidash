@@ -74,7 +74,7 @@ test.describe('Calendar', () => {
       await authHelpers.login('admin@example.com', 'password123');
 
       // Navigate to a project calendar (replace with actual project ID)
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Check for project calendar elements
@@ -85,7 +85,7 @@ test.describe('Calendar', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Check for team members sidebar
@@ -98,7 +98,7 @@ test.describe('Calendar', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
 
       // Open assignment dialog
       await page.getByRole('button', { name: /add assignment/i }).click();
@@ -118,7 +118,7 @@ test.describe('Calendar', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
 
       // Find a draggable user avatar
       const userAvatar = page.locator('[data-testid="draggable-user"]').first();
@@ -137,7 +137,7 @@ test.describe('Calendar', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
 
       // Click on existing assignment
       await page.getByTestId('assignment-card').first().click();
@@ -158,7 +158,7 @@ test.describe('Calendar', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
 
       // Click on assignment
       await page.getByTestId('assignment-card').first().click();
@@ -180,7 +180,7 @@ test.describe('Calendar', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
 
       // Click on assignment to open details
       await page.getByTestId('assignment-card').first().click();
@@ -195,7 +195,7 @@ test.describe('Calendar', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
 
       // Click on assignment
       await page.getByTestId('assignment-card').first().click();
@@ -217,7 +217,7 @@ test.describe('Calendar', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
 
       // Click on assignment
       await page.getByTestId('assignment-card').first().click();
@@ -235,7 +235,7 @@ test.describe('Calendar', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
 
       // Try to assign user already assigned to another project
       await page.getByRole('button', { name: /add assignment/i }).click();
@@ -251,7 +251,7 @@ test.describe('Calendar', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
 
       // Trigger conflict scenario
       await page.getByRole('button', { name: /add assignment/i }).click();
@@ -374,7 +374,7 @@ test.describe('Calendar', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
 
       // Enable multi-select mode
       await page.getByRole('button', { name: /select dates/i }).click();
@@ -392,7 +392,7 @@ test.describe('Calendar', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
 
       // Select dates
       await page.getByRole('button', { name: /select dates/i }).click();
@@ -418,7 +418,7 @@ test.describe('Calendar', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
 
       // Select dates
       await page.getByRole('button', { name: /select dates/i }).click();
@@ -442,7 +442,7 @@ test.describe('Calendar', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('viewer@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
 
       // Add assignment button should not exist or be disabled
       const addButton = page.getByRole('button', { name: /add assignment/i });
@@ -453,7 +453,7 @@ test.describe('Calendar', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('editor@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
 
       // Add assignment button should not exist or be disabled
       const addButton = page.getByRole('button', { name: /add assignment/i });
@@ -464,7 +464,7 @@ test.describe('Calendar', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
 
       // Add assignment button should be visible and enabled
       const addButton = page.getByRole('button', { name: /add assignment/i });
@@ -511,11 +511,11 @@ test.describe('Calendar', () => {
   });
 
   test.describe('Status Cycle', () => {
-    test.skip('should cycle through 3 statuses: draft -> tentative -> confirmed -> draft', async ({ page }) => {
+    test.skip('should cycle through 3 statuses: draft -> pending -> confirmed -> draft', async ({ page }) => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Find an assignment card with draft status
@@ -524,13 +524,13 @@ test.describe('Calendar', () => {
       // Click to cycle status (assuming click cycles status)
       await assignmentCard.click();
 
-      // Status should cycle: draft -> tentative -> confirmed -> draft
+      // Status should cycle: draft -> pending -> confirmed -> draft
       // Verify status doesn't include 'complete'
       const statusBadge = page.getByTestId('booking-status-badge').first();
       const statusText = await statusBadge.textContent();
 
-      // Status should be one of: Draft, Tentative, Confirmed (not Complete)
-      expect(['Draft', 'Tentative', 'Confirmed']).toContain(statusText);
+      // Status should be one of: Draft, Pending, Confirmed (not Complete)
+      expect(['Draft', 'Pending', 'Confirmed']).toContain(statusText);
     });
   });
 
@@ -539,7 +539,7 @@ test.describe('Calendar', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Click on a status in the status summary bar
@@ -554,7 +554,7 @@ test.describe('Calendar', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Click on confirmed status
@@ -573,7 +573,7 @@ test.describe('Calendar', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Switch to list view
@@ -593,7 +593,7 @@ test.describe('Calendar', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Open manage schedule dialog
@@ -621,7 +621,7 @@ test.describe('Calendar', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Find an existing assignment card
@@ -643,7 +643,7 @@ test.describe('Calendar', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Open time editor popover
@@ -658,7 +658,7 @@ test.describe('Calendar', () => {
       const authHelpers = new AuthHelpers(page);
       await authHelpers.login('admin@example.com', 'password123');
 
-      await page.goto('/projects/test-project-id/calendar');
+      await page.goto('/calendar?project=test-project-id');
       await page.waitForLoadState('networkidle');
 
       // Open time editor

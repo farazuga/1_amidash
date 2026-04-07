@@ -1,43 +1,38 @@
 import { createClient } from '@supabase/supabase-js';
-import { createServiceClient } from '@/lib/supabase/server';
+import { authenticateMobileRequest } from '@/lib/mobile/auth';
+import { internalError } from '@/lib/api/error-response';
 
 /**
  * Mobile API endpoint to list projects the user can upload files to
  *
  * Authentication: Bearer token (Supabase JWT) in Authorization header
+ * Authorization: Staff only (admin/editor/viewer) — customers use portal
  *
  * Response:
  * - projects: Array of projects with id, sales_order, client_name, status
  */
 export async function GET(request: Request) {
   try {
-    // 1. Extract and verify Bearer token
-    const authHeader = request.headers.get('Authorization');
-    const token = authHeader?.replace('Bearer ', '');
+    // 1. Authenticate and authorize (staff only)
+    const authResult = await authenticateMobileRequest(request);
+    if (authResult instanceof Response) return authResult;
+    const { user } = authResult;
 
-    if (!token) {
-      return Response.json({ error: 'Authentication required' }, { status: 401 });
-    }
-
+    // 2. Get projects using user-scoped client (respects RLS)
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { global: { headers: { Authorization: `Bearer ${request.headers.get('Authorization')?.match(/^Bearer\s+(.+)$/)?.[1]}` } } }
     );
 
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    // Set the user's auth context
+    await supabase.auth.getUser(request.headers.get('Authorization')?.match(/^Bearer\s+(.+)$/)?.[1]);
 
-    if (error || !user) {
-      return Response.json({ error: 'Authentication required' }, { status: 401 });
-    }
-
-    // 2. Get projects
-    // Using service client to ensure we can read all projects
-    const serviceClient = await createServiceClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: projects, error: projectsError } = await (serviceClient as any)
+    const { data: projects, error: projectsError } = await (supabase as any)
       .from('projects')
-      .select('id, sales_order, client_name, status, phase')
-      .in('phase', ['sold', 'active', 'on_hold']) // Only show projects that are in progress
+      .select('id, sales_order_number, client_name, current_status_id, is_draft')
+      .eq('is_draft', false)
       .order('created_at', { ascending: false });
 
     if (projectsError) {
@@ -49,10 +44,6 @@ export async function GET(request: Request) {
       projects: projects || [],
     });
   } catch (error) {
-    console.error('[Mobile Projects] Error:', error);
-    return Response.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch projects' },
-      { status: 500 }
-    );
+    return internalError('Mobile Projects', error);
   }
 }

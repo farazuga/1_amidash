@@ -11,6 +11,7 @@ interface SearchParams {
   statuses?: string; // comma-separated status IDs
   contract_type?: string;
   overdue?: string;
+  show_drafts?: string;
   sort_by?: string;
   sort_order?: string;
   view?: 'active' | 'archived' | 'all';
@@ -118,6 +119,14 @@ async function getProjects(searchParams: SearchParams, invoicedStatusId: string 
       )
     `);
 
+  // Hide drafts by default unless show_drafts filter is on
+  // Note: is_draft column added by migration 050
+  let filterDrafts = false;
+  if (searchParams.show_drafts !== 'true') {
+    filterDrafts = true;
+    query = query.eq('is_draft' as any, false);
+  }
+
   // Apply active/archived/all filter (default to active)
   const view = searchParams.view || 'active';
   if (invoicedStatusId && view !== 'all') {
@@ -131,13 +140,14 @@ async function getProjects(searchParams: SearchParams, invoicedStatusId: string 
     // view === 'all' - no filter, show everything
   }
 
-  // Apply search
+  // Apply search (escape PostgREST special characters to prevent filter injection)
   if (searchParams.search) {
+    const escaped = searchParams.search.replace(/[.,%()*\\]/g, (c) => `\\${c}`);
     query = query.or(
-      `client_name.ilike.%${searchParams.search}%,` +
-      `sales_order_number.ilike.%${searchParams.search}%,` +
-      `po_number.ilike.%${searchParams.search}%,` +
-      `poc_name.ilike.%${searchParams.search}%`
+      `client_name.ilike.%${escaped}%,` +
+      `sales_order_number.ilike.%${escaped}%,` +
+      `po_number.ilike.%${escaped}%,` +
+      `poc_name.ilike.%${escaped}%`
     );
   }
 
@@ -206,7 +216,47 @@ async function getProjects(searchParams: SearchParams, invoicedStatusId: string 
     query = query.order(sortBy, { ascending: sortOrder });
   }
 
-  const { data: projects, error } = await query;
+  let { data: projects, error } = await query;
+
+  // If query failed due to is_draft column not existing (migration 050 not yet applied),
+  // retry without that filter so existing projects still display
+  if (error && filterDrafts) {
+    console.warn('Projects query failed (is_draft column may not exist yet), retrying without draft filter:', error.message);
+    let retryQuery = supabase
+      .from('projects')
+      .select(`
+        *,
+        current_status:statuses(*),
+        tags:project_tags(tag:tags(*)),
+        salesperson:profiles!projects_salesperson_id_fkey(id, full_name, email),
+        assignments:project_assignments(
+          id,
+          user:profiles!project_assignments_user_id_fkey(id, full_name)
+        )
+      `);
+
+    // Re-apply non-draft filters
+    const view = searchParams.view || 'active';
+    if (invoicedStatusId && view !== 'all') {
+      if (view === 'active') {
+        retryQuery = retryQuery.neq('current_status_id', invoicedStatusId);
+      } else if (view === 'archived') {
+        retryQuery = retryQuery.eq('current_status_id', invoicedStatusId);
+      }
+    }
+
+    const sortBy = searchParams.sort_by || 'created_date';
+    const sortOrder = searchParams.sort_order === 'asc' ? true : false;
+    if (sortBy === 'status') {
+      retryQuery = retryQuery.order('current_status(display_order)', { ascending: sortOrder });
+    } else {
+      retryQuery = retryQuery.order(sortBy, { ascending: sortOrder });
+    }
+
+    const retryResult = await retryQuery;
+    projects = retryResult.data;
+    error = retryResult.error;
+  }
 
   if (error) {
     console.error('Error fetching projects:', error);

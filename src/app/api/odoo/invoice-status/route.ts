@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getOdooClient, isOdooConfigured } from '@/lib/odoo';
 import { getInvoiceStatus } from '@/lib/odoo/queries';
+import { internalError } from '@/lib/api/error-response';
 
 export async function GET(request: NextRequest) {
   try {
@@ -58,15 +59,6 @@ export async function GET(request: NextRequest) {
       syncedAt: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Odoo invoice status error:', error);
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Failed to fetch invoice status from Odoo',
-      },
-      { status: 500 }
-    );
+    return internalError('Odoo Invoice', error);
   }
 }

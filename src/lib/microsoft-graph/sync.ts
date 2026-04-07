@@ -1,22 +1,27 @@
 /**
  * Sync logic for pushing assignments to Outlook Calendar
+ * Uses app-level client credentials (no per-user OAuth tokens)
+ * Creates per-day events on a dedicated "AmiDash" calendar for each engineer
  */
 
 import { createServiceClient } from '@/lib/supabase/server';
 import {
+  createCalendarForUser,
+  getCalendarForUser,
   createCalendarEvent,
   updateCalendarEvent,
   deleteCalendarEvent,
-  buildEventFromAssignment,
+  buildCalendarEvent,
 } from './client';
-import type { CalendarConnection, SyncResult, AssignmentForSync } from './types';
+import type { SyncResult } from './types';
 import { SYNCABLE_STATUSES } from './types';
 
 // Constants for slot reservation (race condition prevention)
 const PENDING_SLOT_MARKER = '__pending__';
-const PENDING_SLOT_TIMEOUT_MS = 30000; // 30 seconds - slots older than this are considered stale
+const PENDING_SLOT_TIMEOUT_MS = 30000; // 30 seconds
 const MAX_SLOT_RETRIES = 3;
 const INITIAL_RETRY_DELAY_MS = 1000;
+const CONCURRENCY_LIMIT = 5;
 
 /**
  * Get the base URL for the app
@@ -40,36 +45,27 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// ============================================
+// Database helpers
+// ============================================
+
 /**
- * Get all active calendar connections for a user
- * Includes explicit user validation as security safeguard
+ * Get the engineer's Outlook email from the profiles table
  */
-export async function getActiveConnections(userId: string): Promise<CalendarConnection[]> {
+async function getEngineerEmail(userId: string): Promise<string | null> {
   const supabase = await createServiceClient();
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('email')
+    .eq('id', userId)
+    .single();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
-    .from('calendar_connections')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('provider', 'microsoft');
-
-  if (error) {
-    console.error('Failed to fetch calendar connections:', error);
-    return [];
+  if (error || !data) {
+    console.error('Failed to get engineer email:', error);
+    return null;
   }
 
-  const connections = data || [];
-
-  // Security validation: Ensure all returned connections belong to the expected user
-  // This is a safeguard since we use service client which bypasses RLS
-  const validConnections = connections.filter((conn: CalendarConnection) => conn.user_id === userId);
-
-  if (validConnections.length !== connections.length) {
-    console.error('Security: Calendar connection user_id mismatch detected - filtered out invalid connections');
-  }
-
-  return validConnections;
+  return data.email;
 }
 
 /**
@@ -77,7 +73,8 @@ export async function getActiveConnections(userId: string): Promise<CalendarConn
  */
 async function getSyncedEvent(
   assignmentId: string,
-  connectionId: string
+  userId: string,
+  workDate: string
 ): Promise<{ id: string; external_event_id: string; last_synced_at: string } | null> {
   const supabase = await createServiceClient();
 
@@ -86,7 +83,8 @@ async function getSyncedEvent(
     .from('synced_calendar_events')
     .select('id, external_event_id, last_synced_at')
     .eq('assignment_id', assignmentId)
-    .eq('connection_id', connectionId)
+    .eq('user_id', userId)
+    .eq('work_date', workDate)
     .single();
 
   if (error || !data) {
@@ -101,7 +99,8 @@ async function getSyncedEvent(
  */
 async function storeSyncedEvent(
   assignmentId: string,
-  connectionId: string,
+  userId: string,
+  workDate: string,
   externalEventId: string
 ): Promise<void> {
   const supabase = await createServiceClient();
@@ -110,13 +109,14 @@ async function storeSyncedEvent(
   const { error } = await (supabase as any).from('synced_calendar_events').upsert(
     {
       assignment_id: assignmentId,
-      connection_id: connectionId,
+      user_id: userId,
+      work_date: workDate,
       external_event_id: externalEventId,
       last_synced_at: new Date().toISOString(),
       sync_error: null,
     },
     {
-      onConflict: 'assignment_id,connection_id',
+      onConflict: 'assignment_id,user_id,work_date',
     }
   );
 
@@ -127,30 +127,29 @@ async function storeSyncedEvent(
 
 /**
  * Update sync error for an event
- * Preserves existing external_event_id if one exists to allow cleanup of orphaned events
  */
 async function updateSyncError(
   assignmentId: string,
-  connectionId: string,
-  error: string
+  userId: string,
+  workDate: string,
+  errorMsg: string
 ): Promise<void> {
   const supabase = await createServiceClient();
 
-  // First check if we have an existing record with an external_event_id
-  const existing = await getSyncedEvent(assignmentId, connectionId);
+  const existing = await getSyncedEvent(assignmentId, userId, workDate);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (supabase as any).from('synced_calendar_events').upsert(
     {
       assignment_id: assignmentId,
-      connection_id: connectionId,
-      // Preserve existing external_event_id if present, otherwise use empty string
+      user_id: userId,
+      work_date: workDate,
       external_event_id: existing?.external_event_id || '',
       last_synced_at: new Date().toISOString(),
-      sync_error: error,
+      sync_error: errorMsg,
     },
     {
-      onConflict: 'assignment_id,connection_id',
+      onConflict: 'assignment_id,user_id,work_date',
     }
   );
 }
@@ -160,7 +159,8 @@ async function updateSyncError(
  */
 async function deleteSyncedEvent(
   assignmentId: string,
-  connectionId: string
+  userId: string,
+  workDate: string
 ): Promise<void> {
   const supabase = await createServiceClient();
 
@@ -169,162 +169,389 @@ async function deleteSyncedEvent(
     .from('synced_calendar_events')
     .delete()
     .eq('assignment_id', assignmentId)
-    .eq('connection_id', connectionId);
+    .eq('user_id', userId)
+    .eq('work_date', workDate);
 }
 
+// ============================================
+// Slot reservation (race condition prevention)
+// ============================================
+
 /**
- * Reserve a sync slot to prevent race conditions
- * Handles stale slots (pending for > 30 seconds) by cleaning them up
- * Returns the existing external_event_id if slot was already taken, null if we created it
+ * Reserve a sync slot to prevent race conditions.
+ * Handles stale slots (pending for > 30 seconds) by cleaning them up.
  */
 async function reserveSyncSlot(
   assignmentId: string,
-  connectionId: string
+  userId: string,
+  workDate: string
 ): Promise<{ isNew: boolean; existingEventId: string | null; isPending: boolean }> {
   const supabase = await createServiceClient();
 
-  // First, check if there's an existing record
-  const existing = await getSyncedEvent(assignmentId, connectionId);
+  const existing = await getSyncedEvent(assignmentId, userId, workDate);
 
   if (existing) {
-    // If it's a completed slot (has real event ID), return it
     if (existing.external_event_id && existing.external_event_id !== PENDING_SLOT_MARKER) {
       return { isNew: false, existingEventId: existing.external_event_id, isPending: false };
     }
 
-    // If it's a pending slot, check if it's stale
     if (existing.external_event_id === PENDING_SLOT_MARKER) {
       if (isSlotStale(existing.last_synced_at)) {
-        // Stale pending slot - delete it and try to reserve
-        console.log('Cleaning up stale pending slot for assignment:', assignmentId);
-        await deleteSyncedEvent(assignmentId, connectionId);
-        // Fall through to try inserting a new slot
+        console.log('Cleaning up stale pending slot for assignment:', assignmentId, 'date:', workDate);
+        await deleteSyncedEvent(assignmentId, userId, workDate);
       } else {
-        // Active pending slot - another process is working on it
         return { isNew: false, existingEventId: null, isPending: true };
       }
     }
   }
 
-  // Try to insert a placeholder record - if it conflicts, someone else just took the slot
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: insertError } = await (supabase as any)
     .from('synced_calendar_events')
     .insert({
       assignment_id: assignmentId,
-      connection_id: connectionId,
+      user_id: userId,
+      work_date: workDate,
       external_event_id: PENDING_SLOT_MARKER,
       last_synced_at: new Date().toISOString(),
       sync_error: null,
     });
 
   if (!insertError) {
-    // We successfully reserved the slot
     return { isNew: true, existingEventId: null, isPending: false };
   }
 
-  // Insert failed due to race condition - re-check the existing record
-  const recheckExisting = await getSyncedEvent(assignmentId, connectionId);
+  // Insert failed due to race condition - re-check
+  const recheckExisting = await getSyncedEvent(assignmentId, userId, workDate);
   if (recheckExisting?.external_event_id && recheckExisting.external_event_id !== PENDING_SLOT_MARKER) {
     return { isNew: false, existingEventId: recheckExisting.external_event_id, isPending: false };
   }
 
-  // Another process just reserved it
   return { isNew: false, existingEventId: null, isPending: true };
 }
 
+// ============================================
+// Calendar management
+// ============================================
+
 /**
- * Sync a single assignment to Outlook
- * Uses slot reservation with retry loop to prevent race conditions and duplicate events
- *
- * @param assignment - The assignment data to sync
- * @param connection - The user's calendar connection
- * @returns SyncResult with success status and event ID or error
+ * Ensure the engineer has an "AmiDash" calendar in Outlook.
+ * - Checks engineer_outlook_calendars table for existing record
+ * - Verifies the calendar still exists in Outlook via Graph API
+ * - Creates a new one if missing or deleted
+ * Returns the Outlook calendar ID.
  */
-export async function syncAssignmentToOutlook(
-  assignment: AssignmentForSync,
-  connection: CalendarConnection
-): Promise<SyncResult> {
+export async function ensureAmiDashCalendar(
+  userId: string,
+  email: string
+): Promise<string> {
+  const supabase = await createServiceClient();
+
+  // Check DB for existing calendar record
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: existing } = await (supabase as any)
+    .from('engineer_outlook_calendars')
+    .select('id, outlook_calendar_id, outlook_email')
+    .eq('user_id', userId)
+    .single();
+
+  if (existing?.outlook_calendar_id) {
+    // Verify the calendar still exists in Outlook
+    const cal = await getCalendarForUser(email, existing.outlook_calendar_id);
+    if (cal) {
+      return existing.outlook_calendar_id;
+    }
+    // Calendar was deleted in Outlook - remove stale DB record
+    console.log('AmiDash calendar deleted from Outlook, recreating for user:', userId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any)
+      .from('engineer_outlook_calendars')
+      .delete()
+      .eq('id', existing.id);
+  }
+
+  // Create a new AmiDash calendar
+  const newCal = await createCalendarForUser(email);
+
+  // Store in DB
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: insertError } = await (supabase as any)
+    .from('engineer_outlook_calendars')
+    .upsert(
+      {
+        user_id: userId,
+        outlook_calendar_id: newCal.id,
+        outlook_email: email,
+      },
+      { onConflict: 'user_id' }
+    );
+
+  if (insertError) {
+    console.error('Failed to store engineer outlook calendar:', insertError);
+  }
+
+  return newCal.id;
+}
+
+// ============================================
+// Single day sync
+// ============================================
+
+/**
+ * Sync a single assignment day to Outlook.
+ * Uses slot reservation with retry loop to prevent race conditions.
+ */
+async function syncDayToOutlook(params: {
+  assignmentId: string;
+  userId: string;
+  email: string;
+  calendarId: string;
+  workDate: string;
+  startTime: string;
+  endTime: string;
+  projectName: string;
+  teamMembers: string[];
+  pmContact?: string;
+}): Promise<SyncResult> {
+  const { assignmentId, userId, email, calendarId, workDate, startTime, endTime } = params;
+
   try {
     const baseUrl = getBaseUrl();
-    const event = buildEventFromAssignment(assignment, baseUrl);
+    const event = buildCalendarEvent({
+      projectName: params.projectName,
+      date: workDate,
+      startTime,
+      endTime,
+      teamMembers: params.teamMembers,
+      pmContact: params.pmContact,
+      dashboardUrl: baseUrl,
+    });
 
-    // Retry loop with exponential backoff for handling concurrent syncs
     for (let attempt = 0; attempt < MAX_SLOT_RETRIES; attempt++) {
-      const { isNew, existingEventId, isPending } = await reserveSyncSlot(assignment.id, connection.id);
+      const { isNew, existingEventId, isPending } = await reserveSyncSlot(assignmentId, userId, workDate);
 
       if (!isNew && existingEventId) {
-        // Update existing event
-        await updateCalendarEvent(connection, existingEventId, event);
-        await storeSyncedEvent(assignment.id, connection.id, existingEventId);
+        await updateCalendarEvent(email, calendarId, existingEventId, event);
+        await storeSyncedEvent(assignmentId, userId, workDate, existingEventId);
         return { success: true, eventId: existingEventId };
       }
 
       if (isPending) {
-        // Another process is creating the event - wait with exponential backoff and retry
-        const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt); // 1s, 2s, 4s
-        console.log(`Slot pending, waiting ${delay}ms before retry ${attempt + 1}/${MAX_SLOT_RETRIES}`);
+        const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt);
+        console.log(`Slot pending for ${workDate}, waiting ${delay}ms (retry ${attempt + 1}/${MAX_SLOT_RETRIES})`);
         await sleep(delay);
 
-        // After waiting, check if the other process completed
-        const existing = await getSyncedEvent(assignment.id, connection.id);
+        const existing = await getSyncedEvent(assignmentId, userId, workDate);
         if (existing?.external_event_id && existing.external_event_id !== PENDING_SLOT_MARKER) {
-          // Other process finished, update the event
-          await updateCalendarEvent(connection, existing.external_event_id, event);
+          await updateCalendarEvent(email, calendarId, existing.external_event_id, event);
           return { success: true, eventId: existing.external_event_id };
         }
-        // Still pending - continue to next retry iteration
         continue;
       }
 
       if (isNew) {
-        // We reserved the slot - create new event
-        const response = await createCalendarEvent(connection, event);
-        await storeSyncedEvent(assignment.id, connection.id, response.id);
+        const response = await createCalendarEvent(email, calendarId, event);
+        await storeSyncedEvent(assignmentId, userId, workDate, response.id);
         return { success: true, eventId: response.id };
       }
     }
 
-    // All retries exhausted - this shouldn't normally happen
     throw new Error('Failed to acquire sync slot after maximum retries');
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Failed to sync assignment to Outlook:', errorMessage);
-    await updateSyncError(assignment.id, connection.id, errorMessage);
-
+    console.error('Failed to sync day to Outlook:', workDate, errorMessage);
+    await updateSyncError(assignmentId, userId, workDate, errorMessage);
     return { success: false, error: errorMessage };
   }
 }
 
+// ============================================
+// Public API
+// ============================================
+
 /**
- * Delete an assignment from Outlook
+ * Main entry point: sync an assignment to Outlook.
+ *
+ * - Only syncs if status is confirmed (in SYNCABLE_STATUSES)
+ * - If not confirmed, deletes any existing Outlook events for this assignment
+ * - Fetches assignment_days and creates one Outlook event per day
+ * - Fire-and-forget safe
+ */
+export async function triggerAssignmentSync(assignment: {
+  id: string;
+  user_id: string;
+  booking_status: string;
+  project_id: string;
+  project_name?: string;
+  notes?: string | null;
+  project?: {
+    id: string;
+    client_name: string;
+    start_date: string;
+    end_date: string;
+  };
+}): Promise<void> {
+  const { id: assignmentId, user_id: userId, booking_status } = assignment;
+
+  // If not a syncable status, delete any existing events
+  if (!SYNCABLE_STATUSES.includes(booking_status as (typeof SYNCABLE_STATUSES)[number])) {
+    await deleteAssignmentFromOutlook(assignmentId, userId);
+    return;
+  }
+
+  // Get engineer's email
+  const email = await getEngineerEmail(userId);
+  if (!email) {
+    console.error('Cannot sync: no email found for user', userId);
+    return;
+  }
+
+  // Ensure AmiDash calendar exists
+  let calendarId: string;
+  try {
+    calendarId = await ensureAmiDashCalendar(userId, email);
+  } catch (err) {
+    console.error('Failed to ensure AmiDash calendar for user:', userId, err);
+    return;
+  }
+
+  // Fetch assignment_days for this assignment
+  const supabase = await createServiceClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: days, error: daysError } = await (supabase as any)
+    .from('assignment_days')
+    .select('work_date, start_time, end_time')
+    .eq('assignment_id', assignmentId)
+    .order('work_date', { ascending: true });
+
+  if (daysError) {
+    console.error('Failed to fetch assignment days for sync:', daysError);
+    return;
+  }
+
+  if (!days || days.length === 0) {
+    return;
+  }
+
+  // Fetch team members for this project (excluding current user)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: teamData } = await (supabase as any)
+    .from('project_assignments')
+    .select('user_id, profile:profiles(full_name)')
+    .eq('project_id', assignment.project_id)
+    .neq('user_id', userId);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const teamMembers = (teamData || []).map((m: any) => m.profile?.full_name || 'Unknown');
+
+  // Get current synced events for this assignment to detect orphaned days
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: existingSynced } = await (supabase as any)
+    .from('synced_calendar_events')
+    .select('work_date, external_event_id')
+    .eq('assignment_id', assignmentId)
+    .eq('user_id', userId);
+
+  const currentDates = new Set(days.map((d: { work_date: string }) => d.work_date));
+  const orphanedEvents = (existingSynced || []).filter(
+    (e: { work_date: string }) => !currentDates.has(e.work_date)
+  );
+
+  // Delete orphaned events (days that were removed from the assignment)
+  for (const orphan of orphanedEvents) {
+    if (orphan.external_event_id && orphan.external_event_id !== PENDING_SLOT_MARKER) {
+      try {
+        await deleteCalendarEvent(email, calendarId, orphan.external_event_id);
+      } catch (err) {
+        console.error('Failed to delete orphaned event:', orphan.work_date, err);
+      }
+    }
+    await deleteSyncedEvent(assignmentId, userId, orphan.work_date);
+  }
+
+  // Sync each day in batches
+  const syncTasks = days.map((day: { work_date: string; start_time: string; end_time: string }) => ({
+    execute: () =>
+      syncDayToOutlook({
+        assignmentId,
+        userId,
+        email,
+        calendarId,
+        workDate: day.work_date,
+        startTime: day.start_time.slice(0, 5), // "08:00:00" -> "08:00"
+        endTime: day.end_time.slice(0, 5),
+        projectName: assignment.project_name || assignment.project?.client_name || 'Unknown Project',
+        teamMembers,
+      }),
+  }));
+
+  for (let i = 0; i < syncTasks.length; i += CONCURRENCY_LIMIT) {
+    const batch = syncTasks.slice(i, i + CONCURRENCY_LIMIT);
+    await Promise.allSettled(batch.map((task: { execute: () => Promise<SyncResult> }) => task.execute()));
+  }
+}
+
+/**
+ * Delete all Outlook events for an assignment+user.
+ * Called when assignment is removed or status changes to non-syncable.
  */
 export async function deleteAssignmentFromOutlook(
   assignmentId: string,
-  connection: CalendarConnection
-): Promise<SyncResult> {
-  try {
-    const existingSync = await getSyncedEvent(assignmentId, connection.id);
+  userId: string
+): Promise<void> {
+  const supabase = await createServiceClient();
 
-    if (existingSync && existingSync.external_event_id) {
-      await deleteCalendarEvent(connection, existingSync.external_event_id);
-    }
+  // Look up all synced events for this assignment+user
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: syncedEvents, error } = await (supabase as any)
+    .from('synced_calendar_events')
+    .select('id, work_date, external_event_id')
+    .eq('assignment_id', assignmentId)
+    .eq('user_id', userId);
 
-    await deleteSyncedEvent(assignmentId, connection.id);
-
-    return { success: true };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Failed to delete assignment from Outlook:', errorMessage);
-
-    return { success: false, error: errorMessage };
+  if (error || !syncedEvents || syncedEvents.length === 0) {
+    return;
   }
+
+  // Get engineer's email and calendar ID for deletion
+  const email = await getEngineerEmail(userId);
+  if (!email) {
+    console.error('Cannot delete events: no email found for user', userId);
+    return;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: calRecord } = await (supabase as any)
+    .from('engineer_outlook_calendars')
+    .select('outlook_calendar_id')
+    .eq('user_id', userId)
+    .single();
+
+  const calendarId = calRecord?.outlook_calendar_id;
+
+  // Delete each event from Outlook
+  for (const event of syncedEvents) {
+    if (event.external_event_id && event.external_event_id !== PENDING_SLOT_MARKER && calendarId) {
+      try {
+        await deleteCalendarEvent(email, calendarId, event.external_event_id);
+      } catch (err) {
+        console.error('Failed to delete Outlook event:', event.external_event_id, err);
+      }
+    }
+  }
+
+  // Remove all from synced_calendar_events
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any)
+    .from('synced_calendar_events')
+    .delete()
+    .eq('assignment_id', assignmentId)
+    .eq('user_id', userId);
 }
 
 /**
- * Sync all assignments for a user to their connected calendars
- * Used for initial sync when connecting or manual "Sync Now"
- * Fetches team members for enriched event body
+ * Full sync for a user: sync all their confirmed assignments.
+ * Used for manual "Sync Now" or initial sync.
  */
 export async function fullSyncForUser(userId: string): Promise<{
   synced: number;
@@ -333,42 +560,39 @@ export async function fullSyncForUser(userId: string): Promise<{
 }> {
   const supabase = await createServiceClient();
 
-  // Get user's calendar connections
-  const connections = await getActiveConnections(userId);
-  if (connections.length === 0) {
-    return { synced: 0, failed: 0, errors: ['No calendar connections found'] };
+  // Get engineer's email
+  const email = await getEngineerEmail(userId);
+  if (!email) {
+    return { synced: 0, failed: 0, errors: ['No email found for user'] };
   }
 
-  // Get user's assignments with extended project data
-  // Only sync pending_confirm and confirmed statuses
-  const { data: assignments, error } = await supabase
+  // Ensure AmiDash calendar exists
+  let calendarId: string;
+  try {
+    calendarId = await ensureAmiDashCalendar(userId, email);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return { synced: 0, failed: 0, errors: [`Failed to ensure calendar: ${msg}`] };
+  }
+
+  // Get all confirmed assignments with project data and assignment_days
+  const { data: assignments, error: assignmentsError } = await supabase
     .from('project_assignments')
     .select(`
       id,
       user_id,
       project_id,
       booking_status,
-      notes,
       project:projects!inner(
         id,
-        client_name,
-        start_date,
-        end_date,
-        sales_order_number,
-        poc_name,
-        poc_email,
-        poc_phone,
-        scope_link,
-        sales_order_url
+        client_name
       )
     `)
     .eq('user_id', userId)
-    .in('booking_status', [...SYNCABLE_STATUSES])
-    .not('project.start_date', 'is', null)
-    .not('project.end_date', 'is', null);
+    .in('booking_status', [...SYNCABLE_STATUSES]);
 
-  if (error) {
-    console.error('Failed to fetch assignments:', error);
+  if (assignmentsError) {
+    console.error('Failed to fetch assignments for full sync:', assignmentsError);
     return { synced: 0, failed: 0, errors: ['Failed to fetch assignments'] };
   }
 
@@ -376,34 +600,44 @@ export async function fullSyncForUser(userId: string): Promise<{
     return { synced: 0, failed: 0, errors: [] };
   }
 
-  // Get unique project IDs
-  const projectIds = [...new Set(assignments.map((a) => a.project_id))];
-
-  // Fetch team members for all projects in one query
+  // Fetch all assignment_days for these assignments
+  const assignmentIds = assignments.map((a) => a.id);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: allProjectMembers, error: membersError } = await (supabase as any)
-    .from('project_assignments')
-    .select('project_id, user_id, booking_status, profile:profiles(full_name)')
-    .in('project_id', projectIds);
+  const { data: allDays, error: daysError } = await (supabase as any)
+    .from('assignment_days')
+    .select('assignment_id, work_date, start_time, end_time')
+    .in('assignment_id', assignmentIds)
+    .order('work_date', { ascending: true });
 
-  if (membersError) {
-    console.warn('Failed to fetch team members for enriched event body:', membersError);
-    // Continue without team members rather than failing entire sync
+  if (daysError) {
+    console.error('Failed to fetch assignment days for full sync:', daysError);
+    return { synced: 0, failed: 0, errors: ['Failed to fetch assignment days'] };
   }
 
-  // Build team members map: projectId -> array of team members
-  const teamMembersMap = new Map<string, Array<{ user_id: string; full_name: string; booking_status: string }>>();
-  if (allProjectMembers) {
-    for (const member of allProjectMembers) {
-      const projectId = member.project_id;
-      if (!teamMembersMap.has(projectId)) {
-        teamMembersMap.set(projectId, []);
-      }
-      teamMembersMap.get(projectId)!.push({
-        user_id: member.user_id,
-        full_name: member.profile?.full_name || 'Unknown',
-        booking_status: member.booking_status,
-      });
+  // Group days by assignment_id
+  const daysByAssignment = new Map<string, Array<{ work_date: string; start_time: string; end_time: string }>>();
+  for (const day of allDays || []) {
+    if (!daysByAssignment.has(day.assignment_id)) {
+      daysByAssignment.set(day.assignment_id, []);
+    }
+    daysByAssignment.get(day.assignment_id)!.push(day);
+  }
+
+  // Fetch team members for all projects
+  const projectIds = [...new Set(assignments.map((a) => a.project_id))];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: allTeamData } = await (supabase as any)
+    .from('project_assignments')
+    .select('project_id, user_id, profile:profiles(full_name)')
+    .in('project_id', projectIds);
+
+  const teamByProject = new Map<string, string[]>();
+  for (const m of allTeamData || []) {
+    if (!teamByProject.has(m.project_id)) {
+      teamByProject.set(m.project_id, []);
+    }
+    if (m.user_id !== userId) {
+      teamByProject.get(m.project_id)!.push(m.profile?.full_name || 'Unknown');
     }
   }
 
@@ -411,48 +645,36 @@ export async function fullSyncForUser(userId: string): Promise<{
   let failed = 0;
   const errors: string[] = [];
 
-  // Build all sync tasks with extended project data and team members
-  const syncTasks = connections.flatMap((connection) =>
-    assignments.map((assignment) => {
-      // Get team members for this project, excluding the current user
-      const projectTeam = teamMembersMap.get(assignment.project_id) || [];
-      const teamMembers = projectTeam
-        .filter((m) => m.user_id !== userId)
-        .map(({ full_name, booking_status }) => ({ full_name, booking_status }));
+  // Build all sync tasks (one per day per assignment)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const syncTasks: Array<{ projectName: string; execute: () => Promise<SyncResult> }> = [];
 
-      return {
-        connection,
-        assignment,
+  for (const assignment of assignments) {
+    const days = daysByAssignment.get(assignment.id) || [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const projectName = (assignment as any).project?.client_name || 'Unknown';
+    const teamMembers = teamByProject.get(assignment.project_id) || [];
+
+    for (const day of days) {
+      syncTasks.push({
+        projectName,
         execute: () =>
-          syncAssignmentToOutlook(
-            {
-              id: assignment.id,
-              user_id: assignment.user_id,
-              project_id: assignment.project_id,
-              booking_status: assignment.booking_status,
-              notes: assignment.notes,
-              project: {
-                id: assignment.project.id,
-                client_name: assignment.project.client_name,
-                start_date: assignment.project.start_date!,
-                end_date: assignment.project.end_date!,
-                sales_order: assignment.project.sales_order_number,
-                poc_name: assignment.project.poc_name,
-                poc_email: assignment.project.poc_email,
-                poc_phone: assignment.project.poc_phone,
-                scope_link: assignment.project.scope_link,
-                sales_order_url: assignment.project.sales_order_url,
-              },
-              team_members: teamMembers,
-            },
-            connection
-          ),
-      };
-    })
-  );
+          syncDayToOutlook({
+            assignmentId: assignment.id,
+            userId,
+            email,
+            calendarId,
+            workDate: day.work_date,
+            startTime: day.start_time.slice(0, 5),
+            endTime: day.end_time.slice(0, 5),
+            projectName,
+            teamMembers,
+          }),
+      });
+    }
+  }
 
-  // Process in batches with concurrency limit to avoid overwhelming the API
-  const CONCURRENCY_LIMIT = 5;
+  // Process in batches
   for (let i = 0; i < syncTasks.length; i += CONCURRENCY_LIMIT) {
     const batch = syncTasks.slice(i, i + CONCURRENCY_LIMIT);
     const results = await Promise.allSettled(batch.map((task) => task.execute()));
@@ -468,7 +690,7 @@ export async function fullSyncForUser(userId: string): Promise<{
             ? result.value.error
             : result.reason?.message || 'Unknown error';
         if (errorMsg) {
-          errors.push(`${task.assignment.project.client_name}: ${errorMsg}`);
+          errors.push(`${task.projectName}: ${errorMsg}`);
         }
       }
     });
@@ -478,94 +700,33 @@ export async function fullSyncForUser(userId: string): Promise<{
 }
 
 /**
- * Trigger sync for a specific assignment across all of the user's connections.
- * This is the main entry point for syncing a single assignment to Outlook.
- *
- * Behavior by status:
- * - pending_confirm/confirmed: Creates or updates the Outlook event
- * - draft/tentative: Deletes the Outlook event if it exists
- *
- * @param assignment - The assignment data including project details and team members
- * @returns Promise that resolves when sync is complete (fire-and-forget safe)
- */
-export async function triggerAssignmentSync(
-  assignment: AssignmentForSync
-): Promise<void> {
-  const connections = await getActiveConnections(assignment.user_id);
-
-  // Check if this status should be synced
-  if (!SYNCABLE_STATUSES.includes(assignment.booking_status as typeof SYNCABLE_STATUSES[number])) {
-    // Status is draft or tentative - delete from Outlook if exists
-    await Promise.allSettled(
-      connections.map((connection) => deleteAssignmentFromOutlook(assignment.id, connection))
-    );
-    return;
-  }
-
-  // Sync to all connections in parallel
-  await Promise.allSettled(
-    connections.map((connection) => syncAssignmentToOutlook(assignment, connection))
-  );
-}
-
-/**
- * Trigger deletion of a calendar event for an assignment across all user's connections.
- * Called when an assignment is removed from a project.
- *
- * @param assignmentId - The ID of the assignment being removed
- * @param userId - The user ID whose calendar connections should be updated
- * @returns Promise that resolves when deletion is complete (fire-and-forget safe)
- */
-export async function triggerAssignmentDelete(
-  assignmentId: string,
-  userId: string
-): Promise<void> {
-  const connections = await getActiveConnections(userId);
-
-  // Delete from all connections in parallel
-  await Promise.allSettled(
-    connections.map((connection) => deleteAssignmentFromOutlook(assignmentId, connection))
-  );
-}
-
-/**
- * Sync all assignments for a project to Outlook
- * Called when project dates or other synced fields change
- * Fetches team members for enriched event body
- *
- * @param projectId - The project ID to sync assignments for
+ * Sync all assignments for a project to Outlook.
+ * Called when project data changes (name, dates, etc.).
+ * Triggers sync for each assigned user.
  */
 export async function syncProjectAssignmentsToOutlook(projectId: string): Promise<void> {
   const supabase = await createServiceClient();
 
-  // Fetch project with all relevant fields
+  // Fetch project name
   const { data: project, error: projectError } = await supabase
     .from('projects')
-    .select('id, client_name, start_date, end_date, sales_order_number, poc_name, poc_email, poc_phone, scope_link, sales_order_url')
+    .select('id, client_name')
     .eq('id', projectId)
     .single();
 
-  if (projectError) {
+  if (projectError || !project) {
     console.error('Failed to fetch project for Outlook sync:', projectError);
     return;
   }
 
-  if (!project?.start_date || !project?.end_date) {
-    console.log('Skipping Outlook sync: project missing start or end dates');
-    return;
-  }
-
-  // Fetch all assignments for this project with user profile info
+  // Fetch all assignments for this project
   const { data: assignments, error: assignmentsError } = await supabase
     .from('project_assignments')
-    .select(`
-      id, user_id, project_id, booking_status, notes,
-      profile:profiles(full_name)
-    `)
+    .select('id, user_id, project_id, booking_status')
     .eq('project_id', projectId);
 
   if (assignmentsError) {
-    console.error('Failed to fetch assignments for Outlook sync:', assignmentsError);
+    console.error('Failed to fetch assignments for project sync:', assignmentsError);
     return;
   }
 
@@ -573,51 +734,71 @@ export async function syncProjectAssignmentsToOutlook(projectId: string): Promis
     return;
   }
 
-  // Build team members list for enriched event body
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const allTeamMembers = assignments.map((a: any) => ({
-    user_id: a.user_id,
-    full_name: a.profile?.full_name || 'Unknown',
-    booking_status: a.booking_status,
-  }));
-
-  // Sync each assignment with team members (excluding self)
+  // Fire-and-forget sync for each assignment
   for (const assignment of assignments) {
-    const teamMembers = allTeamMembers
-      .filter((m) => m.user_id !== assignment.user_id)
-      .map(({ full_name, booking_status }) => ({ full_name, booking_status }));
-
-    const assignmentForSync: AssignmentForSync = {
+    triggerAssignmentSync({
       id: assignment.id,
       user_id: assignment.user_id,
-      project_id: assignment.project_id,
       booking_status: assignment.booking_status,
-      notes: assignment.notes,
-      project: {
-        id: project.id,
-        client_name: project.client_name,
-        start_date: project.start_date,
-        end_date: project.end_date,
-        sales_order: project.sales_order_number,
-        poc_name: project.poc_name,
-        poc_email: project.poc_email,
-        poc_phone: project.poc_phone,
-        scope_link: project.scope_link,
-        sales_order_url: project.sales_order_url,
-      },
-      team_members: teamMembers,
-    };
-
-    // Fire-and-forget async sync
-    triggerAssignmentSync(assignmentForSync).catch((err) =>
+      project_id: assignment.project_id,
+      project_name: project.client_name,
+    }).catch((err) =>
       console.error('Outlook sync error for assignment:', assignment.id, err)
     );
   }
 }
 
 /**
- * Get recent sync errors for a user
- * Returns failed syncs from the last 7 days
+ * Alias for backward compatibility with callers using the old name.
+ */
+export const triggerAssignmentDelete = deleteAssignmentFromOutlook;
+
+/**
+ * Retry sync for a specific assignment.
+ * Validates that the assignment belongs to the requesting user for security.
+ */
+export async function retrySyncForAssignment(
+  assignmentId: string,
+  userId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createServiceClient();
+
+  // Get assignment with project data - MUST filter by user_id for security
+  const { data: assignment, error: fetchError } = await supabase
+    .from('project_assignments')
+    .select(`
+      id, user_id, project_id, booking_status,
+      project:projects(client_name)
+    `)
+    .eq('id', assignmentId)
+    .eq('user_id', userId)
+    .single();
+
+  if (fetchError || !assignment) {
+    return { success: false, error: 'Assignment not found or access denied' };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const project = (assignment as any).project as { client_name: string } | null;
+
+  try {
+    await triggerAssignmentSync({
+      id: assignment.id,
+      user_id: assignment.user_id,
+      booking_status: assignment.booking_status,
+      project_id: assignment.project_id,
+      project_name: project?.client_name || 'Unknown',
+    });
+    return { success: true };
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Sync failed';
+    return { success: false, error: errorMessage };
+  }
+}
+
+/**
+ * Get recent sync errors for a user.
+ * Returns failed syncs from the synced_calendar_events table.
  */
 export async function getSyncErrors(userId: string): Promise<{
   errors: Array<{
@@ -631,15 +812,6 @@ export async function getSyncErrors(userId: string): Promise<{
 }> {
   const supabase = await createServiceClient();
 
-  // Get connections for this user
-  const connections = await getActiveConnections(userId);
-  if (connections.length === 0) {
-    return { errors: [], count: 0 };
-  }
-
-  const connectionIds = connections.map(c => c.id);
-
-  // Get synced events with errors for this user's connections
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from('synced_calendar_events')
@@ -653,7 +825,7 @@ export async function getSyncErrors(userId: string): Promise<{
         project:projects(client_name)
       )
     `)
-    .in('connection_id', connectionIds)
+    .eq('user_id', userId)
     .not('sync_error', 'is', null)
     .order('last_synced_at', { ascending: false })
     .limit(20);
@@ -673,84 +845,4 @@ export async function getSyncErrors(userId: string): Promise<{
   }));
 
   return { errors, count: errors.length };
-}
-
-/**
- * Retry sync for a specific assignment
- * Validates that the assignment belongs to the requesting user for security
- */
-export async function retrySyncForAssignment(
-  assignmentId: string,
-  userId: string
-): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createServiceClient();
-
-  // Get assignment with project data - MUST filter by user_id for security
-  const { data: assignment, error: fetchError } = await supabase
-    .from('project_assignments')
-    .select(`
-      id, user_id, project_id, booking_status, notes,
-      project:projects(id, client_name, start_date, end_date)
-    `)
-    .eq('id', assignmentId)
-    .eq('user_id', userId) // Security: ensure assignment belongs to this user
-    .single();
-
-  if (fetchError || !assignment) {
-    return { success: false, error: 'Assignment not found or access denied' };
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const project = (assignment as any).project as { id: string; client_name: string; start_date: string | null; end_date: string | null } | null;
-  if (!project?.start_date || !project?.end_date) {
-    return { success: false, error: 'Project missing dates' };
-  }
-
-  // Get user's connections
-  const connections = await getActiveConnections(userId);
-  if (connections.length === 0) {
-    return { success: false, error: 'No calendar connections found' };
-  }
-
-  // Try to sync to all connections
-  const results = await Promise.allSettled(
-    connections.map((connection) =>
-      syncAssignmentToOutlook(
-        {
-          id: assignment.id,
-          user_id: assignment.user_id,
-          project_id: assignment.project_id,
-          booking_status: assignment.booking_status,
-          notes: assignment.notes,
-          project: {
-            id: project.id,
-            client_name: project.client_name,
-            start_date: project.start_date!, // Already validated above
-            end_date: project.end_date!,     // Already validated above
-          },
-        },
-        connection
-      )
-    )
-  );
-
-  // Check if any succeeded
-  const anySuccess = results.some(
-    (r) => r.status === 'fulfilled' && r.value.success
-  );
-
-  if (anySuccess) {
-    return { success: true };
-  }
-
-  // Get first error
-  const firstError = results.find(
-    (r) => r.status === 'fulfilled' && !r.value.success
-  );
-  const errorMessage =
-    firstError?.status === 'fulfilled' && firstError.value.error
-      ? firstError.value.error
-      : 'Sync failed';
-
-  return { success: false, error: errorMessage };
 }

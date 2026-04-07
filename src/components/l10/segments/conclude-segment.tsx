@@ -7,9 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useTodos } from '@/hooks/queries/use-l10-todos';
 import { useSubmitRating } from '@/hooks/queries/use-l10-meetings';
-import { useUser } from '@/contexts/user-context';
 import { toast } from 'sonner';
-import type { MeetingWithDetails } from '@/types/l10';
+import type { MeetingWithDetails, MeetingAttendeeWithProfile } from '@/types/l10';
 import { cn } from '@/lib/utils';
 
 interface ConcludeSegmentProps {
@@ -18,35 +17,9 @@ interface ConcludeSegmentProps {
 }
 
 export function ConcludeSegment({ meeting, teamId }: ConcludeSegmentProps) {
-  const { data: todos } = useTodos(teamId, false); // only open todos
-  const { user } = useUser();
-  const submitRating = useSubmitRating();
-  const [rating, setRating] = useState<number>(0);
-  const [explanation, setExplanation] = useState('');
-
-  const existingRating = meeting.l10_meeting_ratings?.find((r) => r.user_id === user?.id);
+  const { data: todos } = useTodos(teamId, false);
   const allRatings = meeting.l10_meeting_ratings || [];
-
-  const handleSubmitRating = async () => {
-    if (rating === 0) return;
-    if (rating < 8 && !explanation.trim()) {
-      toast.error('Please explain why below 8');
-      return;
-    }
-    try {
-      await submitRating.mutateAsync({
-        meetingId: meeting.id,
-        rating,
-        explanation: explanation.trim() || undefined,
-      });
-      toast.success('Rating submitted');
-    } catch (error) {
-      toast.error((error as Error).message);
-    }
-  };
-
-  // New todos created during this meeting
-  const meetingTodos = (todos || []).filter((t) => t.source_meeting_id === meeting.id || t.source_issue_id);
+  const attendees = meeting.l10_meeting_attendees || [];
 
   return (
     <div className="space-y-6 rounded-md border p-4">
@@ -72,72 +45,122 @@ export function ConcludeSegment({ meeting, teamId }: ConcludeSegmentProps) {
         )}
       </div>
 
-      {/* Rating */}
+      {/* Ratings - one row per attendee */}
       <div className="space-y-3">
         <h5 className="text-sm font-medium">Rate this Meeting</h5>
-        {existingRating ? (
-          <div className="flex items-center gap-2 rounded-md bg-muted p-3">
-            <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
-            <span className="font-medium">{existingRating.rating}/10</span>
-            {existingRating.explanation && (
-              <span className="text-sm text-muted-foreground">— {existingRating.explanation}</span>
-            )}
-          </div>
+        {attendees.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No attendees found.</p>
         ) : (
           <div className="space-y-3">
-            <div className="flex gap-1">
-              {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-                <button
-                  key={n}
-                  onClick={() => setRating(n)}
-                  className={cn(
-                    'h-9 w-9 rounded-md border text-sm font-medium transition-colors',
-                    rating === n
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'hover:bg-muted'
-                  )}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-            {rating > 0 && rating < 8 && (
-              <div className="space-y-2">
-                <Label>What would make it an 8+ next time?</Label>
-                <Textarea
-                  value={explanation}
-                  onChange={(e) => setExplanation(e.target.value)}
-                  placeholder="Your feedback..."
-                  rows={2}
+            {attendees.map((attendee) => {
+              const existingRating = allRatings.find((r) => r.user_id === attendee.user_id);
+              return (
+                <AttendeeRatingRow
+                  key={attendee.user_id}
+                  attendee={attendee}
+                  meetingId={meeting.id}
+                  existingRating={existingRating ? { rating: existingRating.rating, explanation: existingRating.explanation } : null}
                 />
-              </div>
-            )}
-            {rating > 0 && (
-              <Button onClick={handleSubmitRating} disabled={submitRating.isPending}>
-                {submitRating.isPending ? 'Submitting...' : 'Submit Rating'}
-              </Button>
-            )}
+              );
+            })}
           </div>
         )}
 
-        {/* Other ratings */}
+        {/* Average */}
         {allRatings.length > 0 && (
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">Team ratings:</p>
-            <div className="flex gap-2 flex-wrap">
-              {allRatings.map((r) => {
-                const attendee = meeting.l10_meeting_attendees?.find((a) => a.user_id === r.user_id);
-                return (
-                  <div key={r.id} className="flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs">
-                    <span>{attendee?.profiles?.full_name?.split(' ')[0] || '?'}</span>
-                    <span className="font-medium">{r.rating}</span>
-                  </div>
-                );
-              })}
-            </div>
+          <div className="flex items-center gap-2 rounded-md bg-muted p-3 mt-2">
+            <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
+            <span className="text-sm font-medium">
+              Average: {(allRatings.reduce((sum, r) => sum + r.rating, 0) / allRatings.length).toFixed(1)}/10
+            </span>
+            <span className="text-xs text-muted-foreground">({allRatings.length}/{attendees.length} rated)</span>
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function AttendeeRatingRow({
+  attendee,
+  meetingId,
+  existingRating,
+}: {
+  attendee: MeetingAttendeeWithProfile;
+  meetingId: string;
+  existingRating: { rating: number; explanation: string | null } | null;
+}) {
+  const submitRating = useSubmitRating();
+  const [rating, setRating] = useState<number>(existingRating?.rating || 0);
+  const [explanation, setExplanation] = useState(existingRating?.explanation || '');
+  const [submitted, setSubmitted] = useState(!!existingRating);
+
+  const firstName = attendee.profiles?.full_name?.split(' ')[0] || attendee.profiles?.email || '?';
+
+  const handleSubmit = async () => {
+    if (rating === 0) return;
+    if (rating < 8 && !explanation.trim()) {
+      toast.error(`Please add an explanation for ${firstName}'s rating below 8`);
+      return;
+    }
+    try {
+      await submitRating.mutateAsync({
+        meetingId,
+        userId: attendee.user_id,
+        rating,
+        explanation: explanation.trim() || undefined,
+      });
+      setSubmitted(true);
+      toast.success(`Rating saved for ${firstName}`);
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+  };
+
+  return (
+    <div className="rounded-md border p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">{attendee.profiles?.full_name || attendee.profiles?.email}</span>
+        {submitted && (
+          <span className="text-xs text-muted-foreground flex items-center gap-1">
+            <Star className="h-3 w-3 text-amber-500 fill-amber-500" />
+            {rating}/10
+          </span>
+        )}
+      </div>
+
+      <div className="flex gap-1">
+        {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+          <button
+            key={n}
+            onClick={() => { setRating(n); setSubmitted(false); }}
+            className={cn(
+              'h-8 w-8 rounded-md border text-xs font-medium transition-colors',
+              rating === n
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'hover:bg-muted'
+            )}
+          >
+            {n}
+          </button>
+        ))}
+      </div>
+
+      {rating > 0 && rating < 8 && (
+        <Textarea
+          value={explanation}
+          onChange={(e) => { setExplanation(e.target.value); setSubmitted(false); }}
+          placeholder="What would make it an 8+ next time?"
+          rows={2}
+          className="text-sm"
+        />
+      )}
+
+      {rating > 0 && !submitted && (
+        <Button size="sm" onClick={handleSubmit} disabled={submitRating.isPending}>
+          {submitRating.isPending ? 'Saving...' : 'Save'}
+        </Button>
+      )}
     </div>
   );
 }

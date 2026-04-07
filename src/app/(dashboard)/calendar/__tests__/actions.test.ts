@@ -263,8 +263,18 @@ describe('Calendar Actions', () => {
         }),
       });
 
+      const selectMock = vi.fn().mockReturnValue({
+        in: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({
+            data: [],
+            error: null,
+          }),
+        }),
+      });
+
       const insertMock = vi.fn().mockResolvedValue({ error: null });
 
+      let assignmentCallCount = 0;
       const mockSupabase = {
         auth: {
           getUser: vi.fn().mockResolvedValue({
@@ -274,9 +284,11 @@ describe('Calendar Actions', () => {
         },
         from: vi.fn().mockImplementation((table: string) => {
           if (table === 'project_assignments') {
-            return {
-              update: updateMock,
-            };
+            assignmentCallCount++;
+            if (assignmentCallCount === 1) {
+              return { select: selectMock };
+            }
+            return { update: updateMock };
           }
           if (table === 'booking_status_history') {
             return {
@@ -301,6 +313,7 @@ describe('Calendar Actions', () => {
     it('records history for each assignment', async () => {
       const historyInsertMock = vi.fn().mockResolvedValue({ error: null });
 
+      let assignmentCallCount2 = 0;
       const mockSupabase = {
         auth: {
           getUser: vi.fn().mockResolvedValue({
@@ -310,6 +323,19 @@ describe('Calendar Actions', () => {
         },
         from: vi.fn().mockImplementation((table: string) => {
           if (table === 'project_assignments') {
+            assignmentCallCount2++;
+            if (assignmentCallCount2 === 1) {
+              return {
+                select: vi.fn().mockReturnValue({
+                  in: vi.fn().mockReturnValue({
+                    eq: vi.fn().mockResolvedValue({
+                      data: [],
+                      error: null,
+                    }),
+                  }),
+                }),
+              };
+            }
             return {
               update: vi.fn().mockReturnValue({
                 in: vi.fn().mockReturnValue({
@@ -399,7 +425,7 @@ describe('Calendar Actions', () => {
                 eq: vi.fn().mockResolvedValue({
                   data: [
                     { id: 'a1', user_id: 'u1', booking_status: 'draft' },
-                    { id: 'a2', user_id: 'u2', booking_status: 'tentative' },
+                    { id: 'a2', user_id: 'u2', booking_status: 'pending' },
                   ],
                   error: null,
                 }),
@@ -499,15 +525,15 @@ describe('Calendar Actions', () => {
 
   describe('Status Transition Tests', () => {
     it('validates booking status values', () => {
-      const validStatuses: BookingStatus[] = ['draft', 'tentative', 'pending_confirm', 'confirmed'];
+      const validStatuses: BookingStatus[] = ['draft', 'pending', 'confirmed'];
 
       validStatuses.forEach((status) => {
-        expect(['draft', 'tentative', 'pending_confirm', 'confirmed']).toContain(status);
+        expect(['draft', 'pending', 'confirmed']).toContain(status);
       });
     });
 
     it('confirms complete status is not in valid booking statuses', () => {
-      const validStatuses: BookingStatus[] = ['draft', 'tentative', 'pending_confirm', 'confirmed'];
+      const validStatuses: BookingStatus[] = ['draft', 'pending', 'confirmed'];
 
       expect(validStatuses).not.toContain('complete');
     });

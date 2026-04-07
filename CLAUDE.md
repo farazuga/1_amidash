@@ -6,6 +6,10 @@ This file provides context for Claude Code when working on this project.
 
 AmiDash - A project management dashboard built with Next.js, TypeScript, and Supabase.
 
+### iOS Companion App
+
+**AmiDash Field** is a native iOS companion app for field technicians. Full reference: [docs/AMIDASH_FIELD_IOS_REFERENCE.md](docs/AMIDASH_FIELD_IOS_REFERENCE.md). Repo at `/Users/faraz/Desktop/AmiDashField-iOS/`.
+
 ## Tech Stack
 
 - **Framework:** Next.js 16 (App Router)
@@ -35,9 +39,10 @@ npm test -- src/lib/calendar src/app/\(dashboard\)/calendar
 ```
 
 This runs:
-- `src/lib/calendar/__tests__/utils.test.ts` - Calendar utility functions (93 tests)
+- `src/lib/calendar/__tests__/utils.test.ts` - Calendar utility functions (89 tests)
 - `src/lib/calendar/__tests__/constants.test.ts` - Calendar constants (32 tests)
 - `src/app/(dashboard)/calendar/__tests__/actions.test.ts` - Server actions (16 tests)
+- `src/app/(dashboard)/calendar/__tests__/confirmation-actions.test.ts` - Confirmation actions (44 tests)
 
 ### Run E2E Tests
 
@@ -50,6 +55,9 @@ Calendar-specific E2E tests:
 - `e2e/calendar-interactions.spec.ts` - Drag/drop, keyboard shortcuts
 - `e2e/manage-schedule.spec.ts` - Schedule dialog interactions
 - `e2e/project-calendar.spec.ts` - Gantt view, navigation, filters
+
+Odoo integration E2E tests:
+- `e2e/odoo-contact-pull.spec.ts` - Client name autocomplete, delivery address auto-fill, POC auto-fill
 
 ### Run Tests in Watch Mode
 
@@ -67,20 +75,24 @@ npm run test:coverage
 
 - `src/app/(dashboard)/` - Dashboard pages (protected routes)
 - `src/app/(dashboard)/calendar/` - Master calendar page
-- `src/app/(dashboard)/projects/[id]/calendar/` - Project-specific calendar
-- `src/app/(dashboard)/project-calendar/` - Gantt-style project calendar view
+- `src/app/(dashboard)/project-calendar/` - Project timeline (Gantt-style) view
 - `src/components/calendar/` - Calendar components
 - `src/lib/calendar/` - Calendar utilities and constants
 - `src/types/calendar.ts` - Calendar TypeScript types
 
 ## Calendar System
 
-### Booking Statuses (4 total, no 'complete')
+### Booking Statuses (3 total)
 
 1. **Draft** - PM planning, not visible to engineers
-2. **Tentative** - Planned but not sent to customer
-3. **Pending Confirmation** - Awaiting customer confirmation
-4. **Confirmed** - Customer confirmed
+2. **Pending** - Awaiting customer confirmation
+3. **Confirmed** - Customer confirmed, syncs to engineer Outlook calendars
+
+### Calendar Views
+
+- **Master Calendar** (`/calendar`) - Full scheduling grid with drag & drop
+- **Project Timeline** (`/project-calendar`) - Gantt-style view across projects
+- **My Schedule** - Simple confirmed-only list for individual engineers
 
 ### Key Features
 
@@ -91,6 +103,9 @@ npm run test:coverage
 - Undo support (Cmd+Z)
 - Status cascade when changing project schedule status
 - Today indicator (vertical line)
+- App-level Microsoft Graph integration (client credentials, not per-user OAuth)
+- Dedicated "AmiDash" calendar created on each engineer's Outlook
+- Read-only Outlook event display for conflict detection
 
 ## Odoo 18 Integration
 
@@ -102,7 +117,8 @@ Read-only integration with Odoo 18 (SH) via JSON-RPC. Pulls sales order data to 
 - **Queries:** `src/lib/odoo/queries.ts` - Domain-specific query functions (sales orders, partners, products)
 - **Types:** `src/types/odoo.ts` - All Odoo TypeScript interfaces
 - **API Routes:**
-  - `POST /api/odoo/pull` - Pull sales order data by S1XXXX number
+  - `POST /api/odoo/pull` - Pull sales order data by S1XXXX number (includes delivery address from `partner_shipping_id`)
+  - `GET /api/odoo/partners?q=` - Search Odoo contacts (companies + individuals) for client name autocomplete
   - `POST /api/odoo/invoice-status` - Refresh invoice status for existing project
   - `POST /api/odoo/summarize` - Generate project description from line items (uses Claude API)
 
@@ -116,18 +132,30 @@ Triple-layer read-only enforcement:
 ### Data Flow
 
 1. User enters sales order number (S1XXXX) in project creation form
-2. "Pull from Odoo" button fetches: client info, POC, sales amount, PO number, salesperson, line items, invoice status
+2. "Pull from Odoo" button fetches: client info, POC, sales amount, PO number, salesperson, line items, invoice status, **delivery address** (from `partner_shipping_id`)
 3. Line items are sent to Claude API for project description generation (3-4 bullet summary)
 4. Project type auto-selected from line items:
    - Contains "install" → **Solution**
    - Contains "ami_vidpod" (no install) → **VidPod** (count auto-filled from quantity)
    - Neither → **Box Sale**
 
+### Client Name Autocomplete (Odoo)
+
+- Searches all `res.partner` records (companies + individual contacts) via `GET /api/odoo/partners?q=`
+- Shows Building2 icon for companies, User icon for contacts
+- Displays email and city/state in dropdown for identification
+- On partner select: auto-fills delivery address from partner's address fields
+- On contact (non-company) select: also auto-fills POC name, email, phone
+- **Note:** Active Campaign is no longer used for contact autocomplete (AC deals route kept for deal tracking)
+
 ### Key Files
 
 - `src/components/projects/odoo-pull-button.tsx` - Pull button component
-- `src/components/projects/project-form.tsx` - Form integration and auto-select logic
+- `src/components/projects/client-name-autocomplete.tsx` - Odoo partner search autocomplete
+- `src/components/projects/project-form.tsx` - Form integration, auto-select, and auto-fill logic
 - `src/components/projects/quick-info.tsx` - Invoice status display with refresh
+- `src/hooks/use-odoo-partners.ts` - Debounced Odoo partner search hook
+- `src/lib/odoo/queries.ts` - `searchPartners()`, `getShippingAddress()`, state/country code helpers
 - `supabase/migrations/047_odoo_integration.sql` - Database migration (4 columns)
 
 ### Database Columns (projects table)
@@ -167,12 +195,10 @@ Required for Supabase connection:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 
-Required for Microsoft OAuth:
+Required for Microsoft Graph (app-level client credentials with application permissions):
 - `MICROSOFT_CLIENT_ID`
 - `MICROSOFT_CLIENT_SECRET`
-- `MICROSOFT_REDIRECT_URI`
 - `MICROSOFT_TENANT_ID`
-- `TOKEN_ENCRYPTION_KEY`
 
 Required for Odoo 18:
 - `ODOO_URL` - Odoo instance URL (e.g. `https://mycompany.odoo.com`)
@@ -185,9 +211,27 @@ Required for Claude API:
 
 ## Background Jobs
 
-The app uses internal cron jobs via `node-cron` (no external services needed):
+No background jobs currently. Microsoft Graph tokens are managed via client credentials flow with in-memory caching (no refresh cron needed).
 
-- **Token refresh**: Runs every 4 hours in production
-  - Keeps Microsoft OAuth tokens active
-  - Initialized via `src/instrumentation.ts` on server startup
-  - Implementation: `src/lib/cron/token-refresh.ts`
+## Security Review
+
+A comprehensive security audit was performed on 2026-03-17.
+Security remediations applied on 2026-03-19 via branch `fix/security-audit-remediations`. Full findings, STRIDE analysis, OWASP Top 10 assessment, attack trees, threat-mitigation mapping, and a phased implementation plan are documented in:
+
+- **[`security_review.md`](security_review.md)** — Complete security review document
+
+### Critical Findings (3)
+
+1. **Debug endpoint exposed** — `/api/auth/microsoft/debug` has no auth, leaks Azure AD metadata
+2. **Mobile API no role checks** — Customer-role users can access all projects and upload to any project via `/api/mobile/*`
+3. **Mobile uploads skip file validation** — No type/size/name checks on mobile upload routes (portal has proper validation)
+
+### Implementation Phases
+
+- **Phase 1 (Day 1):** Delete debug endpoint, remove AI prompt override, reduce body size limit
+- **Phase 2 (Day 2):** Mobile API role checks, file validation, RLS enforcement
+- **Phase 3 (Day 3):** Error sanitization, search input escaping, dependency updates
+- **Phase 4 (Week 2):** Rate limiting (Upstash Redis), portal token expiry, CSP hardening, CSRF
+- **Phase 5 (Week 3):** Audit logging, structured logging, PWA cache security
+
+See `security_review.md` for the full master finding list (20 findings), security requirements (SR-001 through SR-016), and detailed attack trees.

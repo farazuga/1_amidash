@@ -6,8 +6,14 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { fullSyncForUser } from '@/lib/microsoft-graph/sync';
+import { clearTokenCache } from '@/lib/microsoft-graph/auth';
+import { internalError } from '@/lib/api/error-response';
+import { validateOrigin } from '@/lib/api/csrf';
 
-export async function POST() {
+export async function POST(request: Request) {
+  const csrfError = validateOrigin(request);
+  if (csrfError) return csrfError;
+
   const supabase = await createClient();
 
   // Check if user is authenticated
@@ -20,19 +26,19 @@ export async function POST() {
   }
 
   try {
+    // Clear cached token to pick up any permission changes in Azure AD
+    clearTokenCache();
+
+    // Sync personal calendar
     const result = await fullSyncForUser(user.id);
 
     return NextResponse.json({
       success: true,
       synced: result.synced,
       failed: result.failed,
-      errors: result.errors.slice(0, 5), // Limit errors returned
+      errors: result.errors.slice(0, 10),
     });
   } catch (err) {
-    console.error('Sync error:', err);
-    return NextResponse.json(
-      { error: 'Sync failed', details: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 }
-    );
+    return internalError('MS Sync', err);
   }
 }

@@ -35,11 +35,12 @@ export async function fetchActiveProjects(): Promise<ActiveProject[]> {
   }
 
   try {
-    // First get completed/cancelled/invoiced status IDs to filter them out
+    // Canonical definition: Active = NOT Invoiced, NOT Cancelled (see src/lib/metrics/compute.ts)
+    // "Completed" = Invoiced (same status). Uses exact name match, NOT ilike patterns.
     const { data: excludeStatuses } = await supabase
       .from('statuses')
       .select('id')
-      .or('name.ilike.%complete%,name.ilike.%cancelled%,name.ilike.%invoiced%');
+      .in('name', ['Invoiced', 'Cancelled']);
 
     const excludeIds = (excludeStatuses || []).map(s => s.id);
 
@@ -98,5 +99,63 @@ function getMockProjects(): ActiveProject[] {
     { id: '4', name: 'Project Delta', client_name: 'Client D', status: 'Testing', status_color: '#06b6d4', project_type: 'Integration', salesperson: 'Alice Brown', start_date: '2024-01-15', due_date: '2024-04-15', total_value: 42000 },
     { id: '5', name: 'Project Epsilon', client_name: 'Client E', status: 'In Progress', status_color: '#3b82f6', project_type: 'Custom Dev', salesperson: 'John Doe', start_date: '2024-02-20', due_date: '2024-08-01', total_value: 95000 },
     { id: '6', name: 'Project Zeta', client_name: 'Client F', status: 'Planning', status_color: '#8b5cf6', project_type: 'Support', salesperson: 'Jane Smith', start_date: '2024-03-10', due_date: '2024-09-01', total_value: 28000 },
+  ];
+}
+
+// --- Invoiced Projects ---
+
+export interface InvoicedProject {
+  id: string;
+  name: string;
+  client_name: string;
+  total_value: number;
+  completed_at: string;
+}
+
+export async function fetchInvoicedProjects(): Promise<InvoicedProject[]> {
+  if (!isSupabaseConfigured() || !supabase) {
+    logger.debug('Supabase not configured, returning mock invoiced projects');
+    return getMockInvoicedProjects();
+  }
+
+  try {
+    // Canonical: "Invoiced" = exact status name, no separate "Completed" (see src/lib/metrics/compute.ts)
+    // Uses invoiced_date (NOT updated_at) and sales_amount (NOT total_value)
+    const { data, error } = await supabase
+      .from('projects')
+      .select(`
+        id,
+        client_name,
+        sales_amount,
+        invoiced_date
+      `)
+      .not('invoiced_date', 'is', null)
+      .order('invoiced_date', { ascending: false })
+      .limit(4);
+
+    if (error) throw error;
+
+    return (data || []).map((p) => {
+      const project = p as unknown as DbProject;
+      return {
+        id: project.id || '',
+        name: project.client_name || 'Unknown Project',
+        client_name: project.client_name || 'Unknown',
+        total_value: project.sales_amount || 0,
+        completed_at: project.invoiced_date || new Date().toISOString(),
+      };
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to fetch invoiced projects, returning mock data');
+    return getMockInvoicedProjects();
+  }
+}
+
+function getMockInvoicedProjects(): InvoicedProject[] {
+  return [
+    { id: 'inv-1', name: 'Lobby Display Install', client_name: 'Marriott Downtown', total_value: 45000, completed_at: '2026-03-12T10:00:00Z' },
+    { id: 'inv-2', name: 'Conference Room Signage', client_name: 'Wells Fargo Tower', total_value: 32000, completed_at: '2026-03-10T14:30:00Z' },
+    { id: 'inv-3', name: 'Retail Video Wall', client_name: 'Nike Factory Store', total_value: 78000, completed_at: '2026-03-08T09:15:00Z' },
+    { id: 'inv-4', name: 'Wayfinding Kiosks', client_name: 'St. Luke\'s Hospital', total_value: 56000, completed_at: '2026-03-05T16:45:00Z' },
   ];
 }

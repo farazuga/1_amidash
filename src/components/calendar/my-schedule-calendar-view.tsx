@@ -105,7 +105,7 @@ export function MyScheduleCalendarView({ userId, userName, currentDate }: MySche
                       <Tooltip key={`${item.assignment_id}-${i}`}>
                         <TooltipTrigger asChild>
                           <Link
-                            href={item.sales_order_number ? `/projects/${item.sales_order_number}/calendar` : '#'}
+                            href={item.sales_order_number ? `/calendar?project=${item.sales_order_number}` : '#'}
                             className={cn(
                               'block text-[10px] sm:text-xs px-1 sm:px-1.5 py-0.5 rounded truncate transition-opacity hover:opacity-80',
                               statusConfig?.bgColor || 'bg-gray-100',

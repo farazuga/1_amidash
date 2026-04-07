@@ -130,7 +130,7 @@ describe('createClient', () => {
       getAll: vi.fn().mockReturnValue([]),
       set: vi.fn(),
     };
-    vi.mocked(cookies).mockResolvedValue(mockCookieStore as unknown as ReturnType<typeof cookies>);
+    vi.mocked(cookies).mockResolvedValue(mockCookieStore as unknown as Awaited<ReturnType<typeof cookies>>);
 
     const mockClient = { auth: { getUser: vi.fn() } };
     vi.mocked(createServerClient).mockReturnValue(mockClient as unknown as ReturnType<typeof createServerClient>);
@@ -164,7 +164,7 @@ describe('createClient', () => {
       getAll: vi.fn().mockReturnValue(testCookies),
       set: vi.fn(),
     };
-    vi.mocked(cookies).mockResolvedValue(mockCookieStore as unknown as ReturnType<typeof cookies>);
+    vi.mocked(cookies).mockResolvedValue(mockCookieStore as unknown as Awaited<ReturnType<typeof cookies>>);
     vi.mocked(createServerClient).mockImplementation((url, key, options) => {
       // Call getAll to test it
       const result = options?.cookies?.getAll?.();
@@ -182,11 +182,11 @@ describe('createClient', () => {
         throw new Error('Server Component');
       }),
     };
-    vi.mocked(cookies).mockResolvedValue(mockCookieStore as unknown as ReturnType<typeof cookies>);
+    vi.mocked(cookies).mockResolvedValue(mockCookieStore as unknown as Awaited<ReturnType<typeof cookies>>);
 
     const consoleSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
     const originalNodeEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'development';
+    (process.env as Record<string, string>).NODE_ENV = 'development';
 
     vi.mocked(createServerClient).mockImplementation((url, key, options) => {
       // Call setAll to test error handling
@@ -201,7 +201,7 @@ describe('createClient', () => {
     );
 
     consoleSpy.mockRestore();
-    process.env.NODE_ENV = originalNodeEnv;
+    (process.env as Record<string, string>).NODE_ENV = originalNodeEnv;
   });
 });
 
@@ -226,7 +226,7 @@ describe('createServiceClient', () => {
       getAll: vi.fn().mockReturnValue([]),
       set: vi.fn(),
     };
-    vi.mocked(cookies).mockResolvedValue(mockCookieStore as unknown as ReturnType<typeof cookies>);
+    vi.mocked(cookies).mockResolvedValue(mockCookieStore as unknown as Awaited<ReturnType<typeof cookies>>);
 
     const mockClient = { auth: { admin: {} } };
     vi.mocked(createServerClient).mockReturnValue(mockClient as unknown as ReturnType<typeof createServerClient>);
@@ -253,7 +253,7 @@ describe('createServiceClient', () => {
       getAll: vi.fn().mockReturnValue([]),
       set: vi.fn(),
     };
-    vi.mocked(cookies).mockResolvedValue(mockCookieStore as unknown as ReturnType<typeof cookies>);
+    vi.mocked(cookies).mockResolvedValue(mockCookieStore as unknown as Awaited<ReturnType<typeof cookies>>);
 
     await expect(createServiceClient()).rejects.toThrow(
       'Missing SUPABASE_SERVICE_ROLE_KEY environment variable'
@@ -267,11 +267,11 @@ describe('createServiceClient', () => {
         throw new Error('Server Component');
       }),
     };
-    vi.mocked(cookies).mockResolvedValue(mockCookieStore as unknown as ReturnType<typeof cookies>);
+    vi.mocked(cookies).mockResolvedValue(mockCookieStore as unknown as Awaited<ReturnType<typeof cookies>>);
 
     const consoleSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
     const originalNodeEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'development';
+    (process.env as Record<string, string>).NODE_ENV = 'development';
 
     vi.mocked(createServerClient).mockImplementation((url, key, options) => {
       options?.cookies?.setAll?.([{ name: 'test', value: 'value', options: {} }]);
@@ -285,6 +285,6 @@ describe('createServiceClient', () => {
     );
 
     consoleSpy.mockRestore();
-    process.env.NODE_ENV = originalNodeEnv;
+    (process.env as Record<string, string>).NODE_ENV = originalNodeEnv;
   });
 });

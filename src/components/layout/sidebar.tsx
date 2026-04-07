@@ -14,17 +14,22 @@ import {
   FileText,
   Plus,
   Target,
-  Settings,
   Settings2,
   Tv,
   ChevronLeft,
   ChevronRight,
+  Calendar,
   CalendarDays,
   CalendarRange,
   Presentation,
   LayoutTemplate,
+  CheckSquare,
+  Handshake,
+  Keyboard,
+  Link2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Sheet,
   SheetContent,
@@ -39,84 +44,32 @@ import {
 } from '@/components/ui/tooltip';
 import { useSidebarStore } from '@/lib/stores/sidebar-store';
 import { useOverdueTodoCount } from '@/hooks/queries/use-l10-todos';
+import { usePendingApprovalCount } from '@/hooks/queries/use-approval-tasks';
 
 const mainNavItems = [
-  {
-    title: 'Dashboard',
-    href: '/',
-    icon: LayoutDashboard,
-  },
-  {
-    title: 'Projects',
-    href: '/projects',
-    icon: FolderKanban,
-  },
-  {
-    title: 'Project Calendar',
-    href: '/project-calendar',
-    icon: CalendarRange,
-  },
-  {
-    title: 'My Schedule',
-    href: '/my-schedule',
-    icon: CalendarDays,
-  },
-  {
-    title: 'Settings',
-    href: '/settings',
-    icon: Settings,
-  },
+  { title: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { title: 'Projects', href: '/projects', icon: FolderKanban },
+  { title: 'Master Calendar', href: '/calendar', icon: Calendar },
+  { title: 'Project Timeline', href: '/project-calendar', icon: CalendarRange },
+  { title: 'My Schedule', href: '/my-schedule', icon: CalendarDays },
+  { title: 'Upcoming Deals', href: '/upcoming-deals', icon: Handshake },
+  { title: 'L10 Meetings', href: '/l10', icon: Presentation },
+  { title: 'My To-Dos', href: '/l10/todos', icon: ListChecks },
+  { title: 'Quick Links', href: '/quick-links', icon: Link2 },
 ];
 
-const l10NavItems = [
-  {
-    title: 'L10 Meetings',
-    href: '/l10',
-    icon: Presentation,
-  },
-  {
-    title: 'My To-Dos',
-    href: '/l10/todos',
-    icon: ListChecks,
-  },
+const adminTopItems = [
+  { title: 'Revenue Goals', href: '/admin/goals', icon: Target },
+  { title: 'Approvals', href: '/approvals', icon: CheckSquare },
 ];
 
-const adminNavItems = [
-  {
-    title: 'Settings',
-    href: '/admin/settings',
-    icon: Settings2,
-  },
-  {
-    title: 'Statuses',
-    href: '/admin/statuses',
-    icon: ListChecks,
-  },
-  {
-    title: 'Portal Builder',
-    href: '/admin/portal-builder',
-    icon: LayoutTemplate,
-  },
-  {
-    title: 'Revenue Goals',
-    href: '/admin/goals',
-    icon: Target,
-  },
-  {
-    title: 'Users',
-    href: '/admin/users',
-    icon: Users,
-  },
-  {
-    title: 'Digital Signage',
-    href: '/admin/signage',
-    icon: Tv,
-  },
-  {
-    title: 'Audit Log',
-    href: '/admin/audit',
-    icon: FileText,
-  },
+const adminSettingsItems = [
+  { title: 'General Settings', href: '/admin/settings', icon: Settings2 },
+  { title: 'Statuses', href: '/admin/statuses', icon: ListChecks },
+  { title: 'Users', href: '/admin/users', icon: Users },
+  { title: 'Portal Builder', href: '/admin/portal-builder', icon: LayoutTemplate },
+  { title: 'Audit Log', href: '/admin/audit', icon: FileText },
+  { title: 'Digital Signage', href: '/admin/signage', icon: Tv },
 ];
 
 function NavItem({
@@ -173,6 +126,75 @@ function NavItem({
   return linkContent;
 }
 
+function AdminSettingsFlyout({
+  collapsed,
+  onNavigate,
+}: {
+  collapsed?: boolean;
+  onNavigate?: () => void;
+}) {
+  const pathname = usePathname();
+  const isAnyActive = adminSettingsItems.some(
+    (item) => pathname === item.href || pathname.startsWith(item.href + '/')
+  );
+
+  const trigger = (
+    <button
+      className={cn(
+        'relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+        collapsed && 'justify-center px-2',
+        isAnyActive
+          ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+          : 'text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'
+      )}
+    >
+      <Settings2 className="h-5 w-5 shrink-0" />
+      {!collapsed && (
+        <>
+          Admin Settings
+          <ChevronRight className="ml-auto h-4 w-4" />
+        </>
+      )}
+    </button>
+  );
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        {collapsed ? (
+          <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+            <TooltipContent side="right" sideOffset={10}>
+              Admin Settings
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          trigger
+        )}
+      </PopoverTrigger>
+      <PopoverContent side="right" sideOffset={8} align="start" className="w-48 p-1">
+        {adminSettingsItems.map((item) => {
+          const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onNavigate}
+              className={cn(
+                'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+                isActive ? 'bg-accent text-accent-foreground' : 'text-foreground hover:bg-accent/50'
+              )}
+            >
+              <item.icon className="h-4 w-4 shrink-0" />
+              {item.title}
+            </Link>
+          );
+        })}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function SidebarContent({
   onNavigate,
   collapsed,
@@ -185,6 +207,7 @@ function SidebarContent({
   const pathname = usePathname();
   const { user, isAdmin } = useUser();
   const { data: overdueCount } = useOverdueTodoCount(user?.id ?? null);
+  const { data: pendingApprovalCount } = usePendingApprovalCount();
 
   return (
     <TooltipProvider>
@@ -244,33 +267,10 @@ function SidebarContent({
             </Link>
           )}
 
-          {!collapsed && (
-            <div className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60">
-              Main
-            </div>
-          )}
+          {/* Main nav items (includes L10) */}
           {mainNavItems.map((item) => {
             const isActive = pathname === item.href ||
               (item.href !== '/' && pathname.startsWith(item.href));
-            return (
-              <NavItem
-                key={item.href}
-                item={item}
-                isActive={isActive}
-                collapsed={collapsed}
-                onNavigate={onNavigate}
-              />
-            );
-          })}
-
-          {!collapsed && (
-            <div className="mb-2 mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60">
-              L10
-            </div>
-          )}
-          {collapsed && <div className="mt-4 mb-2 border-t border-sidebar-border/50" />}
-          {l10NavItems.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
             return (
               <NavItem
                 key={item.href}
@@ -283,6 +283,7 @@ function SidebarContent({
             );
           })}
 
+          {/* Admin section */}
           {isAdmin && (
             <>
               {!collapsed && (
@@ -291,8 +292,8 @@ function SidebarContent({
                 </div>
               )}
               {collapsed && <div className="mt-4 mb-2 border-t border-sidebar-border/50" />}
-              {adminNavItems.map((item) => {
-                const isActive = pathname === item.href;
+              {adminTopItems.map((item) => {
+                const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                 return (
                   <NavItem
                     key={item.href}
@@ -300,9 +301,11 @@ function SidebarContent({
                     isActive={isActive}
                     collapsed={collapsed}
                     onNavigate={onNavigate}
+                    badge={item.href === '/approvals' ? pendingApprovalCount : undefined}
                   />
                 );
               })}
+              <AdminSettingsFlyout collapsed={collapsed} onNavigate={onNavigate} />
             </>
           )}
         </nav>
@@ -328,6 +331,16 @@ function SidebarContent({
                 </>
               )}
             </Button>
+          )}
+          {!collapsed && (
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('open-shortcuts-dialog'))}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+            >
+              <Keyboard className="h-3.5 w-3.5" />
+              Keyboard Shortcuts
+              <span className="ml-auto text-[10px] opacity-60">?</span>
+            </button>
           )}
           {!collapsed && (
             <p className="text-xs text-sidebar-foreground/60 text-center mt-2">

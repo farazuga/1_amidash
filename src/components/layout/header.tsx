@@ -12,7 +12,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { LogOut, Menu } from 'lucide-react';
+import { LogOut, Menu, Settings, Keyboard } from 'lucide-react';
+import Link from 'next/link';
 import { useSidebarStore } from '@/lib/stores/sidebar-store';
 
 export function Header() {
@@ -78,6 +79,20 @@ export function Header() {
                 )}
               </div>
             </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild className="cursor-pointer">
+              <Link href="/settings">
+                <Settings className="mr-2 h-4 w-4" />
+                Settings
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="cursor-pointer"
+              onClick={() => window.dispatchEvent(new CustomEvent('open-shortcuts-dialog'))}
+            >
+              <Keyboard className="mr-2 h-4 w-4" />
+              Keyboard Shortcuts
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="cursor-pointer text-destructive focus:text-destructive"

@@ -10,7 +10,10 @@ import type {
   OdooSalesOrder,
   OdooOrderLine,
   OdooPartner,
+  OdooShippingPartner,
   OdooProduct,
+  OdooAccount,
+  OdooMoveLine,
   OdooActivity,
   OdooUser,
 } from '@/types/odoo';
@@ -136,6 +139,152 @@ export async function getPartnerContacts(
     ['id', 'name', 'email', 'phone', 'mobile', 'child_ids'],
     { limit: 10 }
   );
+}
+
+/**
+ * Get the shipping/delivery address partner for a sales order.
+ */
+export async function getShippingAddress(
+  client: OdooReadOnlyClient,
+  orderId: number
+): Promise<OdooShippingPartner | null> {
+  const orders = await client.read<{ id: number; partner_shipping_id: [number, string] | false }>(
+    'sale.order',
+    [orderId],
+    ['partner_shipping_id']
+  );
+
+  if (orders.length === 0 || !orders[0].partner_shipping_id) return null;
+
+  const shippingPartnerId = orders[0].partner_shipping_id[0];
+
+  const results = await client.read<OdooShippingPartner>(
+    'res.partner',
+    [shippingPartnerId],
+    ['id', 'name', 'street', 'street2', 'city', 'state_id', 'zip', 'country_id']
+  );
+
+  return results.length > 0 ? results[0] : null;
+}
+
+/**
+ * Search for partners (contacts and companies) by name for client name autocomplete.
+ * Searches all res.partner records — both companies and individual contacts.
+ */
+export async function searchPartners(
+  client: OdooReadOnlyClient,
+  searchTerm: string,
+  limit: number = 10
+): Promise<Array<{ id: number; name: string; email: string | false; phone: string | false; is_company: boolean; street: string | false; city: string | false; state_id: [number, string] | false; zip: string | false; country_id: [number, string] | false }>> {
+  return client.searchRead<{ id: number; name: string; email: string | false; phone: string | false; is_company: boolean; street: string | false; city: string | false; state_id: [number, string] | false; zip: string | false; country_id: [number, string] | false }>(
+    'res.partner',
+    [
+      ['name', 'ilike', searchTerm],
+    ],
+    ['id', 'name', 'email', 'phone', 'is_company', 'street', 'city', 'state_id', 'zip', 'country_id'],
+    { limit }
+  );
+}
+
+// ============================================================
+// Accounting
+// ============================================================
+
+/**
+ * Look up an accounting account by its code (e.g. "1200").
+ * Returns the account if found, null otherwise.
+ */
+export async function findAccountByCode(
+  client: OdooReadOnlyClient,
+  accountCode: string
+): Promise<OdooAccount | null> {
+  const results = await client.searchRead<OdooAccount>(
+    'account.account',
+    [['code', '=', accountCode]],
+    ['id', 'code', 'name'],
+    { limit: 1 }
+  );
+  return results.length > 0 ? results[0] : null;
+}
+
+/**
+ * Get the net movement (sum of balance) for journal entries on a specific
+ * account within a date range (inclusive). Only includes posted entries.
+ * Used for "date_range" mode in the scorecard.
+ */
+export async function getAccountMovement(
+  client: OdooReadOnlyClient,
+  accountCode: string,
+  dateFrom: string, // YYYY-MM-DD
+  dateTo: string // YYYY-MM-DD
+): Promise<number> {
+  const lines = await client.searchRead<OdooMoveLine>(
+    'account.move.line',
+    [
+      ['account_id.code', '=', accountCode],
+      ['date', '>=', dateFrom],
+      ['date', '<=', dateTo],
+      ['parent_state', '=', 'posted'],
+    ],
+    ['balance']
+  );
+  return lines.reduce((sum, line) => sum + (line.balance || 0), 0);
+}
+
+/**
+ * Get the cumulative balance for an account as-of a specific date.
+ * Sums all posted journal items on or before the given date.
+ * Used for "last_day" mode in the scorecard.
+ */
+export async function getAccountBalance(
+  client: OdooReadOnlyClient,
+  accountCode: string,
+  asOfDate: string // YYYY-MM-DD
+): Promise<number> {
+  const lines = await client.searchRead<OdooMoveLine>(
+    'account.move.line',
+    [
+      ['account_id.code', '=', accountCode],
+      ['date', '<=', asOfDate],
+      ['parent_state', '=', 'posted'],
+    ],
+    ['balance']
+  );
+  return lines.reduce((sum, line) => sum + (line.balance || 0), 0);
+}
+
+// ============================================================
+// Quotes (Quotations)
+// ============================================================
+
+/**
+ * Get the total value of open (non-expired, non-confirmed) quotes as of a date.
+ * In Odoo, quotes are sale.order with state in ('draft', 'sent').
+ * "Not expired" means validity_date is false/null or >= asOfDate.
+ * Returns the sum of amount_total for matching quotes.
+ */
+export async function getOpenQuotesTotal(
+  client: OdooReadOnlyClient,
+  asOfDate: string // YYYY-MM-DD
+): Promise<number> {
+  const domain = [
+    ['state', 'in', ['draft', 'sent']],
+    ['create_date', '<=', `${asOfDate} 23:59:59`],
+    '|',
+    ['validity_date', '=', false],
+    ['validity_date', '>=', asOfDate],
+  ] as unknown as unknown[][];
+
+  const quotes = await client.searchRead<{
+    id: number;
+    amount_total: number;
+    validity_date: string | false;
+  }>(
+    'sale.order',
+    domain,
+    ['id', 'amount_total', 'validity_date']
+  );
+  return quotes.reduce((sum, q) => sum + (q.amount_total || 0), 0);
 }
 
 // ============================================================
@@ -281,4 +430,39 @@ export function formatOdooPhone(phone: string | false): string | null {
     return `${last10.slice(0, 3)}-${last10.slice(3, 6)}-${last10.slice(6, 10)}`;
   }
   return phone;
+}
+
+const US_STATE_ABBREVS: Record<string, string> = {
+  'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR',
+  'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
+  'District of Columbia': 'DC', 'Florida': 'FL', 'Georgia': 'GA', 'Hawaii': 'HI',
+  'Idaho': 'ID', 'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA',
+  'Kansas': 'KS', 'Kentucky': 'KY', 'Louisiana': 'LA', 'Maine': 'ME',
+  'Maryland': 'MD', 'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN',
+  'Mississippi': 'MS', 'Missouri': 'MO', 'Montana': 'MT', 'Nebraska': 'NE',
+  'Nevada': 'NV', 'New Hampshire': 'NH', 'New Jersey': 'NJ', 'New Mexico': 'NM',
+  'New York': 'NY', 'North Carolina': 'NC', 'North Dakota': 'ND', 'Ohio': 'OH',
+  'Oklahoma': 'OK', 'Oregon': 'OR', 'Pennsylvania': 'PA', 'Rhode Island': 'RI',
+  'South Carolina': 'SC', 'South Dakota': 'SD', 'Tennessee': 'TN', 'Texas': 'TX',
+  'Utah': 'UT', 'Vermont': 'VT', 'Virginia': 'VA', 'Washington': 'WA',
+  'West Virginia': 'WV', 'Wisconsin': 'WI', 'Wyoming': 'WY',
+};
+
+export function parseStateCode(stateId: [number, string] | false): string | null {
+  if (!stateId) return null;
+  const stateName = stateId[1];
+  if (/^[A-Z]{2}$/.test(stateName)) return stateName;
+  return US_STATE_ABBREVS[stateName] || stateName;
+}
+
+const COUNTRY_CODES: Record<string, string> = {
+  'United States': 'US', 'Canada': 'CA', 'Mexico': 'MX',
+  'United Kingdom': 'GB',
+};
+
+export function parseCountryCode(countryId: [number, string] | false): string | null {
+  if (!countryId) return null;
+  const countryName = countryId[1];
+  if (/^[A-Z]{2}$/.test(countryName)) return countryName;
+  return COUNTRY_CODES[countryName] || countryName;
 }

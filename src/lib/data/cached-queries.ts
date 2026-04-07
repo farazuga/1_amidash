@@ -58,7 +58,7 @@ export const getCachedSalespeople = cache(async () => {
   const supabase = await createClient();
   const { data } = await supabase
     .from('profiles')
-    .select('*')
+    .select('id, full_name, email')
     .eq('is_salesperson', true)
     .order('full_name');
   return (data || []) as Profile[];
@@ -76,8 +76,8 @@ export const getProject = cache(async (id: string) => {
       *,
       current_status:statuses(*),
       tags:project_tags(tag:tags(*)),
-      created_by_profile:profiles!projects_created_by_fkey(*),
-      salesperson:profiles!projects_salesperson_id_fkey(*)
+      created_by_profile:profiles!projects_created_by_fkey(id, full_name, email),
+      salesperson:profiles!projects_salesperson_id_fkey(id, full_name, email)
     `)
     .eq('id', id)
     .single();
@@ -97,13 +97,37 @@ export const getProjectBySalesOrder = cache(async (salesOrder: string) => {
       *,
       current_status:statuses(*),
       tags:project_tags(tag:tags(*)),
-      created_by_profile:profiles!projects_created_by_fkey(*),
-      salesperson:profiles!projects_salesperson_id_fkey(*)
+      created_by_profile:profiles!projects_created_by_fkey(id, full_name, email),
+      salesperson:profiles!projects_salesperson_id_fkey(id, full_name, email)
     `)
     .eq('sales_order_number', salesOrder)
     .single();
 
-  return project;
+  if (!project) return null;
+
+  // parent_project_id is not in generated types yet (needs type regeneration after migration)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const parentProjectId = (project as any).parent_project_id as string | null;
+
+  // If this is a child project, fetch parent info
+  let parent_project = null;
+  if (parentProjectId) {
+    const { data: parent } = await supabase
+      .from('projects')
+      .select('id, client_name, sales_order_number')
+      .eq('id', parentProjectId)
+      .single();
+    parent_project = parent;
+  }
+
+  // Count children
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { count } = await (supabase as any)
+    .from('projects')
+    .select('id', { count: 'exact', head: true })
+    .eq('parent_project_id', project.id);
+
+  return { ...project, parent_project, children_count: count || 0 };
 });
 
 /**
@@ -116,7 +140,7 @@ export const getStatusHistory = cache(async (projectId: string) => {
     .select(`
       *,
       status:statuses(*),
-      changed_by_profile:profiles(*)
+      changed_by_profile:profiles(id, full_name)
     `)
     .eq('project_id', projectId)
     .order('changed_at', { ascending: false });

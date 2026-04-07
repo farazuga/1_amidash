@@ -111,22 +111,12 @@ export function isDateInRange(date: Date, startDate: string | null, endDate: str
 }
 
 /**
- * Check if a date is excluded from an assignment
- */
-export function isDateExcluded(date: Date, excludedDates: string[]): boolean {
-  const dateStr = format(date, 'yyyy-MM-dd');
-  return excludedDates.includes(dateStr);
-}
-
-/**
  * Convert database assignment results to calendar events
  * @param assignments - Assignment data from database
- * @param excludedDatesMap - Map of assignment_id to excluded dates (legacy)
- * @param scheduledDaysMap - Map of assignment_id to scheduled work_dates (new model)
+ * @param scheduledDaysMap - Map of assignment_id to scheduled work_dates
  */
 export function convertToCalendarEvents(
   assignments: CalendarAssignmentResult[],
-  excludedDatesMap: Map<string, string[]>,
   scheduledDaysMap?: Map<string, string[]>
 ): CalendarEvent[] {
   return assignments.map((assignment) => ({
@@ -141,7 +131,6 @@ export function convertToCalendarEvents(
     userName: assignment.user_name || 'Unknown',
     bookingStatus: assignment.booking_status,
     assignmentId: assignment.assignment_id,
-    excludedDates: excludedDatesMap.get(assignment.assignment_id) || [],
     scheduledDays: scheduledDaysMap?.get(assignment.assignment_id) || [],
   }));
 }

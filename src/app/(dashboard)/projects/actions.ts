@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { createProjectSharePointFolder } from '@/lib/sharepoint/folder-operations';
-import { getGlobalSharePointConfig, getMicrosoftConnection } from '@/app/(dashboard)/projects/[salesOrder]/files/actions';
+import { getGlobalSharePointConfig, migrateChildFilesToParent } from '@/app/(dashboard)/projects/[salesOrder]/files/actions';
 import { syncProjectAssignmentsToOutlook } from '@/lib/microsoft-graph/sync';
 
 // Helper to get sales order number from project ID for revalidation
@@ -44,6 +44,15 @@ export interface CreateProjectData {
   odoo_order_id?: number | null;
   odoo_invoice_status?: string | null;
   project_description?: string | null;
+  // Draft & Delivery
+  is_draft?: boolean;
+  delivery_street?: string | null;
+  delivery_city?: string | null;
+  delivery_state?: string | null;
+  delivery_zip?: string | null;
+  delivery_country?: string | null;
+  // Parent-child
+  parent_project_id?: string | null;
 }
 
 export interface CreateProjectResult {
@@ -61,6 +70,107 @@ export async function createProject(data: CreateProjectData): Promise<CreateProj
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
     return { success: false, error: 'Authentication required' };
+  }
+
+  // ---- Draft project flow ----
+  if (data.is_draft) {
+    // Look up the "Draft" status by name
+    const { data: draftStatus } = await supabase
+      .from('statuses')
+      .select('id')
+      .eq('name', 'Draft')
+      .single();
+
+    if (!draftStatus) {
+      return { success: false, error: 'Draft status not found' };
+    }
+
+    // Insert draft project (skip sales order uniqueness check, no client_token)
+    const { data: newProject, error: insertError } = await supabase
+      .from('projects')
+      .insert({
+        client_name: data.client_name,
+        sales_order_number: data.sales_order_number ?? undefined,
+        sales_order_url: data.sales_order_url,
+        po_number: data.po_number,
+        sales_amount: data.sales_amount,
+        contract_type: data.contract_type,
+        goal_completion_date: data.goal_completion_date,
+        start_date: data.start_date || undefined,
+        end_date: data.end_date || undefined,
+        salesperson_id: data.salesperson_id,
+        poc_name: data.poc_name,
+        poc_email: data.poc_email,
+        poc_phone: data.poc_phone,
+        secondary_poc_email: data.secondary_poc_email,
+        scope_link: data.scope_link,
+        number_of_vidpods: data.number_of_vidpods ?? null,
+        project_type_id: data.project_type_id,
+        current_status_id: draftStatus.id,
+        is_draft: true,
+        created_by: user.id,
+        email_notifications_enabled: data.email_notifications_enabled ?? true,
+        activecampaign_account_id: data.activecampaign_account_id || null,
+        activecampaign_contact_id: data.activecampaign_contact_id || null,
+        secondary_activecampaign_contact_id: data.secondary_activecampaign_contact_id || null,
+        // Odoo integration
+        ...(data.odoo_order_id != null && { odoo_order_id: data.odoo_order_id }),
+        ...(data.odoo_invoice_status != null && { odoo_invoice_status: data.odoo_invoice_status }),
+        ...(data.project_description != null && { project_description: data.project_description }),
+        ...(data.odoo_order_id != null && { odoo_last_synced_at: new Date().toISOString() }),
+        // Parent-child
+        ...(data.parent_project_id != null && { parent_project_id: data.parent_project_id }),
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Draft project insert error:', insertError);
+      return { success: false, error: 'Failed to create draft project' };
+    }
+
+    // Create status history and audit log (skip SharePoint for drafts)
+    try {
+      await Promise.all([
+        supabase.from('status_history').insert({
+          project_id: newProject.id,
+          status_id: draftStatus.id,
+          changed_by: user.id,
+        }),
+        supabase.from('audit_logs').insert({
+          project_id: newProject.id,
+          user_id: user.id,
+          action: 'create',
+          field_name: 'project',
+          new_value: `${data.client_name} (draft)`,
+        }),
+        data.tags.length > 0
+          ? supabase.from('project_tags').insert(
+              data.tags.map((tagId) => ({
+                project_id: newProject.id,
+                tag_id: tagId,
+              }))
+            )
+          : Promise.resolve(),
+      ]);
+    } catch (err) {
+      console.error('Background tasks error:', err);
+    }
+
+    revalidatePath('/projects');
+
+    return {
+      success: true,
+      projectId: newProject.id,
+      salesOrderNumber: newProject.sales_order_number ?? newProject.id,
+    };
+  }
+
+  // ---- Non-draft project flow ----
+
+  // Validate delivery address for non-draft projects
+  if (!data.delivery_street?.trim() || !data.delivery_city?.trim() || !data.delivery_state?.trim() || !data.delivery_zip?.trim()) {
+    return { success: false, error: 'Delivery address is required to create a project' };
   }
 
   // Check if sales order number is already in use
@@ -131,11 +241,18 @@ export async function createProject(data: CreateProjectData): Promise<CreateProj
       activecampaign_account_id: data.activecampaign_account_id || null,
       activecampaign_contact_id: data.activecampaign_contact_id || null,
       secondary_activecampaign_contact_id: data.secondary_activecampaign_contact_id || null,
+      delivery_street: data.delivery_street || null,
+      delivery_city: data.delivery_city || null,
+      delivery_state: data.delivery_state || null,
+      delivery_zip: data.delivery_zip || null,
+      delivery_country: data.delivery_country || 'US',
       // Odoo integration
       ...(data.odoo_order_id != null && { odoo_order_id: data.odoo_order_id }),
       ...(data.odoo_invoice_status != null && { odoo_invoice_status: data.odoo_invoice_status }),
       ...(data.project_description != null && { project_description: data.project_description }),
       ...(data.odoo_order_id != null && { odoo_last_synced_at: new Date().toISOString() }),
+      // Parent-child (child projects skip client_token via DB trigger, skip SharePoint below)
+      ...(data.parent_project_id != null && { parent_project_id: data.parent_project_id }),
     })
     .select()
     .single();
@@ -177,20 +294,14 @@ export async function createProject(data: CreateProjectData): Promise<CreateProj
 
   // Auto-create SharePoint folder (background, non-blocking)
   // Only if sales_order_number is provided (required for folder naming)
-  if (data.sales_order_number) {
+  // Skip for child projects — they use the parent's SharePoint folder
+  if (data.sales_order_number && !data.parent_project_id) {
     (async () => {
       try {
         // Check if global SharePoint is configured
         const globalConfig = await getGlobalSharePointConfig();
         if (!globalConfig) {
           console.log('[createProject] SharePoint not configured, skipping folder creation');
-          return;
-        }
-
-        // Get user's Microsoft connection
-        const msConnection = await getMicrosoftConnection(user.id);
-        if (!msConnection) {
-          console.log('[createProject] User not connected to Microsoft, skipping folder creation');
           return;
         }
 
@@ -201,7 +312,6 @@ export async function createProject(data: CreateProjectData): Promise<CreateProj
             salesOrderNumber: data.sales_order_number!,
             clientName: data.client_name,
             userId: user.id,
-            msConnection,
             globalConfig,
           },
           supabase
@@ -226,6 +336,176 @@ export async function createProject(data: CreateProjectData): Promise<CreateProj
     projectId: newProject.id,
     salesOrderNumber: newProject.sales_order_number ?? newProject.id,
     clientToken: newProject.client_token ?? undefined,
+  };
+}
+
+export async function publishDraft(projectId: string, data: CreateProjectData): Promise<CreateProjectResult> {
+  const supabase = await createClient();
+
+  // Get current user
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    return { success: false, error: 'Authentication required' };
+  }
+
+  // Verify project exists and is a draft
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: project } = await (supabase as any)
+    .from('projects')
+    .select('id, is_draft, client_name')
+    .eq('id', projectId)
+    .single();
+
+  if (!project) return { success: false, error: 'Project not found' };
+  if (!project.is_draft) return { success: false, error: 'Project is not a draft' };
+
+  // Validate delivery address
+  if (!data.delivery_street?.trim() || !data.delivery_city?.trim() || !data.delivery_state?.trim() || !data.delivery_zip?.trim()) {
+    return { success: false, error: 'Delivery address is required to publish a project' };
+  }
+
+  // Check sales order uniqueness
+  if (data.sales_order_number && data.sales_order_number.trim()) {
+    const { data: existing } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('sales_order_number', data.sales_order_number.trim())
+      .neq('id', projectId)
+      .maybeSingle();
+    if (existing) {
+      return { success: false, error: `Sales Order # ${data.sales_order_number} is already in use` };
+    }
+  }
+
+  // Get first status for project type
+  const { data: projectTypeStatuses } = await supabase
+    .from('project_type_statuses')
+    .select('status_id')
+    .eq('project_type_id', data.project_type_id);
+
+  if (!projectTypeStatuses || projectTypeStatuses.length === 0) {
+    return { success: false, error: 'No statuses configured for this project type' };
+  }
+
+  const statusIds = projectTypeStatuses.map(pts => pts.status_id);
+  const { data: statuses } = await supabase
+    .from('statuses')
+    .select('*')
+    .in('id', statusIds)
+    .eq('is_active', true)
+    .order('display_order');
+
+  if (!statuses || statuses.length === 0) {
+    return { success: false, error: 'No active statuses for this project type' };
+  }
+
+  const firstStatus = statuses[0];
+
+  // Update project: publish it
+  const { data: updatedProject, error: updateError } = await supabase
+    .from('projects')
+    .update({
+      is_draft: false,
+      client_name: data.client_name,
+      sales_order_number: data.sales_order_number ?? undefined,
+      sales_order_url: data.sales_order_url,
+      po_number: data.po_number,
+      sales_amount: data.sales_amount,
+      contract_type: data.contract_type,
+      goal_completion_date: data.goal_completion_date,
+      start_date: data.start_date || undefined,
+      end_date: data.end_date || undefined,
+      salesperson_id: data.salesperson_id,
+      poc_name: data.poc_name,
+      poc_email: data.poc_email,
+      poc_phone: data.poc_phone,
+      secondary_poc_email: data.secondary_poc_email,
+      scope_link: data.scope_link,
+      number_of_vidpods: data.number_of_vidpods ?? null,
+      project_type_id: data.project_type_id,
+      current_status_id: firstStatus.id,
+      email_notifications_enabled: data.email_notifications_enabled ?? true,
+      delivery_street: data.delivery_street,
+      delivery_city: data.delivery_city,
+      delivery_state: data.delivery_state,
+      delivery_zip: data.delivery_zip,
+      delivery_country: data.delivery_country || 'US',
+    })
+    .eq('id', projectId)
+    .select()
+    .single();
+
+  if (updateError) {
+    console.error('Publish draft error:', updateError);
+    return { success: false, error: 'Failed to publish project' };
+  }
+
+  // Create status history + audit log
+  try {
+    await Promise.all([
+      supabase.from('status_history').insert({
+        project_id: projectId,
+        status_id: firstStatus.id,
+        changed_by: user.id,
+      }),
+      supabase.from('audit_logs').insert({
+        project_id: projectId,
+        user_id: user.id,
+        action: 'update',
+        field_name: 'is_draft',
+        old_value: 'true',
+        new_value: 'false',
+      }),
+    ]);
+  } catch (err) {
+    console.error('Background tasks error:', err);
+  }
+
+  // Handle tags
+  if (data.tags?.length > 0) {
+    try {
+      // Remove existing tags first
+      await supabase.from('project_tags').delete().eq('project_id', projectId);
+      await supabase.from('project_tags').insert(
+        data.tags.map(tagId => ({ project_id: projectId, tag_id: tagId }))
+      );
+    } catch (err) {
+      console.error('Tags update error:', err);
+    }
+  }
+
+  // Auto-create SharePoint folder (background)
+  if (data.sales_order_number) {
+    (async () => {
+      try {
+        const globalConfig = await getGlobalSharePointConfig();
+        if (!globalConfig) return;
+        const result = await createProjectSharePointFolder(
+          {
+            projectId,
+            salesOrderNumber: data.sales_order_number!,
+            clientName: data.client_name,
+            userId: user.id,
+            globalConfig,
+          },
+          supabase
+        );
+        if (result.success) {
+          console.log(`[publishDraft] SharePoint folder created: ${data.sales_order_number}`);
+        }
+      } catch (error) {
+        console.error('[publishDraft] SharePoint folder creation error:', error);
+      }
+    })();
+  }
+
+  revalidatePath('/projects');
+
+  return {
+    success: true,
+    projectId: updatedProject.id,
+    salesOrderNumber: updatedProject.sales_order_number ?? updatedProject.id,
+    clientToken: updatedProject.client_token ?? undefined,
   };
 }
 
@@ -410,8 +690,8 @@ export async function bulkUpdateScheduleStatus(data: BulkUpdateScheduleStatusDat
     return { success: false, error: 'No projects selected' };
   }
 
-  // Validate schedule status value
-  const validStatuses = ['draft', 'tentative', 'pending_confirm', 'confirmed'];
+  // Validate schedule status value (3-status workflow: draft, pending, confirmed)
+  const validStatuses = ['draft', 'pending', 'confirmed'];
   if (!validStatuses.includes(data.scheduleStatus)) {
     return { success: false, error: 'Invalid schedule status' };
   }
@@ -902,4 +1182,244 @@ export async function getProjectBasicInfo(salesOrder: string): Promise<{
 
   if (error) return { success: false, error: error.message };
   return { success: true, data: data as { id: string; client_name: string; sales_order_number: string | null; sales_order_url: string | null; sales_amount: number | null } };
+}
+
+// ==========================================
+// Sub-project (parent-child) actions
+// ==========================================
+
+export async function linkSubProject(
+  parentId: string,
+  childId: string
+): Promise<{ success: boolean; error?: string; fileMigrationWarning?: string }> {
+  const supabase = await createClient();
+
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    return { success: false, error: 'Authentication required' };
+  }
+
+  // Validate parent exists and is not itself a child
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: parent } = await (supabase as any)
+    .from('projects')
+    .select('id, parent_project_id, client_name, sales_order_number')
+    .eq('id', parentId)
+    .single();
+
+  if (!parent) return { success: false, error: 'Parent project not found' };
+  if (parent.parent_project_id) {
+    return { success: false, error: 'Cannot add sub-projects to a project that is itself a sub-project' };
+  }
+
+  // Validate child exists, is not a parent, and is not already linked
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: child } = await (supabase as any)
+    .from('projects')
+    .select('id, parent_project_id, client_name, sales_order_number')
+    .eq('id', childId)
+    .single();
+
+  if (!child) return { success: false, error: 'Child project not found' };
+  if (child.parent_project_id) {
+    return { success: false, error: 'This project is already a sub-project of another project' };
+  }
+  if (childId === parentId) {
+    return { success: false, error: 'A project cannot be its own sub-project' };
+  }
+
+  // Check if child has its own children (would violate depth constraint)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { count } = await (supabase as any)
+    .from('projects')
+    .select('id', { count: 'exact', head: true })
+    .eq('parent_project_id', childId);
+
+  if (count && count > 0) {
+    return { success: false, error: 'Cannot link a project that has its own sub-projects' };
+  }
+
+  // Link the child to the parent (DB trigger will clear client_token)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: updateError } = await (supabase as any)
+    .from('projects')
+    .update({ parent_project_id: parentId })
+    .eq('id', childId);
+
+  if (updateError) {
+    console.error('Link sub-project error:', updateError);
+    return { success: false, error: updateError.message };
+  }
+
+  // Migrate child's existing files to parent's SharePoint folder
+  let fileMigrationWarning: string | undefined;
+  try {
+    const migrationResult = await migrateChildFilesToParent(childId, parentId);
+    if (!migrationResult.success) {
+      fileMigrationWarning = `Project linked, but some files could not be moved to the parent folder: ${migrationResult.error}`;
+    } else if (migrationResult.movedCount > 0) {
+      console.log(`[linkSubProject] Migrated ${migrationResult.movedCount} files from child ${childId} to parent ${parentId}`);
+    }
+  } catch (err) {
+    console.error('[linkSubProject] File migration failed:', err);
+    fileMigrationWarning = 'Project linked, but files could not be moved to the parent folder. You may need to move them manually in SharePoint.';
+  }
+
+  // Audit log
+  await supabase.from('audit_logs').insert({
+    project_id: childId,
+    user_id: user.id,
+    action: 'update',
+    field_name: 'parent_project_id',
+    old_value: null,
+    new_value: `${parent.client_name} (${parent.sales_order_number || parent.id})`,
+  });
+
+  revalidatePath('/projects');
+  if (parent.sales_order_number) revalidatePath(`/projects/${parent.sales_order_number}`);
+  if (child.sales_order_number) revalidatePath(`/projects/${child.sales_order_number}`);
+
+  return { success: true, fileMigrationWarning };
+}
+
+export async function unlinkSubProject(
+  childId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient();
+
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    return { success: false, error: 'Authentication required' };
+  }
+
+  // Verify child has a parent
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: child } = await (supabase as any)
+    .from('projects')
+    .select('id, parent_project_id, client_name, sales_order_number')
+    .eq('id', childId)
+    .single();
+
+  if (!child) return { success: false, error: 'Project not found' };
+  if (!child.parent_project_id) {
+    return { success: false, error: 'This project is not a sub-project' };
+  }
+
+  const parentId = child.parent_project_id;
+
+  // Get parent info for audit log
+  const { data: parent } = await supabase
+    .from('projects')
+    .select('sales_order_number, client_name')
+    .eq('id', parentId)
+    .single();
+
+  // Unlink and regenerate client_token
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: updateError } = await (supabase as any)
+    .from('projects')
+    .update({
+      parent_project_id: null,
+      client_token: crypto.randomUUID(),
+    })
+    .eq('id', childId);
+
+  if (updateError) {
+    console.error('Unlink sub-project error:', updateError);
+    return { success: false, error: updateError.message };
+  }
+
+  // Audit log
+  await supabase.from('audit_logs').insert({
+    project_id: childId,
+    user_id: user.id,
+    action: 'update',
+    field_name: 'parent_project_id',
+    old_value: parent ? `${parent.client_name} (${parent.sales_order_number || parentId})` : parentId,
+    new_value: null,
+  });
+
+  revalidatePath('/projects');
+  if (parent?.sales_order_number) revalidatePath(`/projects/${parent.sales_order_number}`);
+  if (child.sales_order_number) revalidatePath(`/projects/${child.sales_order_number}`);
+
+  return { success: true };
+}
+
+export async function getSubProjects(parentId: string) {
+  const supabase = await createClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from('projects')
+    .select(`
+      id,
+      client_name,
+      sales_order_number,
+      po_number,
+      sales_amount,
+      odoo_invoice_status,
+      schedule_status,
+      start_date,
+      end_date,
+      created_date,
+      current_status:statuses(id, name, color)
+    `)
+    .eq('parent_project_id', parentId)
+    .order('created_date', { ascending: true });
+
+  if (error) {
+    console.error('Get sub-projects error:', error);
+    return [];
+  }
+
+  return (data || []) as Array<{
+    id: string;
+    client_name: string;
+    sales_order_number: string | null;
+    po_number: string | null;
+    sales_amount: number | null;
+    odoo_invoice_status: string | null;
+    schedule_status: string | null;
+    start_date: string | null;
+    end_date: string | null;
+    created_date: string;
+    current_status: { id: string; name: string; color: string | null } | null;
+  }>;
+}
+
+export async function searchProjectsForLinking(
+  query: string,
+  excludeProjectId: string
+): Promise<{ id: string; client_name: string; sales_order_number: string | null; sales_amount: number | null }[]> {
+  const supabase = await createClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabase as any)
+    .from('projects')
+    .select('id, client_name, sales_order_number, sales_amount, parent_project_id')
+    .is('parent_project_id', null)
+    .neq('id', excludeProjectId)
+    .or(`client_name.ilike.%${query}%,sales_order_number.ilike.%${query}%`)
+    .limit(10);
+
+  if (!data) return [];
+
+  // Filter out projects that already have children (they'd become grandparents)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const projectIds = data.map((p: any) => p.id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: childCounts } = await (supabase as any)
+    .from('projects')
+    .select('parent_project_id')
+    .in('parent_project_id', projectIds);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const parentIds = new Set((childCounts || []).map((c: any) => c.parent_project_id));
+
+  return data
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .filter((p: any) => !parentIds.has(p.id))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map(({ parent_project_id: _unused, ...rest }: any) => rest);
 }

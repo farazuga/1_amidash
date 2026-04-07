@@ -1,62 +1,36 @@
-import { createClient } from '@supabase/supabase-js';
-import { createServiceClient } from '@/lib/supabase/server';
+import { authenticateMobileRequest } from '@/lib/mobile/auth';
+import { internalError } from '@/lib/api/error-response';
 
 /**
  * Mobile API endpoint to check Microsoft connection status
  *
- * Authentication: Bearer token (Supabase JWT) in Authorization header
+ * With app-level client credentials, this now returns connected: true
+ * if the server has Microsoft env vars configured (no per-user connection needed).
  *
- * Response:
- * - connected: boolean - Whether the user has connected their Microsoft account
- * - email: string | null - The connected Microsoft email
- * - expires_at: string | null - When the token expires (ISO 8601)
+ * Response shape is unchanged for backwards compatibility:
+ * - connected: boolean
+ * - email: string | null (always null with app-level auth)
+ * - expires_at: string | null (always null with app-level auth)
  */
 export async function GET(request: Request) {
   try {
-    // 1. Extract and verify Bearer token
-    const authHeader = request.headers.get('Authorization');
-    const token = authHeader?.replace('Bearer ', '');
+    // 1. Authenticate and authorize (staff only)
+    const authResult = await authenticateMobileRequest(request);
+    if (authResult instanceof Response) return authResult;
 
-    if (!token) {
-      return Response.json({ error: 'Authentication required' }, { status: 401 });
-    }
-
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    // 2. Check if Microsoft is configured at the app level
+    const connected = !!(
+      process.env.MICROSOFT_CLIENT_ID &&
+      process.env.MICROSOFT_CLIENT_SECRET &&
+      process.env.MICROSOFT_TENANT_ID
     );
-
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-
-    if (error || !user) {
-      return Response.json({ error: 'Authentication required' }, { status: 401 });
-    }
-
-    // 2. Check for Microsoft connection
-    const serviceClient = await createServiceClient();
-
-    console.log('[Mobile Microsoft Status] Checking for user:', user.id);
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: connection, error: dbError } = await (serviceClient as any)
-      .from('calendar_connections')
-      .select('outlook_email, token_expires_at')
-      .eq('user_id', user.id)
-      .eq('provider', 'microsoft')
-      .maybeSingle();
-
-    console.log('[Mobile Microsoft Status] Query result:', JSON.stringify({ connection, dbError }));
 
     return Response.json({
-      connected: !!connection,
-      email: connection?.outlook_email ?? null,
-      expires_at: connection?.token_expires_at ?? null,
+      connected,
+      email: null,
+      expires_at: null,
     });
   } catch (error) {
-    console.error('[Mobile Microsoft Status] Error:', error);
-    return Response.json(
-      { error: error instanceof Error ? error.message : 'Failed to check status' },
-      { status: 500 }
-    );
+    return internalError('Mobile MS Status', error);
   }
 }

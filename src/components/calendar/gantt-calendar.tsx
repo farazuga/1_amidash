@@ -8,6 +8,7 @@ import { GanttRow } from './gantt-row';
 import { CalendarLegend } from './calendar-legend';
 import { AssignmentDaysDialog } from './assignment-days-dialog';
 import { cn } from '@/lib/utils';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { useProjectGanttData, useCycleAssignmentStatus } from '@/hooks/queries/use-assignments';
 import type { GanttAssignment } from '@/types/calendar';
 import { toast } from 'sonner';
@@ -113,6 +114,7 @@ export function GanttCalendar({ projectId, projectName, projectStartDate, projec
   }, []);
 
   return (
+    <TooltipProvider delayDuration={300}>
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -255,5 +257,6 @@ export function GanttCalendar({ projectId, projectName, projectStartDate, projec
         />
       )}
     </div>
+    </TooltipProvider>
   );
 }

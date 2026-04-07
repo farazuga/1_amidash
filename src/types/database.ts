@@ -83,48 +83,6 @@ export type Database = {
           },
         ]
       }
-      assignment_excluded_dates: {
-        Row: {
-          assignment_id: string
-          created_at: string | null
-          created_by: string | null
-          excluded_date: string
-          id: string
-          reason: string | null
-        }
-        Insert: {
-          assignment_id: string
-          created_at?: string | null
-          created_by?: string | null
-          excluded_date: string
-          id?: string
-          reason?: string | null
-        }
-        Update: {
-          assignment_id?: string
-          created_at?: string | null
-          created_by?: string | null
-          excluded_date?: string
-          id?: string
-          reason?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "assignment_excluded_dates_assignment_id_fkey"
-            columns: ["assignment_id"]
-            isOneToOne: false
-            referencedRelation: "project_assignments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "assignment_excluded_dates_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       audit_logs: {
         Row: {
           action: string
@@ -286,53 +244,6 @@ export type Database = {
           },
         ]
       }
-      calendar_connections: {
-        Row: {
-          access_token: string
-          calendar_id: string | null
-          created_at: string | null
-          id: string
-          outlook_email: string | null
-          provider: string
-          refresh_token: string
-          token_expires_at: string
-          updated_at: string | null
-          user_id: string
-        }
-        Insert: {
-          access_token: string
-          calendar_id?: string | null
-          created_at?: string | null
-          id?: string
-          outlook_email?: string | null
-          provider?: string
-          refresh_token: string
-          token_expires_at: string
-          updated_at?: string | null
-          user_id: string
-        }
-        Update: {
-          access_token?: string
-          calendar_id?: string | null
-          created_at?: string | null
-          id?: string
-          outlook_email?: string | null
-          provider?: string
-          refresh_token?: string
-          token_expires_at?: string
-          updated_at?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "calendar_connections_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       confirmation_request_assignments: {
         Row: {
           assignment_id: string
@@ -436,6 +347,83 @@ export type Database = {
           },
         ]
       }
+      customer_approval_tasks: {
+        Row: {
+          assigned_to: string
+          completed_at: string | null
+          created_at: string | null
+          file_upload_id: string
+          id: string
+          note: string | null
+          status: string
+        }
+        Insert: {
+          assigned_to: string
+          completed_at?: string | null
+          created_at?: string | null
+          file_upload_id: string
+          id?: string
+          note?: string | null
+          status?: string
+        }
+        Update: {
+          assigned_to?: string
+          completed_at?: string | null
+          created_at?: string | null
+          file_upload_id?: string
+          id?: string
+          note?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_approval_tasks_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_approval_tasks_file_upload_id_fkey"
+            columns: ["file_upload_id"]
+            isOneToOne: false
+            referencedRelation: "portal_file_uploads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      delivery_address_confirmations: {
+        Row: {
+          address_snapshot: Json
+          confirmed_at: string
+          confirmed_by_email: string
+          id: string
+          project_id: string
+        }
+        Insert: {
+          address_snapshot: Json
+          confirmed_at?: string
+          confirmed_by_email: string
+          id?: string
+          project_id: string
+        }
+        Update: {
+          address_snapshot?: Json
+          confirmed_at?: string
+          confirmed_by_email?: string
+          id?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_address_confirmations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_notification_preferences: {
         Row: {
           created_at: string | null
@@ -459,6 +447,79 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      engineer_outlook_calendars: {
+        Row: {
+          created_at: string
+          id: string
+          outlook_calendar_id: string
+          outlook_email: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          outlook_calendar_id: string
+          outlook_email: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          outlook_calendar_id?: string
+          outlook_email?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engineer_outlook_calendars_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      l10_comments: {
+        Row: {
+          content: string
+          created_at: string | null
+          entity_id: string
+          entity_type: string
+          id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          entity_id: string
+          entity_type: string
+          id?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "l10_comments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       l10_headlines: {
         Row: {
@@ -524,6 +585,7 @@ export type Database = {
           priority_rank: number
           resolved_at: string | null
           source_id: string | null
+          source_meta: Json | null
           source_type: string | null
           status: string
           team_id: string
@@ -538,6 +600,7 @@ export type Database = {
           priority_rank?: number
           resolved_at?: string | null
           source_id?: string | null
+          source_meta?: Json | null
           source_type?: string | null
           status?: string
           team_id: string
@@ -552,6 +615,7 @@ export type Database = {
           priority_rank?: number
           resolved_at?: string | null
           source_id?: string | null
+          source_meta?: Json | null
           source_type?: string | null
           status?: string
           team_id?: string
@@ -722,6 +786,7 @@ export type Database = {
       l10_rock_milestones: {
         Row: {
           created_at: string | null
+          description: string | null
           display_order: number
           due_date: string | null
           id: string
@@ -733,6 +798,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          description?: string | null
           display_order?: number
           due_date?: string | null
           id?: string
@@ -744,6 +810,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          description?: string | null
           display_order?: number
           due_date?: string | null
           id?: string
@@ -884,6 +951,9 @@ export type Database = {
           goal_value: number | null
           id: string
           is_active: boolean
+          odoo_account_code: string | null
+          odoo_account_name: string | null
+          odoo_date_mode: string | null
           owner_id: string | null
           scorecard_id: string
           title: string
@@ -898,6 +968,9 @@ export type Database = {
           goal_value?: number | null
           id?: string
           is_active?: boolean
+          odoo_account_code?: string | null
+          odoo_account_name?: string | null
+          odoo_date_mode?: string | null
           owner_id?: string | null
           scorecard_id: string
           title: string
@@ -912,6 +985,9 @@ export type Database = {
           goal_value?: number | null
           id?: string
           is_active?: boolean
+          odoo_account_code?: string | null
+          odoo_account_name?: string | null
+          odoo_date_mode?: string | null
           owner_id?: string | null
           scorecard_id?: string
           title?: string
@@ -970,6 +1046,7 @@ export type Database = {
       l10_todos: {
         Row: {
           created_at: string | null
+          description: string | null
           due_date: string | null
           id: string
           is_done: boolean
@@ -983,6 +1060,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          description?: string | null
           due_date?: string | null
           id?: string
           is_done?: boolean
@@ -996,6 +1074,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          description?: string | null
           due_date?: string | null
           id?: string
           is_done?: boolean
@@ -1044,6 +1123,158 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      portal_email_templates: {
+        Row: {
+          button_color: string | null
+          button_text_color: string | null
+          created_at: string | null
+          footer_text: string | null
+          id: string
+          logo_url: string | null
+          portal_template_id: string
+          primary_color: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          button_color?: string | null
+          button_text_color?: string | null
+          created_at?: string | null
+          footer_text?: string | null
+          id?: string
+          logo_url?: string | null
+          portal_template_id: string
+          primary_color?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          button_color?: string | null
+          button_text_color?: string | null
+          created_at?: string | null
+          footer_text?: string | null
+          id?: string
+          logo_url?: string | null
+          portal_template_id?: string
+          primary_color?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portal_email_templates_portal_template_id_fkey"
+            columns: ["portal_template_id"]
+            isOneToOne: true
+            referencedRelation: "portal_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      portal_file_uploads: {
+        Row: {
+          block_id: string
+          created_at: string | null
+          file_description: string | null
+          file_label: string
+          file_size_bytes: number | null
+          id: string
+          mime_type: string | null
+          original_filename: string | null
+          project_id: string
+          rejection_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          sharepoint_item_id: string | null
+          sharepoint_web_url: string | null
+          slot_index: number
+          stored_filename: string | null
+          upload_status: string
+          uploaded_at: string | null
+        }
+        Insert: {
+          block_id: string
+          created_at?: string | null
+          file_description?: string | null
+          file_label: string
+          file_size_bytes?: number | null
+          id?: string
+          mime_type?: string | null
+          original_filename?: string | null
+          project_id: string
+          rejection_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          sharepoint_item_id?: string | null
+          sharepoint_web_url?: string | null
+          slot_index: number
+          stored_filename?: string | null
+          upload_status?: string
+          uploaded_at?: string | null
+        }
+        Update: {
+          block_id?: string
+          created_at?: string | null
+          file_description?: string | null
+          file_label?: string
+          file_size_bytes?: number | null
+          id?: string
+          mime_type?: string | null
+          original_filename?: string | null
+          project_id?: string
+          rejection_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          sharepoint_item_id?: string | null
+          sharepoint_web_url?: string | null
+          slot_index?: number
+          stored_filename?: string | null
+          upload_status?: string
+          uploaded_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portal_file_uploads_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portal_file_uploads_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      portal_templates: {
+        Row: {
+          background_image_url: string | null
+          blocks: Json
+          created_at: string | null
+          id: string
+          is_default: boolean | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          background_image_url?: string | null
+          blocks?: Json
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          background_image_url?: string | null
+          blocks?: Json
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       presales_files: {
         Row: {
@@ -1516,6 +1747,88 @@ export type Database = {
           },
         ]
       }
+      quick_link_categories: {
+        Row: {
+          created_at: string | null
+          icon: string | null
+          id: string
+          name: string
+          parent_id: string | null
+          sort_order: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          icon?: string | null
+          id?: string
+          name: string
+          parent_id?: string | null
+          sort_order?: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          icon?: string | null
+          id?: string
+          name?: string
+          parent_id?: string | null
+          sort_order?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quick_link_categories_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "quick_link_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quick_link_items: {
+        Row: {
+          category_id: string
+          created_at: string | null
+          description: string | null
+          icon: string | null
+          id: string
+          sort_order: number
+          title: string
+          updated_at: string | null
+          url: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string | null
+          description?: string | null
+          icon?: string | null
+          id?: string
+          sort_order?: number
+          title: string
+          updated_at?: string | null
+          url: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string | null
+          description?: string | null
+          icon?: string | null
+          id?: string
+          sort_order?: number
+          title?: string
+          updated_at?: string | null
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quick_link_items_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "quick_link_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_types: {
         Row: {
           created_at: string | null
@@ -1523,6 +1836,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           name: string
+          portal_template_id: string | null
         }
         Insert: {
           created_at?: string | null
@@ -1530,6 +1844,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name: string
+          portal_template_id?: string | null
         }
         Update: {
           created_at?: string | null
@@ -1537,8 +1852,17 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name?: string
+          portal_template_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "project_types_portal_template_id_fkey"
+            columns: ["portal_template_id"]
+            isOneToOne: false
+            referencedRelation: "portal_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       projects: {
         Row: {
@@ -1552,6 +1876,11 @@ export type Database = {
           created_by: string | null
           created_date: string
           current_status_id: string | null
+          delivery_city: string | null
+          delivery_country: string | null
+          delivery_state: string | null
+          delivery_street: string | null
+          delivery_zip: string | null
           email_notifications_enabled: boolean | null
           end_date: string | null
           expected_update_auto: boolean | null
@@ -1559,6 +1888,7 @@ export type Database = {
           goal_completion_date: string | null
           id: string
           invoiced_date: string | null
+          is_draft: boolean
           number_of_vidpods: number | null
           odoo_invoice_status: string | null
           odoo_last_synced_at: string | null
@@ -1591,6 +1921,11 @@ export type Database = {
           created_by?: string | null
           created_date?: string
           current_status_id?: string | null
+          delivery_city?: string | null
+          delivery_country?: string | null
+          delivery_state?: string | null
+          delivery_street?: string | null
+          delivery_zip?: string | null
           email_notifications_enabled?: boolean | null
           end_date?: string | null
           expected_update_auto?: boolean | null
@@ -1598,6 +1933,7 @@ export type Database = {
           goal_completion_date?: string | null
           id?: string
           invoiced_date?: string | null
+          is_draft?: boolean
           number_of_vidpods?: number | null
           odoo_invoice_status?: string | null
           odoo_last_synced_at?: string | null
@@ -1630,6 +1966,11 @@ export type Database = {
           created_by?: string | null
           created_date?: string
           current_status_id?: string | null
+          delivery_city?: string | null
+          delivery_country?: string | null
+          delivery_state?: string | null
+          delivery_street?: string | null
+          delivery_zip?: string | null
           email_notifications_enabled?: boolean | null
           end_date?: string | null
           expected_update_auto?: boolean | null
@@ -1637,6 +1978,7 @@ export type Database = {
           goal_completion_date?: string | null
           id?: string
           invoiced_date?: string | null
+          is_draft?: boolean
           number_of_vidpods?: number | null
           odoo_invoice_status?: string | null
           odoo_last_synced_at?: string | null
@@ -1892,27 +2234,27 @@ export type Database = {
       synced_calendar_events: {
         Row: {
           assignment_id: string
-          connection_id: string
           external_event_id: string
           id: string
           last_synced_at: string | null
           sync_error: string | null
+          user_id: string
         }
         Insert: {
           assignment_id: string
-          connection_id: string
           external_event_id: string
           id?: string
           last_synced_at?: string | null
           sync_error?: string | null
+          user_id: string
         }
         Update: {
           assignment_id?: string
-          connection_id?: string
           external_event_id?: string
           id?: string
           last_synced_at?: string | null
           sync_error?: string | null
+          user_id?: string
         }
         Relationships: [
           {
@@ -1923,10 +2265,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "synced_calendar_events_connection_id_fkey"
-            columns: ["connection_id"]
+            foreignKeyName: "synced_calendar_events_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "calendar_connections"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -2092,6 +2434,10 @@ export type Database = {
           user_name: string
         }[]
       }
+      get_comment_team_id: {
+        Args: { p_entity_id: string; p_entity_type: string }
+        Returns: string
+      }
       get_confirmation_details: {
         Args: { p_token: string }
         Returns: {
@@ -2163,12 +2509,17 @@ export type Database = {
           start_time: string
         }[]
       }
+      get_user_team_ids: { Args: { p_user_id: string }; Returns: string[] }
       get_yearly_goal: {
         Args: { p_year: number }
         Returns: {
           projects_goal: number
           revenue_goal: number
         }[]
+      }
+      has_team_role: {
+        Args: { p_roles: string[]; p_team_id: string; p_user_id: string }
+        Returns: boolean
       }
       increment_portal_views: {
         Args: { project_id: string }
@@ -2177,6 +2528,14 @@ export type Database = {
       is_sharepoint_configured: { Args: never; Returns: boolean }
       is_status_visible_to_engineers: {
         Args: { p_status: string }
+        Returns: boolean
+      }
+      is_team_creator: {
+        Args: { p_team_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      is_team_member: {
+        Args: { p_team_id: string; p_user_id: string }
         Returns: boolean
       }
       link_presales_files_to_project: {

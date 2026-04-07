@@ -8,6 +8,10 @@ vi.mock('@/lib/supabase/server', () => ({
   createServiceClient: vi.fn(),
 }));
 
+vi.mock('@/lib/api/csrf', () => ({
+  validateOrigin: vi.fn().mockReturnValue(null),
+}));
+
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 
 function createMockRequest(body: Record<string, unknown>): NextRequest {
@@ -16,6 +20,27 @@ function createMockRequest(body: Record<string, unknown>): NextRequest {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+}
+
+function createAdminClientMock() {
+  return {
+    auth: {
+      getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'admin-123' } } }),
+    },
+    from: vi.fn().mockImplementation((table: string) => {
+      if (table === 'audit_logs') {
+        return { insert: vi.fn().mockResolvedValue({ error: null }) };
+      }
+      // profiles table
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { role: 'admin' } }),
+          }),
+        }),
+      };
+    }),
+  } as unknown as Awaited<ReturnType<typeof createClient>>;
 }
 
 describe('POST /api/admin/users', () => {
@@ -28,7 +53,7 @@ describe('POST /api/admin/users', () => {
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
       },
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({
       email: 'newuser@example.com',
@@ -54,7 +79,7 @@ describe('POST /api/admin/users', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({
       email: 'newuser@example.com',
@@ -80,7 +105,7 @@ describe('POST /api/admin/users', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({
       email: 'not-an-email',
@@ -106,7 +131,7 @@ describe('POST /api/admin/users', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({
       email: 'newuser@example.com',
@@ -139,21 +164,10 @@ describe('POST /api/admin/users', () => {
       }),
     };
 
-    vi.mocked(createClient).mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'admin-123' } } }),
-      },
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: { role: 'admin' } }),
-          }),
-        }),
-      }),
-    } as unknown as ReturnType<typeof createClient>);
+    vi.mocked(createClient).mockResolvedValue(createAdminClientMock());
 
     vi.mocked(createServiceClient).mockResolvedValue(
-      mockServiceClient as unknown as ReturnType<typeof createServiceClient>
+      mockServiceClient as unknown as Awaited<ReturnType<typeof createServiceClient>>
     );
 
     const request = createMockRequest({
@@ -187,21 +201,10 @@ describe('POST /api/admin/users', () => {
       }),
     };
 
-    vi.mocked(createClient).mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'admin-123' } } }),
-      },
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: { role: 'admin' } }),
-          }),
-        }),
-      }),
-    } as unknown as ReturnType<typeof createClient>);
+    vi.mocked(createClient).mockResolvedValue(createAdminClientMock());
 
     vi.mocked(createServiceClient).mockResolvedValue(
-      mockServiceClient as unknown as ReturnType<typeof createServiceClient>
+      mockServiceClient as unknown as Awaited<ReturnType<typeof createServiceClient>>
     );
 
     const request = createMockRequest({
@@ -235,21 +238,10 @@ describe('POST /api/admin/users', () => {
       }),
     };
 
-    vi.mocked(createClient).mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'admin-123' } } }),
-      },
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: { role: 'admin' } }),
-          }),
-        }),
-      }),
-    } as unknown as ReturnType<typeof createClient>);
+    vi.mocked(createClient).mockResolvedValue(createAdminClientMock());
 
     vi.mocked(createServiceClient).mockResolvedValue(
-      mockServiceClient as unknown as ReturnType<typeof createServiceClient>
+      mockServiceClient as unknown as Awaited<ReturnType<typeof createServiceClient>>
     );
 
     const request = createMockRequest({
@@ -282,21 +274,10 @@ describe('POST /api/admin/users', () => {
       }),
     };
 
-    vi.mocked(createClient).mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'admin-123' } } }),
-      },
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: { role: 'admin' } }),
-          }),
-        }),
-      }),
-    } as unknown as ReturnType<typeof createClient>);
+    vi.mocked(createClient).mockResolvedValue(createAdminClientMock());
 
     vi.mocked(createServiceClient).mockResolvedValue(
-      mockServiceClient as unknown as ReturnType<typeof createServiceClient>
+      mockServiceClient as unknown as Awaited<ReturnType<typeof createServiceClient>>
     );
 
     const request = createMockRequest({
@@ -325,7 +306,7 @@ describe('POST /api/admin/users', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({
       email: 'customer@example.com',
@@ -353,7 +334,7 @@ describe('POST /api/admin/users', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const request = createMockRequest({
       email: 'customer@example.com',
@@ -398,10 +379,10 @@ describe('POST /api/admin/users - error handling', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     vi.mocked(createServiceClient).mockResolvedValue(
-      mockServiceClient as unknown as ReturnType<typeof createServiceClient>
+      mockServiceClient as unknown as Awaited<ReturnType<typeof createServiceClient>>
     );
 
     const request = createMockRequest({
@@ -448,21 +429,10 @@ describe('POST /api/admin/users - error handling', () => {
       }),
     };
 
-    vi.mocked(createClient).mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'admin-123' } } }),
-      },
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: { role: 'admin' } }),
-          }),
-        }),
-      }),
-    } as unknown as ReturnType<typeof createClient>);
+    vi.mocked(createClient).mockResolvedValue(createAdminClientMock());
 
     vi.mocked(createServiceClient).mockResolvedValue(
-      mockServiceClient as unknown as ReturnType<typeof createServiceClient>
+      mockServiceClient as unknown as Awaited<ReturnType<typeof createServiceClient>>
     );
 
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -493,7 +463,7 @@ describe('GET /api/admin/users', () => {
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
       },
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const response = await GET();
     const data = await response.json();
@@ -514,7 +484,7 @@ describe('GET /api/admin/users', () => {
           }),
         }),
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const response = await GET();
     const data = await response.json();
@@ -553,7 +523,7 @@ describe('GET /api/admin/users', () => {
         }
         return {};
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const response = await GET();
     const data = await response.json();
@@ -587,7 +557,7 @@ describe('GET /api/admin/users', () => {
         }
         return {};
       }),
-    } as unknown as ReturnType<typeof createClient>);
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const response = await GET();
     const data = await response.json();
