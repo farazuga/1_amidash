@@ -842,6 +842,11 @@ export async function inlineEditProjectField(data: InlineEditData): Promise<Inli
     created_at: 'created_at',
     created_date: 'created_date',
     invoiced_date: 'invoiced_date',
+    // Delivery address
+    delivery_street: 'delivery_street',
+    delivery_city: 'delivery_city',
+    delivery_state: 'delivery_state',
+    delivery_zip: 'delivery_zip',
     // Odoo integration
     project_description: 'project_description',
     odoo_invoice_status: 'odoo_invoice_status',

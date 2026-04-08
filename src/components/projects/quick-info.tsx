@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Calendar, ExternalLink, Eye, FolderOpen, FileText, Loader2, RefreshCw } from 'lucide-react';
+import { Calendar, ExternalLink, Eye, FolderOpen, FileText, Loader2, MapPin, Pencil, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { InlineEditField } from './inline-edit-field';
@@ -24,6 +24,7 @@ import { ScheduleStatusBadge } from './schedule-status-badge';
 import { StatusBadge } from './status-badge';
 import { CopyClientLink } from './copy-client-link';
 import { DeleteProjectButton } from './delete-project-button';
+import { DeliveryAddressDialog } from './delivery-address-dialog';
 import { MakeIssueButton } from './make-issue-dialog';
 import { ProjectScheduledHours } from './project-scheduled-hours';
 import { inlineEditProjectField, updateProjectDates, updateProjectScheduleStatus, refreshOdooInvoiceStatus } from '@/app/(dashboard)/projects/actions';
@@ -62,6 +63,11 @@ interface QuickInfoProps {
     client_token: string | null;
     client_portal_views?: number;
     project_type_id: string | null;
+    // Delivery address
+    delivery_street?: string | null;
+    delivery_city?: string | null;
+    delivery_state?: string | null;
+    delivery_zip?: string | null;
     // Odoo integration
     odoo_order_id?: number | null;
     odoo_invoice_status?: string | null;
@@ -111,6 +117,9 @@ export function QuickInfo({
 
   // Odoo invoice refresh state
   const [isRefreshingInvoice, setIsRefreshingInvoice] = useState(false);
+
+  // Delivery address dialog state
+  const [addressDialogOpen, setAddressDialogOpen] = useState(false);
 
   // Filter statuses based on project type
   const availableStatuses = project.project_type_id
@@ -670,6 +679,33 @@ export function QuickInfo({
             </div>
           )}
 
+          {/* Delivery Address */}
+          <div className="px-3 py-2 hover:bg-muted/50 transition-colors">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Delivery Address</span>
+              {canEdit && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => setAddressDialogOpen(true)}
+                >
+                  <Pencil className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+            {project.delivery_street ? (
+              <div className="flex items-start gap-1.5 mt-1">
+                <MapPin className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+                <span className="text-sm">
+                  {project.delivery_street}, {project.delivery_city}, {project.delivery_state} {project.delivery_zip}
+                </span>
+              </div>
+            ) : (
+              <span className="text-sm text-muted-foreground italic">Not set</span>
+            )}
+          </div>
+
           {/* Scope Link */}
           <div className="flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors">
             <span className="text-sm text-muted-foreground">Scope Link</span>
@@ -711,6 +747,36 @@ export function QuickInfo({
           </div>
         </div>
       </CardContent>
+
+      {/* Delivery Address Dialog */}
+      {canEdit && (
+        <DeliveryAddressDialog
+          address={
+            project.delivery_street
+              ? {
+                  street: project.delivery_street,
+                  city: project.delivery_city || '',
+                  state: project.delivery_state || '',
+                  zip: project.delivery_zip || '',
+                  country: 'US',
+                }
+              : null
+          }
+          open={addressDialogOpen}
+          onOpenChange={setAddressDialogOpen}
+          onSave={async (address) => {
+            try {
+              await handleFieldSave('delivery_street', address.street);
+              await handleFieldSave('delivery_city', address.city);
+              await handleFieldSave('delivery_state', address.state);
+              await handleFieldSave('delivery_zip', address.zip);
+              setAddressDialogOpen(false);
+            } catch {
+              // Error already shown via toast in handleFieldSave
+            }
+          }}
+        />
+      )}
 
       {/* Note Dialog for require_note statuses */}
       <Dialog open={noteDialogOpen} onOpenChange={(open) => {

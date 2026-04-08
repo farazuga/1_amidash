@@ -201,6 +201,11 @@ export default async function ProjectDetailPage({
               client_token: project.client_token,
               client_portal_views: (project as { client_portal_views?: number }).client_portal_views,
               project_type_id: project.project_type_id,
+              // Delivery address
+              delivery_street: (project as { delivery_street?: string | null }).delivery_street ?? null,
+              delivery_city: (project as { delivery_city?: string | null }).delivery_city ?? null,
+              delivery_state: (project as { delivery_state?: string | null }).delivery_state ?? null,
+              delivery_zip: (project as { delivery_zip?: string | null }).delivery_zip ?? null,
               // Odoo integration
               odoo_order_id: (project as { odoo_order_id?: number | null }).odoo_order_id ?? null,
               odoo_invoice_status: (project as { odoo_invoice_status?: string | null }).odoo_invoice_status ?? null,
