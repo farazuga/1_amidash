@@ -9,10 +9,23 @@ export async function POST(request: NextRequest) {
   try {
     // CSRF protection - validate request origin
     const origin = request.headers.get('origin');
+    const referer = request.headers.get('referer');
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const appOrigin = new URL(appUrl).origin;
-    if (origin && origin !== appOrigin) {
-      return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
+
+    if (origin) {
+      if (origin !== appOrigin) {
+        return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
+      }
+    } else if (referer) {
+      try {
+        const refererOrigin = new URL(referer).origin;
+        if (refererOrigin !== appOrigin) {
+          return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
+        }
+      } catch {
+        return NextResponse.json({ error: 'Invalid referer' }, { status: 403 });
+      }
     }
 
     // Auth check
@@ -23,7 +36,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
     // Zod validation
     const parseResult = statusChangeEmailSchema.safeParse(body);
@@ -32,6 +50,10 @@ export async function POST(request: NextRequest) {
         { error: 'Invalid request', details: parseResult.error.flatten().fieldErrors },
         { status: 400 }
       );
+    }
+
+    if (parseResult.data.isInternalOnly) {
+      return NextResponse.json({ success: true, skipped: true, reason: 'Internal-only status' });
     }
 
     const { to, clientName, newStatus, previousStatus, clientToken, note, projectId } = parseResult.data;
@@ -55,7 +77,10 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const portalUrl = clientToken ? getPortalUrl(clientToken) : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+    if (!clientToken) {
+      return NextResponse.json({ success: true, skipped: true, reason: 'No portal link available' });
+    }
+    const portalUrl = getPortalUrl(clientToken);
 
     const html = statusChangeEmail({
       clientName,

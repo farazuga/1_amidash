@@ -90,7 +90,7 @@ interface AssignmentWithDays {
  */
 export async function createConfirmationRequest(
   params: CreateConfirmationRequestData
-): Promise<ActionResult<{ id: string; token: string }>> {
+): Promise<ActionResult<{ id: string; token: string; emailSent: boolean }>> {
   try {
     // Validate input
     const validated = createConfirmationRequestSchema.safeParse(params);
@@ -228,6 +228,7 @@ export async function createConfirmationRequest(
     // Check if emails are enabled before sending
     const emailSettings = await checkEmailEnabled(params.projectId, params.sendToEmail);
 
+    let emailSent = false;
     if (emailSettings.canSendEmail) {
       // Send confirmation email
       const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL}/confirm/${request.token}`;
@@ -246,9 +247,10 @@ export async function createConfirmationRequest(
         html: emailHtml,
       });
 
-      if (!emailResult.success) {
+      if (emailResult.success) {
+        emailSent = true;
+      } else {
         console.error('Failed to send confirmation email:', emailResult.error);
-        // Don't fail the whole operation - request was created
       }
     } else {
       console.log('Skipping confirmation email - emails disabled:', {
@@ -262,7 +264,7 @@ export async function createConfirmationRequest(
 
     return {
       success: true,
-      data: { id: request.id, token: request.token },
+      data: { id: request.id, token: request.token, emailSent },
     };
   } catch (error) {
     console.error('createConfirmationRequest error:', error);
@@ -344,7 +346,8 @@ export async function handleConfirmationResponse(
       .eq('id', request.id);
 
     if (updateRequestError) {
-      return { success: false, error: updateRequestError.message };
+      console.error('Confirmation request update error:', updateRequestError);
+      return { success: false, error: 'Unable to process your response. Please try again.' };
     }
 
     // Get linked assignments
@@ -358,10 +361,15 @@ export async function handleConfirmationResponse(
 
     if (assignmentIds.length > 0) {
       // Update assignment statuses
-      await supabase
+      const { error: assignmentUpdateError } = await supabase
         .from('project_assignments')
         .update({ booking_status: newBookingStatus })
         .in('id', assignmentIds);
+
+      if (assignmentUpdateError) {
+        console.error('Failed to update assignment statuses:', assignmentUpdateError);
+        // Don't fail the overall response since the confirmation was recorded
+      }
 
       // Record status changes in history
       for (const assignmentId of assignmentIds) {
@@ -378,19 +386,28 @@ export async function handleConfirmationResponse(
 
     // Send notification email to PM who created the request
     if (request.created_by_profile?.email) {
-      const notificationHtml = pmConfirmationResponseEmailTemplate({
-        pmName: request.created_by_profile.full_name || 'PM',
-        projectName: request.project?.client_name || 'Unknown Project',
-        customerName: request.sent_to_name || request.sent_to_email,
-        action: params.action,
-        declineReason: params.declineReason,
-      });
+      try {
+        const notificationHtml = pmConfirmationResponseEmailTemplate({
+          pmName: request.created_by_profile.full_name || 'PM',
+          projectName: request.project?.client_name || 'Unknown Project',
+          customerName: request.sent_to_name || request.sent_to_email,
+          action: params.action,
+          declineReason: params.declineReason,
+        });
 
-      await sendEmail({
-        to: request.created_by_profile.email,
-        subject: `Customer ${params.action === 'confirm' ? 'confirmed' : 'declined'} - ${request.project?.client_name}`,
-        html: notificationHtml,
-      });
+        const pmEmailResult = await sendEmail({
+          to: request.created_by_profile.email,
+          subject: `Customer ${params.action === 'confirm' ? 'confirmed' : 'declined'} - ${request.project?.client_name}`,
+          html: notificationHtml,
+        });
+
+        if (!pmEmailResult.success) {
+          console.error('Failed to send PM notification email:', pmEmailResult.error);
+        }
+      } catch (pmEmailError) {
+        console.error('PM notification email error:', pmEmailError);
+        // Don't fail the customer response - their action was already recorded
+      }
     }
 
     return { success: true };
@@ -398,7 +415,7 @@ export async function handleConfirmationResponse(
     console.error('handleConfirmationResponse error:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: 'Unable to process your response. Please try again.',
     };
   }
 }
@@ -753,10 +770,15 @@ export async function cancelConfirmationRequest(
 
     // Revert assignments to draft
     if (assignmentIds.length > 0) {
-      await supabase
+      const { error: revertError } = await supabase
         .from('project_assignments')
         .update({ booking_status: 'draft' as BookingStatus })
         .in('id', assignmentIds);
+
+      if (revertError) {
+        console.error('Failed to revert assignment statuses:', revertError);
+        // Continue with cancellation even if revert fails
+      }
 
       // Record status changes
       for (const assignmentId of assignmentIds) {
@@ -771,10 +793,15 @@ export async function cancelConfirmationRequest(
     }
 
     // Delete the request (cascade will delete linked assignments)
-    await (supabase as any)
+    const { error: deleteError } = await (supabase as any)
       .from('confirmation_requests')
       .delete()
       .eq('id', request.id);
+
+    if (deleteError) {
+      console.error('Failed to delete confirmation request:', deleteError);
+      return { success: false, error: 'Failed to cancel confirmation request' };
+    }
 
     revalidatePath('/calendar');
 

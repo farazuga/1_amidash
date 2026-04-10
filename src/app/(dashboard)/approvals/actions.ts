@@ -86,7 +86,7 @@ export async function getPendingApprovalCount(): Promise<number> {
   return count || 0;
 }
 
-export async function approveFile(taskId: string): Promise<{ success: boolean; error?: string }> {
+export async function approveFile(taskId: string): Promise<{ success: boolean; error?: string; emailFailed?: boolean }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: 'Not authenticated' };
@@ -121,6 +121,7 @@ export async function approveFile(taskId: string): Promise<{ success: boolean; e
     .eq('id', task.file_upload_id);
 
   // Send approval email to customer
+  let emailFailed = false;
   try {
     const { data: project } = await supabase
       .from('projects')
@@ -145,17 +146,17 @@ export async function approveFile(taskId: string): Promise<{ success: boolean; e
     }
   } catch (err) {
     console.error('Failed to send approval email:', err);
-    // Don't fail the approval itself if email fails
+    emailFailed = true;
   }
 
   revalidatePath('/approvals');
-  return { success: true };
+  return { success: true, emailFailed };
 }
 
 export async function rejectFile(
   taskId: string,
   note: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; emailFailed?: boolean }> {
   if (!note?.trim()) return { success: false, error: 'Rejection note is required' };
 
   const supabase = await createClient();
@@ -193,6 +194,7 @@ export async function rejectFile(
     .eq('id', task.file_upload_id);
 
   // Send rejection email to customer
+  let emailFailed = false;
   try {
     const { data: project } = await supabase
       .from('projects')
@@ -218,8 +220,9 @@ export async function rejectFile(
     }
   } catch (err) {
     console.error('Failed to send rejection email:', err);
+    emailFailed = true;
   }
 
   revalidatePath('/approvals');
-  return { success: true };
+  return { success: true, emailFailed };
 }

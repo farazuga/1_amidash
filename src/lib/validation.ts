@@ -9,23 +9,24 @@ export const roleSchema = z.enum(['admin', 'editor', 'viewer', 'customer']);
 // Status change email request schema
 export const statusChangeEmailSchema = z.object({
   to: emailSchema,
-  clientName: z.string().min(1, 'Client name required'),
-  newStatus: z.string().min(1, 'Status required'),
-  previousStatus: z.string().optional(),
+  clientName: z.string().min(1, 'Client name required').max(200),
+  newStatus: z.string().min(1, 'Status required').max(100),
+  previousStatus: z.string().max(100).optional(),
   clientToken: z.string().optional(),
-  note: z.string().optional(),
-  projectId: z.string().optional(), // For checking project email settings
+  note: z.string().max(2000).optional(),
+  projectId: z.string().max(500).optional(), // For checking project email settings
+  isInternalOnly: z.boolean().optional(),
 });
 
 // Welcome email request schema
 export const welcomeEmailSchema = z.object({
   to: emailSchema,
-  clientName: z.string().min(1, 'Client name required'),
-  pocName: z.string().min(1, 'POC name required'),
-  projectType: z.string().optional(),
-  initialStatus: z.string().optional(),
+  clientName: z.string().min(1, 'Client name required').max(200),
+  pocName: z.string().min(1, 'POC name required').max(200),
+  projectType: z.string().max(100).optional(),
+  initialStatus: z.string().max(100).optional(),
   clientToken: z.string().min(1, 'Client token required'),
-  projectId: z.string().optional(), // For checking project email settings
+  projectId: z.string().max(500).optional(), // For checking project email settings
 });
 
 // ============================================

@@ -102,7 +102,7 @@ export function StatusChangeButton({
 
       // Send email notification if POC has email (fire-and-forget with timeout)
       // Skip email for internal-only statuses - they should not be visible to clients
-      if (pocEmail && newStatus && !newStatus.is_internal_only) {
+      if (pocEmail && clientToken && newStatus && !newStatus.is_internal_only) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
@@ -120,8 +120,16 @@ export function StatusChangeButton({
           }),
           signal: controller.signal,
         })
+          .then((response) => {
+            if (!response.ok) {
+              toast.warning('Status update email could not be sent. You may need to notify the client manually.');
+            }
+          })
           .catch((error) => {
-            console.error('Failed to send email:', error);
+            if (error.name !== 'AbortError') {
+              console.error('Failed to send email:', error);
+              toast.warning('Status update email could not be sent. You may need to notify the client manually.');
+            }
           })
           .finally(() => {
             clearTimeout(timeoutId);
@@ -149,8 +157,12 @@ export function StatusChangeButton({
         <DialogHeader>
           <DialogTitle>Change Project Status</DialogTitle>
           <DialogDescription>
-            Select a new status for this project. The client will be notified via
-            email.
+            Select a new status for this project.{' '}
+            {pocEmail && clientToken
+              ? 'The client will be notified via email.'
+              : pocEmail && !clientToken
+                ? 'The client will not be notified (no portal link available).'
+                : 'No client email on file — the client will not be notified.'}
           </DialogDescription>
         </DialogHeader>
 
