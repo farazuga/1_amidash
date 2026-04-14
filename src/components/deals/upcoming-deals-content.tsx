@@ -130,6 +130,7 @@ export function UpcomingDealsContent() {
         dealCount: monthDeals.length,
         value: groupValue(monthDeals),
         goal: goals.get(key) ?? null,
+        winRate: null,
       };
     });
   }, [sortedMonthKeys, monthGroups, goals, groupValue]);
