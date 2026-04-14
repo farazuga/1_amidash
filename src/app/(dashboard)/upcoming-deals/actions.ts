@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 export interface ReceivedPOData {
   totalValue: number;
   count: number;
-  projects: Array<{ id: string; sales_amount: number; created_date: string }>;
+  projects: Array<{ id: string; client_name: string; sales_amount: number; created_date: string }>;
 }
 
 /**
@@ -23,7 +23,7 @@ export async function getReceivedPOs(monthKey: string): Promise<ReceivedPOData> 
 
     const { data, error } = await supabase
       .from('projects')
-      .select('id, sales_amount, created_date')
+      .select('id, client_name, sales_amount, created_date')
       .not('po_number', 'is', null)
       .gte('created_date', startDate)
       .lt('created_date', endDate);

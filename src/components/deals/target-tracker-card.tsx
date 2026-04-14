@@ -10,6 +10,11 @@ import {
   Target,
 } from 'lucide-react';
 
+export interface BarSegment {
+  label: string;
+  value: number; // dollars
+}
+
 interface TargetTrackerCardProps {
   periodLabel: string;
   goal: number;
@@ -17,6 +22,8 @@ interface TargetTrackerCardProps {
   receivedPOCount: number;
   verbalCommitValue: number;
   verbalCommitCount: number;
+  receivedPOSegments?: BarSegment[];
+  verbalCommitSegments?: BarSegment[];
 }
 
 function formatValue(v: number): string {
@@ -25,6 +32,10 @@ function formatValue(v: number): string {
   return `$${v.toLocaleString()}`;
 }
 
+// Alternating shades for distinguishing adjacent segments
+const PO_SHADES = ['bg-green-500', 'bg-green-600'];
+const VERBAL_SHADES = ['bg-amber-400', 'bg-amber-500'];
+
 export function TargetTrackerCard({
   periodLabel,
   goal,
@@ -32,6 +43,8 @@ export function TargetTrackerCard({
   receivedPOCount,
   verbalCommitValue,
   verbalCommitCount,
+  receivedPOSegments,
+  verbalCommitSegments,
 }: TargetTrackerCardProps) {
   const totalValue = receivedPOValue + verbalCommitValue;
   const gap = goal - totalValue;
@@ -76,21 +89,47 @@ export function TargetTrackerCard({
             </span>
           </div>
 
-          {/* Stacked progress bar */}
+          {/* Stacked progress bar — per-deal segments when available */}
           {hasGoal && (
-            <div className="h-4 w-full rounded-full bg-muted overflow-hidden flex">
-              {poPercent > 0 && (
+            <div className="h-6 w-full rounded-full bg-muted overflow-hidden flex">
+              {receivedPOSegments && receivedPOSegments.length > 0 ? (
+                receivedPOSegments.map((seg, i) => {
+                  const pct = (seg.value / goal) * 100;
+                  if (pct <= 0) return null;
+                  return (
+                    <div
+                      key={`po-${i}`}
+                      className={`h-full ${PO_SHADES[i % PO_SHADES.length]} transition-all border-r border-green-700/20 last:border-r-0 cursor-default`}
+                      style={{ width: `${Math.min(pct, 100)}%` }}
+                      title={`${seg.label} — ${formatValue(seg.value)}`}
+                    />
+                  );
+                })
+              ) : poPercent > 0 ? (
                 <div
                   className="h-full bg-green-500 transition-all"
                   style={{ width: `${poPercent}%` }}
                 />
-              )}
-              {verbalPercent > 0 && (
+              ) : null}
+              {verbalCommitSegments && verbalCommitSegments.length > 0 ? (
+                verbalCommitSegments.map((seg, i) => {
+                  const pct = (seg.value / goal) * 100;
+                  if (pct <= 0) return null;
+                  return (
+                    <div
+                      key={`vc-${i}`}
+                      className={`h-full ${VERBAL_SHADES[i % VERBAL_SHADES.length]} transition-all border-r border-amber-700/20 last:border-r-0 cursor-default`}
+                      style={{ width: `${Math.min(pct, 100)}%` }}
+                      title={`${seg.label} — ${formatValue(seg.value)}`}
+                    />
+                  );
+                })
+              ) : verbalPercent > 0 ? (
                 <div
                   className="h-full bg-amber-500 transition-all"
                   style={{ width: `${verbalPercent}%` }}
                 />
-              )}
+              ) : null}
             </div>
           )}
 

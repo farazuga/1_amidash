@@ -151,6 +151,17 @@ export function UpcomingDealsContent() {
     if (viewMode === 'monthly') {
       const monthDeals = monthGroups.get(currentMonth) || [];
       const poData = receivedPOs.get(currentMonth);
+
+      // Per-deal segments for the bar
+      const receivedPOSegments = (poData?.projects ?? []).map((p) => ({
+        label: p.client_name || 'Unknown',
+        value: p.sales_amount || 0,
+      }));
+      const verbalCommitSegments = monthDeals.map((d) => ({
+        label: d.title || d.accountName || 'Unknown',
+        value: parseInt(d.value, 10) / 100,
+      }));
+
       return {
         periodLabel: format(parseISO(`${currentMonth}-01`), 'MMMM yyyy'),
         goal: goals.get(currentMonth) ?? 0,
@@ -158,6 +169,8 @@ export function UpcomingDealsContent() {
         receivedPOCount: poData?.count ?? 0,
         verbalCommitValue: groupValue(monthDeals),
         verbalCommitCount: monthDeals.length,
+        receivedPOSegments,
+        verbalCommitSegments,
       };
     } else {
       // Quarterly
@@ -319,6 +332,8 @@ export function UpcomingDealsContent() {
           receivedPOCount={trackerData.receivedPOCount}
           verbalCommitValue={trackerData.verbalCommitValue}
           verbalCommitCount={trackerData.verbalCommitCount}
+          receivedPOSegments={'receivedPOSegments' in trackerData ? trackerData.receivedPOSegments : undefined}
+          verbalCommitSegments={'verbalCommitSegments' in trackerData ? trackerData.verbalCommitSegments : undefined}
         />
       )}
 
