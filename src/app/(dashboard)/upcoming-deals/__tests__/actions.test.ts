@@ -25,8 +25,8 @@ describe('getReceivedPOs', () => {
   it('returns aggregated PO data for a month', async () => {
     mockLt.mockResolvedValue({
       data: [
-        { id: '1', sales_amount: 50000, created_date: '2026-04-05' },
-        { id: '2', sales_amount: 80000, created_date: '2026-04-12' },
+        { id: '1', client_name: 'Acme Co', sales_amount: 50000, created_date: '2026-04-05' },
+        { id: '2', client_name: 'Beta Inc', sales_amount: 80000, created_date: '2026-04-12' },
       ],
       error: null,
     });
@@ -36,8 +36,8 @@ describe('getReceivedPOs', () => {
       totalValue: 130000,
       count: 2,
       projects: [
-        { id: '1', sales_amount: 50000, created_date: '2026-04-05' },
-        { id: '2', sales_amount: 80000, created_date: '2026-04-12' },
+        { id: '1', client_name: 'Acme Co', sales_amount: 50000, created_date: '2026-04-05' },
+        { id: '2', client_name: 'Beta Inc', sales_amount: 80000, created_date: '2026-04-12' },
       ],
     });
 
