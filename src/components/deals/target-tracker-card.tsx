@@ -1,6 +1,7 @@
 'use client';
 
 import { Card, CardContent } from '@/components/ui/card';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import {
   TrendingUp,
   TrendingDown,
@@ -97,12 +98,15 @@ export function TargetTrackerCard({
                   const pct = (seg.value / goal) * 100;
                   if (pct <= 0) return null;
                   return (
-                    <div
-                      key={`po-${i}`}
-                      className={`h-full ${PO_SHADES[i % PO_SHADES.length]} transition-all border-r border-green-700/20 last:border-r-0 cursor-default`}
-                      style={{ width: `${Math.min(pct, 100)}%` }}
-                      title={`${seg.label} — ${formatValue(seg.value)}`}
-                    />
+                    <Tooltip key={`po-${i}`}>
+                      <TooltipTrigger asChild>
+                        <div
+                          className={`h-full ${PO_SHADES[i % PO_SHADES.length]} transition-all border-r border-green-700/20 last:border-r-0 cursor-default`}
+                          style={{ width: `${Math.min(pct, 100)}%` }}
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent>{seg.label} — {formatValue(seg.value)}</TooltipContent>
+                    </Tooltip>
                   );
                 })
               ) : poPercent > 0 ? (
@@ -116,12 +120,15 @@ export function TargetTrackerCard({
                   const pct = (seg.value / goal) * 100;
                   if (pct <= 0) return null;
                   return (
-                    <div
-                      key={`vc-${i}`}
-                      className={`h-full ${VERBAL_SHADES[i % VERBAL_SHADES.length]} transition-all border-r border-amber-700/20 last:border-r-0 cursor-default`}
-                      style={{ width: `${Math.min(pct, 100)}%` }}
-                      title={`${seg.label} — ${formatValue(seg.value)}`}
-                    />
+                    <Tooltip key={`vc-${i}`}>
+                      <TooltipTrigger asChild>
+                        <div
+                          className={`h-full ${VERBAL_SHADES[i % VERBAL_SHADES.length]} transition-all border-r border-amber-700/20 last:border-r-0 cursor-default`}
+                          style={{ width: `${Math.min(pct, 100)}%` }}
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent>{seg.label} — {formatValue(seg.value)}</TooltipContent>
+                    </Tooltip>
                   );
                 })
               ) : verbalPercent > 0 ? (
