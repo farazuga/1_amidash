@@ -7,7 +7,7 @@ const PIPELINE_NAME = 'Solutions';
 const STAGE_NAME = 'Verbal Commit';
 const BATCH_SIZE = 10;
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -22,6 +22,10 @@ export async function GET() {
         { status: 200 }
       );
     }
+
+    const { searchParams } = new URL(request.url);
+    const stagesParam = searchParams.get('stages');
+    const fetchAllStages = stagesParam === 'all';
 
     const client = getActiveCampaignClient();
 
@@ -38,21 +42,37 @@ export async function GET() {
       );
     }
 
-    // Find Verbal Commit stage
+    // Get all stages for the pipeline
     const stages = await client.getDealStages(pipeline.id);
-    const stage = stages.find(
-      (s) => s.title.toLowerCase() === STAGE_NAME.toLowerCase()
-    );
 
-    if (!stage) {
-      return NextResponse.json(
-        { error: `Stage "${STAGE_NAME}" not found`, deals: [] },
-        { status: 200 }
+    // Determine which stages to fetch deals from
+    let stagesToFetch: { id: string; title: string }[];
+
+    if (fetchAllStages) {
+      stagesToFetch = stages.map((s) => ({ id: s.id, title: s.title }));
+    } else {
+      const verbalCommitStage = stages.find(
+        (s) => s.title.toLowerCase() === STAGE_NAME.toLowerCase()
       );
+
+      if (!verbalCommitStage) {
+        return NextResponse.json(
+          { error: `Stage "${STAGE_NAME}" not found`, deals: [] },
+          { status: 200 }
+        );
+      }
+
+      stagesToFetch = [{ id: verbalCommitStage.id, title: verbalCommitStage.title }];
     }
 
-    // Fetch open deals in that stage
-    const deals = await client.getDeals({ stageId: stage.id, status: 0 });
+    // Fetch open deals from each stage
+    const dealsByStage = await Promise.all(
+      stagesToFetch.map(async (s) => {
+        const stageDeals = await client.getDeals({ stageId: s.id, status: 0 });
+        return stageDeals.map((deal) => ({ deal, stageName: s.title }));
+      })
+    );
+    const dealsWithStage = dealsByStage.flat();
 
     // Find the "Forecasted Close Date" custom field ID
     const customFieldMeta = await client.getDealCustomFieldMeta();
@@ -74,10 +94,10 @@ export async function GET() {
 
     // Resolve contact, account, and forecast close date in batches
     const resolvedDeals: ACDealDisplay[] = [];
-    for (let i = 0; i < deals.length; i += BATCH_SIZE) {
-      const batch = deals.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < dealsWithStage.length; i += BATCH_SIZE) {
+      const batch = dealsWithStage.slice(i, i + BATCH_SIZE);
       const results = await Promise.all(
-        batch.map(async (deal) => {
+        batch.map(async ({ deal, stageName }) => {
           const [contact, account, customFields] = await Promise.all([
             deal.contact ? client.getContact(deal.contact) : Promise.resolve(null),
             deal.account ? client.getAccount(deal.account) : Promise.resolve(null),
@@ -98,7 +118,7 @@ export async function GET() {
 
           const hasConfirmedPO = deal.account ? poAccountIds.has(deal.account) : false;
 
-          return { ...deal, contactName, accountName, dealUrl, forecastCloseDate, hasConfirmedPO };
+          return { ...deal, contactName, accountName, dealUrl, forecastCloseDate, hasConfirmedPO, stageName };
         })
       );
       resolvedDeals.push(...results);
