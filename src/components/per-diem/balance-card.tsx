@@ -37,7 +37,7 @@ export function BalanceCard({ userId }: BalanceCardProps) {
       value: totalPending,
       className: 'text-amber-600',
     },
-  ] as const;
+  ];
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
