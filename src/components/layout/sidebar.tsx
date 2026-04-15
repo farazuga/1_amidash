@@ -27,6 +27,7 @@ import {
   Handshake,
   Keyboard,
   Link2,
+  DollarSign,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -56,6 +57,7 @@ const mainNavItems = [
   { title: 'L10 Meetings', href: '/l10', icon: Presentation },
   { title: 'My To-Dos', href: '/l10/todos', icon: ListChecks },
   { title: 'Quick Links', href: '/quick-links', icon: Link2 },
+  { title: 'Per Diem', href: '/per-diem', icon: DollarSign },
 ];
 
 const adminTopItems = [
