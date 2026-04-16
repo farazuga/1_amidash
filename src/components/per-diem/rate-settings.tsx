@@ -28,8 +28,8 @@ export function RateSettings() {
 
   const hasChanges =
     rates !== undefined &&
-    (Number(inStateRate) !== rates.in_state_rate ||
-      Number(outOfStateRate) !== rates.out_of_state_rate);
+    (parseFloat(Number(inStateRate).toFixed(2)) !== parseFloat(Number(rates.in_state_rate).toFixed(2)) ||
+      parseFloat(Number(outOfStateRate).toFixed(2)) !== parseFloat(Number(rates.out_of_state_rate).toFixed(2)));
 
   const isValid =
     inStateRate !== '' &&
