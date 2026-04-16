@@ -208,8 +208,8 @@ export function NewEntryDialog({
       if (isEditing && editEntry) {
         await updateEntry.mutateAsync({
           id: editEntry.id,
-          project_id: project.id || undefined,
-          project_other_note: project.id ? undefined : projectOtherNote.trim(),
+          project_id: project.id ?? null,
+          project_other_note: project.id ? null : projectOtherNote.trim() || null,
           start_date: format(startDate, 'yyyy-MM-dd'),
           end_date: format(endDate, 'yyyy-MM-dd'),
           nights,
@@ -222,8 +222,8 @@ export function NewEntryDialog({
       } else {
         await createEntry.mutateAsync({
           user_id: userId,
-          project_id: project.id || undefined,
-          project_other_note: project.id ? undefined : projectOtherNote.trim(),
+          project_id: project.id ?? null,
+          project_other_note: project.id ? null : projectOtherNote.trim() || null,
           start_date: format(startDate, 'yyyy-MM-dd'),
           end_date: format(endDate, 'yyyy-MM-dd'),
           nights,

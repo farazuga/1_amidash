@@ -124,8 +124,8 @@ export function useCreateEntry() {
   return useMutation({
     mutationFn: async (data: {
       user_id: string;
-      project_id?: string;
-      project_other_note?: string;
+      project_id: string | null;
+      project_other_note?: string | null;
       start_date: string;
       end_date: string;
       nights: number;
@@ -150,8 +150,8 @@ export function useUpdateEntry() {
   return useMutation({
     mutationFn: async (data: {
       id: string;
-      project_id?: string;
-      project_other_note?: string;
+      project_id?: string | null;
+      project_other_note?: string | null;
       start_date?: string;
       end_date?: string;
       nights?: number;
