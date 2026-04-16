@@ -1,6 +1,3 @@
-npm warn Unknown project config "playwright-skip-browser-download". This will stop working in the next major version of npm.
-npm warn Unknown project config "puppeteer-skip-download". This will stop working in the next major version of npm.
-npm warn Unknown project config "PUPPETEER_SKIP_DOWNLOAD". This will stop working in the next major version of npm.
 export type Json =
   | string
   | number
