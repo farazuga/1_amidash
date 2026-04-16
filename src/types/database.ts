@@ -1,3 +1,6 @@
+npm warn Unknown project config "playwright-skip-browser-download". This will stop working in the next major version of npm.
+npm warn Unknown project config "puppeteer-skip-download". This will stop working in the next major version of npm.
+npm warn Unknown project config "PUPPETEER_SKIP_DOWNLOAD". This will stop working in the next major version of npm.
 export type Json =
   | string
   | number
@@ -454,6 +457,7 @@ export type Database = {
           id: string
           outlook_calendar_id: string
           outlook_email: string
+          outlook_projects_calendar_id: string | null
           updated_at: string
           user_id: string
         }
@@ -462,6 +466,7 @@ export type Database = {
           id?: string
           outlook_calendar_id: string
           outlook_email: string
+          outlook_projects_calendar_id?: string | null
           updated_at?: string
           user_id: string
         }
@@ -470,6 +475,7 @@ export type Database = {
           id?: string
           outlook_calendar_id?: string
           outlook_email?: string
+          outlook_projects_calendar_id?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -1124,6 +1130,159 @@ export type Database = {
           },
         ]
       }
+      per_diem_deposits: {
+        Row: {
+          amount: number
+          created_at: string | null
+          created_by: string
+          id: string
+          note: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          created_by: string
+          id?: string
+          note?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          created_by?: string
+          id?: string
+          note?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "per_diem_deposits_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "per_diem_deposits_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      per_diem_entries: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          end_date: string
+          id: string
+          location_type: string
+          nights: number
+          nights_overridden: boolean
+          project_id: string | null
+          project_other_note: string | null
+          rate: number
+          start_date: string
+          status: string
+          total: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          end_date: string
+          id?: string
+          location_type: string
+          nights: number
+          nights_overridden?: boolean
+          project_id?: string | null
+          project_other_note?: string | null
+          rate: number
+          start_date: string
+          status?: string
+          total: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          end_date?: string
+          id?: string
+          location_type?: string
+          nights?: number
+          nights_overridden?: boolean
+          project_id?: string | null
+          project_other_note?: string | null
+          rate?: number
+          start_date?: string
+          status?: string
+          total?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "per_diem_entries_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "per_diem_entries_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "per_diem_entries_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      per_diem_rates: {
+        Row: {
+          id: string
+          in_state_rate: number
+          out_of_state_rate: number
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          in_state_rate?: number
+          out_of_state_rate?: number
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          in_state_rate?: number
+          out_of_state_rate?: number
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "per_diem_rates_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       portal_email_templates: {
         Row: {
           button_color: string | null
@@ -1747,6 +1906,218 @@ export type Database = {
           },
         ]
       }
+      project_types: {
+        Row: {
+          created_at: string | null
+          display_order: number
+          id: string
+          is_active: boolean | null
+          name: string
+          portal_template_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          display_order: number
+          id?: string
+          is_active?: boolean | null
+          name: string
+          portal_template_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          display_order?: number
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          portal_template_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_types_portal_template_id_fkey"
+            columns: ["portal_template_id"]
+            isOneToOne: false
+            referencedRelation: "portal_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          activecampaign_account_id: string | null
+          activecampaign_contact_id: string | null
+          client_name: string
+          client_portal_views: number
+          client_token: string | null
+          contract_type: string | null
+          created_at: string | null
+          created_by: string | null
+          created_date: string
+          current_status_id: string | null
+          delivery_city: string | null
+          delivery_country: string | null
+          delivery_state: string | null
+          delivery_street: string | null
+          delivery_zip: string | null
+          email_notifications_enabled: boolean | null
+          end_date: string | null
+          expected_update_auto: boolean | null
+          expected_update_date: string | null
+          goal_completion_date: string | null
+          id: string
+          invoiced_date: string | null
+          is_draft: boolean
+          number_of_vidpods: number | null
+          odoo_invoice_status: string | null
+          odoo_last_synced_at: string | null
+          odoo_order_id: number | null
+          parent_project_id: string | null
+          po_number: string | null
+          poc_email: string | null
+          poc_name: string | null
+          poc_phone: string | null
+          project_description: string | null
+          project_type_id: string | null
+          sales_amount: number | null
+          sales_order_number: string
+          sales_order_url: string | null
+          salesperson_id: string | null
+          schedule_status: string | null
+          scope_link: string | null
+          secondary_activecampaign_contact_id: string | null
+          secondary_poc_email: string | null
+          start_date: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          activecampaign_account_id?: string | null
+          activecampaign_contact_id?: string | null
+          client_name: string
+          client_portal_views?: number
+          client_token?: string | null
+          contract_type?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          created_date?: string
+          current_status_id?: string | null
+          delivery_city?: string | null
+          delivery_country?: string | null
+          delivery_state?: string | null
+          delivery_street?: string | null
+          delivery_zip?: string | null
+          email_notifications_enabled?: boolean | null
+          end_date?: string | null
+          expected_update_auto?: boolean | null
+          expected_update_date?: string | null
+          goal_completion_date?: string | null
+          id?: string
+          invoiced_date?: string | null
+          is_draft?: boolean
+          number_of_vidpods?: number | null
+          odoo_invoice_status?: string | null
+          odoo_last_synced_at?: string | null
+          odoo_order_id?: number | null
+          parent_project_id?: string | null
+          po_number?: string | null
+          poc_email?: string | null
+          poc_name?: string | null
+          poc_phone?: string | null
+          project_description?: string | null
+          project_type_id?: string | null
+          sales_amount?: number | null
+          sales_order_number?: string
+          sales_order_url?: string | null
+          salesperson_id?: string | null
+          schedule_status?: string | null
+          scope_link?: string | null
+          secondary_activecampaign_contact_id?: string | null
+          secondary_poc_email?: string | null
+          start_date?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          activecampaign_account_id?: string | null
+          activecampaign_contact_id?: string | null
+          client_name?: string
+          client_portal_views?: number
+          client_token?: string | null
+          contract_type?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          created_date?: string
+          current_status_id?: string | null
+          delivery_city?: string | null
+          delivery_country?: string | null
+          delivery_state?: string | null
+          delivery_street?: string | null
+          delivery_zip?: string | null
+          email_notifications_enabled?: boolean | null
+          end_date?: string | null
+          expected_update_auto?: boolean | null
+          expected_update_date?: string | null
+          goal_completion_date?: string | null
+          id?: string
+          invoiced_date?: string | null
+          is_draft?: boolean
+          number_of_vidpods?: number | null
+          odoo_invoice_status?: string | null
+          odoo_last_synced_at?: string | null
+          odoo_order_id?: number | null
+          parent_project_id?: string | null
+          po_number?: string | null
+          poc_email?: string | null
+          poc_name?: string | null
+          poc_phone?: string | null
+          project_description?: string | null
+          project_type_id?: string | null
+          sales_amount?: number | null
+          sales_order_number?: string
+          sales_order_url?: string | null
+          salesperson_id?: string | null
+          schedule_status?: string | null
+          scope_link?: string | null
+          secondary_activecampaign_contact_id?: string | null
+          secondary_poc_email?: string | null
+          start_date?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projects_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_current_status_id_fkey"
+            columns: ["current_status_id"]
+            isOneToOne: false
+            referencedRelation: "statuses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_parent_project_id_fkey"
+            columns: ["parent_project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_project_type_id_fkey"
+            columns: ["project_type_id"]
+            isOneToOne: false
+            referencedRelation: "project_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_salesperson_id_fkey"
+            columns: ["salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quick_link_categories: {
         Row: {
           created_at: string | null
@@ -1825,208 +2196,6 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "quick_link_categories"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      project_types: {
-        Row: {
-          created_at: string | null
-          display_order: number
-          id: string
-          is_active: boolean | null
-          name: string
-          portal_template_id: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          display_order: number
-          id?: string
-          is_active?: boolean | null
-          name: string
-          portal_template_id?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          display_order?: number
-          id?: string
-          is_active?: boolean | null
-          name?: string
-          portal_template_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "project_types_portal_template_id_fkey"
-            columns: ["portal_template_id"]
-            isOneToOne: false
-            referencedRelation: "portal_templates"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      projects: {
-        Row: {
-          activecampaign_account_id: string | null
-          activecampaign_contact_id: string | null
-          client_name: string
-          client_portal_views: number
-          client_token: string | null
-          contract_type: string | null
-          created_at: string | null
-          created_by: string | null
-          created_date: string
-          current_status_id: string | null
-          delivery_city: string | null
-          delivery_country: string | null
-          delivery_state: string | null
-          delivery_street: string | null
-          delivery_zip: string | null
-          email_notifications_enabled: boolean | null
-          end_date: string | null
-          expected_update_auto: boolean | null
-          expected_update_date: string | null
-          goal_completion_date: string | null
-          id: string
-          invoiced_date: string | null
-          is_draft: boolean
-          number_of_vidpods: number | null
-          odoo_invoice_status: string | null
-          odoo_last_synced_at: string | null
-          odoo_order_id: number | null
-          po_number: string | null
-          poc_email: string | null
-          poc_name: string | null
-          poc_phone: string | null
-          project_description: string | null
-          project_type_id: string | null
-          sales_amount: number | null
-          sales_order_number: string
-          sales_order_url: string | null
-          salesperson_id: string | null
-          schedule_status: string | null
-          scope_link: string | null
-          secondary_activecampaign_contact_id: string | null
-          secondary_poc_email: string | null
-          start_date: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          activecampaign_account_id?: string | null
-          activecampaign_contact_id?: string | null
-          client_name: string
-          client_portal_views?: number
-          client_token?: string | null
-          contract_type?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          created_date?: string
-          current_status_id?: string | null
-          delivery_city?: string | null
-          delivery_country?: string | null
-          delivery_state?: string | null
-          delivery_street?: string | null
-          delivery_zip?: string | null
-          email_notifications_enabled?: boolean | null
-          end_date?: string | null
-          expected_update_auto?: boolean | null
-          expected_update_date?: string | null
-          goal_completion_date?: string | null
-          id?: string
-          invoiced_date?: string | null
-          is_draft?: boolean
-          number_of_vidpods?: number | null
-          odoo_invoice_status?: string | null
-          odoo_last_synced_at?: string | null
-          odoo_order_id?: number | null
-          po_number?: string | null
-          poc_email?: string | null
-          poc_name?: string | null
-          poc_phone?: string | null
-          project_description?: string | null
-          project_type_id?: string | null
-          sales_amount?: number | null
-          sales_order_number?: string
-          sales_order_url?: string | null
-          salesperson_id?: string | null
-          schedule_status?: string | null
-          scope_link?: string | null
-          secondary_activecampaign_contact_id?: string | null
-          secondary_poc_email?: string | null
-          start_date?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          activecampaign_account_id?: string | null
-          activecampaign_contact_id?: string | null
-          client_name?: string
-          client_portal_views?: number
-          client_token?: string | null
-          contract_type?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          created_date?: string
-          current_status_id?: string | null
-          delivery_city?: string | null
-          delivery_country?: string | null
-          delivery_state?: string | null
-          delivery_street?: string | null
-          delivery_zip?: string | null
-          email_notifications_enabled?: boolean | null
-          end_date?: string | null
-          expected_update_auto?: boolean | null
-          expected_update_date?: string | null
-          goal_completion_date?: string | null
-          id?: string
-          invoiced_date?: string | null
-          is_draft?: boolean
-          number_of_vidpods?: number | null
-          odoo_invoice_status?: string | null
-          odoo_last_synced_at?: string | null
-          odoo_order_id?: number | null
-          po_number?: string | null
-          poc_email?: string | null
-          poc_name?: string | null
-          poc_phone?: string | null
-          project_description?: string | null
-          project_type_id?: string | null
-          sales_amount?: number | null
-          sales_order_number?: string
-          sales_order_url?: string | null
-          salesperson_id?: string | null
-          schedule_status?: string | null
-          scope_link?: string | null
-          secondary_activecampaign_contact_id?: string | null
-          secondary_poc_email?: string | null
-          start_date?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "projects_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "projects_current_status_id_fkey"
-            columns: ["current_status_id"]
-            isOneToOne: false
-            referencedRelation: "statuses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "projects_project_type_id_fkey"
-            columns: ["project_type_id"]
-            isOneToOne: false
-            referencedRelation: "project_types"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "projects_salesperson_id_fkey"
-            columns: ["salesperson_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -2110,38 +2279,56 @@ export type Database = {
           },
         ]
       }
-      signage_slides: {
+      signage_blocks: {
         Row: {
-          config: Json | null
+          block_type: string
+          content: Json | null
           created_at: string | null
-          display_order: number
-          duration_ms: number | null
+          display_order: number | null
           enabled: boolean | null
           id: string
-          slide_type: string
-          title: string | null
+          position: string | null
+          title: string
           updated_at: string | null
         }
         Insert: {
-          config?: Json | null
+          block_type: string
+          content?: Json | null
           created_at?: string | null
-          display_order: number
-          duration_ms?: number | null
+          display_order?: number | null
           enabled?: boolean | null
           id?: string
-          slide_type: string
-          title?: string | null
+          position?: string | null
+          title: string
           updated_at?: string | null
         }
         Update: {
-          config?: Json | null
+          block_type?: string
+          content?: Json | null
           created_at?: string | null
-          display_order?: number
-          duration_ms?: number | null
+          display_order?: number | null
           enabled?: boolean | null
           id?: string
-          slide_type?: string
-          title?: string | null
+          position?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      signage_settings: {
+        Row: {
+          id: string
+          rotation_interval_ms: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          rotation_interval_ms?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          rotation_interval_ms?: number | null
           updated_at?: string | null
         }
         Relationships: []
@@ -2234,27 +2421,33 @@ export type Database = {
       synced_calendar_events: {
         Row: {
           assignment_id: string
+          calendar_type: string
           external_event_id: string
           id: string
           last_synced_at: string | null
           sync_error: string | null
           user_id: string
+          work_date: string
         }
         Insert: {
           assignment_id: string
+          calendar_type?: string
           external_event_id: string
           id?: string
           last_synced_at?: string | null
           sync_error?: string | null
           user_id: string
+          work_date: string
         }
         Update: {
           assignment_id?: string
+          calendar_type?: string
           external_event_id?: string
           id?: string
           last_synced_at?: string | null
           sync_error?: string | null
           user_id?: string
+          work_date?: string
         }
         Relationships: [
           {
@@ -2266,6 +2459,54 @@ export type Database = {
           },
           {
             foreignKeyName: "synced_calendar_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      synced_project_calendar_events: {
+        Row: {
+          external_event_id: string
+          id: string
+          last_synced_at: string
+          project_id: string
+          range_end: string
+          range_start: string
+          sync_error: string | null
+          user_id: string
+        }
+        Insert: {
+          external_event_id: string
+          id?: string
+          last_synced_at?: string
+          project_id: string
+          range_end: string
+          range_start: string
+          sync_error?: string | null
+          user_id: string
+        }
+        Update: {
+          external_event_id?: string
+          id?: string
+          last_synced_at?: string
+          project_id?: string
+          range_end?: string
+          range_start?: string
+          sync_error?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "synced_project_calendar_events_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "synced_project_calendar_events_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -2402,6 +2643,14 @@ export type Database = {
       }
     }
     Functions: {
+      check_user_availability: {
+        Args: { p_date: string; p_user_id: string }
+        Returns: {
+          availability_type: string
+          is_available: boolean
+          reason: string
+        }[]
+      }
       check_user_conflicts: {
         Args: {
           p_end_date: string
@@ -2411,12 +2660,26 @@ export type Database = {
         }
         Returns: {
           conflict_date: string
+          conflict_type: string
           conflicting_assignment_id: string
           conflicting_project_id: string
           conflicting_project_name: string
         }[]
       }
       expire_pending_confirmation_requests: { Args: never; Returns: number }
+      get_assignment_days_in_range: {
+        Args: {
+          p_assignment_id: string
+          p_end_date: string
+          p_start_date: string
+        }
+        Returns: {
+          day_id: string
+          end_time: string
+          start_time: string
+          work_date: string
+        }[]
+      }
       get_calendar_assignments: {
         Args: {
           p_end_date: string
@@ -2430,6 +2693,7 @@ export type Database = {
           project_id: string
           project_name: string
           project_start_date: string
+          sales_order_number: string
           user_id: string
           user_name: string
         }[]
@@ -2460,6 +2724,7 @@ export type Database = {
           work_date: string
         }[]
       }
+      get_emails_enabled: { Args: never; Returns: boolean }
       get_monthly_goal: {
         Args: { p_month: number; p_year: number }
         Returns: {
@@ -2494,6 +2759,16 @@ export type Database = {
         }[]
       }
       get_sharepoint_config: { Args: never; Returns: Json }
+      get_user_availability_range: {
+        Args: { p_end_date: string; p_start_date: string; p_user_id: string }
+        Returns: {
+          availability_type: string
+          end_date: string
+          id: string
+          reason: string
+          start_date: string
+        }[]
+      }
       get_user_role: { Args: { user_id: string }; Returns: string }
       get_user_schedule: {
         Args: { p_end_date: string; p_start_date: string; p_user_id: string }
@@ -2521,10 +2796,12 @@ export type Database = {
         Args: { p_roles: string[]; p_team_id: string; p_user_id: string }
         Returns: boolean
       }
-      increment_portal_views: {
-        Args: { project_id: string }
-        Returns: undefined
-      }
+      increment_portal_views:
+        | {
+            Args: { p_project_id: string; p_token: string }
+            Returns: undefined
+          }
+        | { Args: { project_id: string }; Returns: undefined }
       is_sharepoint_configured: { Args: never; Returns: boolean }
       is_status_visible_to_engineers: {
         Args: { p_status: string }
@@ -2717,3 +2994,5 @@ export const Constants = {
     },
   },
 } as const
+A new version of Supabase CLI is available: v2.90.0 (currently installed v2.65.6)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
