@@ -201,7 +201,7 @@ describe('Confirmation Actions', () => {
       const result = await createConfirmationRequest(validCreateParams);
 
       expect(result.success).toBe(true);
-      expect(result.data).toEqual({ id: 'req-1', token: 'tok-123' });
+      expect(result.data).toEqual({ id: 'req-1', token: 'tok-123', emailSent: true });
       expect(sendEmail).toHaveBeenCalled();
     });
 
@@ -854,7 +854,7 @@ describe('Confirmation Actions', () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Update failed');
+      expect(result.error).toBe('Unable to process your response. Please try again.');
     });
   });
 

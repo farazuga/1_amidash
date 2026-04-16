@@ -99,4 +99,5 @@ export interface ACDealDisplay extends ACDeal {
   dealUrl: string;
   forecastCloseDate: string;
   hasConfirmedPO: boolean;
+  stageName: string;
 }

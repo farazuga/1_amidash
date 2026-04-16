@@ -508,8 +508,16 @@ export function ProjectForm({
             }),
             signal: controller.signal,
           })
+            .then((response) => {
+              if (!response.ok) {
+                toast.warning('Welcome email could not be sent. You may need to notify the client manually.');
+              }
+            })
             .catch((error) => {
-              console.error('Failed to send welcome email:', error);
+              if (error.name !== 'AbortError') {
+                console.error('Failed to send welcome email:', error);
+                toast.warning('Welcome email could not be sent. You may need to notify the client manually.');
+              }
             })
             .finally(() => {
               clearTimeout(timeoutId);

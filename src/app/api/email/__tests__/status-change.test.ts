@@ -174,6 +174,7 @@ describe('POST /api/email/status-change', () => {
       to: 'client@example.com',
       clientName: 'Test Client',
       newStatus: 'In Progress',
+      clientToken: 'token123',
     });
 
     const response = await POST(request);

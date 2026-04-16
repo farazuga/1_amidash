@@ -1,7 +1,12 @@
 import { createServiceClient } from '@/lib/supabase/server';
 
 /**
- * Check if emails are enabled globally and optionally for a specific project
+ * Check if emails are enabled globally and optionally for a specific project.
+ *
+ * Safety-first: if any settings check fails due to a database/network error,
+ * the corresponding flag defaults to `false` (don't send) rather than `true`.
+ * This prevents unintended emails when the settings infrastructure is unreachable.
+ *
  * @param projectId Optional project ID to check project-specific setting
  * @param recipientEmail Optional recipient email to check user-specific preference
  * @returns Object containing global, project, and user email enabled states
@@ -32,9 +37,10 @@ export async function checkEmailEnabled(projectId?: string, recipientEmail?: str
     if (!error && setting) {
       globalEnabled = setting.value === true || setting.value === 'true';
     }
-  } catch {
-    // Table might not exist yet - default to enabled
-    globalEnabled = true;
+  } catch (error) {
+    console.error('Failed to check global email settings:', error);
+    // Default to disabled when settings cannot be verified (safety-first)
+    globalEnabled = false;
   }
 
   // Check project-specific setting if projectId provided
@@ -50,9 +56,10 @@ export async function checkEmailEnabled(projectId?: string, recipientEmail?: str
       if (!error && project) {
         projectEnabled = project.email_notifications_enabled !== false;
       }
-    } catch {
-      // Column might not exist yet - default to enabled
-      projectEnabled = true;
+    } catch (error) {
+      console.error('Failed to check project email settings:', error);
+      // Default to disabled when settings cannot be verified (safety-first)
+      projectEnabled = false;
     }
   }
 
@@ -69,9 +76,10 @@ export async function checkEmailEnabled(projectId?: string, recipientEmail?: str
         recipientEnabled = pref.notifications_enabled !== false;
       }
       // If no preference exists (PGRST116 error), default to enabled
-    } catch {
-      // Table might not exist yet - default to enabled
-      recipientEnabled = true;
+    } catch (error) {
+      console.error('Failed to check recipient email preferences:', error);
+      // Default to disabled when settings cannot be verified (safety-first)
+      recipientEnabled = false;
     }
   }
 

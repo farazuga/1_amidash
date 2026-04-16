@@ -113,7 +113,7 @@ export async function GET(request: Request) {
 
           const hasConfirmedPO = deal.account ? poAccountIds.has(deal.account) : false;
 
-          return { ...deal, contactName, accountName, dealUrl, forecastCloseDate, hasConfirmedPO };
+          return { ...deal, contactName, accountName, dealUrl, forecastCloseDate, hasConfirmedPO, stageName: STAGE_NAME };
         })
       );
       resolvedDeals.push(...results);

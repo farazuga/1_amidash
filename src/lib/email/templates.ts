@@ -17,6 +17,14 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (char) => map[char]);
 }
 
+/**
+ * Validates that a color string is a safe hex color value.
+ * Rejects non-hex values to prevent CSS injection from DB-sourced overrides.
+ */
+function sanitizeColor(color: string, fallback: string): string {
+  return /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : fallback;
+}
+
 const BRAND_COLORS = {
   primary: '#023A2D',
   background: '#f8faf9',
@@ -32,8 +40,8 @@ interface BaseTemplateOptions {
 }
 
 function baseTemplate(content: string, options: BaseTemplateOptions = {}): string {
-  const primaryColor = options.style?.primaryColor || BRAND_COLORS.primary;
-  const logoUrl = options.style?.logoUrl || LOGO_URL;
+  const primaryColor = sanitizeColor(options.style?.primaryColor || BRAND_COLORS.primary, BRAND_COLORS.primary);
+  const logoUrl = escapeHtml(options.style?.logoUrl || LOGO_URL);
   const footerHtml = options.style?.footerText
     ? `<p style="margin: 0 0 10px 0; color: ${BRAND_COLORS.muted}; font-size: 12px;">${escapeHtml(options.style.footerText)}</p>`
     : '';
@@ -88,8 +96,8 @@ function baseTemplate(content: string, options: BaseTemplateOptions = {}): strin
 }
 
 function button(text: string, url: string, style?: EmailStyleOverrides): string {
-  const bgColor = style?.buttonColor || BRAND_COLORS.primary;
-  const textColor = style?.buttonTextColor || '#ffffff';
+  const bgColor = sanitizeColor(style?.buttonColor || BRAND_COLORS.primary, BRAND_COLORS.primary);
+  const textColor = sanitizeColor(style?.buttonTextColor || '#ffffff', '#ffffff');
   return `
     <div style="text-align: center; margin: 30px 0;">
       <a href="${escapeHtml(url)}" style="display: inline-block; background-color: ${bgColor}; color: ${textColor}; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-weight: 600;">
@@ -100,7 +108,7 @@ function button(text: string, url: string, style?: EmailStyleOverrides): string 
 }
 
 function statusBadge(status: string, style?: EmailStyleOverrides): string {
-  const bgColor = style?.buttonColor || BRAND_COLORS.primary;
+  const bgColor = sanitizeColor(style?.buttonColor || BRAND_COLORS.primary, BRAND_COLORS.primary);
   return `
     <div style="text-align: center; margin: 30px 0;">
       <span style="display: inline-block; background-color: ${bgColor}; color: white; padding: 12px 24px; border-radius: 50px; font-size: 18px; font-weight: 600;">
@@ -132,7 +140,7 @@ export function statusChangeEmail(options: StatusChangeEmailOptions): string {
   const safeNewStatus = escapeHtml(newStatus);
   const safePreviousStatus = previousStatus ? escapeHtml(previousStatus) : undefined;
   const safeNote = note ? escapeHtml(note) : undefined;
-  const primaryColor = style?.primaryColor || BRAND_COLORS.primary;
+  const primaryColor = sanitizeColor(style?.primaryColor || BRAND_COLORS.primary, BRAND_COLORS.primary);
 
   const content = `
     <h1 style="color: ${primaryColor}; font-size: 24px; margin: 0 0 10px 0;">
@@ -357,7 +365,7 @@ export function welcomeEmail(options: WelcomeEmailOptions): string {
   const safePocName = escapeHtml(pocName);
   const safeProjectType = escapeHtml(projectType);
   const safeInitialStatus = escapeHtml(initialStatus);
-  const primaryColor = style?.primaryColor || BRAND_COLORS.primary;
+  const primaryColor = sanitizeColor(style?.primaryColor || BRAND_COLORS.primary, BRAND_COLORS.primary);
 
   const content = `
     <h1 style="color: ${primaryColor}; font-size: 24px; margin: 0 0 10px 0;">
@@ -429,7 +437,7 @@ export function confirmationEmailTemplate(options: ConfirmationEmailOptions): st
 
   const safeCustomerName = escapeHtml(customerName);
   const safeProjectName = escapeHtml(projectName);
-  const primaryColor = style?.primaryColor || BRAND_COLORS.primary;
+  const primaryColor = sanitizeColor(style?.primaryColor || BRAND_COLORS.primary, BRAND_COLORS.primary);
 
   // Format expiration date
   const expiresDate = new Date(expiresAt);
@@ -498,7 +506,7 @@ export function confirmationEmailTemplate(options: ConfirmationEmailOptions): st
     </table>
 
     <div style="text-align: center; margin: 30px 0;">
-      <a href="${escapeHtml(confirmUrl)}" style="display: inline-block; background-color: ${style?.buttonColor || primaryColor}; color: ${style?.buttonTextColor || 'white'}; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
+      <a href="${escapeHtml(confirmUrl)}" style="display: inline-block; background-color: ${sanitizeColor(style?.buttonColor || primaryColor, primaryColor)}; color: ${sanitizeColor(style?.buttonTextColor || '#ffffff', '#ffffff')}; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
         Review &amp; Confirm Dates
       </a>
     </div>
@@ -535,7 +543,7 @@ export function pmConfirmationResponseEmailTemplate(options: PMConfirmationRespo
   const safeProjectName = escapeHtml(projectName);
   const safeCustomerName = escapeHtml(customerName);
   const safeDeclineReason = declineReason ? escapeHtml(declineReason) : undefined;
-  const primaryColor = style?.primaryColor || BRAND_COLORS.primary;
+  const primaryColor = sanitizeColor(style?.primaryColor || BRAND_COLORS.primary, BRAND_COLORS.primary);
 
   const isConfirmed = action === 'confirm';
   const statusColor = isConfirmed ? '#10B981' : '#EF4444';
@@ -609,7 +617,7 @@ export function fileUploadNotificationEmail(options: FileUploadNotificationOptio
   const safeProjectName = escapeHtml(projectName);
   const safeFileName = escapeHtml(fileName);
   const safeUploaderInfo = escapeHtml(uploaderInfo);
-  const primaryColor = styleOverrides?.primaryColor || BRAND_COLORS.primary;
+  const primaryColor = sanitizeColor(styleOverrides?.primaryColor || BRAND_COLORS.primary, BRAND_COLORS.primary);
 
   const content = `
     <h1 style="color: ${primaryColor}; font-size: 24px; margin: 0 0 10px 0;">
@@ -653,7 +661,7 @@ export function fileApprovedEmail(options: FileApprovedEmailOptions): string {
   const { clientName, fileName, portalUrl, styleOverrides } = options;
   const safeClientName = escapeHtml(clientName);
   const safeFileName = escapeHtml(fileName);
-  const primaryColor = styleOverrides?.primaryColor || BRAND_COLORS.primary;
+  const primaryColor = sanitizeColor(styleOverrides?.primaryColor || BRAND_COLORS.primary, BRAND_COLORS.primary);
 
   const content = `
     <h1 style="color: ${primaryColor}; font-size: 24px; margin: 0 0 10px 0;">
@@ -690,7 +698,7 @@ export function fileRejectedEmail(options: FileRejectedEmailOptions): string {
   const safeClientName = escapeHtml(clientName);
   const safeFileName = escapeHtml(fileName);
   const safeRejectionNote = rejectionNote ? escapeHtml(rejectionNote) : undefined;
-  const primaryColor = styleOverrides?.primaryColor || BRAND_COLORS.primary;
+  const primaryColor = sanitizeColor(styleOverrides?.primaryColor || BRAND_COLORS.primary, BRAND_COLORS.primary);
 
   const content = `
     <h1 style="color: ${primaryColor}; font-size: 24px; margin: 0 0 10px 0;">
